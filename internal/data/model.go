@@ -92,6 +92,12 @@ type BacktestOrder struct {
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
+type BacktestResult struct {
+	TaskID        string
+	Orders        []BacktestOrder
+	ResultSummary map[string]any
+}
+
 type Candle struct {
 	Exchange  string    `json:"exchange"`
 	Symbol    string    `json:"symbol"`
@@ -132,6 +138,13 @@ type SyncRepository interface {
 	ClaimDataSyncTask(ctx context.Context, workerID string, leaseTTL time.Duration) (DataSyncTask, bool, error)
 	SaveDataSyncResult(ctx context.Context, result DataSyncResult) error
 	MarkDataSyncFailed(ctx context.Context, taskID string, err error) error
+}
+
+type BacktestRepository interface {
+	ClaimBacktestTask(ctx context.Context, workerID string, leaseTTL time.Duration) (BacktestTask, bool, error)
+	SaveBacktestResult(ctx context.Context, result BacktestResult) error
+	MarkBacktestFailed(ctx context.Context, taskID string, err error) error
+	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 }
 
 type DataSyncResult struct {
