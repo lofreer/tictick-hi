@@ -1,0 +1,20 @@
+.trading-chart {
+  position: relative;
+  min-height: inherit;
+  height: 100%;
+  background: var(--tt-chart-bg);
+}
+
+.trading-chart__canvas {
+  min-height: inherit;
+  height: 100%;
+}
+
+.trading-chart__empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
