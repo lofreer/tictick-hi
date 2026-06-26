@@ -20,6 +20,9 @@
           <section class="task-form-section">
             <h2 class="task-section-title">{{ t("strategy.market") }}</h2>
             <div class="task-field-grid">
+              <NFormItem v-if="isBacktest" class="task-field--wide" :label="t('strategy.taskName')">
+                <NInput v-model:value="form.name" class="task-control" />
+              </NFormItem>
               <NFormItem :label="t('research.exchange')">
                 <NSelect v-model:value="form.exchange" class="task-control" :options="exchangeOptions" />
               </NFormItem>
@@ -51,6 +54,25 @@
                     :min="0"
                     :step="100"
                   />
+                </NFormItem>
+                <NFormItem :label="t('strategy.feeBps')">
+                  <NInputNumber
+                    v-model:value="form.feeBps"
+                    class="task-control"
+                    :min="0"
+                    :step="0.1"
+                  />
+                </NFormItem>
+                <NFormItem :label="t('strategy.slippageBps')">
+                  <NInputNumber
+                    v-model:value="form.slippageBps"
+                    class="task-control"
+                    :min="0"
+                    :step="0.1"
+                  />
+                </NFormItem>
+                <NFormItem :label="t('strategy.triggerMode')">
+                  <NSelect v-model:value="form.triggerMode" class="task-control" :options="triggerModeOptions" />
                 </NFormItem>
               </template>
               <template v-else>
@@ -132,6 +154,7 @@ import {
   NDatePicker,
   NForm,
   NFormItem,
+  NInput,
   NInputNumber,
   NSelect,
   NTag,
@@ -192,8 +215,14 @@ const executionModeOptions = computed<SelectOption[]>(() => [
   { label: t("strategy.live"), value: "live" },
 ]);
 
+const triggerModeOptions = computed<SelectOption[]>(() => [
+  { label: t("strategy.closedCandle"), value: "closed_candle" },
+  { label: t("strategy.minuteReplay"), value: "minute_replay" },
+]);
+
 const summaryRows = computed(() => {
   const rows = [
+    ...(isBacktest.value ? [{ label: t("strategy.taskName"), value: form.name }] : []),
     { label: t("research.exchange"), value: form.exchange },
     { label: t("research.symbol"), value: form.symbol },
     { label: t("research.interval"), value: form.interval },
@@ -205,6 +234,9 @@ const summaryRows = computed(() => {
       { label: t("research.startTime"), value: formatDate(form.startTime) },
       { label: t("research.endTime"), value: formatDate(form.endTime) },
       { label: t("strategy.initialBalance"), value: String(form.initialBalance) },
+      { label: t("strategy.feeBps"), value: String(form.feeBps) },
+      { label: t("strategy.slippageBps"), value: String(form.slippageBps) },
+      { label: t("strategy.triggerMode"), value: triggerModeLabel(form.triggerMode) },
     );
   } else {
     rows.push(
@@ -236,6 +268,10 @@ function formatParamValue(value: StrategyParamValue | undefined) {
     return value ? t("common.yes") : t("common.no");
   }
   return String(value);
+}
+
+function triggerModeLabel(value: string) {
+  return value === "minute_replay" ? t("strategy.minuteReplay") : t("strategy.closedCandle");
 }
 </script>
 
@@ -280,6 +316,10 @@ function formatParamValue(value: StrategyParamValue | undefined) {
 
 .task-control {
   width: 100%;
+}
+
+.task-field--wide {
+  grid-column: 1 / -1;
 }
 
 .task-summary {

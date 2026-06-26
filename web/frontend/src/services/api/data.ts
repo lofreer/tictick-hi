@@ -29,7 +29,9 @@ export type CandleQuery = {
   exchange: string;
   symbol: string;
   interval: string;
+  from?: string;
   limit?: number;
+  to?: string;
 };
 
 export const dataApi = {
@@ -66,6 +68,12 @@ export const dataApi = {
       interval: query.interval,
       limit: String(query.limit ?? 1000),
     });
+    if (query.from) {
+      params.set("from", query.from);
+    }
+    if (query.to) {
+      params.set("to", query.to);
+    }
     const response = await apiClient.get<CandleResponse[]>(`/candles?${params.toString()}`);
     return response.map(toChartCandle).filter((item): item is ChartCandle => item !== null);
   },
@@ -108,4 +116,3 @@ function toChartCandle(response: CandleResponse): ChartCandle | null {
     close,
   };
 }
-

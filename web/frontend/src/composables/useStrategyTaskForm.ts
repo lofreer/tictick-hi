@@ -2,9 +2,12 @@ import type { SelectOption } from "naive-ui";
 import { useMessage } from "naive-ui";
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 
+import { backtestsApi } from "@/services/api/backtests";
 import { strategiesApi } from "@/services/api/strategies";
 import type {
+  BacktestTriggerMode,
   StrategyDefinition,
   StrategyParamSpec,
   StrategyParamValue,
@@ -14,12 +17,16 @@ import type {
 export type StrategyTaskMode = "backtest" | "trading";
 
 type StrategyTaskForm = {
+  name: string;
   exchange: string;
   symbol: string;
   interval: string;
   startTime: number | null;
   endTime: number | null;
   initialBalance: number;
+  feeBps: number;
+  slippageBps: number;
+  triggerMode: BacktestTriggerMode;
   executionMode: "paper" | "live";
   riskLimitPct: number;
 };
@@ -28,8 +35,10 @@ const defaultIntervals = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 export function useStrategyTaskForm(mode: StrategyTaskMode) {
   const message = useMessage();
+  const router = useRouter();
   const { t } = useI18n();
 
+  const now = Date.now();
   const loading = ref(false);
   const submitLoading = ref(false);
   const error = ref("");
@@ -37,12 +46,16 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
   const selectedStrategyId = ref("");
   const paramValues = ref<StrategyParamValues>({});
   const form = reactive<StrategyTaskForm>({
+    name: "BTCUSDT backtest",
     exchange: "binance",
     symbol: "BTCUSDT",
     interval: "5m",
-    startTime: null,
-    endTime: null,
+    startTime: now - 30 * 24 * 60 * 60 * 1000,
+    endTime: now,
     initialBalance: 10000,
+    feeBps: 1,
+    slippageBps: 0,
+    triggerMode: "closed_candle",
     executionMode: "paper",
     riskLimitPct: 10,
   });
@@ -65,6 +78,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       form.symbol !== "" &&
       form.interval !== "" &&
       selectedStrategy.value !== undefined &&
+      taskFieldsValid() &&
       selectedStrategy.value.params.every((param) => isFilled(param, paramValues.value[param.key])),
   );
 
@@ -113,11 +127,48 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
 
     submitLoading.value = true;
     try {
-      await Promise.resolve();
-      message.success(mode === "backtest" ? t("strategy.backtestReady") : t("strategy.tradingReady"));
+      if (mode === "backtest") {
+        const created = await backtestsApi.createBacktest({
+          name: form.name,
+          exchange: form.exchange,
+          symbol: form.symbol,
+          interval: form.interval,
+          startTime: toISOString(form.startTime),
+          endTime: toISOString(form.endTime),
+          strategyId: selectedStrategy.value.id,
+          strategyParams: compactParamValues(paramValues.value),
+          initialBalance: String(form.initialBalance),
+          feeBps: String(form.feeBps),
+          slippageBps: String(form.slippageBps),
+          triggerMode: form.triggerMode,
+        });
+        message.success(t("strategy.backtestCreated"));
+        await router.push({ name: "backtests-detail", params: { id: created.id } });
+      } else {
+        await Promise.resolve();
+        message.success(t("strategy.tradingReady"));
+      }
+    } catch (submitError) {
+      const fallback = mode === "backtest" ? t("strategy.backtestCreateFailed") : t("strategy.taskSubmitFailed");
+      message.error(errorMessage(submitError, fallback));
     } finally {
       submitLoading.value = false;
     }
+  }
+
+  function taskFieldsValid() {
+    if (mode !== "backtest") {
+      return true;
+    }
+    return (
+      form.name !== "" &&
+      form.startTime !== null &&
+      form.endTime !== null &&
+      form.startTime < form.endTime &&
+      form.initialBalance > 0 &&
+      form.feeBps >= 0 &&
+      form.slippageBps >= 0
+    );
   }
 
   return {
@@ -172,6 +223,14 @@ function isFilled(param: StrategyParamSpec, value: StrategyParamValue | undefine
     return typeof value === "boolean";
   }
   return typeof value === "string" && value.length > 0;
+}
+
+function toISOString(value: number | null) {
+  return value === null ? undefined : new Date(value).toISOString();
+}
+
+function compactParamValues(values: StrategyParamValues) {
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== null)) as StrategyParamValues;
 }
 
 function errorMessage(error: unknown, fallback: string) {

@@ -44,6 +44,58 @@ export type CreateDataSyncTask = {
   endTime?: string;
 };
 
+export type BacktestTriggerMode = "closed_candle" | "minute_replay";
+
+export type BacktestTask = {
+  id: string;
+  name: string;
+  exchange: string;
+  symbol: string;
+  interval: string;
+  startTime?: string;
+  endTime?: string;
+  strategyId: string;
+  strategyParams: Record<string, unknown>;
+  initialBalance: string;
+  feeBps: string;
+  slippageBps: string;
+  triggerMode: BacktestTriggerMode;
+  status: TaskStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  lastError?: string;
+  attemptCount: number;
+  resultSummary: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateBacktestTask = {
+  name: string;
+  exchange: string;
+  symbol: string;
+  interval: string;
+  startTime?: string;
+  endTime?: string;
+  strategyId: string;
+  strategyParams: StrategyParamValues;
+  initialBalance: string;
+  feeBps: string;
+  slippageBps: string;
+  triggerMode: BacktestTriggerMode;
+};
+
+export type BacktestOrder = {
+  id: string;
+  backtestId: string;
+  intentId?: string;
+  side: string;
+  price: string;
+  quantity: string;
+  status: string;
+  occurredAt: string;
+};
+
 export type StrategyParamValue = string | number | boolean | null;
 
 export type StrategyParamValues = Record<string, StrategyParamValue>;

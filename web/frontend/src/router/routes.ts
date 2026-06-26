@@ -1,7 +1,9 @@
 import type { RouteRecordRaw } from "vue-router";
 
 import AppShell from "@/components/layout/AppShell.vue";
+import BacktestDetailPage from "@/pages/BacktestDetailPage.vue";
 import BacktestNewPage from "@/pages/BacktestNewPage.vue";
+import BacktestsPage from "@/pages/BacktestsPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import PageStub from "@/pages/PageStub.vue";
 import ResearchPage from "@/pages/ResearchPage.vue";
@@ -34,8 +36,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "backtests",
         name: "backtests",
-        component: PageStub,
-        props: { titleKey: "page.backtests.title", subtitleKey: "page.backtests.subtitle" },
+        component: BacktestsPage,
       },
       {
         path: "backtests/new",
@@ -45,8 +46,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "backtests/:id",
         name: "backtests-detail",
-        component: PageStub,
-        props: { titleKey: "page.backtestsDetail.title" },
+        component: BacktestDetailPage,
       },
       {
         path: "trading",
