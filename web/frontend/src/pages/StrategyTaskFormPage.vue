@@ -1,0 +1,344 @@
+<template>
+  <section class="page">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">{{ t(titleKey) }}</h1>
+        <p class="page-subtitle">{{ t(subtitleKey) }}</p>
+      </div>
+      <NButton type="primary" :loading="submitLoading" :disabled="!canSubmit" @click="submit">
+        <template #icon>
+          <FlaskConical v-if="isBacktest" :size="17" />
+          <Play v-else :size="17" />
+        </template>
+        {{ t(ctaKey) }}
+      </NButton>
+    </header>
+
+    <div class="task-form-grid">
+      <section class="surface task-form-panel">
+        <NForm label-placement="top">
+          <section class="task-form-section">
+            <h2 class="task-section-title">{{ t("strategy.market") }}</h2>
+            <div class="task-field-grid">
+              <NFormItem :label="t('research.exchange')">
+                <NSelect v-model:value="form.exchange" class="task-control" :options="exchangeOptions" />
+              </NFormItem>
+              <NFormItem :label="t('research.symbol')">
+                <NSelect v-model:value="form.symbol" class="task-control" :options="symbolOptions" filterable tag />
+              </NFormItem>
+              <NFormItem :label="t('research.interval')">
+                <NSelect v-model:value="form.interval" class="task-control" :options="intervalOptions" />
+              </NFormItem>
+            </div>
+          </section>
+
+          <section class="task-form-section">
+            <h2 class="task-section-title">
+              {{ t(isBacktest ? "strategy.backtestSettings" : "strategy.tradingSettings") }}
+            </h2>
+            <div class="task-field-grid">
+              <template v-if="isBacktest">
+                <NFormItem :label="t('research.startTime')">
+                  <NDatePicker v-model:value="form.startTime" class="task-control" type="datetime" clearable />
+                </NFormItem>
+                <NFormItem :label="t('research.endTime')">
+                  <NDatePicker v-model:value="form.endTime" class="task-control" type="datetime" clearable />
+                </NFormItem>
+                <NFormItem :label="t('strategy.initialBalance')">
+                  <NInputNumber
+                    v-model:value="form.initialBalance"
+                    class="task-control"
+                    :min="0"
+                    :step="100"
+                  />
+                </NFormItem>
+              </template>
+              <template v-else>
+                <NFormItem :label="t('strategy.executionMode')">
+                  <NSelect v-model:value="form.executionMode" class="task-control" :options="executionModeOptions" />
+                </NFormItem>
+                <NFormItem :label="t('strategy.riskLimitPct')">
+                  <NInputNumber
+                    v-model:value="form.riskLimitPct"
+                    class="task-control"
+                    :min="0"
+                    :max="100"
+                    :step="0.5"
+                  />
+                </NFormItem>
+              </template>
+            </div>
+          </section>
+
+          <section class="task-form-section">
+            <div class="task-section-heading">
+              <h2 class="task-section-title">{{ t("strategy.strategy") }}</h2>
+              <NTag v-if="selectedStrategy" size="small" round>{{ selectedStrategy.version }}</NTag>
+            </div>
+            <NFormItem :label="t('strategy.selectedStrategy')">
+              <NSelect
+                v-model:value="selectedStrategyId"
+                class="task-control"
+                :loading="loading"
+                :options="strategyOptions"
+              />
+            </NFormItem>
+
+            <ErrorState v-if="error" :title="error" retryable @retry="loadStrategies" />
+            <LoadingState v-else-if="loading" />
+            <StrategyParamForm
+              v-else-if="selectedStrategy"
+              v-model:value="paramValues"
+              :params="selectedStrategy.params"
+            />
+            <EmptyState v-else :title="t('strategy.noStrategies')" />
+          </section>
+        </NForm>
+      </section>
+
+      <aside class="side-panel">
+        <section class="surface task-summary">
+          <h2 class="task-section-title">{{ t("strategy.summary") }}</h2>
+          <dl class="task-summary__list">
+            <template v-for="row in summaryRows" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </template>
+          </dl>
+          <div v-if="selectedStrategy" class="task-summary__strategy">
+            <NText depth="3">{{ selectedStrategy.description }}</NText>
+            <div class="task-summary__tags">
+              <NTag v-for="intent in selectedStrategy.supportedIntents" :key="intent" size="small">
+                {{ intent }}
+              </NTag>
+            </div>
+          </div>
+          <dl v-if="paramRows.length > 0" class="task-summary__list">
+            <template v-for="row in paramRows" :key="row.key">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </template>
+          </dl>
+        </section>
+      </aside>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { FlaskConical, Play } from "@lucide/vue";
+import {
+  NButton,
+  NDatePicker,
+  NForm,
+  NFormItem,
+  NInputNumber,
+  NSelect,
+  NTag,
+  NText,
+  type SelectOption,
+} from "naive-ui";
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+import EmptyState from "@/components/common/EmptyState.vue";
+import ErrorState from "@/components/common/ErrorState.vue";
+import LoadingState from "@/components/common/LoadingState.vue";
+import StrategyParamForm from "@/components/strategy/StrategyParamForm.vue";
+import { useStrategyTaskForm, type StrategyTaskMode } from "@/composables/useStrategyTaskForm";
+import type { StrategyParamValue } from "@/types/app";
+
+const props = defineProps<{
+  mode: StrategyTaskMode;
+}>();
+
+const { t } = useI18n();
+const {
+  canSubmit,
+  error,
+  form,
+  intervalOptions,
+  loadStrategies,
+  loading,
+  paramValues,
+  selectedStrategy,
+  selectedStrategyId,
+  strategyOptions,
+  submit,
+  submitLoading,
+} = useStrategyTaskForm(props.mode);
+
+const isBacktest = computed(() => props.mode === "backtest");
+const titleKey = computed(() => (isBacktest.value ? "page.backtestsNew.title" : "page.tradingNew.title"));
+const subtitleKey = computed(() =>
+  isBacktest.value ? "page.backtestsNew.subtitle" : "page.tradingNew.subtitle",
+);
+const ctaKey = computed(() => (isBacktest.value ? "strategy.createBacktest" : "strategy.createTradingTask"));
+
+const exchangeOptions = computed<SelectOption[]>(() => [
+  { label: "Binance", value: "binance" },
+  { label: "OKX", value: "okx" },
+]);
+
+const symbolOptions = computed<SelectOption[]>(() => [
+  { label: "BTCUSDT", value: "BTCUSDT" },
+  { label: "ETHUSDT", value: "ETHUSDT" },
+  { label: "BTC-USDT", value: "BTC-USDT" },
+  { label: "ETH-USDT", value: "ETH-USDT" },
+]);
+
+const executionModeOptions = computed<SelectOption[]>(() => [
+  { label: t("strategy.paper"), value: "paper" },
+  { label: t("strategy.live"), value: "live" },
+]);
+
+const summaryRows = computed(() => {
+  const rows = [
+    { label: t("research.exchange"), value: form.exchange },
+    { label: t("research.symbol"), value: form.symbol },
+    { label: t("research.interval"), value: form.interval },
+    { label: t("strategy.selectedStrategy"), value: selectedStrategy.value?.name ?? "-" },
+  ];
+
+  if (isBacktest.value) {
+    rows.push(
+      { label: t("research.startTime"), value: formatDate(form.startTime) },
+      { label: t("research.endTime"), value: formatDate(form.endTime) },
+      { label: t("strategy.initialBalance"), value: String(form.initialBalance) },
+    );
+  } else {
+    rows.push(
+      { label: t("strategy.executionMode"), value: t(`strategy.${form.executionMode}`) },
+      { label: t("strategy.riskLimitPct"), value: `${form.riskLimitPct}%` },
+    );
+  }
+
+  return rows;
+});
+
+const paramRows = computed(() =>
+  (selectedStrategy.value?.params ?? []).map((param) => ({
+    key: param.key,
+    label: param.label,
+    value: formatParamValue(paramValues.value[param.key]),
+  })),
+);
+
+function formatDate(value: number | null) {
+  return value === null ? "-" : new Date(value).toLocaleString();
+}
+
+function formatParamValue(value: StrategyParamValue | undefined) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+  if (typeof value === "boolean") {
+    return value ? t("common.yes") : t("common.no");
+  }
+  return String(value);
+}
+</script>
+
+<style scoped>
+.task-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.task-form-panel,
+.task-summary {
+  padding: 16px;
+}
+
+.task-form-section + .task-form-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--tt-line);
+}
+
+.task-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-section-title {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.task-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 0 14px;
+}
+
+.task-control {
+  width: 100%;
+}
+
+.task-summary {
+  position: sticky;
+  top: 88px;
+}
+
+.task-summary__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 10px 12px;
+  margin: 12px 0 0;
+}
+
+.task-summary__list dt,
+.task-summary__list dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.task-summary__list dt {
+  color: var(--tt-muted);
+}
+
+.task-summary__list dd {
+  overflow-wrap: anywhere;
+  font-weight: 650;
+  text-align: right;
+}
+
+.task-summary__strategy {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--tt-line);
+}
+
+.task-summary__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 1080px) {
+  .task-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-summary {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

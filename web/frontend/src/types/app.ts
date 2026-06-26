@@ -43,3 +43,37 @@ export type CreateDataSyncTask = {
   startTime?: string;
   endTime?: string;
 };
+
+export type StrategyParamValue = string | number | boolean | null;
+
+export type StrategyParamValues = Record<string, StrategyParamValue>;
+
+export type StrategyOption = {
+  label: string;
+  value: string;
+};
+
+export type StrategyParamType = "number" | "select" | "text" | "boolean";
+
+export type StrategyParamSpec = {
+  key: string;
+  label: string;
+  type: StrategyParamType;
+  required: boolean;
+  default?: StrategyParamValue;
+  min?: number;
+  max?: number;
+  step?: number;
+  options: StrategyOption[];
+  description?: string;
+};
+
+export type StrategyDefinition = {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  supportedIntervals: string[];
+  supportedIntents: string[];
+  params: StrategyParamSpec[];
+};

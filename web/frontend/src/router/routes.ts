@@ -1,9 +1,11 @@
 import type { RouteRecordRaw } from "vue-router";
 
 import AppShell from "@/components/layout/AppShell.vue";
+import BacktestNewPage from "@/pages/BacktestNewPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import PageStub from "@/pages/PageStub.vue";
 import ResearchPage from "@/pages/ResearchPage.vue";
+import TradingNewPage from "@/pages/TradingNewPage.vue";
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -38,8 +40,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "backtests/new",
         name: "backtests-new",
-        component: PageStub,
-        props: { titleKey: "page.backtestsNew.title" },
+        component: BacktestNewPage,
       },
       {
         path: "backtests/:id",
@@ -56,8 +57,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "trading/new",
         name: "trading-new",
-        component: PageStub,
-        props: { titleKey: "page.tradingNew.title" },
+        component: TradingNewPage,
       },
       {
         path: "trading/:id",
@@ -93,4 +93,3 @@ export const routes: RouteRecordRaw[] = [
   },
   { path: "/:pathMatch(.*)*", redirect: "/overview" },
 ];
-
