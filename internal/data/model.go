@@ -98,6 +98,82 @@ type BacktestResult struct {
 	ResultSummary map[string]any
 }
 
+type TradingTask struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Type           string         `json:"type"`
+	Exchange       string         `json:"exchange"`
+	AccountID      string         `json:"accountId"`
+	Symbol         string         `json:"symbol"`
+	StrategyID     string         `json:"strategyId"`
+	StrategyParams map[string]any `json:"strategyParams"`
+	IntentPolicy   map[string]any `json:"intentPolicy"`
+	Status         TaskStatus     `json:"status"`
+	StartedAt      *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt     *time.Time     `json:"finishedAt,omitempty"`
+	LastError      string         `json:"lastError,omitempty"`
+	AttemptCount   int            `json:"attemptCount"`
+	CreatedAt      time.Time      `json:"createdAt"`
+	UpdatedAt      time.Time      `json:"updatedAt"`
+}
+
+type CreateTradingTask struct {
+	Name           string         `json:"name"`
+	Type           string         `json:"type"`
+	Exchange       string         `json:"exchange"`
+	AccountID      string         `json:"accountId"`
+	Symbol         string         `json:"symbol"`
+	StrategyID     string         `json:"strategyId"`
+	StrategyParams map[string]any `json:"strategyParams"`
+	IntentPolicy   map[string]any `json:"intentPolicy"`
+}
+
+type StrategyIntent struct {
+	ID             string         `json:"id"`
+	TaskID         string         `json:"taskId"`
+	TaskType       string         `json:"taskType"`
+	StrategyID     string         `json:"strategyId"`
+	IntentType     string         `json:"intentType"`
+	IdempotencyKey string         `json:"idempotencyKey"`
+	Payload        map[string]any `json:"payload"`
+	Policy         string         `json:"policy"`
+	Status         string         `json:"status"`
+	CreatedAt      time.Time      `json:"createdAt"`
+}
+
+type Order struct {
+	ID                      string         `json:"id"`
+	TaskID                  string         `json:"taskId"`
+	TaskType                string         `json:"taskType"`
+	IntentID                string         `json:"intentId,omitempty"`
+	IdempotencyKey          string         `json:"idempotencyKey"`
+	Exchange                string         `json:"exchange"`
+	AccountID               string         `json:"accountId"`
+	Symbol                  string         `json:"symbol"`
+	Side                    string         `json:"side"`
+	OrderType               string         `json:"orderType"`
+	Price                   string         `json:"price"`
+	Quantity                string         `json:"quantity"`
+	Status                  string         `json:"status"`
+	ExchangeOrderID         string         `json:"exchangeOrderId,omitempty"`
+	ExchangeResponseSummary map[string]any `json:"exchangeResponseSummary"`
+	LastError               string         `json:"lastError,omitempty"`
+	CreatedAt               time.Time      `json:"createdAt"`
+	UpdatedAt               time.Time      `json:"updatedAt"`
+}
+
+type Notification struct {
+	ID        string     `json:"id"`
+	IntentID  string     `json:"intentId,omitempty"`
+	Channel   string     `json:"channel"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	Status    string     `json:"status"`
+	Error     string     `json:"error,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	SentAt    *time.Time `json:"sentAt,omitempty"`
+}
+
 type Candle struct {
 	Exchange  string    `json:"exchange"`
 	Symbol    string    `json:"symbol"`
@@ -132,6 +208,13 @@ type Repository interface {
 	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
 	GetBacktestTask(ctx context.Context, id string) (BacktestTask, error)
 	ListBacktestOrders(ctx context.Context, backtestID string) ([]BacktestOrder, error)
+	ListTradingTasks(ctx context.Context) ([]TradingTask, error)
+	CreateTradingTask(ctx context.Context, task CreateTradingTask) (TradingTask, error)
+	GetTradingTask(ctx context.Context, id string) (TradingTask, error)
+	SetTradingTaskStatus(ctx context.Context, id string, status TaskStatus) (TradingTask, error)
+	ListTradingIntents(ctx context.Context, taskID string) ([]StrategyIntent, error)
+	ListTradingOrders(ctx context.Context, taskID string) ([]Order, error)
+	ListTradingNotifications(ctx context.Context, taskID string) ([]Notification, error)
 }
 
 type SyncRepository interface {

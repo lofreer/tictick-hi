@@ -155,9 +155,75 @@ func TestBacktestRoutes(t *testing.T) {
 	}
 }
 
+func TestTradingTaskRoutes(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServer(repository, "")
+
+	createBody := bytes.NewBufferString(`{
+		"name":"Paper EMA",
+		"type":"paper",
+		"exchange":"binance",
+		"accountId":"paper",
+		"symbol":"BTCUSDT",
+		"strategyId":"ema-cross",
+		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
+		"intentPolicy":{"orderIntent":"execute","notificationChannel":"default"}
+	}`)
+	createRecorder := httptest.NewRecorder()
+	server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, "/api/trading/tasks", createBody))
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+
+	var created data.TradingTask
+	if err := json.NewDecoder(createRecorder.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	if created.ID == "" || created.Type != "paper" || created.Status != data.TaskStatusPending {
+		t.Fatalf("unexpected trading task: %#v", created)
+	}
+
+	liveBody := bytes.NewBufferString(`{
+		"name":"Live EMA",
+		"type":"live",
+		"exchange":"binance",
+		"accountId":"acct_live",
+		"symbol":"BTCUSDT",
+		"strategyId":"ema-cross",
+		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
+		"intentPolicy":{"orderIntent":"notify","notificationChannel":"default"}
+	}`)
+	liveRecorder := httptest.NewRecorder()
+	server.ServeHTTP(liveRecorder, httptest.NewRequest(http.MethodPost, "/api/trading/tasks", liveBody))
+	if liveRecorder.Code != http.StatusCreated {
+		t.Fatalf("live create status = %d body = %s", liveRecorder.Code, liveRecorder.Body.String())
+	}
+
+	startRecorder := httptest.NewRecorder()
+	server.ServeHTTP(startRecorder, httptest.NewRequest(http.MethodPost, "/api/trading/tasks/"+created.ID+"/start", nil))
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status = %d body = %s", startRecorder.Code, startRecorder.Body.String())
+	}
+
+	for _, path := range []string{
+		"/api/trading/tasks",
+		"/api/trading/tasks/" + created.ID,
+		"/api/trading/tasks/" + created.ID + "/intents",
+		"/api/trading/tasks/" + created.ID + "/orders",
+		"/api/trading/tasks/" + created.ID + "/notifications",
+	} {
+		recorder := httptest.NewRecorder()
+		server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
 type fakeRepository struct {
 	backtestOrders map[string][]data.BacktestOrder
 	backtests      []data.BacktestTask
+	tradingTasks   []data.TradingTask
 	tasks          []data.DataSyncTask
 	candles        []data.Candle
 }
@@ -285,6 +351,68 @@ func (repository *fakeRepository) ListBacktestOrders(
 	backtestID string,
 ) ([]data.BacktestOrder, error) {
 	return append([]data.BacktestOrder(nil), repository.backtestOrders[backtestID]...), nil
+}
+
+func (repository *fakeRepository) ListTradingTasks(context.Context) ([]data.TradingTask, error) {
+	return append([]data.TradingTask(nil), repository.tradingTasks...), nil
+}
+
+func (repository *fakeRepository) CreateTradingTask(
+	_ context.Context,
+	request data.CreateTradingTask,
+) (data.TradingTask, error) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	task := data.TradingTask{
+		ID:             "tt_" + request.Type,
+		Name:           request.Name,
+		Type:           request.Type,
+		Exchange:       request.Exchange,
+		AccountID:      request.AccountID,
+		Symbol:         request.Symbol,
+		StrategyID:     request.StrategyID,
+		StrategyParams: request.StrategyParams,
+		IntentPolicy:   request.IntentPolicy,
+		Status:         data.TaskStatusPending,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	repository.tradingTasks = append(repository.tradingTasks, task)
+	return task, nil
+}
+
+func (repository *fakeRepository) GetTradingTask(_ context.Context, id string) (data.TradingTask, error) {
+	for _, task := range repository.tradingTasks {
+		if task.ID == id {
+			return task, nil
+		}
+	}
+	return data.TradingTask{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) SetTradingTaskStatus(
+	_ context.Context,
+	id string,
+	status data.TaskStatus,
+) (data.TradingTask, error) {
+	for index := range repository.tradingTasks {
+		if repository.tradingTasks[index].ID == id {
+			repository.tradingTasks[index].Status = status
+			return repository.tradingTasks[index], nil
+		}
+	}
+	return data.TradingTask{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) ListTradingIntents(context.Context, string) ([]data.StrategyIntent, error) {
+	return nil, nil
+}
+
+func (repository *fakeRepository) ListTradingOrders(context.Context, string) ([]data.Order, error) {
+	return nil, nil
+}
+
+func (repository *fakeRepository) ListTradingNotifications(context.Context, string) ([]data.Notification, error) {
+	return nil, nil
 }
 
 func (repository *fakeRepository) updateTask(
