@@ -1,3324 +1,1923 @@
-# tictick-hi 实施计划
+# tictick-hi 小而美交易系统实施计划
 
-## 0. 阅读约定与硬约束
+## 0. 文档状态
 
-本文档不是愿景稿，而是 `tictick-hi` 第一版实现的工程契约。后续代码实现、重构和功能扩展都必须以本文档为边界。如果实现中发现本文档不够精确，先更新计划并确认边界，再写代码。
+本文档是 `tictick-hi` 重新设计后的主计划文档。
 
-术语约定：
+本文档只记录已经确认的产品理解、前端交互、核心模块、实现边界和分阶段验收。后续实现如果发现边界不清，先更新本文档，再写代码。
 
-- `MUST` 表示必须满足，不满足不能合并。
-- `SHOULD` 表示默认必须满足，只有明确记录原因才能例外。
-- `MUST NOT` 表示禁止实现。
-- “任务”特指 `strategy_tasks` 中的一条可运行策略任务。
-- “运行”特指 `task_runs` 中由 daemon 实际启动的一次 runtime 实例。
+当前已经确认：
 
-不可妥协的硬约束：
+- `tictick-hi` 是多交易所、多账号交易系统。
+- 它不是单脚本策略执行器。
+- 它也不是大而杂的机构化系统。
+- 前端展示必须先被定义清楚。
+- 顶部导航平铺，不做传统左侧管理后台。
+- 数据同步和 K 线图表研究是高权重能力，且可以在同一个研究页面中呈现。
+- 数据实时同步必须在系统重启后立即恢复，继续同步对应交易所、交易对、周期的数据。
+- 如果第一版只同步 `1m` K 线，系统内部必须提供 K 线聚合能力，用 `1m` 生成更高周期供图表、回测、模拟盘 / 实盘策略使用。
+- 策略代码沉淀在后端目录中，前端只映射选择和配置参数。
+- 模拟盘 / 实盘是系统的重要任务类型，不要求先回测才能使用。
+- 策略运行后产生意图，意图可以是订单，也可以是通知。
+- 信号通知不是并列任务类型，而是策略意图的一种。
+- 交易所账号在操作台的系统管理中配置。
+- 前端整体风格参考 `tictickbot` 项目，再向 `tictick-lite` 的卡片式体验靠拢。
+- 前端必须支持双色主题：浅色主题和深色主题。
+- 主题色参考 `tictick-lite`。
+- Logo 使用 `tictick-lite` 的 logo。
+- 前端必须支持中英切换，不只是按钮展示，而是完整 i18n 能力。
+- 前端要像素级抠细节，该用第三方 UI 库就用第三方 UI 库，避免手写堆出难维护 UI 代码。
+- 前端构建方案确定为 Vue 3 + Vite + TypeScript + Naive UI + Pinia + vue-i18n + lightweight-charts + 原生 fetch typed wrapper + pnpm。
+- 后端除数据库驱动等必要依赖外，尽量少用第三方库，主打安全、清晰、可审计实现。
+- 数据库使用 PostgreSQL。
+- 交易所架构必须可扩展，但当前需要支持 Binance 和 OKX。
+- 系统按同一 Go 项目的单二进制多子命令模式拆分：`hi api`、`hi sync`、`hi trading`、`hi backtest`、`hi migrate`。
+- 第一版运行部署使用 Docker / Docker Compose；同一镜像通过不同 command 启动不同子命令。
+- worker 必须使用统一 lease 状态机。
+- 数据同步必须幂等，并支持重启后的断点恢复和尾部缺口修复。
+- 实盘必须有明确安全边界：密钥加密、live executor 隔离、订单意图幂等、账号禁用。
+- 前端必须先建立应用壳、主题、i18n、路由、API client 和图表封装，再实现业务页面。
 
-- MUST 保持单体 Go 项目，不拆微服务。
-- MUST 使用 PostgreSQL，不能引入第二套生产数据库。
-- MUST 提供 Docker / Docker Compose 单机部署能力，包含 app、PostgreSQL、migration、healthcheck 和示例配置。
-- MUST 第一版只启用 Binance 和 OKX；交易所层必须通过小接口和 adapter registry 保持可扩展，新增交易所需要新增 adapter、测试和明确设计记录，但不能要求重写核心交易链路。
-- MUST 让 backtest、paper、live 共享同一套 Strategy、Risk、Order、Fill、Portfolio 语义。
-- MUST 让每笔订单、成交、仓位、事件都能追溯到 `task_id`。
-- MUST 让 live task 可被单独启动、暂停、停止，不能实现成一个全局单脚本。
-- MUST 让控制命令只改变数据库期望状态，不能在 CLI 里直接启动 live 下单循环。
-- MUST 让策略只返回 `OrderIntent` / `NotificationIntent` 等意图，不能直接访问交易所、数据库、通知服务或 portfolio writer。
-- MUST 支持系统级通知和策略级通知路由；通知发送必须可追溯、可去重、可关闭。
-- MUST 让操作台保持简单，尤其数据同步页只能展示同步、检查、修复的必要信息。
-- MUST 让操作台具备基础登录鉴权、会话安全、CSRF 防护和操作审计，不能裸露管理接口。
-- MUST 让实盘相关危险操作具备防盗护栏：默认关闭交易、默认开启 kill switch、二次确认、必要时重新验证当前密码、API 密钥不入库不展示。
-- MUST NOT 为了“以后可能用到”提前引入复杂抽象、插件系统、权限系统或数据治理模型。
-- MUST NOT 在核心包中 import 具体交易所适配器、PostgreSQL 实现、HTTP handler 或 CLI。
-- MUST NOT 通过全局变量保存任务状态、仓位、订单序列或 exchange client。
-- MUST NOT 在 live 未知执行结果时直接标记失败；必须记录 uncertain / pending 状态并等待 reconcile。
-- MUST 对价格、数量、金额、手续费、PnL 使用明确类型和资产单位；不该使用 `float64` 的交易事实不能使用 `float64`，也不能让语义不明的 decimal 在核心链路中流动。
+当前待确认：
 
-## 1. 项目定位
+- 第一版具体支持哪些 K 线周期。
+- TradingView 开源图表库的具体接入包和授权边界。
+- 通知通道第一版启用哪些。
 
-`tictick-hi` 是一个小而美的多交易所交易机器人系统。它的目标不是复刻 `tictick-lite` 或 `tictick-pro` 的平台化复杂度，而是在 `tictick-bot` 的清爽运行模型上补齐多交易所、K 线数据同步和基于同步数据的回测能力。
+## 1. 产品定位
 
-一句话定位：
+`tictick-hi` 是一个小而美的多交易所、多账号交易系统。
 
-```text
-tictick-hi = tictick-bot 的多交易所版本 + K 线数据同步 + 数据库回测
-```
+它支持：
 
-核心目标：
+- 多交易所。
+- 同一交易所下多个账号。
+- 单账号下运行不同标的、不同策略。
+- 在操作台中配置交易所账号。
+- 使用 PostgreSQL。
+- 当前支持 Binance 和 OKX。
+- 交易所 adapter 边界保持可扩展。
+- 目标交易所、目标交易对、目标周期的 K 线数据同步。
+- 完整 K 线图表研究。
+- 后端策略沉淀。
+- 回测验证。
+- 模拟盘任务。
+- 实盘任务。
+- 策略意图处理：下单或通知。
+- 基础操作台登录。
+- 系统辅助管理能力。
 
-- 使用 Go 实现。
-- 使用 PostgreSQL 作为唯一持久化数据库。
-- 第一版只启用 Binance 和 OKX；后续可按 adapter 契约扩展更多交易所。
-- 支持同步多个交易所、多个交易对的 1m 历史 K 线。
-- 支持策略和回测使用多个周期，周期数据由 1m 内部聚合生成。
-- 第一版支持以 1m closed candle 作为最小时间钟触发策略执行；TimeClock 抽象不能把 1m 写死为架构上限，未来接入 tick / trade 级数据时可以使用更细的基础事件推进。
-- 支持简单数据完整性检测与修复。
-- 支持基于 PostgreSQL 中已同步 K 线做回测。
-- 支持多个模拟盘任务同时运行。
-- 支持多个实盘任务同时运行，并能按任务启动、暂停、停止。
-- 支持系统级通知和策略级信号通知。
-- 保持代码结构清爽、边界明确、工程实践可靠。
+它不应该变成：
 
-## 2. 非目标
+- 单文件脚本。
+- 只跑一个账号的策略 demo。
+- 传统 CRUD 管理后台。
+- `tictick-pro` 那样重治理、重证据、重平台化的系统。
+- 复杂机构化交易平台。
 
-第一版明确不做：
+## 2. 产品权重
 
-- 不做微服务。
-- 不做多租户。
-- 不做策略插件市场。
-- 不做复杂权限系统、MFA、审批流；第一版只做单管理员基础登录鉴权和操作防护。
-- 不做重型 Web 控制台。
-- 不做复杂数据治理中心。
-- 不做多语言策略。
-- 不做高频交易、低延迟撮合或复杂路由。
-- 第一版不做 tick / trade 级行情同步、存储和逐笔成交回测；但 TimeClock 抽象不能把 1m 固化成长期上限。
-- 第一版不做 Kubernetes、Helm、服务网格或复杂集群部署；Docker Compose 是标准部署路径。
-- 不做通用研究平台。
-- 不做过度抽象的交易所能力矩阵；交易所扩展点保持小而明确。
-- 不做多套订单状态机、多套账本或多套风控。
+以下不是线性流程，而是产品能力权重。
 
-所有功能必须服务于一条清楚的交易链路。
+从高到低：
 
-## 3. 核心形态
+1. 数据同步 + K 线图表研究。
+3. 策略沉淀。
+4. 回测验证。
+5. 模拟盘 / 实盘。
+6. 策略运行后产生意图。
+7. 意图被执行或通知。
+8. 观察结果。
 
-系统由一个常驻 daemon 管理多个任务：
+这些能力不是严格前后置关系。
 
-```text
-PostgreSQL
-  -> hi daemon
-      -> TaskSupervisor
-          -> PaperRunner(task A)
-          -> PaperRunner(task B)
-          -> LiveRunner(task C)
-          -> LiveRunner(task D)
-```
+特别说明：
 
-任务示例：
+- 回测用于验证策略，但系统不能表达为“必须先回测验证，才能创建模拟盘 / 实盘任务”。
+- 模拟盘和实盘是重要模块，本身就可以创建和运行。
+- 信号通知不是一种单独任务等级。任务是模拟盘或实盘；策略输出的意图可以是通知。
 
-```text
-task A: binance-main + BTCUSDT  + ema-cross + paper
-task B: okx-main     + ETH-USDT + grid      + paper
-task C: binance-main + SOLUSDT  + trend     + live
-task D: okx-main     + BTC-USDT + ema-cross + live
-```
+## 3. 顶部导航
 
-每个任务独立拥有：
+操作台使用顶部平铺导航，不使用左侧管理后台导航。
 
-- `task_id`
-- exchange account
-- strategy
-- symbol
-- interval
-- mode: `backtest` / `paper` / `live`
-- desired status: `running` / `paused` / `stopped` / `dry_run`
-- risk limits
-- runtime state
-
-控制命令只修改数据库中的期望状态；daemon 观察状态变化并负责启动、暂停或停止 runner。
-
-## 4. 核心交易链路
-
-每个任务内部保持同一条短链路：
+主导航从左到右：
 
 ```text
-Candle
-  -> Strategy
-  -> StrategyDecision
-      -> OrderIntent
-      -> NotificationIntent
-  -> Risk
-  -> Executor
-  -> ExecutionReport / Fill
-  -> Portfolio
-  -> NotificationRouter
-  -> Recorder
+概览 / 研究 / 回测 / 交易
 ```
 
-边界规则：
-
-- 策略只产生 `OrderIntent` 和 `NotificationIntent`，不能直接下单、不能直接发通知。
-- 策略不能写数据库。
-- 策略不能修改仓位。
-- 风控只做准入判断，不修改订单、不修改仓位。
-- 执行层只负责订单提交、撤单、状态查询和交易所回报。
-- 通知层只负责路由和投递，不参与交易决策。
-- Portfolio 是仓位、成本、手续费、PnL 的唯一事实源。
-- Backtest、Paper、Live 尽量共用订单、成交和账本语义。
-- 每笔订单必须能追溯到唯一 `task_id` 和 `strategy_id`。
-
-## 5. 推荐目录结构
+右侧工具区从右往左：
 
 ```text
-tictick-hi/
-  cmd/hi/                  CLI 入口
-  cmd/hid/                 daemon 入口，也可后续合并到 hi daemon
-  internal/core/           clock、id、component、基础错误
-  internal/config/         配置加载与校验
-  internal/auth/           Web 登录、会话、CSRF、密码校验
-  internal/model/          Candle、Order、Fill、Position、Portfolio
-  internal/exchange/       交易所接口定义
-  internal/adapter/binance Binance 适配器
-  internal/adapter/okx     OKX 适配器
-  internal/data/           K 线同步、检查、修复、查询、聚合
-  internal/strategy/       策略接口、注册表、内置策略
-  internal/risk/           全局、账户、任务、订单风控
-  internal/execution/      paper/live executor、订单状态语义
-  internal/portfolio/      账本、仓位、PnL
-  internal/notification/   通知事件、路由、投递 provider
-  internal/backtest/       回测 runner
-  internal/runtime/        task runner、supervisor、daemon loop
-  internal/store/          PostgreSQL repository 接口
-  internal/store/postgres  PostgreSQL 实现与 migrations
-  internal/web/            极简本机操作台，后置实现
-  web/frontend/            Vue 3 + Vite + TypeScript 操作台
-  docker/                  Docker entrypoint、healthcheck、部署辅助配置
-  deploy/compose/          docker-compose 示例和生产覆盖配置
-  Dockerfile               多阶段构建 app 镜像
-  .dockerignore
-  .env.example             Docker/本地部署环境变量示例，不含真实密钥
-  docs/                    设计和实施文档
-  scripts/                 smoke、test、migration 辅助脚本
+退出按钮 / 主题切换按钮 / 中英切换按钮 / 当前操作台账号按钮 / 系统管理菜单
 ```
 
-依赖方向：
+系统管理是二级菜单，包含系统辅助能力：
+
+- 通知管理。
+- 交易所账号管理。
+- 操作台账号管理。
+- 运维健康。
+- 后续必要辅助能力。
+
+导航原则：
+
+- 顶部直接平铺核心业务。
+- 数据同步列表并入研究页，不单独占一个一级导航。
+- 系统辅助能力收进系统管理。
+- 不把系统做成传统后台。
+- 不把通知、账号、运维健康挤到一级导航里抢业务主线权重。
+
+## 4. 前端整体布局
+
+页面整体结构：
 
 ```text
-cmd
-  -> config / runtime / store / adapter
-runtime
-  -> model / strategy / risk / execution / portfolio / store interfaces
-adapter
-  -> exchange / model
-store/postgres
-  -> store interfaces / model
-model
-  -> standard library only
+顶部主导航
+顶部右侧工具区
+当前页面主工作区
 ```
 
-核心包不能反向依赖 `cmd`、`web`、具体数据库实现或具体交易所实现。
+是否需要全局上下文栏暂不固定。页面可以按需要展示当前上下文，例如交易所、账号、交易对、周期、数据状态。
 
-## 6. PostgreSQL 数据模型
+界面气质：
 
-第一版保留必要事实，不做复杂数据治理。
+- 像交易研究工作台。
+- 不像后台管理系统。
+- 整体风格参考 `tictickbot`，再向 `tictick-lite` 的卡片式体验靠拢。
+- 主题色参考 `tictick-lite`。
+- Logo 使用 `tictick-lite` 的 logo。
+- 图表页必须让图表成为主体。
+- 列表页必须清爽，操作明确。
+- 详情页必须能回到图表观察。
+- 像素级抠细节，包括间距、字号、按钮状态、表格密度、卡片边界、暗色主题、中英文长度适配、响应式布局。
+- 必须支持浅色 / 深色双色主题。
+- 必须支持中文 / 英文切换。
+- 能用成熟第三方 UI 库的地方使用第三方 UI 库，不自己手写一套低质量组件。
+- 自定义样式只服务产品气质和细节打磨，不能演变成无边界 CSS 堆叠。
 
-主要表：
+### 4.1 UI 技术原则
+
+前端允许并鼓励使用合适的第三方 UI 库。
+
+选择 UI 库时必须满足：
+
+- Vue 3 生态成熟。
+- 组件质量稳定。
+- 表单、表格、弹窗、菜单、按钮、主题能力完整。
+- 支持暗色主题。
+- 支持中英文内容。
+- 支持主题变量或能被稳定覆盖，确保浅色 / 深色两套主题都能像素级打磨。
+- 不强迫页面变成传统后台风格。
+
+确定技术选型：
 
 ```text
-exchange_catalog
-exchange_accounts
-instrument_rules
-market_candles
-data_sync_jobs
-data_quality_reports
-strategies
-strategy_tasks
-task_runs
-orders
-fills
-positions
-portfolio_snapshots
-events
-settings
-notification_channels
-notification_routes
-notification_events
-notification_deliveries
-web_users
-web_sessions
+框架：Vue 3
+构建：Vite
+语言：TypeScript
+UI：Naive UI
+状态管理：Pinia
+i18n：vue-i18n
+图表：TradingView lightweight-charts
+请求：原生 fetch + typed API wrapper
+包管理：pnpm
+构建产物：web/frontend/dist
+静态服务：hi api 服务 web/frontend/dist
 ```
 
-### 6.0 exchange_catalog
+使用 UI 库的边界：
 
-交易所目录表，用来避免在所有业务表里硬编码交易所枚举。
+- 表单、表格、菜单、弹窗、按钮、开关、标签、提示等基础组件优先使用 UI 库。
+- TradingView 图表独立封装，不强行塞进 UI 库组件体系。
+- 页面布局和产品气质可以自定义，但不能重复造基础组件。
 
-第一版 seed：
+不再另选 Element Plus 或其它 UI 库，除非计划文档先更新并说明原因。
 
-- `binance`
-- `okx`
+### 4.2 主题和国际化
 
-字段：
+前端必须内置两套主题：
 
-- `id`: 稳定小写标识，例如 `binance`、`okx`
-- `name`
-- `enabled`
-- `created_at`
-- `updated_at`
+- 浅色主题。
+- 深色主题。
 
-规则：
+主题切换按钮位于顶部右侧工具区。
 
-- 第一版产品能力只暴露 Binance 和 OKX。
-- 业务表的 `exchange` 字段 SHOULD 引用 `exchange_catalog(id)`，不要到处写 `CHECK (exchange IN (...))`。
-- 新增交易所必须新增 adapter、symbol normalization、instrument rules 同步、数据同步测试、paper/live fake 测试和 live safety 检查。
-- 不允许为了未来交易所做巨大能力矩阵；暂时不支持的能力返回明确 `ErrUnsupported`。
+主题要求：
 
-### 6.1 exchange_accounts
+- 主题色以 `tictick-lite` 为参考来源。
+- 两套主题都必须可用，不允许只打磨其中一套。
+- 卡片、表格、按钮、菜单、弹窗、图表外壳、状态标签、输入框都要适配。
+- 主题色、背景色、边框色、文字层级、hover / active / disabled 状态都要统一。
+- TradingView 图表需要跟随主题切换。
 
-记录交易所账号配置：
+前端必须内置中英两套语言：
 
-- `id`
-- `exchange`: 第一版为 `binance` / `okx`，必须存在于 `exchange_catalog`
-- `market`: 第一版默认 `spot`
-- `environment`: `testnet` / `production` / `sandbox`
-- `api_key_env`
-- `secret_key_env`
-- `passphrase_env`: OKX 使用
-- `trade_enabled`
-- `created_at`
-- `updated_at`
+- 中文。
+- 英文。
 
-密钥不入库，只保存环境变量名。
+中英切换按钮位于顶部右侧工具区。
 
-### 6.1.1 instrument_rules
+国际化要求：
 
-交易所交易规则表，避免价格、数量和最小名义价值在代码中散落：
+- 一级导航、系统管理菜单、按钮、表单字段、表格列、状态文案、错误提示、空状态、弹窗确认文案都必须纳入 i18n。
+- 不能只翻译导航栏。
+- 页面布局要考虑英文更长、中文更短的差异。
+- 创建任务、回测详情、交易详情、通知记录等关键页面都必须可切换语言。
 
-- `exchange`
-- `market`
-- `symbol`
-- `base_asset`
-- `quote_asset`
-- `tick_size`
-- `step_size`
-- `min_quantity`
-- `min_notional`
-- `notional_asset`
-- `updated_at`
+## 5. 概览页
 
-用途：
+概览页用于整体概要展示。
 
-- live 下单前按交易所规则舍入和校验。
-- backtest / paper 记录本次运行使用的规则。
-- 风控按舍入后的订单重新计算 notional。
+它应该回答：
 
-### 6.2 market_candles
+- 当前有哪些数据同步任务。
+- 哪些任务正在实时同步。
+- 哪些数据源有缺口或异常。
+- 最近回测任务结果概况。
+- 当前模拟盘 / 实盘任务运行状态。
+- 最近策略意图。
+- 最近订单。
+- 最近通知。
+- 系统健康状态。
 
-历史 K 线事实表。第一版只保存交易所原始 1m K 线：
+概览页不做复杂配置。
 
-- `exchange`
-- `market`
-- `symbol`
-- `interval`: 第一版必须为 `1m`
-- `open_time`
-- `open`
-- `high`
-- `low`
-- `close`
-- `volume`
-- `complete`
-- `source`: 第一版固定为 `exchange`
-- `ingested_at`
+概览页不替代数据、研究、回测、交易详情页。
 
-唯一键：
+## 6. 研究页
+
+研究页是 K 线图表和数据同步合并后的高权重核心页面。
+
+核心能力：
+
+- 使用 TradingView 开源图表。
+- 可选择不同 K 线数据加载展示。
+- 支持选择交易所。
+- 支持选择交易对。
+- 支持选择周期。
+- 选择的展示周期可以是原始同步周期，也可以是由系统内部聚合得到的周期。
+- 展示数据同步任务列表。
+- 支持创建新同步任务。
+- 显示数据同步状态。
+- 支持从回测详情跳转或嵌入展示买卖点。
+
+研究页的主区域：
+
+- K 线图表占主要面积。
+- 数据同步列表不会太多，作为研究页中的轻量区域展示。
+- 图表工具能力优先于表格堆叠。
+- 不做“上面一堆表单，下面一小块图表”。
+
+研究页中的数据同步列表每一项展示：
+
+- 交易所。
+- 交易对。
+- 周期。
+- 最新同步时间。
+- 实时状态。
+- 同步状态。
+- 最近错误。
+
+每一项操作按钮：
+
+- 实时 / 停止实时。
+- 同步 / 停止同步。
+- 查看图表。
+- 删除。
+
+点击“查看图表”时，在当前研究页加载该数据源，不跳转到独立数据页。
+
+研究页可逐步增强：
+
+- 指标叠加。
+- 成交量。
+- 买卖点标记。
+- 策略信号点。
+- 回测订单点位。
+- 数据缺口提示。
+- 时间范围切换。
+
+第一版验收：
+
+- 能打开研究页。
+- 能选择已有 K 线数据。
+- 能加载 K 线图表。
+- 能显示当前数据源基础信息。
+- 能看到数据同步列表。
+- 能创建数据同步任务。
+- 能对同步任务执行实时 / 停止实时、同步 / 停止同步、查看图表、删除。
+- 图表区域是页面主体。
+
+## 7. 数据同步能力
+
+术语解释：
+
+- “同步”表示补齐或推进历史 / 当前 K 线数据。
+- “实时”表示持续监听或持续轮询最新 K 线，让数据保持更新。
+- “基础周期”表示直接从交易所同步并持久化的原始 K 线周期，第一版可以先以 `1m` 为基础周期。
+- “聚合周期”表示系统内部根据基础周期生成的更高周期，例如 `5m`、`15m`、`1h`、`4h`、`1d`。
+- 二者可以在交互上区分，避免用户不知道当前是在补数据还是在保持实时。
+
+基础周期和聚合周期：
+
+- 如果当前只同步 `1m` K 线，`1m` 是系统的 canonical market data。
+- 更高周期 K 线必须由系统内部聚合层从 `1m` 生成。
+- 图表选择 `5m`、`15m`、`1h` 等周期时，不要求交易所同步任务分别拉取这些周期。
+- 回测、模拟盘、实盘策略使用更高周期时，也必须走同一套聚合层。
+- 聚合层必须被后端统一封装，不能让前端自行聚合 K 线。
+- 聚合层必须能判断聚合 K 线是否闭合。
+- 未闭合的聚合 K 线可以用于图表展示，但不能被当成闭合周期信号。
+- 聚合边界必须统一使用 UTC 时间，不跟随浏览器时区漂移。
+
+周期数据选择规则：
+
+- 请求某个周期 K 线时，统一通过后端 `CandleProvider` 或等价查询服务获取。
+- 如果数据库中存在该周期的健康原始 K 线，可以直接返回该周期数据。
+- 如果没有合适的同周期 K 线，系统必须尝试用已同步的更小周期 K 线内部聚合。
+- 第一版默认用 `1m` 聚合更高周期。
+- 只能从更小周期聚合到更大周期，不能从更大周期反推出更小周期。
+- 如果缺少足够的更小周期数据，必须返回数据不足或存在缺口，不能伪造 K 线。
+- 返回结果需要标明数据来源，例如 `native` 或 `aggregated`，以及聚合使用的基础周期。
+- 图表、回测、模拟盘 / 实盘 runner 都必须走同一套周期数据选择规则。
+
+聚合规则：
+
+- open 取聚合窗口第一根基础 K 线的 open。
+- high 取窗口内 high 最大值。
+- low 取窗口内 low 最小值。
+- close 取窗口内最后一根基础 K 线的 close。
+- volume 取窗口内 volume 汇总。
+- open_time 为聚合窗口开始时间。
+- close_time 为聚合窗口结束时间。
+- 只有窗口内基础 K 线完整且最后一根基础 K 线已闭合时，聚合 K 线才算闭合。
+
+聚合数据的存储原则：
+
+- `market_candles` 优先保存交易所同步回来的基础周期原始事实。
+- 第一版不要求把聚合 K 线持久化成另一份事实表。
+- 如果后续为了性能缓存聚合 K 线，必须明确标记为 derived cache。
+- derived cache 可以删除重建，不能成为唯一事实源。
+- 聚合缓存失效必须由基础 K 线变化驱动。
+
+数据同步必须支持恢复：
+
+- 系统重启后能根据任务状态继续同步。
+- 实时同步任务在系统重启后必须立即恢复。
+- `hi sync` 启动后必须扫描所有 `realtime_enabled = true` 且未删除的同步任务。
+- 对于实时同步任务，必须根据已持久化的最新 K 线时间继续拉取或订阅。
+- 不能因为 daemon 重启就丢失进度。
+- 同步进度必须持久化。
+- 已恢复的实时同步任务必须更新心跳或运行状态，供研究页显示。
+
+数据同步必须幂等：
+
+- K 线唯一键为 `exchange + symbol + interval + open_time`。
+- 写入 K 线必须使用 upsert。
+- 同一根 K 线重复拉取、重复写入不能产生重复数据。
+- 未闭合 K 线允许更新。
+- 已闭合 K 线原则上不可随意改写；如果交易所返回修正数据，必须记录更新时间。
+- 不能用前端状态判断同步进度。
+- 不能只依赖内存变量保存游标。
+
+恢复规则：
+
+- 同步任务保存 `last_synced_open_time` 或等价游标。
+- `hi sync` 启动时先领取任务 lease，再读取游标恢复。
+- 实时任务恢复时应从最后已保存 K 线向前重叠一个小窗口重新拉取，靠 upsert 去重。
+- 重叠窗口用于修复重启、网络抖动、交易所延迟导致的尾部缺口。
+- 每次批量写入成功后再推进游标。
+- 拉取成功但写库失败时，不能推进游标。
+- 写库成功但心跳失败时，下一轮恢复仍必须安全。
+- 停止实时只改变期望状态，不删除历史 K 线。
+
+缺口处理：
+
+- `market_candles` 必须能被检查是否存在时间缺口。
+- 研究页需要展示数据健康状态，例如正常、同步中、有缺口、失败、暂停。
+- 缺口修复仍走同一套同步任务逻辑，不单独写一套数据修复通道。
+- 删除同步任务不等于删除 K 线数据，是否删除数据需要单独确认动作。
+
+第一版验收：
+
+- 能创建数据同步任务。
+- 能在研究页看到同步任务列表。
+- 能启动 / 停止同步。
+- 能启动 / 停止实时。
+- 能从列表加载对应图表。
+- 能删除同步任务。
+- 系统重启后，已开启实时的数据同步任务能自动恢复。
+- 恢复后不会重复写乱 K 线。
+- 恢复后能从最后同步位置继续。
+
+## 8. 策略沉淀
+
+策略是后端代码资产。
+
+策略代码写在后端目录中。
+
+前端不提供在线写策略代码能力。
+
+前端负责：
+
+- 展示后端已注册策略。
+- 展示策略名称。
+- 展示策略说明。
+- 展示适用市场或周期信息。
+- 展示策略参数。
+- 在创建回测或交易任务时选择策略并填写参数。
+
+策略参数必须结构化：
+
+- 每个策略声明自己的参数 schema。
+- 前端根据 schema 渲染表单。
+- 创建任务时保存参数快照。
+
+策略输出是意图：
+
+- 订单意图。
+- 通知意图。
+
+策略不能直接下单。
+
+策略不能直接发送通知。
+
+策略不能直接写数据库。
+
+## 9. 回测页
+
+回测页主要是回测任务列表。
+
+回测页必须支持创建新回测任务。
+
+回测列表每一项展示：
+
+- 回测名称。
+- 交易所。
+- 交易对。
+- 数据周期。
+- 时间范围。
+- 策略。
+- 策略参数摘要。
+- 回测状态。
+- 关键结果摘要。
+- 创建时间。
+
+每一项可以进入回测详情页。
+
+回测创建表单包含：
+
+- 交易所。
+- 交易对。
+- K 线周期。
+- 时间范围。
+- 策略。
+- 策略参数。
+- 初始资金。
+- 手续费配置。
+- 滑点配置。
+- 触发方式。
+
+触发方式：
+
+- 闭合周期 K 线触发。
+- 更小数据单位模拟盘中触发。
+
+当前没有 tick 级数据，现阶段最小数据单位按分钟级。
+
+回测周期语义：
+
+- 回测选择的 K 线周期可以是 `1m` 基础周期，也可以是内部聚合周期。
+- 回测读取 K 线必须通过统一周期数据选择规则。
+- 当策略周期大于 `1m` 时，策略闭合周期信号由聚合层产生。
+- 更小数据单位模拟盘中触发时，当前使用 `1m` 基础 K 线作为最小推进单位。
+- 不能为了某个回测周期临时绕过聚合层直接读取另一套未定义数据源。
+- 回测详情图表展示的周期必须和回测任务周期一致，买卖点按对应时间映射到图表。
+
+回测详情页包含：
+
+- K 线图表。
+- 买卖点展示。
+- 回测概要。
+- 收益信息。
+- 交易订单。
+- 策略意图。
+- 参数快照。
+- 运行日志或错误。
+
+回测设计目标：
+
+- 清爽。
+- 能回到图表上看买卖点。
+- 不只是输出一张统计表。
+- 避免只有粗糙周期收盘触发。
+
+第一版验收：
+
+- 能创建回测任务。
+- 能查看回测列表。
+- 能进入回测详情。
+- 回测详情有 K 线图表。
+- 买卖点能叠加到图表或以明确方式关联图表。
+- 能看到订单和关键回测信息。
+
+## 10. 交易页
+
+交易页整体和回测页类似。
+
+交易任务有两个类型：
+
+- 模拟。
+- 实盘。
+
+交易页主要是交易任务列表。
+
+交易页必须支持创建新交易任务。
+
+交易列表每一项展示：
+
+- 任务名称。
+- 类型：模拟 / 实盘。
+- 交易所。
+- 账号。
+- 交易对。
+- 策略。
+- 策略参数摘要。
+- 运行状态。
+- 当前持仓。
+- 最近订单。
+- 最近通知。
+- 最近策略意图。
+- 创建时间。
+
+每一项可以进入交易详情页。
+
+交易创建表单包含：
+
+- 类型：模拟 / 实盘。
+- 交易所。
+- 账号。
+- 交易对。
+- 策略。
+- 策略参数。
+- 资金配置。
+- 风险配置。
+- 意图处理配置。
+
+意图处理配置：
+
+- 订单意图自动执行。
+- 订单意图只通知。
+- 通知意图发送到指定通道。
+
+交易详情页包含：
+
+- K 线图表。
+- 策略意图标记。
+- 订单标记。
+- 当前持仓。
+- 订单列表。
+- 成交列表。
+- 通知列表。
+- 运行状态。
+- 任务日志。
+
+实盘任务必须比模拟任务更谨慎：
+
+- 创建时必须明确账号。
+- 创建时必须明确实盘类型。
+- 危险操作需要确认。
+- 创建实盘任务时必须展示交易所、账号别名、交易对、策略、资金配置、风险配置和意图处理配置。
+- 实盘任务创建确认文案必须明确这是实盘。
+- 实盘任务默认不允许静默自动下单，必须在任务配置里明确选择订单意图处理方式。
+- live executor 必须和 paper executor 明确分离。
+- 实盘下单只能通过 live executor 触发，策略不能直接触达交易所 adapter。
+- 实盘订单必须先落库，再提交交易所。
+- 交易所返回结果必须回写订单状态和原始响应摘要。
+- 订单提交失败必须记录失败原因，不能静默重试成重复下单。
+- 同一订单意图必须有幂等键，避免 worker 重启后重复下单。
+- 实盘 API key 必须加密保存。
+- 前端和日志不能展示完整密钥。
+- 实盘账号必须能禁用；禁用后不能创建新的实盘任务，也不能继续自动提交新订单。
+- 第一版不做复杂审批流，但必须保留清晰的实盘确认和执行边界。
+
+第一版验收：
+
+- 能创建模拟任务。
+- 能创建实盘任务。
+- 能查看交易任务列表。
+- 能进入交易详情。
+- 能看到任务运行状态、意图、订单或通知。
+
+## 11. 策略意图
+
+策略运行结果统一称为意图。
+
+意图类型至少包含：
+
+- 订单意图。
+- 通知意图。
+
+订单意图表达：
+
+- 买入 / 卖出。
+- 标的。
+- 数量。
+- 价格条件。
+- 下单类型。
+- 原因。
+- 策略上下文。
+
+通知意图表达：
+
+- 通知标题。
+- 通知内容。
+- 级别。
+- 目标通道。
+- 策略上下文。
+- 是否需要人工核对。
+
+意图处理原则：
+
+- 策略只产生意图。
+- 运行器根据任务配置处理意图。
+- 订单意图可以自动执行，也可以只通知。
+- 通知意图进入通知路由。
+- 所有意图必须被记录。
+
+## 12. 系统管理菜单
+
+系统管理是顶部右侧菜单，不是一级主导航。
+
+第一版菜单项：
+
+- 通知管理。
+- 交易所账号管理。
+- 操作台账号管理。
+- 运维健康。
+
+### 12.1 通知管理
+
+通知管理负责：
+
+- 邮件配置。
+- Telegram 配置。
+- 飞书配置。
+- 通知通道启用 / 停用。
+- 通知记录。
+- 通知失败原因。
+
+通知通道第一版启用范围待确认。
+
+### 12.2 交易所账号管理
+
+交易所账号管理负责：
+
+- 交易所账号列表。
+- 新增账号。
+- 编辑账号别名。
+- 启用 / 停用账号。
+- 查看账号状态。
+- 配置交易所账号凭据。
+- 作为模拟盘 / 实盘任务选择账号的数据来源。
+
+敏感密钥处理方式待确认。
+
+### 12.3 操作台账号管理
+
+操作台账号管理负责：
+
+- 登录账号列表。
+- 新增 / 禁用账号。
+- 修改密码。
+
+第一版只要求基础登录能力，不扩展复杂权限系统。
+
+### 12.4 运维健康
+
+运维健康负责：
+
+- 系统运行状态。
+- 数据同步 worker 状态。
+- 交易任务 runner 状态。
+- 数据库连接状态。
+- 最近错误。
+
+不做重型监控平台。
+
+## 13. 登录能力
+
+操作台需要基本登录能力。
+
+第一版目标：
+
+- 登录页。
+- 退出按钮。
+- 当前操作台账号展示。
+- 会话保持。
+- 保护操作台接口。
+
+不在第一版扩展：
+
+- 多租户。
+- 复杂角色权限。
+- 审批流。
+- MFA。
+
+是否需要 CSRF、防暴力破解、密码策略等细节待确认。
+
+## 14. 后端模块边界
+
+后端应围绕产品能力收敛，不做过度平台化。
+
+数据库使用 PostgreSQL。
+
+后端运行形态采用同一 Go 项目的单二进制多子命令模式：
 
 ```text
-(exchange, market, symbol, interval, open_time)
+hi api       操作台 API + 前端服务
+hi sync      数据同步 worker
+hi trading   模拟盘 / 实盘任务 runner
+hi backtest  回测 worker
+hi migrate   数据库迁移
 ```
 
-查询索引：
+这些子命令来自同一个 `hi` 二进制。
+
+这不是微服务拆分。它们共享同一代码仓库、同一核心模块、同一 PostgreSQL。
+
+拆分目标：
+
+- 数据同步长任务不拖垮操作台 API。
+- 回测计算不影响实盘 / 模拟盘任务。
+- 模拟盘 / 实盘 runner 可以独立重启。
+- 每类后台能力可以单独部署、单独观察、单独限流。
+- 数据库迁移通过 `hi migrate` 明确执行，不依赖手工 SQL。
+- 保持小而美，不引入消息队列和复杂服务治理。
+
+进程协作：
 
 ```text
-(exchange, market, symbol, interval, open_time)
+Vue 操作台
+  -> hi api
+      -> PostgreSQL
+
+hi sync
+  -> PostgreSQL
+  -> Binance / OKX K线接口
+
+hi trading
+  -> PostgreSQL
+  -> Binance / OKX 交易接口
+  -> 通知 Provider
+
+hi backtest
+  -> PostgreSQL
+
+hi migrate
+  -> PostgreSQL migrations
 ```
 
-禁止事项：
+协作原则：
 
-- 禁止把内部聚合出的 5m/15m/1h/4h/1d 写入 `market_candles`。
-- 禁止在同一张表混用交易所原生高周期和内部聚合高周期。
-- 禁止回测直接读取交易所原生高周期绕过内部聚合器。
-- 禁止把 tick / trade 级数据塞进 `market_candles`。未来如果支持更细粒度行情，必须新增 `market_trades`、`market_ticks` 或等价事实表，并更新 TimeClock 设计。
+- PostgreSQL 是唯一协调中心。
+- `hi api` 只创建任务、更新期望状态、读取结果、服务前端静态资源，不运行长任务。
+- `hi sync` 领取数据同步任务并更新同步进度。
+- `hi trading` 领取模拟盘 / 实盘任务并运行策略。
+- `hi backtest` 领取回测任务并写入结果。
+- `hi migrate` 执行数据库迁移。
+- 不使用消息队列。
+- 不使用复杂服务注册。
+- 每个 worker 进程必须支持优雅停止、任务锁、心跳、超时释放、重启恢复。
 
-### 6.3 data_sync_jobs
+### 14.1 统一 worker lease
 
-只保存同步任务的简要状态，不做复杂流程编排：
+`hi sync`、`hi backtest`、`hi trading` 都必须使用统一 worker lease 模型领取任务。
 
-- `id`
-- `exchange`
-- `market`
-- `symbol`
-- `interval`
-- `start_time`
-- `end_time`
-- `status`: `queued` / `running` / `succeeded` / `failed`
-- `error`
-- `started_at`
-- `finished_at`
+目标：
 
-### 6.4 data_quality_reports
+- 避免同一任务被多个 worker 重复执行。
+- 避免 worker 崩溃后任务永久卡住。
+- 支持多进程部署。
+- 支持超时释放和重启恢复。
 
-保存最近一次检查结果：
-
-- `id`
-- `exchange`
-- `market`
-- `symbol`
-- `interval`
-- `start_time`
-- `end_time`
-- `status`: `healthy` / `missing_gaps` / `invalid_candles`
-- `missing_count`
-- `invalid_count`
-- `checked_at`
-- `summary_json`
-
-操作台只展示 status 和少量数字。
-
-### 6.5 strategies
-
-策略定义：
-
-- `id`
-- `name`
-- `version`
-- `kind`
-- `config_json`
-- `created_at`
-- `updated_at`
-
-### 6.6 strategy_tasks
-
-可运行任务：
-
-- `id`
-- `strategy_id`
-- `exchange_account_id`
-- `exchange`
-- `market`
-- `symbol`
-- `interval`
-- `trigger_clock`: `strategy_close` / `base`
-- `mode`: `paper` / `live`
-- `desired_status`: `running` / `paused` / `stopped` / `dry_run`
-- `capital_limit`
-- `max_order_notional`
-- `max_position_notional`
-- `signal_only`
-- `enabled`
-- `created_at`
-- `updated_at`
-
-### 6.7 task_runs
-
-每次 daemon 实际启动任务时生成：
-
-- `id`
-- `task_id`
-- `mode`
-- `observed_status`: `starting` / `running` / `stopping` / `stopped` / `failed`
-- `started_at`
-- `stopped_at`
-- `error`
-
-### 6.8 orders / fills
-
-所有订单和成交必须带：
-
-- `task_id`
-- `strategy_id`
-- `exchange_account_id`
-- `exchange`
-- `symbol`
-- `client_order_id`
-- `exchange_order_id`
-
-`client_order_id` 必须可追踪，建议格式：
+核心字段建议：
 
 ```text
-hi-{taskShort}-{symbolShort}-{yyyymmdd}-{seq}
+status
+locked_by
+locked_until
+heartbeat_at
+started_at
+finished_at
+last_error
+attempt_count
 ```
 
-### 6.9 notification_channels
+领取任务建议使用 PostgreSQL 行锁：
 
-通知通道配置。通道只保存非密钥配置，真实 token / secret 通过环境变量提供：
+```text
+FOR UPDATE SKIP LOCKED
+```
 
-- `id`
-- `type`: `email` / `telegram` / `feishu` / `webhook`
-- `name`
-- `enabled`
-- `config_json`
-- `secret_env`
-- `created_at`
-- `updated_at`
+每个 worker 必须：
 
-### 6.10 notification_routes
+- 定期 heartbeat。
+- 支持 context cancel。
+- 支持优雅停止。
+- 捕获 panic 并记录错误。
+- 超时后释放任务或标记可重试。
 
-通知路由规则。系统级通知和策略级通知共用同一套路由：
+状态机必须明确，不允许每个 worker 自己发明状态。
 
-- `id`
-- `scope`: `system` / `strategy` / `task`
-- `strategy_id`
-- `task_id`
-- `min_severity`: `info` / `warn` / `error` / `critical`
-- `channel_id`
-- `enabled`
-- `created_at`
-- `updated_at`
+统一状态建议：
 
-规则：
+```text
+pending
+running
+stopping
+paused
+succeeded
+failed
+cancelled
+```
 
-- `system` route 不绑定 strategy/task。
-- `strategy` route 绑定 `strategy_id`。
-- `task` route 绑定 `task_id`。
-- task route 优先于 strategy route，strategy route 优先于 system route。
+状态含义：
 
-### 6.11 notification_events / notification_deliveries
+- `pending`：等待 worker 领取。
+- `running`：worker 已领取并执行中。
+- `stopping`：用户或系统要求停止，worker 应尽快优雅退出。
+- `paused`：任务已停止执行，但保留进度，可继续。
+- `succeeded`：一次性任务完成，例如回测。
+- `failed`：任务失败且暂不继续执行。
+- `cancelled`：任务被用户取消，不再自动恢复。
 
-`notification_events` 保存需要通知的事实，`notification_deliveries` 保存每个通道的投递结果。
+不同任务类型的使用边界：
 
-通知事件来源：
+- 数据实时同步任务通常在 `running` 和 `paused` 间切换。
+- 历史补齐同步可以从 `pending` 到 `running` 再到 `succeeded` 或 `failed`。
+- 回测是一次性任务，结束后进入 `succeeded` 或 `failed`。
+- 模拟盘 / 实盘任务通常在 `running`、`stopping`、`paused`、`failed` 间切换。
 
-- system：daemon 启停、task failed、live uncertain order、kill switch、reconcile 异常。
-- strategy：策略监测到信号，希望人工核对。
-- risk：风控拒单、风险阈值接近或触发。
-- execution：订单 rejected、uncertain、部分成交长时间未完成。
+领取任务必须短事务完成：
+
+```text
+BEGIN
+  SELECT ... FOR UPDATE SKIP LOCKED
+  UPDATE status = running, locked_by = worker_id, locked_until = now + lease_ttl
+COMMIT
+```
+
+禁止：
+
+- 长事务包住整个同步、回测或交易运行过程。
+- worker 持有数据库事务时访问交易所接口。
+- worker 只在内存里标记自己拥有任务。
+- 没有 `locked_until` 的永久锁。
+
+heartbeat 规则：
+
+- worker 必须周期性刷新 `heartbeat_at` 和 `locked_until`。
+- heartbeat 失败达到阈值后，worker 应停止该任务的外部副作用。
+- 其他 worker 只能领取 `locked_until < now()` 或明确 `pending` 的任务。
+- 任务超时释放必须保留 `last_error`、`attempt_count` 和最近心跳。
+
+停止规则：
+
+- 用户点击停止时，API 只更新期望状态，不直接杀进程。
+- worker 观察到 `stopping` 后执行收尾，保存进度，再进入 `paused` 或 `cancelled`。
+- 容器收到退出信号时，worker 必须尝试收尾并停止 heartbeat。
+- 如果进程直接崩溃，下一次由 `locked_until` 超时释放恢复。
+
+### 14.2 通知 outbox
+
+通知必须采用 outbox 思路。
+
+策略产生 `NotificationIntent` 后：
+
+```text
+NotificationIntent
+  -> notifications / notification_outbox 落库
+  -> 通知投递逻辑发送
+  -> 记录成功 / 失败 / 重试
+```
 
 要求：
 
-- 通知事件必须先落库，再投递。
-- 投递失败必须记录并可重试。
-- 同一个 dedupe key 在冷却窗口内不得重复轰炸。
-- 策略不能直接调用 provider，只能返回 `NotificationIntent`。
+- 通知先落库，再投递。
+- 投递失败可重试。
+- 通知记录可追溯到 intent 和 task。
+- 不允许策略直接调用邮件、Telegram、飞书 provider。
 
-### 6.12 web_users / web_sessions
+### 14.3 StrategyRunner 统一
 
-操作台第一版使用单管理员登录模型，不做 RBAC。
+回测、模拟盘、实盘必须共享策略运行核心。
 
-`web_users` 保存管理员账号：
-
-- `id`
-- `username`
-- `password_hash`
-- `password_algo`: 第一版 `argon2id`，也可接受经过文档确认的 `bcrypt`
-- `disabled`
-- `failed_login_count`
-- `locked_until`
-- `last_login_at`
-- `created_at`
-- `updated_at`
-
-`web_sessions` 保存 Web 会话：
-
-- `id`
-- `user_id`
-- `token_hash`
-- `csrf_token_hash`
-- `user_agent_hash`
-- `ip`
-- `created_at`
-- `last_seen_at`
-- `expires_at`
-- `revoked_at`
-
-规则：
-
-- 系统不得提供默认用户名和默认密码。
-- 第一个管理员必须通过 CLI 初始化。
-- 密码明文不得入库、不得写日志、不得进入 events。
-- session cookie MUST 使用 `HttpOnly`、`SameSite=Strict`；HTTPS 部署时 MUST 使用 `Secure`。
-- 所有写操作 API MUST 校验 CSRF token。
-- 登录失败 MUST 限速；连续失败后临时锁定。
-- logout、密码修改、管理员初始化、登录失败锁定、危险操作必须写入 `events` 或 auth audit event。
-- 第一版可以只有一个管理员账号；后续如要多用户、角色、MFA，必须单独设计，不能在 handler 中零散加字段。
-
-## 7. K 线同步与聚合设计
-
-### 7.1 目标
-
-K 线同步只做简单数据工具，不做复杂行情数据平台。
-
-操作台只回答：
-
-- 哪些交易所、交易对的 1m 原始 K 线已经同步过。
-- 当前数据是否完整。
-- 有缺口时能否一键修复。
-- 哪些高周期可以由 1m 数据内部聚合得到。
-
-第一版推荐且默认的数据策略：
+建议结构：
 
 ```text
-exchange native 1m candles
-  -> market_candles(raw 1m)
-  -> CandleAggregator
-  -> derived 5m / 15m / 30m / 1h / 4h / 1d candles
-  -> backtest / paper / live strategy
+StrategyRunner
+  -> 读取 market input
+  -> 调用 Strategy
+  -> 产出 Intent
+  -> 交给 Executor
 ```
 
-原则：
-
-- 交易所同步层默认只拉 1m。
-- 高周期 K 线默认不从交易所重复拉取。
-- 高周期 K 线默认不落入 `market_candles`，而是在查询时或 runner 内部由 1m 聚合生成。
-- 如果未来确实要缓存聚合结果，必须使用独立表和 `derived_from_interval` 字段，不能和原始交易所 K 线混在一起。
-- 回测、模拟盘、实盘必须使用同一个聚合器，不能各自实现一套聚合逻辑。
-- 时间钟模型不等同于 1m K 线模型。第一版的基础事件是 1m closed candle；未来如果引入 tick / trade 数据，基础事件可以比 1m 更细，但高周期 K 线仍必须由统一聚合器或 candle builder 生成。
-
-### 7.2 CLI
-
-```sh
-hi data sync \
-  --exchange binance \
-  --symbol BTCUSDT \
-  --interval 1m \
-  --from 2026-01-01T00:00:00Z \
-  --to 2026-02-01T00:00:00Z
-
-hi data sync \
-  --exchange okx \
-  --symbol BTC-USDT \
-  --interval 1m \
-  --from 2026-01-01T00:00:00Z \
-  --to 2026-02-01T00:00:00Z
-
-hi data check --exchange binance --symbol BTCUSDT --interval 1m
-hi data repair --exchange binance --symbol BTCUSDT --interval 1m --from ... --to ...
-hi data aggregate-check --exchange binance --symbol BTCUSDT --from ... --to ... --target-interval 15m
-```
-
-批量同步：
-
-```sh
-hi data sync \
-  --exchange binance \
-  --symbols BTCUSDT,ETHUSDT,SOLUSDT \
-  --interval 1m \
-  --from ... \
-  --to ...
-```
-
-约束：
-
-- `hi data sync` 第一版只允许 `--interval 1m`。
-- `hi data check` 检查原始 1m 完整性。
-- `hi data aggregate-check` 检查目标周期是否能由完整的 1m 数据聚合得到。
-- 回测和任务可以选择 `--interval 5m/15m/30m/1h/4h/1d`，但数据来源仍然是 1m 聚合结果。
-
-### 7.3 完整性检查
-
-第一版只检查必要项：
-
-- open time 是否按 1m 连续。
-- 是否存在缺口。
-- 是否存在重复，数据库唯一键兜底。
-- OHLC 是否合法：
-  - `high >= low`
-  - `open` 在 high/low 范围内
-  - `close` 在 high/low 范围内
-  - 价格为正
-  - volume 非负
-- 未收盘 K 线不作为错误。
-
-对于高周期：
-
-- 先检查覆盖区间内 1m 是否完整。
-- 再检查目标周期的边界是否能整除。
-- 聚合结果不直接与交易所高周期结果比较。
-
-### 7.4 修复
-
-修复流程：
+不同运行模式只替换 executor：
 
 ```text
-scan range
-  -> find missing windows / invalid windows
-  -> fetch from exchange
-  -> upsert market_candles
-  -> check again
-  -> save latest data_quality_report
+BacktestExecutor
+PaperExecutor
+LiveExecutor
 ```
 
-前端和 CLI 只显示最终结果，不展示复杂内部事件流。
+禁止：
 
-### 7.5 操作台页面
+- 回测一套策略运行逻辑。
+- 交易一套策略运行逻辑。
+- 策略在不同运行模式下绕过 intent 模型。
 
-只做一个简表：
+后端依赖原则：
 
-```text
-Exchange | Symbol  | Base | First | Last | 1m Candles | Status | Derived | Actions
-binance  | BTCUSDT | 1m   | ...   | ...  | 43200      | healthy | 5m,15m,30m,1h | sync / check
-okx      | BTC-USDT| 1m   | ...   | ...  | 43190      | gaps    | -          | repair
-```
+- 必要第三方库可以使用，例如 PostgreSQL 驱动、HTTP router、密码哈希、JWT / session、配置解析、日志等。
+- 不为了炫技引入大型框架。
+- 不引入过多间接层。
+- 不引入不必要的异步、消息队列、插件系统、规则引擎。
+- 安全敏感代码优先使用成熟库，不手写密码学。
+- 交易核心逻辑优先用清晰 Go 代码实现，保持可读、可审计。
 
-状态只保留：
+建议核心模块：
 
-- `healthy`
-- `missing_gaps`
-- `invalid_candles`
-- `syncing`
-- `failed`
+- 数据同步。
+- K 线查询。
+- 策略注册。
+- 回测运行。
+- 交易任务运行。
+- 意图处理。
+- 订单执行。
+- 通知投递。
+- 账号管理。
+- 登录会话。
 
-## 8. 回测设计
+后端核心原则：
 
-第一版回测基于 PostgreSQL 中的 1m `market_candles`，再按请求 interval 内部聚合，不依赖临时 CSV。这里的 1m 是 MVP 的基础数据粒度，不是 TimeClock 的永久上限；如果未来接入 tick / trade 级事实数据，回测可以使用更细的 `base_clock` 推进。
+- 策略不直接下单。
+- 策略不直接发通知。
+- 策略不直接写库。
+- 数据同步进度必须持久化。
+- 回测详情必须能关联 K 线图表。
+- 交易任务必须能关联账号、标的、策略和参数快照。
+- 意图、订单、通知必须可追溯到任务。
 
-回测必须显式区分三个时间概念：
+### 14.4 交易所 adapter
 
-- `base_clock`：基础时间钟，表示回测引擎每次推进的最小市场数据事件。第一版为 `closed_candle:1m`；未来可以是 `trade` 或 `tick`。
-- `strategy_interval`：策略观察周期，可以是 `1m`、`5m`、`15m`、`30m`、`1h`、`4h`、`1d`。
-- `trigger_clock`：策略触发时钟，决定策略是在每个基础事件都执行，还是只在策略周期 K 线收盘时执行。
+交易所能力必须通过 adapter 边界接入。
 
-第一版支持两种 `trigger_clock`：
+当前必须支持：
 
-```text
-strategy_close  只在 strategy_interval K 线收盘时触发策略
-base            每个 base_clock 事件都触发策略；第一版等价于每根 1m closed candle
-```
+- Binance。
+- OKX。
 
-示例：
+设计要求：
 
-- `base_clock=closed_candle:1m, strategy_interval=15m, trigger_clock=strategy_close`：每 15 分钟触发一次策略。
-- `base_clock=closed_candle:1m, strategy_interval=15m, trigger_clock=base`：每 1 分钟触发一次策略，策略上下文里能看到截至当前 1m 的 15m forming candle。
-- 未来如果 `base_clock=trade, strategy_interval=15m, trigger_clock=base`：每笔 trade 事件都可以触发策略，策略上下文里的 15m forming candle 只能由截至当前 trade 的数据构成。
+- 核心交易、回测、策略、意图模型不能依赖具体交易所实现。
+- 交易所 adapter 负责交易所 API 协议、认证签名、symbol 映射、K 线拉取、订单提交和订单查询。
+- 新增交易所时，应新增 adapter，不应重写核心链路。
+- 当前只实现 Binance 和 OKX，不为了未来交易所提前堆复杂能力矩阵。
 
-CLI 示例：
+### 14.5 Docker 运行形态
 
-```sh
-hi backtest run \
-  --strategy ema-cross \
-  --config ./configs/ema-cross.json \
-  --exchange binance \
-  --symbol BTCUSDT \
-  --interval 1m \
-  --trigger-clock strategy_close \
-  --from 2026-01-01T00:00:00Z \
-  --to 2026-02-01T00:00:00Z
-```
+第一版必须补齐 Docker 运行能力。
 
-回测输出：
+Docker 的定位：
 
-- candle count
-- order count
-- fill count
-- realized PnL
-- fee
-- win/loss count
-- max drawdown，第一版可简化
-- final equity
+- 用于本地开发启动。
+- 用于最小生产部署。
+- 用于稳定复现 `hi api`、`hi sync`、`hi trading`、`hi backtest` 的运行形态。
+- 不把项目拆成多个代码仓库。
+- 不引入 Kubernetes、服务网格或复杂发布系统。
 
-回测记录入库，便于后续比较，但第一版不做复杂可视化。
+镜像原则：
 
-如果请求高周期回测：
+- 构建一个 `hi` 后端镜像。
+- 同一镜像内包含同一个 `hi` 二进制。
+- 通过不同 command 启动不同子命令。
+- 前端构建产物打入镜像，由 `hi api` 服务。
+- 镜像内不保存运行状态。
+- 运行状态只进入 PostgreSQL 或外部明确配置的持久化位置。
 
-```sh
-hi backtest run \
-  --strategy ema-cross \
-  --exchange binance \
-  --symbol BTCUSDT \
-  --interval 15m \
-  --trigger-clock base \
-  --from 2026-01-01T00:00:00Z \
-  --to 2026-02-01T00:00:00Z
-```
-
-第一版 runtime MUST 从 1m 数据加载并聚合 15m K 线。回测结果必须记录：
-
-- `base_interval = 1m`
-- `strategy_interval = 15m`
-- `trigger_clock = base`
-- `aggregation_method = ohlcv_v1`
-
-## 9. 模拟盘设计
-
-Paper task 由 daemon 管理，不是单次命令。
-
-运行逻辑：
-
-```text
-daemon
-  -> load running paper tasks
-  -> each task pulls latest base event; v1 uses latest closed 1m candle / synced 1m data stream
-  -> CandleAggregator builds task interval candle
-  -> TimeClock decides whether to trigger strategy
-  -> strategy generates intents
-  -> risk checks
-  -> paper executor simulates fill
-  -> portfolio updates
-  -> facts persisted
-```
-
-Paper executor 第一版支持：
-
-- market order 按 close price 成交。
-- limit order 基于 OHLC 判断是否成交。
-- 固定手续费率。
-- 固定滑点 bps。
-
-不要提前实现复杂撮合、盘口深度、延迟模型。
-
-Paper runner 约束：
-
-- task interval 为 `1m` 时直接使用 1m candle。
-- task interval 为高周期且 `trigger_clock=strategy_close` 时，必须等待目标周期 closed 后再调用策略。
-- task interval 为高周期且 `trigger_clock=base` 时，每个 base event 都可以调用策略；第一版 base event 是 1m closed candle，策略上下文包含当前 forming target candle。
-- 不允许直接请求交易所高周期 K 线。
-- 同一批 1m 输入在 backtest 和 paper 中聚合出的高周期 candle 必须一致。
-
-## 10. 实盘设计
-
-实盘必须像模拟盘一样由 daemon 管理多个任务。
-
-### 10.1 Live task 生命周期
-
-```text
-stopped
-  -> starting
-  -> running
-  -> stopping
-  -> stopped
-
-running
-  -> failed
-  -> paused
-```
-
-`strategy_tasks.desired_status` 表示用户想要什么。  
-`task_runs.observed_status` 表示系统实际状态。
-
-### 10.2 控制命令
-
-```sh
-hi task start task-binance-btc-ema
-hi task pause task-binance-btc-ema
-hi task stop task-binance-btc-ema
-hi task dry-run task-okx-eth-grid
-hi task list
-```
-
-这些命令只写 PostgreSQL，不直接下单。
-
-### 10.3 Live safety
-
-实盘任务启动前必须满足：
-
-- global kill switch 为 false。
-- exchange account `trade_enabled = true`。
-- task `mode = live`。
-- task `desired_status = running`。
-- symbol 在白名单内。
-- API key 存在。
-- 单笔 notional 不超过限制。
-- task 持仓 notional 不超过限制。
-- account 级别总风险不超过限制。
-
-防盗护栏：
-
-- exchange API key 只从环境变量读取，禁止通过 Web 页面查看、下载或复制。
-- exchange account 默认 `trade_enabled = false`。
-- global kill switch 默认开启，必须显式关闭后才允许 live 下单。
-- Web 上关闭 kill switch、启用 account trading、启动 live task、提高风险额度时，MUST 要求二次确认；高风险操作 SHOULD 要求输入当前登录密码或使用短期 re-auth token。
-- 可检查 API key 权限的交易所必须检查；如果发现 withdrawal / transfer 权限开启，live gate MUST 拒绝启动并发出系统通知。
-- 检查不到 API key 权限时，MUST 在事件中明确记录，并在操作台显示风险提示。
-- 所有 live start / stop / pause / dry-run 切换、kill switch 变更、risk limit 变更都必须写审计事件。
-
-### 10.4 Reconcile
-
-第一版只做最小 reconcile：
-
-- 周期性查询 open orders。
-- 周期性查询 recent fills。
-- 将交易所状态合并到本地订单和成交事实。
-- 发现未知订单或状态不一致时记录事件，不自动做激进修复。
-
-Live runner 的行情输入：
-
-- 第一版使用 closed 1m candle poll；未来支持 tick / trade 时，live runner 应切换为更细的 base event stream，但不能改变策略、风控、订单和账本边界。
-- 高周期策略必须通过 `CandleAggregator` 聚合。
-- `trigger_clock=strategy_close` 时，策略只在目标周期 candle closed 后运行。
-- `trigger_clock=base` 时，策略可以在每个 base event 后运行；第一版等价于每根 1m closed candle。
-- 不使用交易所原生高周期 K 线作为策略输入。
-
-## 11. 交易所适配器
-
-第一版只实现 Binance 和 OKX，但交易所层必须能扩展更多 adapter。扩展能力来自清晰的小接口和注册表，不来自一个臃肿的能力矩阵。
-
-包边界：
-
-```text
-internal/exchange
-  -> 交易所接口、错误分类、symbol normalization 契约
-
-internal/adapter/binance
-  -> Binance 实现
-
-internal/adapter/okx
-  -> OKX 实现
-```
-
-交易所接口第一版保持小：
-
-```go
-type MarketDataClient interface {
-    HistoricalCandles(ctx context.Context, query KlineQuery) ([]Candle, error)
-    LatestCandle(ctx context.Context, query LatestCandleQuery) (Candle, error)
-}
-
-type TradingClient interface {
-    SubmitOrder(ctx context.Context, order OrderRequest) (OrderReport, error)
-    CancelOrder(ctx context.Context, query OrderQuery) (OrderReport, error)
-    OpenOrders(ctx context.Context, query OpenOrdersQuery) ([]OrderReport, error)
-    RecentFills(ctx context.Context, query RecentFillsQuery) ([]Fill, error)
-}
-```
-
-Adapter factory：
-
-```go
-type AdapterFactory interface {
-    Exchange() string
-    BuildMarketDataClient(cfg AccountConfig) (MarketDataClient, error)
-    BuildTradingClient(cfg AccountConfig) (TradingClient, error)
-    NormalizeSymbol(raw string) (Symbol, error)
-}
-```
-
-Adapter registry：
-
-```text
-registry.Register(binance.Factory{})
-registry.Register(okx.Factory{})
-
-factory := registry.Get(exchangeID)
-```
-
-规则：
-
-- `Exchange()` 返回值 MUST 等于 `exchange_catalog.id`。
-- `internal/runtime` 只能依赖 `internal/exchange` 接口，不能 import 具体 adapter。
-- 具体 adapter 只能在 `cmd` 或 composition root 中注册和装配。
-- symbol normalization 归 adapter 管，例如 Binance `BTCUSDT`、OKX `BTC-USDT`。
-- adapter 必须把交易所错误分类为 retryable、rejected、uncertain、unsupported。
-- 暂不支持的能力返回明确 `ErrUnsupported`，不能静默降级。
-
-`MarketDataClient` 约束：
-
-- `HistoricalCandles` 第一版只请求交易所 1m K 线。
-- `LatestCandle` 第一版只返回最近一根已收盘 1m K 线。
-- 高周期 K 线由 `internal/data` 聚合，adapter 不负责聚合。
-
-新增交易所流程：
-
-1. 在 `exchange_catalog` 中加入新的 exchange id。
-2. 新增 `internal/adapter/{exchange}` 包，实现 `AdapterFactory`、`MarketDataClient`、需要实盘时实现 `TradingClient`。
-3. 增加 symbol normalization、instrument rules 拉取和权限检查。
-4. 增加 httptest 覆盖 public candles、order submit/cancel、open orders、recent fills。
-5. 增加 fake adapter runner 测试，证明 backtest/paper/live 语义不变。
-6. 更新 CLI/Web 可选交易所列表。
-
-不要为了未来交易所提前做巨大接口。接口以当前 Binance / OKX 的必要能力为准，但核心表结构和 runtime 不能写死只能支持这两个 adapter。
-
-### 11.1 CandleAggregator
-
-内部聚合接口：
-
-```go
-type CandleAggregator interface {
-    Aggregate(ctx context.Context, req AggregateRequest) ([]model.Candle, error)
-}
-
-type AggregateRequest struct {
-    Exchange       string
-    Market         string
-    Symbol         string
-    BaseInterval   string // 1m in v1; this is data source granularity, not TimeClock's permanent limit
-    TargetInterval string
-    From           time.Time
-    To             time.Time
-}
-```
-
-实现规则：
-
-- `BaseInterval` 第一版固定为 `1m`，因为第一版只持久化 1m K 线。
-- `TargetInterval` 可以为 `1m`，此时直接返回原始 1m。
-- `TargetInterval` 大于 1m 时，必须先检查 1m 完整性。
-- backtest、paper、live 必须通过该接口拿策略周期 K 线。
-- 如果未来引入 tick / trade 级基础事件，必须新增 MarketEventReader / CandleBuilder 或等价组件，把更细事件构造成策略所需 K 线；不能让各 runner 自己手写一套 tick 到 K 线逻辑。
-
-## 11.5 通知设计
-
-通知是第一版必须具备的能力，但必须保持边界清楚：策略不能直接发邮件、Telegram 或飞书；策略只能产出 `NotificationIntent`，由 runtime 落库并交给 notification worker 投递。
-
-### 11.5.1 通知类型
-
-系统级通知：
-
-- daemon 启动失败。
-- daemon 获取数据库锁失败。
-- task 启动失败。
-- task 异常退出。
-- live order 进入 `uncertain`。
-- reconcile 发现本地与交易所状态不一致。
-- global kill switch 被开启或关闭。
-- 数据同步失败。
-- 数据检查发现缺口或非法 K 线。
-
-策略级通知：
-
-- 策略检测到买入/卖出信号，但任务配置为只通知人工核对。
-- 策略检测到重要指标穿越。
-- 策略检测到风险接近阈值。
-- 策略进入观望状态但希望提醒。
-
-风控/执行通知：
-
-- 风控拒单。
-- 单笔订单超过 task 限制。
-- account 风险接近上限。
-- 订单被交易所拒绝。
-- 部分成交长时间未完成。
-
-### 11.5.2 通知通道
-
-第一版通道类型固定：
-
-```text
-email
-telegram
-feishu
-webhook
-```
-
-Provider 接口：
-
-```go
-type Provider interface {
-    Type() string
-    Send(ctx context.Context, msg Message) error
-}
-```
-
-Message 结构：
-
-```go
-type Message struct {
-    EventID   string
-    Severity  string
-    Title     string
-    Body      string
-    Payload   map[string]string
-    CreatedAt time.Time
-}
-```
-
-密钥规则：
-
-- SMTP password、Telegram bot token、Feishu webhook secret MUST 来自环境变量。
-- `notification_channels.config_json` 只保存非密钥配置。
-- 日志、events、deliveries 中 MUST NOT 输出 secret。
-
-### 11.5.3 路由优先级
-
-通知路由顺序：
-
-```text
-task route
-  -> strategy route
-  -> system route
-```
-
-规则：
-
-- task route 命中时，仍可继续投递 strategy/system route，除非 route 配置 `exclusive = true`。第一版不实现 exclusive，全部命中 route 都投递。
-- route 的 `min_severity` 会过滤低等级通知。
-- route disabled 时不投递。
-- channel disabled 时对应 delivery 标记为 `skipped`。
-
-### 11.5.4 去重与冷却
-
-去重以 `dedupe_key` 为核心。
-
-规则：
-
-- runtime 接收 `NotificationIntent` 后 MUST 生成稳定 `dedupe_key`。
-- 在同一 route 的 cooldown 窗口内，重复 dedupe key 不再创建新的 delivery。
-- 被冷却跳过的事件可以写入 `notification_events`，但 delivery 标记为 `skipped`，reason 写入 payload。
-- critical 通知默认不冷却，除非 route 明确配置 cooldown。
-
-### 11.5.5 投递与重试
-
-notification worker 流程：
-
-```text
-poll pending deliveries
-  -> mark sending
-  -> provider.Send
-  -> sent or failed
-  -> failed with next_attempt_at
-```
-
-重试策略：
-
-- 最大 3 次。
-- backoff：30s、2m、10m。
-- 失败后保留 last_error。
-- worker 重启后从 `notification_deliveries` 恢复。
-
-### 11.5.6 人工核对模式
-
-策略可以只发通知，不下单：
-
-```text
-StrategyDecision{
-  Orders: nil,
-  Notifications: []NotificationIntent{signal}
-}
-```
-
-也可以同时发通知和订单意图：
-
-```text
-StrategyDecision{
-  Orders: []OrderIntent{order},
-  Notifications: []NotificationIntent{signal}
-}
-```
-
-如果任务配置为 `signal_only = true`，runtime MUST 丢弃订单意图，只保留通知意图，并写 event 说明订单被 signal-only 模式拦截。
-
-第一版不做复杂人工审批下单。人工核对后的操作是用户通过 CLI/Web 手动调整 task 状态或策略配置；后续如要做“通知中审批下单”，必须单独设计，不能偷偷塞进 notification provider。
-
-## 12. 配置方式
-
-配置文件只放非密钥信息：
-
-```yaml
-database:
-  dsn_env: TICTICK_HI_DATABASE_DSN
-
-runtime:
-  bind_addr: 127.0.0.1:8090
-  task_poll_interval: 2s
-  reconcile_interval: 30s
-  kill_switch_default: true
-
-web:
-  allow_non_loopback_bind: false
-  session_ttl: 12h
-  reauth_ttl: 5m
-  login_lockout_after: 5
-  login_lockout_duration: 15m
-  cookie_secure: auto
-
-exchange_accounts:
-  - id: binance-main
-    exchange: binance
-    market: spot
-    environment: testnet
-    api_key_env: TICTICK_HI_BINANCE_API_KEY
-    secret_key_env: TICTICK_HI_BINANCE_SECRET_KEY
-    trade_enabled: false
-
-  - id: okx-main
-    exchange: okx
-    market: spot
-    environment: sandbox
-    api_key_env: TICTICK_HI_OKX_API_KEY
-    secret_key_env: TICTICK_HI_OKX_SECRET_KEY
-    passphrase_env: TICTICK_HI_OKX_PASSPHRASE
-    trade_enabled: false
-
-notification_channels:
-  - id: ops-email
-    type: email
-    name: Ops Email
-    enabled: true
-    secret_env: TICTICK_HI_SMTP_PASSWORD
-    config:
-      smtp_host: smtp.example.com
-      smtp_port: 587
-      username_env: TICTICK_HI_SMTP_USERNAME
-      from: bot@example.com
-      to:
-        - owner@example.com
-
-  - id: strategy-telegram
-    type: telegram
-    name: Strategy Telegram
-    enabled: true
-    secret_env: TICTICK_HI_TELEGRAM_BOT_TOKEN
-    config:
-      chat_id_env: TICTICK_HI_TELEGRAM_CHAT_ID
-
-notification_routes:
-  - id: system-critical-email
-    scope: system
-    min_severity: error
-    channel_id: ops-email
-    cooldown: 5m
-
-  - id: ema-signal-telegram
-    scope: strategy
-    strategy_id: ema-btc
-    min_severity: info
-    channel_id: strategy-telegram
-    cooldown: 15m
-```
-
-生产实盘配置文件不得 group/world writable。
-
-## 12.5 Docker 部署
-
-第一版必须支持单机 Docker Compose 部署。目标是让本机、VPS 或小型服务器能稳定运行，不做 Kubernetes 化。
-
-必须提供的文件：
-
-```text
-Dockerfile
-.dockerignore
-.env.example
-config/docker.yaml
-deploy/compose/docker-compose.yml
-deploy/compose/docker-compose.prod.yml
-docker/entrypoint.sh
-docker/healthcheck.sh
-scripts/docker-smoke-test.sh
-```
-
-镜像要求：
-
-- 使用多阶段构建：前端 build、Go build、最小 runtime image。
-- 最终镜像只包含 `hi` binary、前端静态资源、必要证书和默认配置模板。
-- 最终镜像 MUST 使用非 root 用户运行。
-- 镜像内不得包含 `.env`、API key、数据库密码、Telegram token、Feishu secret、SMTP password。
-- binary SHOULD 带版本信息：git commit、build time、version。
-- 容器日志输出到 stdout/stderr，禁止默认写本地滚动日志文件。
-
-Compose 服务：
+建议服务：
 
 ```text
 postgres
-  -> PostgreSQL 数据库，使用持久化 volume
-
-migrate
-  -> 一次性执行 hi migrate，成功后退出
-
-app
-  -> hi daemon --config /app/config/docker.yaml
-  -> 暴露 Web/health API
+hi-migrate
+hi-api
+hi-sync
+hi-trading
+hi-backtest
 ```
 
-第一版 `docker-compose.yml` 默认用于本机安全运行：
+服务职责：
 
-- PostgreSQL 不暴露到宿主机公网端口，只在 compose network 内可见。
-- app 端口默认绑定 `127.0.0.1:8090:8090`。
-- `TICTICK_HI_DATABASE_DSN` 指向 compose 内部 PostgreSQL。
-- `app` 依赖 `migrate` 成功完成。
-- `postgres` 必须有 healthcheck。
-- `app` 必须有 healthcheck。
+- `postgres`：唯一数据库和协调中心。
+- `hi-migrate`：一次性执行 `hi migrate`。
+- `hi-api`：执行 `hi api`，服务操作台 API 和前端静态资源。
+- `hi-sync`：执行 `hi sync`，负责数据同步 worker。
+- `hi-trading`：执行 `hi trading`，负责模拟盘 / 实盘 runner。
+- `hi-backtest`：执行 `hi backtest`，负责回测 worker。
 
-生产覆盖文件 `docker-compose.prod.yml`：
+`hi-backtest` 可以在第一版按需启停，但 compose 文件中应该保留服务定义。
 
-- 可以配置反向代理网络，但 app 默认仍不直接承担 TLS。
-- 如果绑定非 loopback 地址，必须显式设置 `web.allow_non_loopback_bind=true` 或等价环境变量。
-- cookie secure 在 HTTPS 反向代理后必须启用。
-- 生产环境建议使用 Docker secrets 或宿主机只读 env file 注入密钥。
+Docker Compose 原则：
 
-迁移规则：
+- `postgres` 必须配置持久化 volume。
+- `postgres` 必须配置 healthcheck。
+- `hi-migrate` 必须等待 PostgreSQL 可用后再运行。
+- `hi-api`、`hi-sync`、`hi-trading`、`hi-backtest` 必须在迁移完成后启动。
+- 如果 Compose 版本无法严格表达迁移依赖，应用启动时必须自行等待数据库和 schema 就绪。
+- 所有服务通过环境变量读取配置，不把密钥写死进镜像。
+- 后端服务必须支持优雅退出，容器停止时能释放或超时释放任务 lease。
 
-- migration 可以通过 `migrate` 一次性服务执行，也可以手动运行：
-
-```sh
-docker compose -f deploy/compose/docker-compose.yml run --rm migrate
-```
-
-- `app` 启动时可以检查 migration 是否已完成，但不应该在未知状态下偷偷执行破坏性迁移。
-- migration 必须幂等、按顺序、可重复运行。
-
-管理员初始化：
-
-```sh
-docker compose -f deploy/compose/docker-compose.yml run --rm app hi auth init-admin --username admin
-```
-
-约束：
-
-- `init-admin` 必须交互式读取密码；不得通过 compose 环境变量传入管理员明文密码。
-- `.env.example` 只能提供变量名和占位说明，不能包含真实密钥。
-- exchange API key、SMTP password、Telegram token、Feishu secret 必须通过环境变量或 Docker secrets 注入。
-- Docker 部署默认 `trade_enabled=false`、`kill_switch=true`。
-
-健康检查：
-
-- `/healthz`：进程存活，不要求数据库完全可用。
-- `/readyz`：数据库连接、migration 状态、daemon lock、配置加载状态可用。
-- Docker healthcheck SHOULD 调用 `/readyz` 或 `hi health --ready`。
-
-备份与恢复：
-
-- 第一版至少提供 PostgreSQL 备份/恢复脚本说明。
-- 推荐脚本：
+配置原则：
 
 ```text
-scripts/backup-postgres.sh
-scripts/restore-postgres.sh
+DATABASE_URL
+APP_SECRET
+ENCRYPTION_KEY
+HTTP_ADDR
+LOG_LEVEL
 ```
 
-- 备份文件不得包含在镜像内。
-- restore 必须要求显式确认目标数据库，禁止误覆盖生产库。
+交易所密钥、通知通道密钥等敏感配置不能写入 Dockerfile。
 
-Docker smoke test：
+部署边界：
 
-```sh
-scripts/docker-smoke-test.sh
-```
+- 第一版用 Docker Compose 已足够。
+- 不引入 Redis。
+- 不引入 Kafka。
+- 不引入独立任务队列。
+- 不引入 Kubernetes。
+- 不把 Docker 部署做成重运维平台。
 
-至少验证：
-
-- `docker compose config` 通过。
-- app image 能构建。
-- postgres healthcheck 通过。
-- migrate 服务执行成功。
-- app `/readyz` 通过。
-- `hi exchange list` 显示 Binance / OKX。
-- 未登录访问受保护 API 返回 401。
-
-## 13. 极简操作台
-
-Web 操作台后置实现，且保持简单，但必须有基础登录鉴权和防盗护栏。前端技术栈默认：
+最小目录建议：
 
 ```text
-Vue 3 + Vite + TypeScript
-TradingView Lightweight Charts
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+.dockerignore
 ```
 
-如果完整 TradingView Charting Library 能明显提升回测复盘、指标叠加、画线标注或多面板体验，并且项目具备合法可用的 Charting Library 资源，也可以选择完整 Charting Library。
+`docker-compose.yml` 表达稳定运行形态。
 
-约束：
+`docker-compose.override.yml` 只服务本地开发，例如端口映射、热加载或额外开发配置。
 
-- 使用 `web/frontend` 存放前端源码。
-- 默认 K 线图表使用 TradingView 的轻量版本 `lightweight-charts`。
-- 完整 TradingView Charting Library 是可选实现，不作为第一版默认依赖。
-- 前端必须提供 `ChartAdapter` 边界，页面只依赖统一的 chart API，不能直接散落调用具体图表库。
-- 不在前端实现交易逻辑。
-- 图表数据来自后端 API，后端负责 1m 查询和高周期聚合。
-- 除登录、登出、健康检查外，所有 Web API 默认需要登录态。
-- Web API 默认不接受跨站请求；CORS 默认关闭。
-- 所有写操作必须带 CSRF token。
-- 前端不得持久化 session token 到 localStorage；使用 `HttpOnly` cookie 承载 session。
+## 15. 前端路由建议
 
-图表库选择原则：
-
-- 如果只是展示 K 线、订单点、成交点、简单指标，优先 Lightweight Charts。
-- 如果需要完整绘图工具、复杂指标面板、类似专业交易终端的交互，再选择完整 Charting Library。
-- 无论选择哪一种，后端 API 和回测事实模型不能因此改变。
-- 图表库切换不能影响 Data、Backtest、Orders 页面之外的业务逻辑。
-
-第一版页面：
-
-- Overview：任务状态、kill switch、今日 PnL 简表。
-- Data：K 线同步、检查、修复。
-- Tasks：任务列表，start / pause / stop。
-- Orders：最近订单和成交。
-- Notifications：通道、路由、最近通知和失败投递。
-
-鉴权页面：
-
-- Login：用户名、密码。
-- Session：显示当前登录状态、最近登录时间、登出。
-- 首次使用前必须通过 CLI 创建管理员；Web 不提供公开注册入口。
-
-基础安全规则：
-
-- 管理员密码使用 Argon2id 或经确认的 bcrypt 哈希。
-- session token 使用高强度随机数，只保存 hash。
-- session 默认 12 小时过期，可配置。
-- 登录失败按 username + IP 限速；连续失败后锁定一段时间。
-- 所有状态变更 API 记录操作者、IP、user agent hash、动作、目标对象 ID。
-- Web 默认只监听 `127.0.0.1`；如果配置为非 loopback bind，启动时必须打印醒目警告，并要求配置明确确认。
-- 部署到公网或局域网共享入口时，必须放在 HTTPS / 可信反向代理之后；应用层 cookie 在 HTTPS 下必须启用 `Secure`。
-- 响应头 SHOULD 包含 `Content-Security-Policy`、`X-Frame-Options: DENY`、`Referrer-Policy`，降低页面被嵌入或脚本注入后误操作风险。
-
-K 线图表要求：
-
-- Data 页面可以查看 1m 原始 K 线和内部聚合出的 5m/15m/30m/1h/4h/1d。
-- Backtest detail 可以显示回测使用的 strategy interval K 线、订单点和成交点。
-- 图表不展示复杂数据治理信息。
-- 图表 interval 切换必须调用后端聚合 API，不能前端自行聚合。
-
-所有危险操作需要确认文本。  
-危险操作包括：
-
-- 关闭 kill switch。
-- 启用 exchange account 的 `trade_enabled`。
-- 启动 live task。
-- 从 `dry_run` 切到 `running`。
-- 提高 `capital_limit`、`max_order_notional`、`max_position_notional`。
-
-危险操作确认要求：
-
-- 确认文本必须包含 exchange、account、symbol、task id、mode。
-- 操作 `关闭 kill switch`、`启用交易账号`、`启动 live task`、`提高风险额度` 时，MUST 要求当前密码或短期 re-auth token。
-- 确认通过后只能在短时间窗口内使用，默认 5 分钟。
-
-## 14. 工程实践要求
-
-### 14.1 代码边界和依赖规则
-
-代码边界必须能被静态检查，不能只靠自觉。
-
-允许的依赖方向：
+路由建议：
 
 ```text
-cmd
-  -> config, runtime, store/postgres, adapter, web
-
-runtime
-  -> model, data, strategy, risk, execution, portfolio, notification, store interfaces
-
-auth
-  -> model, store interfaces
-
-data
-  -> model, exchange interfaces, store interfaces
-
-strategy
-  -> model only
-
-risk
-  -> model only
-
-execution
-  -> model, exchange interfaces
-
-portfolio
-  -> model only
-
-notification
-  -> model, store interfaces
-
-adapter/*
-  -> exchange interfaces, model
-
-store/postgres
-  -> model, store interfaces
-
-web
-  -> auth, runtime/query service interfaces only
+/login
+/overview
+/research
+/backtests
+/backtests/new
+/backtests/:id
+/trading
+/trading/new
+/trading/:id
+/system/notifications
+/system/exchange-accounts
+/system/operators
+/system/health
 ```
 
-禁止的依赖：
+默认进入：
 
-- `internal/model` MUST NOT import 任何业务包。
-- `internal/strategy` MUST NOT import store、adapter、execution、notification provider、web。
-- `internal/risk` MUST NOT import store、adapter、execution、web。
-- `internal/portfolio` MUST NOT import store、adapter、execution、web。
-- `internal/runtime` MUST NOT import `internal/store/postgres`。
-- `internal/runtime` MUST NOT import `internal/adapter/*`。
-- `internal/auth` MUST NOT import `internal/store/postgres`、adapter、runtime、web。
-- `internal/store/postgres` MUST NOT import runtime、adapter、web。
-- `cmd` 只负责依赖装配和参数解析，不写业务逻辑。
-- `web/frontend` MUST NOT 自行实现交易、聚合、风控、PnL 计算。
-
-必须提供 import boundary check：
-
-```sh
-scripts/check-boundaries.sh
+```text
+/overview
 ```
 
-该脚本至少检查：
+从研究页数据列表“查看图表”切换数据源时，可以更新 URL 查询参数：
 
-- strategy 包没有导入 store / adapter / execution / notification provider / web。
-- runtime 包没有导入 postgres / concrete adapter。
-- auth 包没有导入 postgres / adapter / runtime / web。
-- model 包没有导入 internal 其它包。
-- web/frontend 没有复制核心交易计算逻辑。
+```text
+/research?exchange=binance&symbol=BTCUSDT&interval=1m
+```
 
-### 14.2 错误处理
+从回测详情展示图表时，可以直接在详情页嵌入图表，不必跳转研究页。
 
-- 所有外部调用必须带 context。
-- 交易所错误需要分类：可重试、拒绝、未知执行状态。
-- 未知执行状态不能直接当作失败。
-- 网络超时后必须记录 pending / uncertain 事件。
-- goroutine 顶层必须 recover 并写 error event，不能静默退出。
-- 所有 error wrap 必须包含动作和关键对象 ID，例如 task_id、order_id、exchange。
-- 禁止 `panic` 处理业务错误；panic 只允许在测试或不可恢复的编程错误中出现。
-- 禁止吞掉错误后只写日志继续执行。
-- live 下单、撤单、reconcile 的错误必须写入 `events`。
+## 16. 前端组件建议
 
-### 14.3 Context、并发和生命周期
+核心组件：
 
-- 所有数据库、HTTP、交易所、通知 provider 调用 MUST 接收 `context.Context`。
-- daemon 下所有长期 goroutine MUST 由 supervisor 持有 cancel function。
-- task runner MUST 响应 context cancellation。
-- ticker MUST `Stop()`。
-- channel send/receive 不能永久阻塞，必须受 context 或 buffer 策略控制。
-- 禁止在策略中启动 goroutine。
-- 禁止包级 mutable 全局变量保存 runtime 状态。
-- rate limiter、sequence generator、client cache 必须挂在明确 owner 结构体下。
+- `TopNav`
+- `TopActions`
+- `SystemMenu`
+- `ThemeToggle`
+- `LocaleSwitch`
+- `AccountButton`
+- `AppShell`
+- `StatusBadge`
+- `ConfirmAction`
+- `EmptyState`
+- `LoadingState`
+- `ErrorState`
+- `TradingViewChart`
+- `DataSourceSelector`
+- `DataSyncTaskTable`
+- `BacktestTaskTable`
+- `BacktestDetail`
+- `TradingTaskTable`
+- `TradingTaskDetail`
+- `StrategyParamForm`
+- `IntentList`
+- `OrderList`
+- `NotificationList`
 
-### 14.4 数据库和事务
+组件原则：
 
-- 不使用 ORM。
-- PostgreSQL 使用 `pgx/v5` 和 `pgxpool`。
-- migration 使用手写 SQL，按顺序执行。
-- 每个 migration 在单独事务中执行。
-- repository 方法必须小而明确，不做业务编排。
-- 跨多表事实写入必须使用事务。
-- 订单和成交写入必须幂等。
-- client order sequence 必须由数据库事务生成。
-- SQL 查询必须有测试覆盖，尤其是 upsert、reconcile、task polling。
-- instrument_rules 的 tick_size、step_size、min_quantity、min_notional 应用必须有测试。
-- 禁止在业务代码中拼接未校验 SQL。
+- 图表组件要稳定封装，不让 TradingView 接入细节散落各页。
+- 策略参数表单由策略 schema 驱动。
+- 列表操作按钮保持明确，不隐藏在复杂菜单里。
+- 系统管理二级菜单可以折叠，但核心导航不折叠成侧栏。
 
-### 14.5 包、接口、函数和文件大小
+## 17. 数据模型草案
 
-硬性代码规模约束：
+以下是概念模型，不是最终 SQL。
 
-- 单个 Go 文件 SHOULD 小于 400 行。
-- 单个 Go 文件超过 600 行 MUST 拆分或写明原因。
-- 单个函数 SHOULD 小于 60 行。
-- 单个函数超过 100 行 MUST 拆分。
-- 单个 interface SHOULD 不超过 5 个方法。
-- 单个 struct SHOULD 不超过 12 个字段；配置 struct 和 DTO 可以例外，但必须保持分组清晰。
-- 构造函数参数 SHOULD 不超过 5 个；更多参数必须使用 config struct。
-- 单个 package SHOULD 聚焦一个领域；如果 package 名开始变成 `service`、`manager`、`common`、`utils`，必须重新命名或拆分。
+### 17.1 数据同步
+
+```text
+data_sync_tasks
+  id
+  exchange
+  symbol
+  interval
+  start_time
+  end_time
+  sync_enabled
+  realtime_enabled
+  status
+  locked_by
+  locked_until
+  heartbeat_at
+  started_at
+  finished_at
+  last_synced_open_time
+  last_error
+  attempt_count
+  created_at
+  updated_at
+```
+
+```text
+market_candles
+  exchange
+  symbol
+  interval
+  open_time
+  close_time
+  open
+  high
+  low
+  close
+  volume
+  is_closed
+  updated_at
+```
+
+`market_candles` 必须有唯一约束：
+
+```text
+exchange + symbol + interval + open_time
+```
+
+第一版如果只同步 `1m`，`market_candles.interval` 主要保存 `1m` 原始 K 线。
+
+更高周期由聚合查询层生成，不要求进入 `market_candles`。
+
+如果后续新增聚合缓存，必须与 `market_candles` 区分，不能混淆原始事实和派生结果。
+
+### 17.2 策略
+
+```text
+strategy_registry
+  strategy_id
+  name
+  description
+  param_schema
+  supported_intents
+```
+
+策略 registry 可以来自后端代码，不一定必须落库。任务需要保存策略 id 和参数快照。
+
+### 17.3 回测
+
+```text
+backtest_tasks
+  id
+  name
+  exchange
+  symbol
+  interval
+  time_range
+  strategy_id
+  strategy_params
+  status
+  locked_by
+  locked_until
+  heartbeat_at
+  started_at
+  finished_at
+  last_error
+  attempt_count
+  result_summary
+  created_at
+```
+
+```text
+backtest_orders
+  id
+  backtest_id
+  intent_id
+  side
+  price
+  quantity
+  status
+  occurred_at
+```
+
+### 17.4 交易任务
+
+```text
+trading_tasks
+  id
+  name
+  type
+  exchange
+  account_id
+  symbol
+  strategy_id
+  strategy_params
+  intent_policy
+  status
+  locked_by
+  locked_until
+  heartbeat_at
+  started_at
+  finished_at
+  last_error
+  attempt_count
+  created_at
+```
+
+`type` 为：
+
+- `paper`
+- `live`
+
+### 17.5 意图
+
+```text
+strategy_intents
+  id
+  task_id
+  task_type
+  strategy_id
+  intent_type
+  idempotency_key
+  payload
+  policy
+  status
+  created_at
+```
+
+`intent_type` 为：
+
+- `order`
+- `notification`
+
+同一任务内的 `idempotency_key` 必须唯一。
+
+### 17.6 订单
+
+```text
+orders
+  id
+  task_id
+  task_type
+  intent_id
+  idempotency_key
+  exchange
+  account_id
+  symbol
+  side
+  order_type
+  price
+  quantity
+  status
+  exchange_order_id
+  exchange_response_summary
+  last_error
+  created_at
+  updated_at
+```
+
+同一任务内的订单 `idempotency_key` 必须唯一。
+
+实盘订单必须先创建本地订单记录，再提交交易所。
+
+### 17.7 交易所账号
+
+```text
+exchange_accounts
+  id
+  exchange
+  alias
+  encrypted_api_key
+  encrypted_api_secret
+  enabled
+  created_at
+  updated_at
+```
+
+要求：
+
+- 密钥只保存密文。
+- 列表和详情不返回完整密钥。
+- `enabled = false` 时不能用于新的实盘任务和新的实盘订单提交。
+
+### 17.6 通知
+
+```text
+notifications
+  id
+  intent_id
+  channel
+  title
+  body
+  status
+  error
+  created_at
+  sent_at
+```
+
+## 18. 接口草案
+
+接口命名先保持简单。
+
+数据：
+
+```text
+GET    /api/data/tasks
+POST   /api/data/tasks
+POST   /api/data/tasks/:id/sync/start
+POST   /api/data/tasks/:id/sync/stop
+POST   /api/data/tasks/:id/realtime/start
+POST   /api/data/tasks/:id/realtime/stop
+DELETE /api/data/tasks/:id
+GET    /api/candles
+```
+
+策略：
+
+```text
+GET /api/strategies
+GET /api/strategies/:id
+```
+
+回测：
+
+```text
+GET  /api/backtests
+POST /api/backtests
+GET  /api/backtests/:id
+GET  /api/backtests/:id/orders
+GET  /api/backtests/:id/intents
+```
+
+交易：
+
+```text
+GET  /api/trading/tasks
+POST /api/trading/tasks
+GET  /api/trading/tasks/:id
+POST /api/trading/tasks/:id/start
+POST /api/trading/tasks/:id/pause
+POST /api/trading/tasks/:id/stop
+GET  /api/trading/tasks/:id/orders
+GET  /api/trading/tasks/:id/intents
+GET  /api/trading/tasks/:id/notifications
+```
+
+系统管理：
+
+```text
+GET  /api/system/notifications/channels
+POST /api/system/notifications/channels
+GET  /api/system/exchange-accounts
+POST /api/system/exchange-accounts
+GET  /api/system/operators
+POST /api/system/operators
+GET  /api/system/health
+```
+
+登录：
+
+```text
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/session
+```
+
+## 19. 实施阶段
+
+### 阶段 1：前端壳和导航
+
+目标：
+
+- 建立顶部平铺导航。
+- 建立右侧工具区。
+- 建立系统管理二级菜单。
+- 建立页面路由。
+- 形成研究工作台气质。
+
+验收：
+
+- 顶部导航包含概览、研究、回测、交易。
+- 右侧工具区顺序正确。
+- 系统管理菜单包含通知管理、交易所账号管理、操作台账号管理、运维健康。
+- 不出现左侧管理后台导航。
+
+### 阶段 2：研究页、图表骨架和数据同步列表
+
+目标：
+
+- 接入 TradingView 开源图表。
+- 封装图表组件。
+- 支持选择数据源并加载 K 线。
+- 在研究页展示轻量数据同步列表。
+- 支持创建数据同步任务。
+
+验收：
+
+- 研究页图表占主体。
+- 能选择交易所、交易对、周期。
+- 能加载 K 线数据。
+- 能看到数据同步任务列表。
+
+### 阶段 3：数据同步操作
+
+目标：
+
+- 实现同步 / 停止同步。
+- 实现实时 / 停止实时。
+- 实现查看图表。
+- 实现删除。
+
+验收：
+
+- 研究页数据同步列表操作完整。
+- 查看图表能在研究页加载对应数据上下文。
+- 同步进度可恢复。
+
+### 阶段 4：策略 registry 和参数表单
+
+目标：
+
+- 后端注册策略。
+- 前端展示策略。
+- 根据策略参数 schema 渲染表单。
+
+验收：
+
+- 前端能选择策略。
+- 能看到策略参数。
+- 创建回测和交易任务时能填写参数。
+
+### 阶段 5：回测列表和详情
+
+目标：
+
+- 实现回测创建。
+- 实现回测列表。
+- 实现回测详情。
+- 回测详情包含图表和买卖点。
+
+验收：
+
+- 回测详情能看到 K 线图表。
+- 能看到买卖点。
+- 能看到订单和回测信息。
+
+### 阶段 6：交易任务
+
+目标：
+
+- 实现交易任务列表。
+- 实现模拟 / 实盘任务创建。
+- 实现交易详情。
+- 实现意图、订单、通知展示。
+
+验收：
+
+- 能创建模拟任务。
+- 能创建实盘任务。
+- 交易详情能看到策略意图、订单、通知。
+
+### 阶段 7：系统管理和登录
+
+目标：
+
+- 实现基础登录。
+- 实现退出。
+- 实现当前账号展示。
+- 实现通知管理。
+- 实现交易所账号管理。
+- 实现操作台账号管理。
+- 实现运维健康。
+
+验收：
+
+- 未登录不能进入操作台。
+- 登录后能看到顶部账号。
+- 系统管理菜单各项可进入。
+
+## 20. 明确禁止
 
 禁止：
 
-- 禁止 `internal/app` 这类万能胶水包在第一版出现。
-- 禁止 `utils`、`common`、`helper` 这类无边界包。
-- 禁止复制粘贴同一套订单状态转换。
-- 禁止同一个文件同时处理 CLI、数据库、交易所和策略。
-- 禁止在测试之外使用 sleep 等待异步结果；必须用 context、fake clock 或显式同步。
+- 左侧管理后台导航。
+- 把通知做成和模拟盘 / 实盘并列的任务类型。
+- 把“回测后才能模拟 / 实盘”写成产品限制。
+- 把数据同步拆成一个占据大量空间的独立管理后台页。
+- 把策略写成前端动态代码。
+- 让策略直接访问交易所。
+- 让策略直接发通知。
+- 让策略直接写数据库。
+- 图表页被表单和表格挤到边角。
+- 数据页变成复杂数据治理中心。
+- 系统管理能力抢占核心一级导航。
 
-### 14.6 领域不变量
+## 21. 工程质量约束
 
-代码必须用测试保护这些不变量：
+本项目必须始终保持最佳工程化实践。
 
-- 策略只返回意图，不直接产生订单事实。
-- 风控拒绝的 intent 不得提交交易所。
-- 每个 order 必须归属一个 task。
-- 每个 fill 必须归属一个 order 和 task。
-- fill 累计数量不得超过 order quantity。
-- position 只能由 fill 推导更新。
-- 所有 Quantity / Money / Price / Fee / PnL 必须带 asset。
-- 订单 quantity asset 必须等于 base asset。
-- 订单 quote amount asset 必须等于 quote asset。
-- 订单 price 必须是 quote/base。
-- fee asset 不得被默认成 quote asset。
-- 风控必须使用交易所规则舍入后的 notional。
-- live 下单前必须满足 tick_size、step_size、min_quantity、min_notional。
-- backtest/paper/live 使用同一个时间钟和聚合器语义。
-- `trigger_clock=base` 不得看到未来 1m 数据。
-- `trigger_clock=strategy_close` 不得看到 forming strategy candle。
-- notification event 必须先落库再投递。
-- notification delivery 必须记录 sent/failed/skipped。
-- Web 写操作必须有已登录 session 和 CSRF 校验。
-- 高风险 Web 操作必须有二次确认，必要时必须通过 re-auth。
-- API 密钥、session token、CSRF token、密码明文不得写日志、events 或前端状态。
+质量目标：
 
-### 14.7 前端代码约束
+- 代码清晰。
+- 边界明确。
+- 文件短小。
+- 函数短小。
+- 命名准确但不过度冗长。
+- 依赖克制。
+- 测试覆盖关键业务。
+- 变更可审查。
 
-- 前端使用 Vue 3 + Vite + TypeScript。
-- 必须开启 TypeScript strict。
-- 所有 API 类型 SHOULD 由后端 OpenAPI 或共享 schema 生成；手写类型必须有测试或契约校验。
-- 页面组件不直接调用图表库，必须通过 `ChartAdapter`。
-- 页面组件不直接拼装交易决策。
-- 前端只展示后端返回的事实和派生结果。
-- 前端不得把 session token、CSRF token 或密码持久化到 localStorage / IndexedDB。
-- 前端所有写操作请求必须走统一 API client，由 API client 附带 CSRF header。
-- 前端接收金额、价格、数量时必须使用 `{ value, asset }` 或 `{ value, base, quote }` 结构。
-- 前端不能把金额事实转成 number 后再参与计算；展示格式化使用字符串/decimal helper。
-- K 线 interval 切换必须请求后端聚合 API。
-- 危险操作组件必须复用统一 confirmation 组件。
-- 前端测试至少覆盖登录态、任务控制、数据同步动作、通知路由展示、危险操作确认和图表 adapter 基础渲染。
+### 21.1 总原则
 
-### 14.8 测试要求
+必须遵守：
 
-每个阶段必须有测试：
+- 先明确边界，再写实现。
+- 先修根因，不做补丁式堆代码。
+- 新增代码必须有明确归属模块。
+- 不把无关职责塞进同一个文件。
+- 不把复杂逻辑塞进 handler、Vue 页面或单个 service 大函数。
+- 不为未来可能性提前引入复杂抽象。
+- 不复制粘贴大段逻辑。
+- 不把测试、mock、demo 数据混进生产路径。
+- 不把技术债伪装成“暂时先这样”长期保留。
 
-- model validation 单元测试。
-- numeric domain type / rounding / asset consistency 单元测试。
-- strategy 单元测试。
-- risk 单元测试。
-- data check / repair 单元测试。
-- exchange adapter 使用 httptest，不依赖真实网络。
-- PostgreSQL repository 使用测试数据库或容器化测试。
-- runner 使用 fake exchange / fake store 测试多任务启动停止。
-- live submit 默认只跑 fake adapter，真实 testnet 单独手动 gate。
-- TimeClock / CandleAggregator 必须有表格测试。
-- auth 必须测试密码哈希校验、登录失败锁定、session 过期、logout revoke、CSRF 校验、re-auth TTL。
-- notification router / cooldown / retry 必须有单元测试。
-- frontend 至少有类型检查和核心组件测试。
+### 21.2 文件行数限制
 
-### 14.9 质量门禁
+默认限制：
 
-基础检查：
+```text
+Go 生产文件：建议 <= 300 行，硬上限 500 行
+Go 测试文件：建议 <= 400 行，硬上限 700 行
+Vue 页面文件：建议 <= 300 行，硬上限 450 行
+Vue 组件文件：建议 <= 250 行，硬上限 400 行
+TypeScript 生产文件：建议 <= 250 行，硬上限 400 行
+TypeScript 测试文件：建议 <= 400 行，硬上限 650 行
+CSS / SCSS 单文件：建议 <= 300 行，硬上限 500 行
+```
 
-```sh
+超过建议值时必须优先拆分。
+
+超过硬上限时不能继续堆功能，必须先拆分。
+
+允许例外：
+
+- 自动生成文件。
+- 明确的协议映射表。
+- 少量不可拆的静态 fixture。
+
+例外必须在文档或代码注释中说明原因和退出计划。
+
+### 21.3 函数限制
+
+函数长度：
+
+```text
+普通函数：建议 <= 40 行，硬上限 80 行
+复杂业务函数：建议 <= 60 行，硬上限 120 行
+测试函数：建议 <= 80 行，硬上限 150 行
+```
+
+函数参数：
+
+```text
+普通函数参数 <= 4 个
+超过 4 个参数时优先引入 request / options / config struct
+超过 6 个参数默认禁止
+```
+
+函数返回值：
+
+```text
+Go 函数返回值建议 <= 2 个
+超过 2 个返回值必须有明确理由
+```
+
+禁止：
+
+- 一个函数同时做校验、查询、业务决策、写库、发通知。
+- handler 中直接堆业务流程。
+- Vue setup 中塞大量业务逻辑。
+- 一个函数靠多层 if / switch 支撑多个模块语义。
+
+### 21.4 命名限制
+
+命名要准确、稳定、不过度缩写。
+
+函数名：
+
+```text
+建议 <= 32 字符
+硬上限 48 字符
+测试函数可放宽到 80 字符
+```
+
+文件名：
+
+```text
+建议 <= 40 字符
+硬上限 64 字符
+```
+
+禁止：
+
+- 为了表达所有上下文写超长函数名。
+- 使用含糊名字，例如 `Handle`, `Do`, `Process`, `Manager`，除非上下文极清楚。
+- 同一个概念出现多套名字，例如 task / job / run 混用但不定义区别。
+
+必须统一的术语：
+
+- `data sync task`：数据同步任务。
+- `backtest`：回测。
+- `trading task`：模拟 / 实盘交易任务。
+- `paper`：模拟盘。
+- `live`：实盘。
+- `strategy`：后端策略代码。
+- `intent`：策略输出意图。
+- `order intent`：订单意图。
+- `notification intent`：通知意图。
+
+### 21.5 前端质量约束
+
+前端必须：
+
+- 使用成熟 UI 库承担基础组件。
+- 使用 Naive UI 作为基础 UI 库。
+- 使用 Pinia 管理跨页面状态。
+- 使用 vue-i18n 管理中英文文案。
+- 使用 lightweight-charts 封装 TradingView K 线图表。
+- 使用 pnpm 管理前端依赖。
+- 使用原生 fetch + typed API wrapper 调用后端。
+- 页面组件只负责布局和页面编排。
+- 业务状态放入 composable 或明确的 store。
+- API 调用集中封装。
+- 表单校验结构化。
+- i18n 文案集中管理。
+- 主题 token 集中管理。
+- 图表组件单独封装。
+
+禁止：
+
+- 在 Vue 页面里直接散落大量 fetch。
+- 在模板里写复杂业务表达式。
+- 用大量手写 CSS 覆盖 UI 库基础能力。
+- 复制粘贴表格列、状态标签、按钮组。
+- 中文文案硬编码在多个组件里。
+- 只适配浅色主题或只适配中文。
+
+前端交付必须检查：
+
+- 浅色主题。
+- 深色主题。
+- 中文。
+- 英文。
+- 桌面宽屏。
+- 普通笔记本宽度。
+- 窄屏。
+- 按钮 hover / active / disabled。
+- 空状态。
+- 加载状态。
+- 错误状态。
+
+前端基础设施骨架必须先建立，再堆页面。
+
+建议目录：
+
+```text
+web/frontend/src
+  app/
+  assets/
+  components/
+  components/chart/
+  components/layout/
+  components/tables/
+  composables/
+  i18n/
+  pages/
+  router/
+  services/api/
+  stores/
+  styles/
+  theme/
+  types/
+```
+
+目录职责：
+
+- `app/`：应用入口装配，例如 Naive UI provider、Pinia、router、i18n、主题。
+- `components/layout/`：顶部导航、系统菜单、账号按钮、主题切换、语言切换。
+- `components/chart/`：TradingView lightweight-charts 封装。
+- `components/tables/`：可复用业务表格和状态列。
+- `composables/`：页面可复用业务状态和交互逻辑。
+- `i18n/`：中文、英文文案和类型约束。
+- `pages/`：页面级组件，只做布局和编排。
+- `router/`：路由定义和登录守卫。
+- `services/api/`：typed API wrapper、错误映射、请求拦截。
+- `stores/`：登录态、主题、语言、当前账号等跨页面状态。
+- `styles/`：基础样式、布局变量、全局修正。
+- `theme/`：浅色 / 深色主题 token、Naive UI theme overrides、图表主题映射。
+- `types/`：前端共享类型。
+
+必须先完成的基础设施：
+
+- `AppShell`：顶部导航和右侧工具区。
+- `router`：核心路由和登录守卫。
+- `auth store`：登录态、当前操作台账号、退出。
+- `theme store`：浅色 / 深色切换和持久化。
+- `locale store`：中文 / 英文切换和持久化。
+- `api client`：统一 fetch、错误处理、认证处理、JSON 编解码。
+- `TradingViewChart`：统一图表组件，支持主题切换和数据更新。
+- `StatusBadge`：统一任务状态展示。
+- `ConfirmAction`：危险动作确认。
+- `EmptyState` / `LoadingState` / `ErrorState`：统一基础状态。
+
+前端实现顺序：
+
+1. 建立应用壳、主题、语言、路由、API client。
+2. 建立图表封装和基础状态组件。
+3. 建立研究页骨架。
+4. 接入数据同步列表和图表数据。
+5. 再实现回测、交易和系统管理页面。
+
+禁止：
+
+- 先写一堆页面，再回头补主题和 i18n。
+- 每个页面各自维护一套 loading / error / empty。
+- 每个页面各自拼接口地址。
+- 每个页面各自写状态颜色。
+- 图表初始化逻辑散落在研究页、回测详情、交易详情里。
+
+### 21.6 后端质量约束
+
+后端必须：
+
+- 保持单体清晰模块。
+- 核心模型不依赖数据库、HTTP、交易所 adapter。
+- handler 只做请求解析、权限校验、响应映射。
+- service / runner 承担业务流程。
+- store 只承担持久化。
+- adapter 只承担交易所协议映射和调用。
+- strategy 只产生 intent。
+
+禁止：
+
+- 核心模型 import PostgreSQL 实现。
+- 核心模型 import HTTP handler。
+- 策略 import 交易所 adapter。
+- 策略直接写数据库。
+- 运行状态存全局变量。
+- 用 `float64` 表示价格、数量、金额等交易事实。
+- 静默吞错误。
+
+### 21.7 依赖约束
+
+前端：
+
+- 可以使用成熟 UI 库。
+- 可以使用 TradingView 开源图表。
+- 可以使用成熟 i18n、状态管理、请求库。
+- 不引入多个 UI 库互相覆盖。
+- 不引入低质量小众组件堆页面。
+
+后端：
+
+- 可以使用 PostgreSQL 驱动。
+- 可以使用成熟 HTTP router。
+- 可以使用密码哈希、session/JWT、配置解析、日志等必要库。
+- 安全敏感实现必须使用成熟库。
+- 不手写密码学。
+- 不引入大型业务框架。
+- 不引入不必要消息队列、插件系统、规则引擎。
+
+### 21.8 测试约束
+
+必须测试：
+
+- 数据同步续跑和断点恢复。
+- K 线查询边界。
+- 策略参数校验。
+- 策略 intent 输出。
+- 回测撮合和订单记录。
+- 交易任务状态切换。
+- 订单意图和通知意图处理。
+- 登录和会话。
+- 交易所账号配置校验。
+- 通知投递失败记录。
+
+前端必须测试：
+
+- 路由是否可达。
+- 顶部导航是否符合设计。
+- 主题切换。
+- 中英切换。
+- 关键表单。
+- 关键列表操作。
+- 图表容器渲染。
+
+测试原则：
+
+- 小模块用单元测试。
+- 跨模块核心链路用集成测试。
+- 前端关键交互用组件测试或浏览器检查。
+- 不追求虚假的全覆盖率，优先覆盖交易风险和核心体验。
+
+### 21.9 变更约束
+
+每次变更必须：
+
+- 范围清楚。
+- 不混入无关重构。
+- 不同时改产品、格式化、依赖升级和大重构。
+- 不覆盖用户未确认的方向。
+- 文档和实现保持一致。
+
+涉及以下内容必须先更新计划文档：
+
+- 一级导航变化。
+- 数据 / 研究页面结构变化。
+- 任务类型变化。
+- 策略意图模型变化。
+- 数据库主模型变化。
+- 交易所账号管理方式变化。
+- 登录和安全边界变化。
+- UI 库选择变化。
+
+### 21.10 质量门禁建议
+
+后续实现时应建立轻量门禁：
+
+```text
 go test ./...
 go vet ./...
-gofmt
-scripts/check-boundaries.sh
+前端 typecheck
+前端 lint
+前端 test
+前端 build
+文件行数检查
+函数长度 / 参数数量检查
+命名长度检查
 ```
 
-后续提供脚本：
+门禁要轻量、快速、服务质量。
 
-```sh
-scripts/smoke-test.sh
-scripts/release-check.sh
-```
+禁止把门禁做成 `tictick-pro` 那种重证据系统。
 
-release check 至少包括：
+## 22. 关键开放问题
 
-- 单元测试。
-- race-sensitive package 的 `go test -race`，至少覆盖 runtime、notification、execution。
-- import boundary check。
-- gofmt / go vet。
-- PostgreSQL migration up。
-- K 线同步 fake exchange smoke。
-- CandleAggregator / TimeClock smoke。
-- backtest smoke。
-- paper task smoke。
-- notification route / fake provider smoke。
-- task start / pause / stop smoke。
-- frontend typecheck。
-- frontend component smoke。
+需要继续确认：
 
-### 14.10 代码评审准入标准
-
-每次合并前必须回答：
-
-- 这个变更属于哪个明确领域包？
-- 有没有引入新的事实源？
-- 有没有破坏 Strategy / Risk / Execution / Portfolio / Notification 边界？
-- 是否新增或修改了状态机？如果是，是否更新文档和测试？
-- 是否新增数据库字段或 migration？如果是，是否有 migration 测试？
-- 是否新增交易所行为？如果是，是否有 httptest 或 fake adapter 测试？
-- 是否破坏 exchange adapter 契约，或把某个交易所特殊逻辑塞进 runtime/data/execution？
-- 是否影响 backtest/paper/live 共用语义？
-- 是否影响 TimeClock 或 CandleAggregator？
-- 是否影响前端图表数据契约？
-- 是否有可重复的本地验证命令？
-- 提交是否原子，是否没有夹带无关文件？
-- 本地提交是否已经推送到远程分支？
-
-没有清楚答案时，不合并。
-
-### 14.11 Git 提交与远程同步
-
-代码提交必须原子化，并同步推送到远程分支。
-
-分支规则：
-
-- 不直接在 `main` 上堆实现。
-- 每个阶段或明确功能使用独立分支，例如 `feature/phase-3-data-sync`、`feature/phase-5-paper-runner`、`docs/implementation-plan`。
-- 第一次推送分支时使用 `git push -u origin <branch>`。
-- 后续每完成一个可验证的原子提交，都要同步 `git push` 到同一远程分支。
-- 禁止在未确认的情况下 force push；确需改写远程历史时，只能使用 `--force-with-lease`，并必须先说明原因。
-
-原子提交规则：
-
-- 一个 commit 只表达一个清晰意图：一个模型变更、一个 migration、一个 adapter 行为、一个 runner 行为、一个前端页面切片或一个文档契约变更。
-- 不把无关修改混在同一个 commit 中。
-- 不把纯格式化和行为变更混在同一个 commit 中，除非格式化只影响同一小范围文件。
-- 数据库 migration、对应 model/store 变更和测试可以作为一个原子提交。
-- API contract、后端实现、前端调用和契约测试可以作为一个端到端原子提交，但范围必须小。
-- 修复 review 意见时优先追加小提交；只有在明确要求整理历史时才 squash。
-
-提交信息：
-
-- 使用稳定格式：
-
-```text
-<type>(<scope>): <summary>
-```
-
-- `type` 第一版使用：`feat`、`fix`、`refactor`、`test`、`docs`、`chore`、`build`。
-- `scope` 使用明确领域：`model`、`data`、`backtest`、`runtime`、`execution`、`portfolio`、`notification`、`auth`、`web`、`docker`、`docs`。
-- 非平凡提交的 commit body MUST 写明验证命令；如果没有运行测试，必须说明原因。
-
-提交前检查：
-
-- commit 前必须查看 `git diff --stat` 和关键 diff，确认没有夹带无关文件。
-- 不提交真实 `.env`、API key、数据库 dump、私钥、token、备份文件。
-- 不提交本地 IDE 噪声、临时文件、日志文件。
-- 提交前至少运行与改动范围匹配的检查；跨领域改动必须运行 `scripts/release-check.sh` 或记录未运行原因。
-
-推送规则：
-
-- 每个原子提交完成并通过对应检查后，应推送到远程分支。
-- push 失败必须停止后续提交，先处理远程同步问题。
-- 远程分支是协作事实源之一；本地长期不推送的大批量提交不允许进入主线。
-- 合并前远程分支必须包含所有本地提交，且工作区不得有未说明的脏改动。
-
-## 15. 实施阶段
-
-### Phase 0: 文档和边界确认
-
-产出：
-
-- 本实施计划。
-- README 项目定位。
-- 初始工程约束文档。
-
-验收：
-
-- 方向确认：`tictick-bot` 多交易所版。
-- PostgreSQL 确认。
-- Binance / OKX 范围确认。
-- 数据同步操作台简化原则确认。
-
-### Phase 1: 项目骨架
-
-产出：
-
-- Go module。
-- `cmd/hi` CLI。
-- config loader。
-- PostgreSQL connection。
-- migration runner。
-- Dockerfile、`.dockerignore`、`.env.example`。
-- `deploy/compose/docker-compose.yml`，包含 postgres、migrate、app。
-- 基础测试脚本。
-
-验收：
-
-```sh
-go test ./...
-go run ./cmd/hi --help
-go run ./cmd/hi migrate
-docker compose -f deploy/compose/docker-compose.yml config
-```
-
-### Phase 2: 核心模型与存储
-
-产出：
-
-- Candle、OrderIntent、Order、Fill、Position、Portfolio。
-- exchange_catalog。
-- PostgreSQL migrations。
-- repository 接口和 postgres 实现。
-
-验收：
-
-- model validation 测试通过。
-- repository CRUD 测试通过。
-
-### Phase 3: K 线同步、检查、修复
-
-产出：
-
-- Binance public klines。
-- OKX public candles。
-- exchange adapter registry。
-- market_candles upsert。
-- data check。
-- data repair。
-- CandleAggregator。
-- aggregate-check。
-- 批量 symbols sync。
-
-验收：
-
-```sh
-hi data sync --exchange binance ...
-hi data sync --exchange okx ...
-hi data check ...
-hi data repair ...
-hi data aggregate-check ...
-```
-
-### Phase 4: 策略和回测
-
-产出：
-
-- Strategy 接口。
-- Strategy registry。
-- `StrategyDecision`、`OrderIntent`、`NotificationIntent`。
-- 内置 `ema-cross` 和测试策略。
-- 基于 PostgreSQL K 线的 backtest runner。
-- 高周期回测通过 1m 聚合生成策略 K 线。
-
-验收：
-
-```sh
-hi strategy list
-hi backtest run --strategy ema-cross ...
-```
-
-### Phase 5: Daemon 与 Paper 多任务
-
-产出：
-
-- strategy_tasks。
-- task supervisor。
-- paper runner。
-- notification worker。
-- fake provider、email、telegram、feishu provider 骨架。
-- task start / pause / stop CLI。
-- notification channel / route / test CLI。
-
-验收：
-
-- 同时启动多个 paper task。
-- 单独暂停其中一个 task 不影响其它 task。
-- 所有订单、成交、事件都带 task 归因。
-- 策略能发出 `NotificationIntent`，并通过 fake provider 投递。
-- 同一个 dedupe key 在 cooldown 内不会重复投递。
-
-### Phase 6: Live 多任务
-
-产出：
-
-- Binance live trading adapter。
-- OKX live trading adapter。
-- live runner。
-- live safety gate。
-- 最小 reconcile。
-
-验收：
-
-- dry-run live task 可运行。
-- testnet / sandbox 小额订单手动 gate 可通过。
-- 同一 daemon 可管理 Binance 和 OKX 的 live task。
-
-### Phase 7: 极简操作台
-
-产出：
-
-- `internal/auth`。
-- `web_users` / `web_sessions` migration 和 repository。
-- `hi auth init-admin` / `change-password` / `session list` / `session revoke`。
-- Web login / logout / session API。
-- CSRF middleware 和 auth middleware。
-- `/healthz` 和 `/readyz`。
-- Vue 3 + Vite + TypeScript 前端骨架。
-- ChartAdapter 图表适配层。
-- 默认 TradingView Lightweight Charts K 线实现，必要时可替换为完整 TradingView Charting Library。
-- Overview。
-- Data。
-- Tasks。
-- Orders。
-- Notifications。
-
-验收：
-
-- 未登录时除 login/health 外不能访问 API。
-- 登录失败限速、session 过期、logout revoke、CSRF 校验测试通过。
-- Data 页面只展示简表和 sync/check/repair。
-- K 线图能展示 1m 原始数据和后端聚合出的高周期数据。
-- Tasks 页面可 start/pause/stop。
-- live 相关危险操作需要确认和 re-auth。
-- Notifications 页面只展示通道、路由、最近通知、失败投递和 test/retry 动作。
-- 默认仅本机访问。
-
-### Phase 8: Docker 部署验收
-
-产出：
-
-- 多阶段 Dockerfile。
-- `deploy/compose/docker-compose.yml`。
-- `deploy/compose/docker-compose.prod.yml`。
-- `config/docker.yaml`。
-- `docker/entrypoint.sh`。
-- `docker/healthcheck.sh`。
-- `scripts/docker-smoke-test.sh`。
-- PostgreSQL backup / restore 脚本或明确文档。
-
-验收：
-
-```sh
-docker compose -f deploy/compose/docker-compose.yml config
-docker compose -f deploy/compose/docker-compose.yml build
-scripts/docker-smoke-test.sh
-```
-
-验收标准：
-
-- PostgreSQL volume 持久化。
-- migration 服务能成功执行。
-- app ready 后 `/readyz` 返回成功。
-- 默认只绑定 `127.0.0.1:8090`。
-- 未登录不能访问受保护 API。
-- 镜像和 compose 文件中不包含真实密钥。
-
-## 16. 第一版成功标准
-
-第一版完成时，系统应该能做到：
-
-- 一个 PostgreSQL 数据库保存全部事实。
-- 能同步 Binance / OKX 历史 K 线。
-- 能检查并修复 K 线缺口。
-- 能从 1m K 线内部聚合出 5m/15m/1h/4h/1d。
-- 能用同步数据跑回测。
-- 能同时运行多个 paper task。
-- 能同时运行多个 live task。
-- 操作台有基础登录鉴权、session 过期、CSRF 防护和登出撤销。
-- live 危险操作默认受 kill switch、trade_enabled、确认文本、re-auth 和风险额度保护。
-- 能发送系统级通知和策略级信号通知。
-- 能通过 Docker Compose 一键启动 PostgreSQL、migration 和 app，并通过健康检查。
-- 每个 task 可独立启动、暂停、停止。
-- 每笔订单和成交都有明确 task / strategy / exchange 归因。
-- 操作台清爽，不暴露内部复杂性。
-- 代码结构清楚，新人能从目录和接口理解系统。
-
-## 17. 长期维护原则
-
-任何新功能进入前必须回答：
-
-- 它是否服务于数据、策略、回测、模拟、实盘、通知这六件事？
-- 它会不会让操作台变复杂？
-- 它是否引入第二套事实源？
-- 它是否破坏策略、风控、执行、账本边界？
-- 它是否能用测试证明？
-
-如果答案不清楚，就不加。
-
-## 18. 单一事实源矩阵
-
-系统中每类状态只能有一个权威来源。任何实现如果引入第二个事实源，必须先停下来重写设计。
-
-| 领域 | 权威事实源 | 允许的缓存/派生 | 禁止 |
-| --- | --- | --- | --- |
-| 交易所目录 | `exchange_catalog` + adapter registry | CLI/Web 可选列表 | UI 或 runtime 私自硬编码完整交易所列表 |
-| 交易所账号配置 | `exchange_accounts` | 进程内只读配置副本 | 把密钥明文写入库 |
-| 全局开关 | `settings` | daemon 本地缓存，最多缓存一个 poll interval | CLI 直接改内存状态 |
-| Web 管理员 | `web_users` | 当前请求 user context | 默认账号或配置文件明文密码 |
-| Web session | `web_sessions` | HttpOnly session cookie 中的 opaque token | localStorage token 或纯内存 session |
-| 用户期望任务状态 | `strategy_tasks.desired_status` | Web/CLI 展示副本 | runner 自己随意改 desired status |
-| 实际运行状态 | `task_runs.observed_status` + daemon 内存 goroutine | dashboard 展示状态 | 只用内存状态判断历史运行 |
-| 原始历史 K 线 | `market_candles` 中的 1m exchange candles | 查询结果缓存 | CSV 临时文件作为生产事实 |
-| 高周期 K 线 | 由 1m `market_candles` 通过 `CandleAggregator` 派生 | 可选聚合缓存 | 交易所原生高周期和内部聚合混用 |
-| 策略定义 | `strategies` | strategy registry 中的 factory | 策略代码读写自己的运行状态文件 |
-| 订单事实 | `orders` | open order 查询视图 | portfolio 内部私藏订单状态 |
-| 成交事实 | `fills` | 最近成交查询视图 | 只靠交易所 recent fills 不落库 |
-| 仓位 | `positions` 最新快照，来源于 fills replay | dashboard summary | 手工 UPDATE 仓位绕过 fill |
-| PnL | `portfolio_snapshots`，来源于 portfolio ledger | overview 聚合 | execution 层直接计算并写 PnL |
-| 事件 | `events` | 操作台最近事件列表 | 只写日志不写事件 |
-| 通知事件 | `notification_events` | 最近通知列表 | 策略直接调用通知 provider |
-| 通知投递 | `notification_deliveries` | provider response 摘要 | 发完不记录结果 |
-
-规则：
-
-- Facts first：订单、成交、K 线、任务状态必须先落库，再给 UI 或 summary 使用。
-- Derived second：positions、portfolio snapshots 可以是快照，但必须能由 orders / fills 解释。
-- Logs are not facts：日志用于排查，不能替代 events 和 database facts。
-- Memory is not authority：进程重启后必须能从 PostgreSQL 恢复可运行状态。
-
-## 19. 核心类型契约
-
-### 19.1 model.Candle
-
-第一版 Candle 字段固定如下：
-
-```go
-type Candle struct {
-    Exchange   string
-    Market     string
-    Symbol     string
-    BaseAsset  Asset
-    QuoteAsset Asset
-    Interval   string
-    OpenTime   time.Time
-    Open       Price
-    High       Price
-    Low        Price
-    Close      Price
-    Volume     Quantity
-    Complete   bool
-}
-```
-
-`model.Candle` 可以表示原始 1m K 线，也可以表示内部聚合出的高周期 K 线。是否落库由数据层决定；第一版只有原始 1m exchange candle 落入 `market_candles`。
-
-验证规则：
-
-- `Exchange` MUST 是 `binance` 或 `okx`。
-- `Market` 第一版 MUST 是 `spot`。
-- `Symbol` MUST 非空。
-- `BaseAsset` 和 `QuoteAsset` MUST 非空。
-- `Interval` MUST 属于第一版 interval 白名单。
-- `OpenTime` MUST 按 interval 对齐。
-- `Open`、`High`、`Low`、`Close` MUST 大于 0。
-- `Volume` MUST 大于等于 0。
-- OHLC 的 `Base` MUST 等于 `BaseAsset`。
-- OHLC 的 `Quote` MUST 等于 `QuoteAsset`。
-- `Volume.Asset` MUST 等于 `BaseAsset`。
-- `High >= Low`。
-- `Open` 和 `Close` MUST 位于 `[Low, High]`。
-
-价格和数量类型：
-
-- PostgreSQL 中用 `NUMERIC(38, 18)`。
-- Go 中 SHOULD 使用 `github.com/shopspring/decimal` 封装领域类型，禁止用 `float64` 保存订单价格、数量、金额事实。
-- `float64` 不是禁用品，但只能用于适合近似计算的场景，例如指标、统计、图表坐标、展示型比例；它不能承载订单、成交、仓位、资金、手续费、PnL、风控额度等交易事实。
-
-### 19.1.1 数值与精度契约
-
-交易系统里的数值必须带语义，不能只传一个裸 decimal。
-
-核心数值类型：
-
-```go
-type Asset string
-
-type Quantity struct {
-    Asset Asset
-    Value decimal.Decimal
-}
-
-type Money struct {
-    Asset Asset
-    Value decimal.Decimal
-}
-
-type Price struct {
-    Base  Asset
-    Quote Asset
-    Value decimal.Decimal // quote per 1 base
-}
-
-type Notional struct {
-    Asset Asset
-    Value decimal.Decimal
-}
-
-type Fee struct {
-    Asset Asset
-    Value decimal.Decimal
-}
-
-type PnL struct {
-    Asset Asset
-    Value decimal.Decimal
-}
-```
-
-语义规则：
-
-- `Asset` 使用交易所标准资产代码的大写形式，例如 `BTC`、`USDT`。OKX symbol 可以是 `BTC-USDT`，但 asset 仍然是 `BTC` 和 `USDT`。
-- `Quantity` 表示 base asset 数量，例如 `BTC 0.01`。
-- `Price` 表示 `quote/base`，例如 `USDT per BTC = 65000`。
-- `Money` 表示某个资产的金额，例如 `USDT 1000`。
-- `Notional` 表示订单或仓位名义价值，第一版统一使用 quote asset。
-- `Fee` 必须带 fee asset，不能默认都是 USDT。
-- `PnL` 必须带 asset，第一版 portfolio summary 统一折算到 quote asset。
-- 任何函数如果接收 `decimal.Decimal`，必须在函数名或参数名中体现单位；核心交易链路 SHOULD 使用上面的领域类型。
-
-禁止：
-
-- 禁止在 model、risk、execution、portfolio、runtime 中使用 `float64` 保存交易事实。
-- 禁止使用裸 `decimal.Decimal` 表示语义不明的金额。
-- 禁止把 base quantity 和 quote amount 放进同一个字段。
-- 禁止假定所有 fee 都是 quote asset。
-- 禁止在前端重新计算 PnL、notional、fee。
-
-`float64` 允许范围：
-
-- 指标内部临时计算，例如 EMA、标准差、回归等。
-- 策略信号判断中的指标值，例如 RSI、EMA 差值、z-score；它可以影响是否产生信号，但不能直接成为订单价格、数量或金额。
-- 回测报告中的展示型百分比，例如胜率、收益率、回撤率；底层金额仍必须来自 decimal 或领域数值类型。
-- 图表库坐标适配层，因为前端图表库通常使用 number。
-
-`float64` 使用规则：
-
-- 使用 float64 的函数必须位于明显的指标、统计或图表适配包内。
-- `float64` 可以参与信号判断，但不能作为 `OrderIntent` 的 price、quantity、quote amount、risk limit、portfolio balance、PnL、fee 字段。
-- 如果一个近似计算结果需要变成交易事实，必须在边界处显式转换为 `Price`、`Quantity`、`Money`、`Fee`、`PnL` 等领域类型，并经过精度、资产和舍入校验。
-- 新增持久化字段、API 字段、核心模型字段时，默认不用 `float64`；确实需要时必须能说明它不是交易事实。
-
-舍入规则：
-
-- 价格下单前按交易所 `tick_size` 舍入。
-- 数量下单前按交易所 `step_size` 舍入。
-- BUY limit 价格默认向下舍入，避免超出预期价格。
-- SELL limit 价格默认向上舍入，避免低于预期价格。
-- BUY quantity 默认向下舍入，避免超出 notional 上限。
-- SELL quantity 默认向下舍入，避免卖出超过持仓。
-- 手续费和 PnL 计算保留内部高精度，展示层再按资产精度格式化。
-- 风控使用舍入后的订单值重新计算 notional，不能只检查舍入前意图。
-
-交易所规则：
-
-- `instrument_rules` 必须记录 `base_asset`、`quote_asset`、`tick_size`、`step_size`、`min_qty`、`min_notional`。
-- live 下单前必须应用交易所规则。
-- paper/backtest 可以使用同一套 instrument rules；缺失时必须明确使用默认规则并在 run summary 记录。
-
-数据库规则：
-
-- 存储字段仍使用 `NUMERIC(38, 18)`，但表字段名必须体现语义，例如 `quantity`、`quote_amount`、`limit_price`、`fee`。
-- 涉及资产的表必须带 `base_asset`、`quote_asset` 或具体 `*_asset` 字段。
-- API 返回金额必须同时返回 `value` 和 `asset`。
-
-### 19.2 Strategy 接口
-
-策略接口保持小：
-
-```go
-type Strategy interface {
-    Name() string
-    Version() string
-    Warmup() int
-    OnTick(ctx context.Context, c StrategyContext) (model.StrategyDecision, error)
-}
-```
-
-`StrategyContext` 只读：
-
-```go
-type StrategyContext struct {
-    TaskID           string
-    StrategyID       string
-    Exchange         string
-    Market           string
-    Symbol           string
-    BaseKind         string // closed_candle in v1; future trade/tick
-    BaseInterval     string // 1m when BaseKind is closed_candle in v1
-    BaseTime         time.Time
-    StrategyInterval string
-    TriggerClock     string // strategy_close or base
-    BaseCandle       *model.Candle
-    StrategyCandle   model.Candle
-    StrategyClosed   bool
-    Candles          []model.Candle
-    Position         model.PositionSnapshot
-    Portfolio        model.PortfolioSnapshot
-    Now              time.Time
-}
-```
-
-字段语义：
-
-- `BaseKind` 表示当前时间钟由什么基础事件推进。第一版固定为 `closed_candle`，未来可以扩展为 `trade` 或 `tick`。
-- `BaseInterval` 第一版为 `1m`；当未来基础事件不是 K 线时，`BaseInterval` 可以为空或使用稳定枚举，不能被策略假定为永远 `1m`。
-- `BaseTime` 是当前基础事件的事件时间，不是机器当前时间。
-- `BaseCandle` 在第一版 MUST 非空，表示当前时间钟对应的 1m closed candle；未来 tick / trade 模式下可能为空。
-- `StrategyCandle` 是当前策略周期 K 线；在 `trigger_clock=base` 时可能是 forming candle。
-- `StrategyClosed` 表示 `StrategyCandle` 是否已经收盘。
-- `Candles` 是策略周期的历史 closed candles，不包含未来 candle。
-
-策略禁止事项：
-
-- MUST NOT import `internal/store`。
-- MUST NOT import `internal/adapter`。
-- MUST NOT import `internal/execution`。
-- MUST NOT import `internal/notification` provider。
-- MUST NOT 读取环境变量。
-- MUST NOT 启动 goroutine。
-- MUST NOT 持久化文件。
-- MUST NOT 使用当前真实时间做交易判断，必须使用 `StrategyContext.Now`。
-
-### 19.3 StrategyDecision
-
-`StrategyDecision` 是策略唯一返回值：
-
-```go
-type StrategyDecision struct {
-    Orders        []OrderIntent
-    Notifications []NotificationIntent
-}
-```
-
-规则：
-
-- `Orders` 进入 risk / execution 链路。
-- `Notifications` 进入 notification router 链路。
-- 空 decision 合法。
-- strategy error 不应被伪装成 notification；runtime 负责把 strategy error 转成 system notification。
-
-### 19.4 OrderIntent
-
-`OrderIntent` 是策略可返回的交易意图：
-
-```go
-type OrderIntent struct {
-    ID          string
-    TaskID      string
-    StrategyID  string
-    Exchange    string
-    Market      string
-    Symbol      string
-    BaseAsset   Asset
-    QuoteAsset  Asset
-    Side        Side
-    Type        OrderType
-    Quantity    Quantity
-    QuoteAmount Money
-    LimitPrice  Price
-    Reason      string
-    CreatedAt   time.Time
-}
-```
-
-约束：
-
-- market order 必须且只能使用 `Quantity` 或 `QuoteAmount` 其中一种。
-- limit order MUST 有 `Quantity` 和 `LimitPrice`。
-- `Quantity.Asset` MUST 等于 `BaseAsset`。
-- `QuoteAmount.Asset` MUST 等于 `QuoteAsset`。
-- `LimitPrice.Base` MUST 等于 `BaseAsset`。
-- `LimitPrice.Quote` MUST 等于 `QuoteAsset`。
-- `Reason` MUST 非空，用于解释策略为什么下单。
-- `TaskID`、`StrategyID` 由 runtime 补齐，策略不得伪造其它任务 ID。
-
-### 19.5 NotificationIntent
-
-`NotificationIntent` 表示策略希望系统发出一条可路由通知，例如“出现某个信号，需要人工核对”：
-
-```go
-type NotificationIntent struct {
-    ID          string
-    TaskID      string
-    StrategyID  string
-    Exchange    string
-    Market      string
-    Symbol      string
-    Severity    NotificationSeverity
-    Category    string
-    Title       string
-    Message     string
-    DedupeKey   string
-    Cooldown    time.Duration
-    Payload     map[string]string
-    CreatedAt   time.Time
-}
-```
-
-Severity 固定为：
-
-```text
-info, warn, error, critical
-```
-
-规则：
-
-- `Title` 和 `Message` MUST 非空。
-- `Category` SHOULD 使用稳定枚举，如 `signal`, `risk`, `execution`, `system`。
-- `DedupeKey` SHOULD 非空；为空时 runtime 用 task/symbol/category/title 生成。
-- `Cooldown` 为空时使用 route 默认冷却时间。
-- 策略只能声明通知意图，不能选择具体 provider token。
-- runtime MUST 补齐 `TaskID`、`StrategyID`、`Exchange`、`Market`、`Symbol`。
-
-## 20. 状态机契约
-
-### 20.1 task desired status
-
-`strategy_tasks.desired_status` 只表达用户期望：
-
-| 当前 | 允许变更为 | 含义 |
-| --- | --- | --- |
-| `stopped` | `dry_run`, `running` | 让 daemon 启动任务 |
-| `dry_run` | `paused`, `stopped`, `running` | dry-run 可升级到 live running，但必须重新过 live gate |
-| `running` | `paused`, `stopped`, `dry_run` | 停止真实提交或降级 dry-run |
-| `paused` | `running`, `dry_run`, `stopped` | 恢复或停止 |
-
-CLI / Web 只能改 desired status。runner 不允许直接把 desired status 改成 `running`。
-
-### 20.2 task observed status
-
-`task_runs.observed_status` 表达 daemon 实际状态：
-
-```text
-starting -> running -> stopping -> stopped
-starting -> failed
-running  -> failed
-stopping -> failed
-```
-
-规则：
-
-- 每次 runner 启动 MUST 创建新的 `task_runs`。
-- runner 正常退出 MUST 写 `stopped_at` 和 `observed_status = stopped`。
-- runner 因错误退出 MUST 写 `observed_status = failed` 和 `error`。
-- daemon 重启时，如果发现旧 run 仍是 `running`，MUST 标记为 `failed` 或 `stopped_unclean`，再按 desired status 决定是否新建 run。
-
-### 20.3 order status
-
-订单状态第一版固定：
-
-```text
-intent_created
-  -> risk_rejected
-  -> pending_submit
-  -> submitted
-  -> partially_filled
-  -> filled
-  -> cancel_requested
-  -> canceled
-  -> rejected
-  -> uncertain
-```
-
-关键规则：
-
-- `risk_rejected` 不得产生交易所订单。
-- `pending_submit` 表示准备提交但还没有确定交易所结果。
-- 网络超时、连接断开、交易所返回不确定错误时 MUST 进入 `uncertain`。
-- `uncertain` 只能通过 reconcile 变为 `submitted`、`filled`、`canceled`、`rejected` 或人工处理状态。
-- 成交数量不得倒退。
-- 累计成交数量不得超过订单数量。
-- 同一个 `client_order_id` 只能归属一个 task。
-
-## 21. PostgreSQL DDL 草案
-
-第一版 migration MUST 至少包含以下结构。字段可以在实现时补充，但不能删除这些核心约束。
-
-```sql
-CREATE TABLE IF NOT EXISTS schema_migrations (
-  id TEXT PRIMARY KEY,
-  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE web_users (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  password_algo TEXT NOT NULL CHECK (password_algo IN ('argon2id', 'bcrypt')),
-  disabled BOOLEAN NOT NULL DEFAULT false,
-  failed_login_count INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
-  locked_until TIMESTAMPTZ,
-  last_login_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE web_sessions (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES web_users(id),
-  token_hash TEXT NOT NULL UNIQUE,
-  csrf_token_hash TEXT NOT NULL,
-  user_agent_hash TEXT,
-  ip INET,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  expires_at TIMESTAMPTZ NOT NULL,
-  revoked_at TIMESTAMPTZ
-);
-
-CREATE INDEX web_sessions_user_idx ON web_sessions (user_id, expires_at DESC);
-CREATE INDEX web_sessions_active_idx ON web_sessions (expires_at DESC)
-  WHERE revoked_at IS NULL;
-
-CREATE TABLE exchange_catalog (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-INSERT INTO exchange_catalog (id, name) VALUES
-  ('binance', 'Binance'),
-  ('okx', 'OKX')
-ON CONFLICT (id) DO NOTHING;
-
-CREATE TABLE exchange_accounts (
-  id TEXT PRIMARY KEY,
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  environment TEXT NOT NULL CHECK (environment IN ('testnet', 'sandbox', 'production')),
-  api_key_env TEXT NOT NULL,
-  secret_key_env TEXT NOT NULL,
-  passphrase_env TEXT,
-  trade_enabled BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE instrument_rules (
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  tick_size NUMERIC(38, 18) NOT NULL CHECK (tick_size > 0),
-  step_size NUMERIC(38, 18) NOT NULL CHECK (step_size > 0),
-  min_quantity NUMERIC(38, 18) NOT NULL DEFAULT 0 CHECK (min_quantity >= 0),
-  min_notional NUMERIC(38, 18) NOT NULL DEFAULT 0 CHECK (min_notional >= 0),
-  notional_asset TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (exchange, market, symbol)
-);
-
-CREATE TABLE market_candles (
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  interval TEXT NOT NULL CHECK (interval = '1m'),
-  open_time TIMESTAMPTZ NOT NULL,
-  open NUMERIC(38, 18) NOT NULL CHECK (open > 0),
-  high NUMERIC(38, 18) NOT NULL CHECK (high > 0),
-  low NUMERIC(38, 18) NOT NULL CHECK (low > 0),
-  close NUMERIC(38, 18) NOT NULL CHECK (close > 0),
-  volume NUMERIC(38, 18) NOT NULL CHECK (volume >= 0),
-  complete BOOLEAN NOT NULL DEFAULT true,
-  source TEXT NOT NULL DEFAULT 'exchange' CHECK (source = 'exchange'),
-  ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (exchange, market, symbol, interval, open_time),
-  CHECK (high >= low),
-  CHECK (open >= low AND open <= high),
-  CHECK (close >= low AND close <= high)
-);
-
-CREATE INDEX market_candles_lookup_idx
-  ON market_candles (exchange, market, symbol, interval, open_time);
-
-CREATE TABLE strategies (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  version TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  config_hash TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (name, version, config_hash)
-);
-
-CREATE TABLE strategy_tasks (
-  id TEXT PRIMARY KEY,
-  strategy_id TEXT NOT NULL REFERENCES strategies(id),
-  exchange_account_id TEXT NOT NULL REFERENCES exchange_accounts(id),
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  interval TEXT NOT NULL,
-  trigger_clock TEXT NOT NULL DEFAULT 'strategy_close'
-    CHECK (trigger_clock IN ('strategy_close', 'base')),
-  mode TEXT NOT NULL CHECK (mode IN ('paper', 'live')),
-  desired_status TEXT NOT NULL DEFAULT 'stopped'
-    CHECK (desired_status IN ('running', 'paused', 'stopped', 'dry_run')),
-  capital_limit NUMERIC(38, 18) NOT NULL CHECK (capital_limit > 0),
-  capital_asset TEXT NOT NULL,
-  max_order_notional NUMERIC(38, 18) NOT NULL CHECK (max_order_notional > 0),
-  max_order_notional_asset TEXT NOT NULL,
-  max_position_notional NUMERIC(38, 18) NOT NULL CHECK (max_position_notional > 0),
-  max_position_notional_asset TEXT NOT NULL,
-  signal_only BOOLEAN NOT NULL DEFAULT false,
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX strategy_tasks_status_idx
-  ON strategy_tasks (enabled, desired_status, mode);
-
-CREATE TABLE task_runs (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL REFERENCES strategy_tasks(id),
-  mode TEXT NOT NULL CHECK (mode IN ('paper', 'live')),
-  observed_status TEXT NOT NULL
-    CHECK (observed_status IN ('starting', 'running', 'stopping', 'stopped', 'failed', 'stopped_unclean')),
-  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  heartbeat_at TIMESTAMPTZ,
-  stopped_at TIMESTAMPTZ,
-  error TEXT
-);
-
-CREATE TABLE orders (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL REFERENCES strategy_tasks(id),
-  strategy_id TEXT NOT NULL REFERENCES strategies(id),
-  exchange_account_id TEXT NOT NULL REFERENCES exchange_accounts(id),
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  client_order_id TEXT NOT NULL,
-  exchange_order_id TEXT,
-  side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
-  type TEXT NOT NULL CHECK (type IN ('market', 'limit')),
-  quantity NUMERIC(38, 18),
-  quantity_asset TEXT,
-  quote_amount NUMERIC(38, 18),
-  quote_amount_asset TEXT,
-  limit_price NUMERIC(38, 18),
-  limit_price_base_asset TEXT,
-  limit_price_quote_asset TEXT,
-  status TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (exchange_account_id, client_order_id),
-  CHECK ((quantity IS NULL AND quantity_asset IS NULL) OR (quantity IS NOT NULL AND quantity_asset = base_asset)),
-  CHECK ((quote_amount IS NULL AND quote_amount_asset IS NULL) OR (quote_amount IS NOT NULL AND quote_amount_asset = quote_asset)),
-  CHECK ((limit_price IS NULL AND limit_price_base_asset IS NULL AND limit_price_quote_asset IS NULL)
-    OR (limit_price IS NOT NULL AND limit_price_base_asset = base_asset AND limit_price_quote_asset = quote_asset)),
-  CHECK (
-    (type = 'market' AND ((quantity IS NOT NULL AND quote_amount IS NULL) OR (quantity IS NULL AND quote_amount IS NOT NULL))) OR
-    (type = 'limit' AND quantity IS NOT NULL AND quote_amount IS NULL AND limit_price IS NOT NULL)
-  )
-);
-
-CREATE TABLE fills (
-  id TEXT PRIMARY KEY,
-  order_id TEXT NOT NULL REFERENCES orders(id),
-  task_id TEXT NOT NULL REFERENCES strategy_tasks(id),
-  strategy_id TEXT NOT NULL REFERENCES strategies(id),
-  exchange_account_id TEXT NOT NULL REFERENCES exchange_accounts(id),
-  exchange_trade_id TEXT,
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
-  quantity NUMERIC(38, 18) NOT NULL CHECK (quantity > 0),
-  quantity_asset TEXT NOT NULL,
-  price NUMERIC(38, 18) NOT NULL CHECK (price > 0),
-  price_base_asset TEXT NOT NULL,
-  price_quote_asset TEXT NOT NULL,
-  fee NUMERIC(38, 18) NOT NULL DEFAULT 0 CHECK (fee >= 0),
-  fee_asset TEXT NOT NULL,
-  filled_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (exchange_account_id, exchange_trade_id),
-  CHECK (quantity_asset = base_asset),
-  CHECK (price_base_asset = base_asset AND price_quote_asset = quote_asset)
-);
-
-CREATE TABLE data_sync_jobs (
-  id TEXT PRIMARY KEY,
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  interval TEXT NOT NULL,
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
-  error TEXT,
-  started_at TIMESTAMPTZ,
-  finished_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE data_quality_reports (
-  id TEXT PRIMARY KEY,
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  interval TEXT NOT NULL,
-  base_interval TEXT NOT NULL DEFAULT '1m',
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('healthy', 'missing_gaps', 'invalid_candles')),
-  expected_count BIGINT NOT NULL CHECK (expected_count >= 0),
-  actual_count BIGINT NOT NULL CHECK (actual_count >= 0),
-  missing_count BIGINT NOT NULL CHECK (missing_count >= 0),
-  invalid_count BIGINT NOT NULL CHECK (invalid_count >= 0),
-  summary_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX data_quality_reports_lookup_idx
-  ON data_quality_reports (exchange, market, symbol, interval, checked_at DESC);
-
-CREATE TABLE backtest_runs (
-  id TEXT PRIMARY KEY,
-  strategy_id TEXT NOT NULL REFERENCES strategies(id),
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  interval TEXT NOT NULL,
-  base_interval TEXT NOT NULL DEFAULT '1m',
-  trigger_clock TEXT NOT NULL DEFAULT 'strategy_close'
-    CHECK (trigger_clock IN ('strategy_close', 'base')),
-  aggregation_method TEXT NOT NULL DEFAULT 'ohlcv_v1',
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-  candle_count BIGINT NOT NULL CHECK (candle_count >= 0),
-  order_count BIGINT NOT NULL CHECK (order_count >= 0),
-  fill_count BIGINT NOT NULL CHECK (fill_count >= 0),
-  realized_pnl NUMERIC(38, 18) NOT NULL DEFAULT 0,
-  realized_pnl_asset TEXT NOT NULL,
-  fee NUMERIC(38, 18) NOT NULL DEFAULT 0 CHECK (fee >= 0),
-  fee_asset TEXT NOT NULL,
-  final_equity NUMERIC(38, 18) NOT NULL,
-  final_equity_asset TEXT NOT NULL,
-  max_drawdown NUMERIC(38, 18) NOT NULL DEFAULT 0,
-  config_hash TEXT NOT NULL,
-  summary_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE positions (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL REFERENCES strategy_tasks(id),
-  strategy_id TEXT NOT NULL REFERENCES strategies(id),
-  exchange_account_id TEXT NOT NULL REFERENCES exchange_accounts(id),
-  exchange TEXT NOT NULL REFERENCES exchange_catalog(id),
-  market TEXT NOT NULL DEFAULT 'spot' CHECK (market IN ('spot')),
-  symbol TEXT NOT NULL,
-  base_asset TEXT NOT NULL,
-  quote_asset TEXT NOT NULL,
-  quantity NUMERIC(38, 18) NOT NULL,
-  quantity_asset TEXT NOT NULL,
-  avg_entry_price NUMERIC(38, 18) NOT NULL DEFAULT 0 CHECK (avg_entry_price >= 0),
-  avg_entry_price_base_asset TEXT NOT NULL,
-  avg_entry_price_quote_asset TEXT NOT NULL,
-  realized_pnl NUMERIC(38, 18) NOT NULL DEFAULT 0,
-  realized_pnl_asset TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (task_id, symbol)
-);
-
-CREATE TABLE portfolio_snapshots (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL REFERENCES strategy_tasks(id),
-  strategy_id TEXT NOT NULL REFERENCES strategies(id),
-  exchange_account_id TEXT NOT NULL REFERENCES exchange_accounts(id),
-  equity NUMERIC(38, 18) NOT NULL,
-  equity_asset TEXT NOT NULL,
-  cash NUMERIC(38, 18) NOT NULL,
-  cash_asset TEXT NOT NULL,
-  position_notional NUMERIC(38, 18) NOT NULL DEFAULT 0,
-  position_notional_asset TEXT NOT NULL,
-  realized_pnl NUMERIC(38, 18) NOT NULL DEFAULT 0,
-  realized_pnl_asset TEXT NOT NULL,
-  unrealized_pnl NUMERIC(38, 18) NOT NULL DEFAULT 0,
-  unrealized_pnl_asset TEXT NOT NULL,
-  payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE events (
-  id BIGSERIAL PRIMARY KEY,
-  level TEXT NOT NULL CHECK (level IN ('debug', 'info', 'warn', 'error')),
-  type TEXT NOT NULL,
-  task_id TEXT REFERENCES strategy_tasks(id),
-  strategy_id TEXT REFERENCES strategies(id),
-  exchange_account_id TEXT REFERENCES exchange_accounts(id),
-  actor_user_id TEXT REFERENCES web_users(id),
-  actor_ip INET,
-  actor_user_agent_hash TEXT,
-  symbol TEXT,
-  message TEXT NOT NULL,
-  payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX events_created_at_idx ON events (created_at DESC);
-CREATE INDEX events_task_idx ON events (task_id, created_at DESC);
-CREATE INDEX events_actor_idx ON events (actor_user_id, created_at DESC);
-
-CREATE TABLE settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE notification_channels (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL CHECK (type IN ('email', 'telegram', 'feishu', 'webhook')),
-  name TEXT NOT NULL,
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  secret_env TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE notification_routes (
-  id TEXT PRIMARY KEY,
-  scope TEXT NOT NULL CHECK (scope IN ('system', 'strategy', 'task')),
-  strategy_id TEXT REFERENCES strategies(id),
-  task_id TEXT REFERENCES strategy_tasks(id),
-  min_severity TEXT NOT NULL DEFAULT 'info'
-    CHECK (min_severity IN ('info', 'warn', 'error', 'critical')),
-  channel_id TEXT NOT NULL REFERENCES notification_channels(id),
-  cooldown_seconds INTEGER NOT NULL DEFAULT 300 CHECK (cooldown_seconds >= 0),
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (
-    (scope = 'system' AND strategy_id IS NULL AND task_id IS NULL) OR
-    (scope = 'strategy' AND strategy_id IS NOT NULL AND task_id IS NULL) OR
-    (scope = 'task' AND task_id IS NOT NULL)
-  )
-);
-
-CREATE INDEX notification_routes_strategy_idx
-  ON notification_routes (strategy_id, enabled);
-
-CREATE INDEX notification_routes_task_idx
-  ON notification_routes (task_id, enabled);
-
-CREATE TABLE notification_events (
-  id TEXT PRIMARY KEY,
-  source TEXT NOT NULL CHECK (source IN ('system', 'strategy', 'risk', 'execution')),
-  severity TEXT NOT NULL CHECK (severity IN ('info', 'warn', 'error', 'critical')),
-  category TEXT NOT NULL,
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  dedupe_key TEXT NOT NULL,
-  task_id TEXT REFERENCES strategy_tasks(id),
-  strategy_id TEXT REFERENCES strategies(id),
-  exchange_account_id TEXT REFERENCES exchange_accounts(id),
-  symbol TEXT,
-  payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX notification_events_created_at_idx
-  ON notification_events (created_at DESC);
-
-CREATE INDEX notification_events_dedupe_idx
-  ON notification_events (dedupe_key, created_at DESC);
-
-CREATE TABLE notification_deliveries (
-  id TEXT PRIMARY KEY,
-  notification_event_id TEXT NOT NULL REFERENCES notification_events(id),
-  channel_id TEXT NOT NULL REFERENCES notification_channels(id),
-  status TEXT NOT NULL CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'skipped')),
-  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
-  last_error TEXT,
-  next_attempt_at TIMESTAMPTZ,
-  sent_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (notification_event_id, channel_id)
-);
-
-CREATE INDEX notification_deliveries_pending_idx
-  ON notification_deliveries (status, next_attempt_at);
-```
-
-Migration 规则：
-
-- 使用顺序 migration，不使用 ORM auto-migrate。
-- migration 必须可重复检测，不能静默跳过失败。
-- 禁止 destructive migration 直接删除表或列；如确需删除，必须单独设计并保留备份步骤。
-- migration runner 必须在事务中执行单个 migration。
-
-## 22. K 线同步精确行为
-
-### 22.1 时间区间
-
-所有数据同步和回测使用半开区间：
-
-```text
-[from, to)
-```
-
-含义：
-
-- 包含 `from` 对齐后的 K 线。
-- 不包含 `to` 对齐点的 K 线。
-- 数据同步的 `from` 和 `to` MUST 按 1m 对齐；CLI 可以自动向下/向上对齐，但必须在输出中说明。
-- 高周期回测和任务的 `from` / `to` MUST 按目标周期对齐，同时也必须能映射到完整 1m 区间。
-- 如果 `to` 为空，默认同步到最近一个已收盘 K 线，不同步正在形成的 K 线。
-
-### 22.2 interval 白名单与数据来源
-
-同步层第一版只支持：
-
-```text
-1m
-```
-
-策略、回测和任务 interval 第一版支持：
-
-```text
-1m, 5m, 15m, 30m, 1h, 4h, 1d
-```
-
-新增 interval 必须同时更新：
-
-- aggregation interval mapping。
-- open_time alignment。
-- data check expected count。
-- backtest query planning。
-- tests。
-
-禁止：
-
-- 禁止 `hi data sync --interval 15m` 这类交易所高周期同步进入 MVP。
-- 禁止 task runner 直接从交易所拉 15m/1h K 线绕过 1m 聚合。
-
-### 22.3 sync 算法
-
-```text
-validate request
-  -> normalize symbol per exchange
-  -> require interval == 1m
-  -> align [from, to) to 1m
-  -> create data_sync_jobs row
-  -> page fetch 1m candles from exchange
-  -> validate each candle
-  -> drop forming candle unless explicitly requested
-  -> upsert market_candles
-  -> update job status
-  -> run data check on requested range
-  -> save data_quality_reports
-```
-
-幂等要求：
-
-- 同一请求重复执行 MUST 得到同一批 `market_candles`。
-- upsert MUST 以 `(exchange, market, symbol, interval, open_time)` 为唯一键。
-- 如果交易所返回同一 open_time 的不同 OHLC，默认以后拉结果覆盖旧值，并写 event 记录覆盖数量。
-- 写入 `market_candles.interval` MUST 固定为 `1m`。
-
-### 22.4 check 算法
-
-给定 1m `[from, to)`：
-
-```text
-expected_count = (to - from) / 1m
-actual rows ordered by open_time
-  -> check first open_time == from
-  -> check last open_time == to - 1m
-  -> check each next == previous + 1m
-  -> validate OHLC
-```
-
-输出：
-
-```json
-{
-  "status": "healthy",
-  "expected_count": 44640,
-  "actual_count": 44640,
-  "missing_count": 0,
-  "invalid_count": 0,
-  "first_open_time": "...",
-  "last_open_time": "..."
-}
-```
-
-### 22.5 repair 算法
-
-repair 只修两类问题：
-
-- 缺失 K 线。
-- OHLC 非法 K 线。
-
-repair 不做：
-
-- 跨交易所价格一致性检查。
-- 异常尖刺判断。
-- 成交量异常判断。
-- 自动删除历史数据。
-
-流程：
-
-```text
-run check
-  -> build repair windows
-  -> merge adjacent windows
-  -> fetch each window from exchange
-  -> upsert
-  -> run check again
-```
-
-repair window 合并规则：
-
-- 连续缺口合并成一个窗口。
-- 单根 invalid candle 按 `[open_time, open_time + 1m)` 修复。
-- 相邻窗口距离小于等于 1m 时合并。
-
-### 22.6 聚合算法
-
-聚合器名称固定为 `ohlcv_v1`。
-
-输入：
-
-- 完整连续的 1m candles。
-- target interval：`5m`、`15m`、`30m`、`1h`、`4h`、`1d`。
-- 半开区间 `[from, to)`。
-
-前置条件：
-
-- `from` 和 `to` MUST 按 target interval 对齐。
-- `[from, to)` 内所有 1m candle 必须完整存在。
-- 未收盘 1m candle 不参与 closed target candle 聚合。
-
-聚合公式：
-
-```text
-open   = first 1m open
-high   = max(1m high)
-low    = min(1m low)
-close  = last 1m close
-volume = sum(1m volume)
-open_time = target bucket start
-complete = all input 1m candles complete
-```
-
-bucket 对齐：
-
-- `5m` / `15m` / `30m` / `1h` / `4h` 使用 UTC 时间边界。
-- `1d` 使用 UTC 自然日。
-- 第一版不支持交易所本地时区日线。
-
-聚合输出默认不落库。消费者包括：
-
-- backtest runner。
-- paper runner。
-- live runner 的策略输入。
-- data aggregate-check。
-
-如果性能需要缓存聚合结果，必须新增 `market_candle_aggregates` 表，并包含：
-
-- `base_interval = 1m`
-- `target_interval`
-- `aggregation_method = ohlcv_v1`
-- `source_range`
-- `computed_at`
-
-不能把聚合结果写回 `market_candles`。
-
-## 22.7 时间钟模型
-
-时间钟是 backtest、paper、live 共用的 runtime 推进模型。
-
-时间钟的核心不是“1m K 线”，而是“系统当前拥有的最小市场数据事件”。
-
-第一版实现：
-
-```text
-base_clock = closed_candle:1m
-base_event = 已收盘 1m K 线
-```
-
-未来如果引入更细数据，可以扩展为：
-
-```text
-base_clock = trade
-base_clock = tick
-```
-
-每个 task 可以配置：
-
-```text
-strategy_interval = 1m / 5m / 15m / 30m / 1h / 4h / 1d
-trigger_clock = strategy_close / base
-```
-
-时间钟行为：
-
-```text
-for each base event ordered by event time:
-  ingest base event
-  update aggregator
-  build current strategy candle
-  if trigger_clock == base:
-    call Strategy.OnTick
-  if trigger_clock == strategy_close and strategy candle just closed:
-    call Strategy.OnTick
-```
-
-防未来函数规则：
-
-- `base_clock` 每次只推进一个已确认的基础事件。第一版基础事件是已收盘 1m candle；未来可以是 trade / tick。
-- `trigger_clock=base` 时，策略可以看到当前 forming strategy candle，但这个 candle 只能由截至当前 base event 的数据构成。
-- `trigger_clock=strategy_close` 时，策略只能看到已经收盘的 strategy candle。
-- 策略产生的订单最早只能在下一个 base event 或其后续可成交事件执行。第一版等价于下一根 1m candle。
-- 高周期策略不能用目标周期未来的 high / low / close。
-
-`trigger_clock=base` 的用途：
-
-- 允许用最小数据单位触发策略执行。
-- 第一版表示每根 1m closed candle 后触发；未来 tick / trade 模式下可以比 1m 更细。
-- 允许策略在 15m candle 尚未收盘时观察 forming candle。
-- 适合信号监测、人工核对通知、提前预警。
-
-`trigger_clock=strategy_close` 的用途：
-
-- 更接近传统按 K 线收盘运行策略。
-- 回测更容易解释。
-- 默认适合大多数低频策略。
-
-## 23. 回测精确语义
-
-回测必须避免未来函数。第一版使用 `closed_candle:1m` base clock 推进：
-
-```text
-base_event[N] = 1m candle close
-  -> TimeClock advances
-  -> Strategy.OnTick may run depending on trigger_clock
-  -> strategy emits intent
-  -> order is eligible for fill on next executable base event; v1 uses base_candle[N+1]
-```
-
-第一版成交规则：
-
-- Market order：在下一根 1m K 线 open price 成交，再应用滑点和手续费。
-- Limit buy：如果下一根 1m K 线 low <= limit price，则成交价为 min(limit price, next open) 的保守实现。
-- Limit sell：如果下一根 1m K 线 high >= limit price，则成交价为 max(limit price, next open) 的保守实现。
-- 最后一根 K 线产生的 intent 不成交，只记录为 unfilled / ignored。
-
-未来如果使用 tick / trade base clock，成交规则必须重新定义为基于下一批可成交事件，而不是沿用 1m OHLC 近似；该扩展必须单独更新 fill model 文档和测试。
-
-Warmup：
-
-- 策略 `Warmup()` 返回需要的 strategy interval closed candle 数。
-- warmup 期间 runtime 不调用 `OnTick`。
-- `trigger_clock=base` 时，只有 closed strategy candles 达到 warmup 数后，才允许每个 base event 调用 `OnTick`；第一版等价于每 1m 调用。
-
-回测输出 MUST 包含：
-
-- input range。
-- base interval。
-- strategy interval。
-- trigger clock。
-- aggregation method。
-- candle count。
-- strategy name/version/config hash。
-- fee model。
-- slippage model。
-- fill model。
-- order count。
-- fill count。
-- realized PnL。
-- fee。
-- final equity。
-- max drawdown。
-
-回测 run 入库必须保存 config hash，保证同一数据和同一策略配置可复验。
-
-## 24. Daemon 与 TaskSupervisor 精确算法
-
-daemon 启动流程：
-
-```text
-load config
-  -> connect PostgreSQL
-  -> run startup checks
-  -> acquire daemon lock
-  -> mark stale task_runs
-  -> build exchange account runtimes
-  -> start supervisor loop
-```
-
-MUST 使用 PostgreSQL advisory lock 或等价机制防止两个 daemon 同时管理同一数据库：
-
-```sql
-SELECT pg_try_advisory_lock(hashtext('tictick_hi_daemon'));
-```
-
-如果拿不到 lock，daemon MUST 拒绝启动。
-
-supervisor poll 流程：
-
-```text
-every task_poll_interval:
-  load enabled strategy_tasks
-  for each task:
-    if desired is running/dry_run and no local runner:
-      validate task
-      start runner goroutine
-    if desired is paused/stopped and local runner exists:
-      cancel runner context
-    if task config changed while runner exists:
-      stop old runner
-      start new runner if desired still active
-  for local runners whose task disappeared/disabled:
-    cancel runner context
-  write heartbeat for active task_runs
-```
-
-runner 停止要求：
-
-- pause/stop MUST 使用 context cancellation。
-- runner MUST 在合理时间内停止；默认 stop timeout 为 10 秒。
-- 超过 timeout MUST 标记 `failed` 并写 event。
-
-## 25. ExchangeAccountRuntime 模型
-
-每个 `exchange_account` 在 daemon 内对应一个 `ExchangeAccountRuntime`：
-
-```text
-ExchangeAccountRuntime
-  -> MarketDataClient
-  -> TradingClient
-  -> RateLimiter
-  -> OrderIDSequence
-  -> ReconcileLoop
-```
-
-多个 task 可以共享同一个 account runtime，但必须满足：
-
-- 每个 task 有独立 runner。
-- 下单前必须通过 task 级风控和 account 级风控。
-- 同一 account 的 SubmitOrder MUST 经过统一 rate limiter。
-- client order sequence MUST 由数据库事务生成，不能靠内存计数。
-- reconcile 按 account 运行，再把订单和成交分发归因到 task。
-
-第一版不做复杂 websocket 私有流依赖；可以先用 polling reconcile，后续再补 user stream。
-
-## 26. CLI 合约
-
-CLI 必须稳定、可脚本化。默认输出人类可读表格，所有查询命令 SHOULD 支持 `--json`。
-
-### 26.1 交易所命令
-
-```sh
-hi exchange list
-hi exchange show binance
-hi exchange show okx
-```
-
-约束：
-
-- `exchange list` 从 `exchange_catalog` 和 adapter registry 汇总可用交易所。
-- 第一版只应显示 Binance 和 OKX 为 enabled。
-- 如果 `exchange_catalog` 中存在但当前二进制没有注册 adapter，必须显示为 unavailable，不能在运行时 panic。
-
-### 26.2 数据命令
-
-```sh
-hi data sync --exchange binance --symbol BTCUSDT --interval 1m --from ... --to ...
-hi data sync --exchange okx --symbol BTC-USDT --interval 1m --from ... --to ...
-hi data check --exchange binance --symbol BTCUSDT --interval 1m --from ... --to ...
-hi data repair --exchange binance --symbol BTCUSDT --interval 1m --from ... --to ...
-hi data aggregate-check --exchange binance --symbol BTCUSDT --target-interval 15m --from ... --to ...
-hi data list
-```
-
-### 26.3 策略命令
-
-```sh
-hi strategy list
-hi strategy create --id ema-btc --kind ema-cross --version v1 --config ./ema.json
-hi strategy show ema-btc
-```
-
-### 26.4 回测命令
-
-```sh
-hi backtest run --strategy ema-btc --exchange binance --symbol BTCUSDT --interval 1m --trigger-clock strategy_close --from ... --to ...
-hi backtest run --strategy ema-btc --exchange binance --symbol BTCUSDT --interval 15m --trigger-clock base --from ... --to ...
-hi backtest list
-hi backtest show RUN_ID
-```
-
-### 26.5 任务命令
-
-```sh
-hi task create --id btc-ema-paper --strategy ema-btc --account binance-main --symbol BTCUSDT --interval 1m --trigger-clock strategy_close --mode paper
-hi task create --id btc-ema-15m-paper --strategy ema-btc --account binance-main --symbol BTCUSDT --interval 15m --trigger-clock base --mode paper
-hi task start btc-ema-paper
-hi task pause btc-ema-paper
-hi task stop btc-ema-paper
-hi task list
-hi task show btc-ema-paper
-```
-
-`start/pause/stop` MUST 只写 desired status 和 event，不直接创建 goroutine。
-
-### 26.6 鉴权命令
-
-```sh
-hi auth init-admin --username admin
-hi auth change-password --username admin
-hi auth session list --username admin
-hi auth session revoke SESSION_ID
-```
-
-约束：
-
-- `init-admin` MUST 交互式读取密码，禁止通过命令行参数传入明文密码。
-- 如果已经存在管理员，`init-admin` MUST 拒绝覆盖；重置密码必须使用明确的 `change-password`。
-- `change-password` 成功后 SHOULD 撤销该用户的所有旧 session。
-- `session list` 不展示 token，只展示 session id、created_at、last_seen_at、expires_at、ip、user agent 摘要。
-- `session revoke` 只标记 `revoked_at`，不删除审计事实。
-
-### 26.7 daemon 命令
-
-```sh
-hi daemon --config ./config.yaml
-hi health --live
-hi health --ready
-```
-
-daemon MUST 打印：
-
-- database target，不打印密码。
-- bind address。
-- loaded exchange accounts。
-- acquired daemon lock。
-- active task count。
-
-`hi health --live` 只检查进程基础依赖和配置可解析。  
-`hi health --ready` MUST 检查 PostgreSQL、migration 状态和必要运行时依赖，供 Docker healthcheck 使用。
-
-### 26.8 通知命令
-
-```sh
-hi notification channel list
-hi notification channel test ops-email
-hi notification route list
-hi notification event list
-hi notification delivery retry DELIVERY_ID
-```
-
-约束：
-
-- `channel test` MUST 发送一条明确标记为 test 的通知。
-- `event list` 默认只展示最近 50 条。
-- `delivery retry` 只修改 delivery 状态为 pending，不直接在 CLI 中执行 provider.Send。
-
-## 27. 自动化代码质量检查清单
-
-第 14 章的工程规则必须尽量落到脚本。第一版至少提供：
-
-```sh
-scripts/check-boundaries.sh
-scripts/check-go-static.sh
-scripts/check-frontend-static.sh
-scripts/check-secrets.sh
-scripts/smoke-test.sh
-scripts/docker-smoke-test.sh
-scripts/release-check.sh
-```
-
-`scripts/check-boundaries.sh` MUST 检查：
-
-- `internal/model` 不导入其它 internal 包。
-- `internal/strategy` 不导入 store、adapter、execution、notification provider、web。
-- `internal/runtime` 不导入 store/postgres、任何 `internal/adapter/*`、web。
-- `internal/auth` 不导入 store/postgres、adapter、runtime、web。
-- `internal/store/postgres` 不导入 runtime、adapter、web。
-- `cmd` 之外没有 package 同时导入 postgres 和 concrete adapter。
-
-`scripts/check-go-static.sh` MUST 检查：
-
-- `gofmt`。
-- `go vet ./...`。
-- 禁止新增 `internal/utils`、`internal/common`、`internal/helper`。
-- 禁止 model、risk、execution、portfolio、runtime 中出现交易事实 `float64` 字段。
-- 裸 `decimal.Decimal` 字段只允许出现在领域数值类型内部、DTO、数据库 scan struct 或指标临时计算中。
-- 单文件超过 600 行时失败，测试 fixture 和 generated 文件除外。
-- 单函数超过 100 行时至少输出 warning；后续可升级为失败。
-- 禁止业务代码中的 `time.Sleep`，测试除外。
-- 禁止业务代码中的裸 `panic`，测试除外。
-- 禁止日志中出现 API key、secret、passphrase 字段值。
-
-`scripts/check-frontend-static.sh` MUST 检查：
-
-- TypeScript strict typecheck。
-- Vue component test。
-- 禁止页面组件直接 import 具体 chart library；只能 import ChartAdapter。
-- 禁止前端实现 PnL、风控、订单状态转换和 K 线聚合业务逻辑。
-
-`scripts/check-secrets.sh` MUST 检查：
-
-- 禁止提交真实 `.env` 文件。
-- 禁止提交私钥、API key、exchange secret、Telegram token、Feishu secret、SMTP password。
-- 禁止提交数据库 dump、备份文件和本地日志。
-- `.env.example` 只能包含占位符和变量说明。
-
-`scripts/docker-smoke-test.sh` MUST 检查：
-
-- `docker compose config`。
-- Docker image build。
-- PostgreSQL container healthcheck。
-- migration 服务成功退出。
-- app `/readyz` 成功。
-- 默认端口只绑定 `127.0.0.1`。
-- 未登录访问受保护 API 返回 401。
-- image history / compose config 不包含明显 secret 字段值。
-
-`scripts/release-check.sh` MUST 串联：
-
-- Go static checks。
-- frontend static checks。
-- secret checks。
-- import boundary check。
-- unit tests。
-- docker compose config。
-- migration smoke。
-- docker smoke。
-- fake exchange data sync smoke。
-- CandleAggregator / TimeClock smoke。
-- auth smoke：init-admin、login、CSRF 写操作、logout revoke、session expired。
-- backtest smoke。
-- paper task start/pause/stop smoke。
-- notification fake provider smoke。
-
-任何 quality check 失败时，不能继续堆功能。
-
-## 28. 阶段阻断条件
-
-任何阶段如果出现以下情况，必须停止继续堆功能，先修结构：
-
-- 出现第二套订单状态。
-- 出现第二套 portfolio / ledger。
-- 策略开始 import store 或 adapter。
-- 策略开始 import notification provider 或直接发通知。
-- CLI 命令直接执行 live 循环。
-- Web 页面开始暴露内部复杂数据治理细节。
-- runner 无法独立停止某一个 task。
-- task 事件无法追溯到 exchange account。
-- 一个 package 开始同时处理配置、数据库、交易所、策略和 HTTP。
-- 测试只能靠真实交易所网络才能通过。
-
-## 29. MVP 验收剧本
-
-第一版真正可用前，必须能按下面剧本走通：
-
-1. 初始化数据库：
-
-```sh
-hi migrate
-```
-
-2. 同步 Binance 和 OKX 历史 K 线：
-
-```sh
-hi data sync --exchange binance --symbol BTCUSDT --interval 1m --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-hi data sync --exchange okx --symbol BTC-USDT --interval 1m --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-```
-
-3. 检查数据完整性：
-
-```sh
-hi data check --exchange binance --symbol BTCUSDT --interval 1m --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-hi data check --exchange okx --symbol BTC-USDT --interval 1m --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-hi data aggregate-check --exchange binance --symbol BTCUSDT --target-interval 15m --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-```
-
-4. 基于同步数据跑回测：
-
-```sh
-hi strategy create --id ema-btc --kind ema-cross --version v1 --config ./configs/ema-btc.json
-hi backtest run --strategy ema-btc --exchange binance --symbol BTCUSDT --interval 1m --trigger-clock strategy_close --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-hi backtest run --strategy ema-btc --exchange binance --symbol BTCUSDT --interval 15m --trigger-clock base --from 2026-01-01T00:00:00Z --to 2026-01-02T00:00:00Z
-```
-
-5. 创建两个 paper task 并同时运行：
-
-```sh
-hi task create --id btc-ema-paper --strategy ema-btc --account binance-main --symbol BTCUSDT --interval 1m --trigger-clock strategy_close --mode paper
-hi task create --id eth-ema-paper --strategy ema-eth --account okx-main --symbol ETH-USDT --interval 15m --trigger-clock base --mode paper
-hi task start btc-ema-paper
-hi task start eth-ema-paper
-hi daemon --config ./config.yaml
-```
-
-6. 暂停一个 task，另一个 task 必须继续运行：
-
-```sh
-hi task pause btc-ema-paper
-hi task list
-```
-
-7. live dry-run 任务启动，不提交真实订单：
-
-```sh
-hi task create --id btc-ema-live-dry --strategy ema-btc --account binance-main --symbol BTCUSDT --interval 1m --trigger-clock strategy_close --mode live
-hi task dry-run btc-ema-live-dry
-```
-
-8. 通知通道和策略信号通知可用：
-
-```sh
-hi notification channel test ops-email
-hi notification route list
-hi notification event list --json
-```
-
-验收要求：
-
-- test 通知能产生 `notification_events`。
-- fake provider 或真实测试通道能产生 `notification_deliveries.status = sent`。
-- 策略信号能通过 `NotificationIntent` 进入通知链路。
-- 相同 dedupe key 在 cooldown 内不会重复投递。
-
-9. testnet / sandbox 小额 live gate 单独执行，默认不进入 release check。
-
-只有这个剧本稳定通过，第一版才算具备使用价值。
+1. 第一版前端暴露哪些 K 线周期选项。
+2. 数据同步实时方式：WebSocket、轮询，还是交易所差异化。
+3. TradingView 开源图表具体采用哪个包。
+4. 第一版通知通道：邮件、Telegram、飞书是否都要做。
+5. 交易所账号密钥加密算法和 `ENCRYPTION_KEY` 来源。
+6. 实盘任务创建确认文案、风险默认值和是否需要二次输入确认。
+7. 回测第一版是否需要手续费和滑点配置。
+8. 是否保留现有 `tictick-hi` Go + Vue 结构，还是进一步收敛目录。
