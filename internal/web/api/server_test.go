@@ -80,6 +80,30 @@ func TestCandlesRoute(t *testing.T) {
 	}
 }
 
+func TestStrategiesRoute(t *testing.T) {
+	server := NewServer(newFakeRepository(), "")
+
+	listRecorder := httptest.NewRecorder()
+	server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/strategies", nil))
+
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
+	}
+	var strategies []map[string]any
+	if err := json.NewDecoder(listRecorder.Body).Decode(&strategies); err != nil {
+		t.Fatal(err)
+	}
+	if len(strategies) == 0 {
+		t.Fatal("expected at least one strategy")
+	}
+
+	detailRecorder := httptest.NewRecorder()
+	server.ServeHTTP(detailRecorder, httptest.NewRequest(http.MethodGet, "/api/strategies/ema-cross", nil))
+	if detailRecorder.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body = %s", detailRecorder.Code, detailRecorder.Body.String())
+	}
+}
+
 type fakeRepository struct {
 	tasks   []data.DataSyncTask
 	candles []data.Candle

@@ -12,15 +12,21 @@ import (
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
 type Server struct {
-	repository data.Repository
-	staticRoot string
+	repository         data.Repository
+	strategyRepository strategy.Repository
+	staticRoot         string
 }
 
 func NewServer(repository data.Repository, staticRoot string) http.Handler {
-	return &Server{repository: repository, staticRoot: staticRoot}
+	return &Server{
+		repository:         repository,
+		strategyRepository: strategy.BuiltinRegistry(),
+		staticRoot:         staticRoot,
+	}
 }
 
 func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +37,8 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		server.handleDataTasks(w, r)
 	case r.URL.Path == "/api/candles":
 		server.handleCandles(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/strategies"):
+		server.handleStrategies(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		writeError(w, http.StatusNotFound, "api route not found")
 	default:
@@ -141,6 +149,33 @@ func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, candles)
+}
+
+func (server *Server) handleStrategies(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	parts := pathParts(r.URL.Path)
+	switch len(parts) {
+	case 2:
+		strategies, err := server.strategyRepository.ListStrategies(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, strategies)
+	case 3:
+		definition, err := server.strategyRepository.GetStrategy(r.Context(), parts[2])
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, definition)
+	default:
+		writeError(w, http.StatusNotFound, "strategy route not found")
+	}
 }
 
 func (server *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
