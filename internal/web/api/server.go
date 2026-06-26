@@ -39,6 +39,8 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		server.handleCandles(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/strategies"):
 		server.handleStrategies(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/backtests"):
+		server.handleBacktests(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		writeError(w, http.StatusNotFound, "api route not found")
 	default:
@@ -151,6 +153,81 @@ func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, candles)
 }
 
+func (server *Server) handleBacktests(w http.ResponseWriter, r *http.Request) {
+	parts := pathParts(r.URL.Path)
+	if len(parts) == 2 {
+		server.handleBacktestCollection(w, r)
+		return
+	}
+	if len(parts) == 3 && r.Method == http.MethodGet {
+		server.getBacktest(w, r, parts[2])
+		return
+	}
+	if len(parts) == 4 && parts[3] == "orders" && r.Method == http.MethodGet {
+		server.listBacktestOrders(w, r, parts[2])
+		return
+	}
+	writeError(w, http.StatusNotFound, "backtest route not found")
+}
+
+func (server *Server) handleBacktestCollection(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		tasks, err := server.repository.ListBacktestTasks(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, tasks)
+	case http.MethodPost:
+		var request data.CreateBacktestTask
+		if err := readJSON(r, &request); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		normalizeCreateBacktest(&request)
+		definition, err := server.strategyRepository.GetStrategy(r.Context(), request.StrategyID)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if err := validateCreateBacktest(request, definition); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		task, err := server.repository.CreateBacktestTask(r.Context(), request)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, task)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (server *Server) getBacktest(w http.ResponseWriter, r *http.Request, id string) {
+	task, err := server.repository.GetBacktestTask(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, task)
+}
+
+func (server *Server) listBacktestOrders(w http.ResponseWriter, r *http.Request, id string) {
+	if _, err := server.repository.GetBacktestTask(r.Context(), id); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	orders, err := server.repository.ListBacktestOrders(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, orders)
+}
+
 func (server *Server) handleStrategies(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -242,6 +319,130 @@ func validateCreateTask(task data.CreateDataSyncTask) error {
 		return errors.New("exchange, symbol and interval are required")
 	}
 	return nil
+}
+
+func normalizeCreateBacktest(task *data.CreateBacktestTask) {
+	if task.StrategyParams == nil {
+		task.StrategyParams = map[string]any{}
+	}
+	if task.InitialBalance == "" {
+		task.InitialBalance = "10000"
+	}
+	if task.FeeBps == "" {
+		task.FeeBps = "0"
+	}
+	if task.SlippageBps == "" {
+		task.SlippageBps = "0"
+	}
+	if task.TriggerMode == "" {
+		task.TriggerMode = "closed_candle"
+	}
+}
+
+func validateCreateBacktest(task data.CreateBacktestTask, definition strategy.Definition) error {
+	if task.Name == "" || task.Exchange == "" || task.Symbol == "" || task.Interval == "" || task.StrategyID == "" {
+		return errors.New("name, exchange, symbol, interval and strategyId are required")
+	}
+	if task.StartTime == nil || task.EndTime == nil {
+		return errors.New("startTime and endTime are required")
+	}
+	if !task.StartTime.Before(*task.EndTime) {
+		return errors.New("startTime must be before endTime")
+	}
+	if !contains(definition.SupportedIntervals, task.Interval) {
+		return errors.New("strategy does not support interval")
+	}
+	if !validDecimal(task.InitialBalance, true) {
+		return errors.New("initialBalance must be a positive number")
+	}
+	if !validDecimal(task.FeeBps, false) || !validDecimal(task.SlippageBps, false) {
+		return errors.New("feeBps and slippageBps must be non-negative numbers")
+	}
+	if task.TriggerMode != "closed_candle" && task.TriggerMode != "minute_replay" {
+		return errors.New("triggerMode must be closed_candle or minute_replay")
+	}
+	return validateStrategyParams(definition, task.StrategyParams)
+}
+
+func validateStrategyParams(definition strategy.Definition, values map[string]any) error {
+	for _, param := range definition.Params {
+		value, exists := values[param.Key]
+		if !exists {
+			if param.Required {
+				return fmt.Errorf("%s is required", param.Key)
+			}
+			continue
+		}
+		if !validStrategyParamValue(param, value) {
+			return fmt.Errorf("%s has invalid value", param.Key)
+		}
+	}
+	return nil
+}
+
+func validStrategyParamValue(param strategy.ParamSpec, value any) bool {
+	switch param.Type {
+	case "number":
+		return numberValue(value)
+	case "select":
+		text, ok := value.(string)
+		if !ok || text == "" {
+			return false
+		}
+		if len(param.Options) == 0 {
+			return true
+		}
+		for _, option := range param.Options {
+			if option.Value == text {
+				return true
+			}
+		}
+		return false
+	case "boolean":
+		_, ok := value.(bool)
+		return ok
+	default:
+		text, ok := value.(string)
+		return ok && text != ""
+	}
+}
+
+func validDecimal(value string, positive bool) bool {
+	number, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return false
+	}
+	if positive {
+		return number > 0
+	}
+	return number >= 0
+}
+
+func numberValue(value any) bool {
+	switch typed := value.(type) {
+	case float64:
+		return true
+	case float32:
+		return true
+	case int:
+		return true
+	case int64:
+		return true
+	case json.Number:
+		_, err := typed.Float64()
+		return err == nil
+	default:
+		return false
+	}
+}
+
+func contains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func pathParts(requestPath string) []string {

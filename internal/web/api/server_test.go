@@ -104,13 +104,66 @@ func TestStrategiesRoute(t *testing.T) {
 	}
 }
 
+func TestBacktestRoutes(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServer(repository, "")
+
+	createBody := bytes.NewBufferString(`{
+		"name":"EMA BTC backtest",
+		"exchange":"binance",
+		"symbol":"BTCUSDT",
+		"interval":"5m",
+		"startTime":"2026-01-01T00:00:00Z",
+		"endTime":"2026-01-02T00:00:00Z",
+		"strategyId":"ema-cross",
+		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
+		"initialBalance":"10000",
+		"feeBps":"1",
+		"slippageBps":"0.5",
+		"triggerMode":"closed_candle"
+	}`)
+	createRecorder := httptest.NewRecorder()
+	server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, "/api/backtests", createBody))
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+
+	var created data.BacktestTask
+	if err := json.NewDecoder(createRecorder.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	if created.ID == "" || created.Status != data.TaskStatusPending || created.StrategyID != "ema-cross" {
+		t.Fatalf("unexpected created backtest: %#v", created)
+	}
+
+	listRecorder := httptest.NewRecorder()
+	server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/backtests", nil))
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
+	}
+
+	detailRecorder := httptest.NewRecorder()
+	server.ServeHTTP(detailRecorder, httptest.NewRequest(http.MethodGet, "/api/backtests/"+created.ID, nil))
+	if detailRecorder.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body = %s", detailRecorder.Code, detailRecorder.Body.String())
+	}
+
+	ordersRecorder := httptest.NewRecorder()
+	server.ServeHTTP(ordersRecorder, httptest.NewRequest(http.MethodGet, "/api/backtests/"+created.ID+"/orders", nil))
+	if ordersRecorder.Code != http.StatusOK {
+		t.Fatalf("orders status = %d body = %s", ordersRecorder.Code, ordersRecorder.Body.String())
+	}
+}
+
 type fakeRepository struct {
-	tasks   []data.DataSyncTask
-	candles []data.Candle
+	backtestOrders map[string][]data.BacktestOrder
+	backtests      []data.BacktestTask
+	tasks          []data.DataSyncTask
+	candles        []data.Candle
 }
 
 func newFakeRepository() *fakeRepository {
-	return &fakeRepository{}
+	return &fakeRepository{backtestOrders: map[string][]data.BacktestOrder{}}
 }
 
 func (repository *fakeRepository) ListDataSyncTasks(context.Context) ([]data.DataSyncTask, error) {
@@ -184,6 +237,54 @@ func (repository *fakeRepository) ListCandles(
 		}
 	}
 	return matches, nil
+}
+
+func (repository *fakeRepository) ListBacktestTasks(context.Context) ([]data.BacktestTask, error) {
+	return append([]data.BacktestTask(nil), repository.backtests...), nil
+}
+
+func (repository *fakeRepository) CreateBacktestTask(
+	_ context.Context,
+	request data.CreateBacktestTask,
+) (data.BacktestTask, error) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	task := data.BacktestTask{
+		ID:             "bt_1",
+		Name:           request.Name,
+		Exchange:       request.Exchange,
+		Symbol:         request.Symbol,
+		Interval:       request.Interval,
+		StartTime:      request.StartTime,
+		EndTime:        request.EndTime,
+		StrategyID:     request.StrategyID,
+		StrategyParams: request.StrategyParams,
+		InitialBalance: request.InitialBalance,
+		FeeBps:         request.FeeBps,
+		SlippageBps:    request.SlippageBps,
+		TriggerMode:    request.TriggerMode,
+		Status:         data.TaskStatusPending,
+		ResultSummary:  map[string]any{},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	repository.backtests = append(repository.backtests, task)
+	return task, nil
+}
+
+func (repository *fakeRepository) GetBacktestTask(_ context.Context, id string) (data.BacktestTask, error) {
+	for _, task := range repository.backtests {
+		if task.ID == id {
+			return task, nil
+		}
+	}
+	return data.BacktestTask{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) ListBacktestOrders(
+	_ context.Context,
+	backtestID string,
+) ([]data.BacktestOrder, error) {
+	return append([]data.BacktestOrder(nil), repository.backtestOrders[backtestID]...), nil
 }
 
 func (repository *fakeRepository) updateTask(

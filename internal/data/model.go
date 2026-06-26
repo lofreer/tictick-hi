@@ -42,6 +42,56 @@ type CreateDataSyncTask struct {
 	EndTime   *time.Time `json:"endTime,omitempty"`
 }
 
+type BacktestTask struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Exchange       string         `json:"exchange"`
+	Symbol         string         `json:"symbol"`
+	Interval       string         `json:"interval"`
+	StartTime      *time.Time     `json:"startTime,omitempty"`
+	EndTime        *time.Time     `json:"endTime,omitempty"`
+	StrategyID     string         `json:"strategyId"`
+	StrategyParams map[string]any `json:"strategyParams"`
+	InitialBalance string         `json:"initialBalance"`
+	FeeBps         string         `json:"feeBps"`
+	SlippageBps    string         `json:"slippageBps"`
+	TriggerMode    string         `json:"triggerMode"`
+	Status         TaskStatus     `json:"status"`
+	StartedAt      *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt     *time.Time     `json:"finishedAt,omitempty"`
+	LastError      string         `json:"lastError,omitempty"`
+	AttemptCount   int            `json:"attemptCount"`
+	ResultSummary  map[string]any `json:"resultSummary"`
+	CreatedAt      time.Time      `json:"createdAt"`
+	UpdatedAt      time.Time      `json:"updatedAt"`
+}
+
+type CreateBacktestTask struct {
+	Name           string         `json:"name"`
+	Exchange       string         `json:"exchange"`
+	Symbol         string         `json:"symbol"`
+	Interval       string         `json:"interval"`
+	StartTime      *time.Time     `json:"startTime,omitempty"`
+	EndTime        *time.Time     `json:"endTime,omitempty"`
+	StrategyID     string         `json:"strategyId"`
+	StrategyParams map[string]any `json:"strategyParams"`
+	InitialBalance string         `json:"initialBalance"`
+	FeeBps         string         `json:"feeBps"`
+	SlippageBps    string         `json:"slippageBps"`
+	TriggerMode    string         `json:"triggerMode"`
+}
+
+type BacktestOrder struct {
+	ID         string    `json:"id"`
+	BacktestID string    `json:"backtestId"`
+	IntentID   string    `json:"intentId,omitempty"`
+	Side       string    `json:"side"`
+	Price      string    `json:"price"`
+	Quantity   string    `json:"quantity"`
+	Status     string    `json:"status"`
+	OccurredAt time.Time `json:"occurredAt"`
+}
+
 type Candle struct {
 	Exchange  string    `json:"exchange"`
 	Symbol    string    `json:"symbol"`
@@ -72,6 +122,10 @@ type Repository interface {
 	SetSyncEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	SetRealtimeEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
+	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
+	GetBacktestTask(ctx context.Context, id string) (BacktestTask, error)
+	ListBacktestOrders(ctx context.Context, backtestID string) ([]BacktestOrder, error)
 }
 
 type SyncRepository interface {
