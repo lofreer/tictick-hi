@@ -5,7 +5,7 @@
         <h1 class="page-title">{{ t("page.research.title") }}</h1>
         <p class="page-subtitle">{{ t("page.research.subtitle") }}</p>
       </div>
-      <NButton type="primary">
+      <NButton type="primary" @click="openCreateTask">
         <template #icon>
           <Plus :size="17" />
         </template>
@@ -25,13 +25,27 @@
             {{ t("research.source") }}: {{ exchange }} / {{ symbol }} / {{ interval }}
           </NText>
         </div>
-        <TradingViewChart :data="candles" :empty-title="t('research.chartEmpty')" />
+        <ErrorState
+          v-if="candlesError"
+          :title="candlesError"
+          retryable
+          @retry="loadCandles"
+        />
+        <LoadingState v-else-if="candlesLoading" />
+        <TradingViewChart v-else :data="candles" :empty-title="t('research.chartEmpty')" />
       </section>
 
       <aside class="side-panel">
         <NCard :title="t('research.syncTasks')" :bordered="false" class="surface">
+          <LoadingState v-if="tasksLoading" />
+          <ErrorState
+            v-else-if="tasksError"
+            :title="tasksError"
+            retryable
+            @retry="loadTasks"
+          />
           <DataSyncTaskTable
-            v-if="tasks.length > 0"
+            v-else-if="tasks.length > 0"
             :tasks="tasks"
             @view="selectTask"
             @delete="deleteTask"
@@ -42,31 +56,95 @@
         </NCard>
       </aside>
     </div>
+
+    <NModal
+      v-model:show="createModalOpen"
+      preset="card"
+      :title="t('research.createTaskTitle')"
+      class="research-modal"
+    >
+      <NForm>
+        <NFormItem :label="t('research.exchange')">
+          <NSelect v-model:value="createForm.exchange" :options="exchangeOptions" />
+        </NFormItem>
+        <NFormItem :label="t('research.symbol')">
+          <NSelect v-model:value="createForm.symbol" :options="symbolOptions" filterable tag />
+        </NFormItem>
+        <NFormItem :label="t('research.interval')">
+          <NSelect v-model:value="createForm.interval" :options="intervalOptions" />
+        </NFormItem>
+        <NFormItem :label="t('research.startTime')">
+          <NDatePicker v-model:value="createForm.startTime" type="datetime" clearable />
+        </NFormItem>
+        <NFormItem :label="t('research.endTime')">
+          <NDatePicker v-model:value="createForm.endTime" type="datetime" clearable />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="createModalOpen = false">{{ t("common.cancel") }}</NButton>
+          <NButton
+            type="primary"
+            :loading="createLoading"
+            :disabled="!canCreateTask"
+            @click="createTask"
+          >
+            {{ t("common.create") }}
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </section>
 </template>
 
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
-import { NButton, NCard, NSelect, NText, useMessage, type SelectOption } from "naive-ui";
-import { computed, ref, watch } from "vue";
+import {
+  NButton,
+  NCard,
+  NDatePicker,
+  NForm,
+  NFormItem,
+  NModal,
+  NSelect,
+  NSpace,
+  NText,
+  type SelectOption,
+} from "naive-ui";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute, useRouter } from "vue-router";
 
 import TradingViewChart from "@/components/chart/TradingViewChart.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
+import ErrorState from "@/components/common/ErrorState.vue";
+import LoadingState from "@/components/common/LoadingState.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
-import type { ChartCandle, DataSyncTask } from "@/types/app";
+import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 
-const route = useRoute();
-const router = useRouter();
-const message = useMessage();
 const { t } = useI18n();
-
-const exchange = ref(readQuery("exchange", "binance"));
-const symbol = ref(readQuery("symbol", "BTCUSDT"));
-const interval = ref(readQuery("interval", "1m"));
-const tasks = ref<DataSyncTask[]>([]);
-const candles = ref<ChartCandle[]>([]);
+const {
+  canCreateTask,
+  candles,
+  candlesError,
+  candlesLoading,
+  createForm,
+  createLoading,
+  createModalOpen,
+  createTask,
+  deleteTask,
+  exchange,
+  interval,
+  loadCandles,
+  loadTasks,
+  openCreateTask,
+  selectTask,
+  symbol,
+  tasks,
+  tasksError,
+  tasksLoading,
+  toggleRealtime,
+  toggleSync,
+} = useResearchWorkspace();
 
 const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "Binance", value: "binance" },
@@ -88,36 +166,6 @@ const intervalOptions = computed<SelectOption[]>(() => [
   { label: "4h", value: "4h" },
   { label: "1d", value: "1d" },
 ]);
-
-watch([exchange, symbol, interval], () => {
-  router.replace({
-    name: "research",
-    query: { exchange: exchange.value, symbol: symbol.value, interval: interval.value },
-  });
-});
-
-function readQuery(key: string, fallback: string) {
-  const value = route.query[key];
-  return typeof value === "string" && value.length > 0 ? value : fallback;
-}
-
-function selectTask(task: DataSyncTask) {
-  exchange.value = task.exchange;
-  symbol.value = task.symbol;
-  interval.value = task.interval;
-}
-
-function deleteTask() {
-  message.info(t("page.placeholder"));
-}
-
-function toggleRealtime() {
-  message.info(t("page.placeholder"));
-}
-
-function toggleSync() {
-  message.info(t("page.placeholder"));
-}
 </script>
 
 <style scoped>
@@ -136,6 +184,10 @@ function toggleSync() {
 
 .research-select--compact {
   width: 96px;
+}
+
+:global(.research-modal) {
+  width: min(560px, calc(100vw - 32px));
 }
 
 @media (max-width: 760px) {

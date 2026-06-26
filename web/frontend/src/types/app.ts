@@ -17,11 +17,15 @@ export type DataSyncTask = {
   exchange: string;
   symbol: string;
   interval: string;
+  startTime?: string;
+  endTime?: string;
   latestSyncedAt?: string;
   realtimeEnabled: boolean;
   syncEnabled: boolean;
   status: TaskStatus;
   lastError?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ChartCandle = {
@@ -32,3 +36,10 @@ export type ChartCandle = {
   close: number;
 };
 
+export type CreateDataSyncTask = {
+  exchange: string;
+  symbol: string;
+  interval: string;
+  startTime?: string;
+  endTime?: string;
+};
