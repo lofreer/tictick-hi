@@ -176,6 +176,67 @@ export type Notification = {
   sentAt?: string;
 };
 
+export type NotificationChannel = {
+  id: string;
+  name: string;
+  provider: string;
+  target: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateNotificationChannel = {
+  name: string;
+  provider: string;
+  target: string;
+  enabled: boolean;
+};
+
+export type ExchangeAccount = {
+  id: string;
+  exchange: string;
+  alias: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateExchangeAccount = {
+  exchange: string;
+  alias: string;
+  apiKey: string;
+  apiSecret: string;
+  enabled: boolean;
+};
+
+export type Operator = {
+  id: string;
+  username: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateOperator = {
+  username: string;
+  password: string;
+  enabled: boolean;
+};
+
+export type ServiceHealth = {
+  name: string;
+  status: string;
+  detail?: string;
+};
+
+export type SystemHealth = {
+  status: string;
+  database: string;
+  checkedAt: string;
+  services: ServiceHealth[];
+};
+
 export type StrategyParamValue = string | number | boolean | null;
 
 export type StrategyParamValues = Record<string, StrategyParamValue>;

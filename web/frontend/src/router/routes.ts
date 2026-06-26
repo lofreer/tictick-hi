@@ -7,6 +7,10 @@ import BacktestsPage from "@/pages/BacktestsPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import PageStub from "@/pages/PageStub.vue";
 import ResearchPage from "@/pages/ResearchPage.vue";
+import SystemExchangeAccountsPage from "@/pages/SystemExchangeAccountsPage.vue";
+import SystemHealthPage from "@/pages/SystemHealthPage.vue";
+import SystemNotificationsPage from "@/pages/SystemNotificationsPage.vue";
+import SystemOperatorsPage from "@/pages/SystemOperatorsPage.vue";
 import TradingDetailPage from "@/pages/TradingDetailPage.vue";
 import TradingNewPage from "@/pages/TradingNewPage.vue";
 import TradingPage from "@/pages/TradingPage.vue";
@@ -68,26 +72,22 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "system/notifications",
         name: "system-notifications",
-        component: PageStub,
-        props: { titleKey: "page.notifications.title" },
+        component: SystemNotificationsPage,
       },
       {
         path: "system/exchange-accounts",
         name: "system-exchange-accounts",
-        component: PageStub,
-        props: { titleKey: "page.exchangeAccounts.title" },
+        component: SystemExchangeAccountsPage,
       },
       {
         path: "system/operators",
         name: "system-operators",
-        component: PageStub,
-        props: { titleKey: "page.operators.title" },
+        component: SystemOperatorsPage,
       },
       {
         path: "system/health",
         name: "system-health",
-        component: PageStub,
-        props: { titleKey: "page.health.title" },
+        component: SystemHealthPage,
       },
     ],
   },
