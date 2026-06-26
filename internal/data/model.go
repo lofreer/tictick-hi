@@ -73,3 +73,16 @@ type Repository interface {
 	SetRealtimeEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 }
+
+type SyncRepository interface {
+	ClaimDataSyncTask(ctx context.Context, workerID string, leaseTTL time.Duration) (DataSyncTask, bool, error)
+	SaveDataSyncResult(ctx context.Context, result DataSyncResult) error
+	MarkDataSyncFailed(ctx context.Context, taskID string, err error) error
+}
+
+type DataSyncResult struct {
+	TaskID       string
+	Candles      []Candle
+	LastOpenTime *time.Time
+	Completed    bool
+}

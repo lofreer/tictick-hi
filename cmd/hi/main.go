@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lofreer/tictick-hi/internal/adapter/binance"
+	"github.com/lofreer/tictick-hi/internal/adapter/okx"
+	"github.com/lofreer/tictick-hi/internal/datasync"
+	"github.com/lofreer/tictick-hi/internal/exchange"
 	"github.com/lofreer/tictick-hi/internal/store/postgres"
 	webapi "github.com/lofreer/tictick-hi/internal/web/api"
 )
@@ -27,6 +32,8 @@ func main() {
 	switch os.Args[1] {
 	case "api":
 		err = runAPI(ctx)
+	case "sync":
+		err = runSync(ctx, os.Args[2:])
 	case "migrate":
 		err = runMigrate(ctx)
 	case "help", "-h", "--help":
@@ -39,6 +46,45 @@ func main() {
 		slog.Error("command failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func runSync(ctx context.Context, args []string) error {
+	flags := flag.NewFlagSet("sync", flag.ContinueOnError)
+	once := flags.Bool("once", false, "run one claim cycle and exit")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	databaseURL, err := requiredEnv("DATABASE_URL")
+	if err != nil {
+		return err
+	}
+
+	store, err := postgres.Open(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	runner := datasync.NewRunner(store, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": binance.NewMarketClient(nil),
+		"okx":     okx.NewMarketClient(nil),
+	}), datasync.Config{
+		WorkerID:       envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
+		LeaseTTL:       durationEnv("SYNC_LEASE_TTL", 30*time.Second),
+		PollInterval:   durationEnv("SYNC_POLL_INTERVAL", 10*time.Second),
+		BatchLimit:     intEnv("SYNC_BATCH_LIMIT", 500),
+		OverlapCandles: intEnv("SYNC_OVERLAP_CANDLES", 2),
+		DefaultLookback: durationEnv(
+			"SYNC_DEFAULT_LOOKBACK",
+			500*time.Minute,
+		),
+	})
+
+	if *once {
+		return runner.RunOnce(ctx)
+	}
+	return runner.Run(ctx)
 }
 
 func runAPI(ctx context.Context) error {
@@ -109,6 +155,38 @@ func envOrDefault(key string, fallback string) string {
 	return value
 }
 
+func durationEnv(key string, fallback time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func intEnv(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	var parsed int
+	if _, err := fmt.Sscanf(value, "%d", &parsed); err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func defaultWorkerID() string {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = "localhost"
+	}
+	return fmt.Sprintf("%s-%d", hostname, os.Getpid())
+}
+
 func printUsage() {
-	fmt.Fprintln(os.Stderr, "usage: hi <api|migrate>")
+	fmt.Fprintln(os.Stderr, "usage: hi <api|sync|migrate>")
 }
