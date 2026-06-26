@@ -183,6 +183,67 @@ type TradingRunResult struct {
 	Notifications []Notification
 }
 
+type NotificationChannel struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Provider  string    `json:"provider"`
+	Target    string    `json:"target"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type CreateNotificationChannel struct {
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+	Target   string `json:"target"`
+	Enabled  bool   `json:"enabled"`
+}
+
+type ExchangeAccount struct {
+	ID        string    `json:"id"`
+	Exchange  string    `json:"exchange"`
+	Alias     string    `json:"alias"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type CreateExchangeAccount struct {
+	Exchange  string `json:"exchange"`
+	Alias     string `json:"alias"`
+	APIKey    string `json:"apiKey"`
+	APISecret string `json:"apiSecret"`
+	Enabled   bool   `json:"enabled"`
+}
+
+type Operator struct {
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type CreateOperator struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Enabled  bool   `json:"enabled"`
+}
+
+type SystemHealth struct {
+	Status    string          `json:"status"`
+	Database  string          `json:"database"`
+	CheckedAt time.Time       `json:"checkedAt"`
+	Services  []ServiceHealth `json:"services"`
+}
+
+type ServiceHealth struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
 type Candle struct {
 	Exchange  string    `json:"exchange"`
 	Symbol    string    `json:"symbol"`
@@ -224,6 +285,13 @@ type Repository interface {
 	ListTradingIntents(ctx context.Context, taskID string) ([]StrategyIntent, error)
 	ListTradingOrders(ctx context.Context, taskID string) ([]Order, error)
 	ListTradingNotifications(ctx context.Context, taskID string) ([]Notification, error)
+	ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error)
+	CreateNotificationChannel(ctx context.Context, channel CreateNotificationChannel) (NotificationChannel, error)
+	ListExchangeAccounts(ctx context.Context) ([]ExchangeAccount, error)
+	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
+	ListOperators(ctx context.Context) ([]Operator, error)
+	CreateOperator(ctx context.Context, operator CreateOperator) (Operator, error)
+	SystemHealth(ctx context.Context) (SystemHealth, error)
 }
 
 type SyncRepository interface {

@@ -222,9 +222,45 @@ func TestTradingTaskRoutes(t *testing.T) {
 	}
 }
 
+func TestSystemRoutes(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServer(repository, "")
+
+	cases := []struct {
+		path string
+		body string
+	}{
+		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook","target":"https://example.test","enabled":true}`},
+		{path: "/api/system/exchange-accounts", body: `{"exchange":"binance","alias":"main","apiKey":"key","apiSecret":"secret","enabled":true}`},
+		{path: "/api/system/operators", body: `{"username":"admin","password":"secret","enabled":true}`},
+	}
+	for _, item := range cases {
+		createRecorder := httptest.NewRecorder()
+		server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, item.path, bytes.NewBufferString(item.body)))
+		if createRecorder.Code != http.StatusCreated {
+			t.Fatalf("%s create status = %d body = %s", item.path, createRecorder.Code, createRecorder.Body.String())
+		}
+
+		listRecorder := httptest.NewRecorder()
+		server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, item.path, nil))
+		if listRecorder.Code != http.StatusOK {
+			t.Fatalf("%s list status = %d body = %s", item.path, listRecorder.Code, listRecorder.Body.String())
+		}
+	}
+
+	healthRecorder := httptest.NewRecorder()
+	server.ServeHTTP(healthRecorder, httptest.NewRequest(http.MethodGet, "/api/system/health", nil))
+	if healthRecorder.Code != http.StatusOK {
+		t.Fatalf("health status = %d body = %s", healthRecorder.Code, healthRecorder.Body.String())
+	}
+}
+
 type fakeRepository struct {
 	backtestOrders map[string][]data.BacktestOrder
 	backtests      []data.BacktestTask
+	channels       []data.NotificationChannel
+	accounts       []data.ExchangeAccount
+	operators      []data.Operator
 	tradingTasks   []data.TradingTask
 	tasks          []data.DataSyncTask
 	candles        []data.Candle
@@ -416,6 +452,78 @@ func (repository *fakeRepository) ListTradingOrders(context.Context, string) ([]
 
 func (repository *fakeRepository) ListTradingNotifications(context.Context, string) ([]data.Notification, error) {
 	return nil, nil
+}
+
+func (repository *fakeRepository) ListNotificationChannels(context.Context) ([]data.NotificationChannel, error) {
+	return append([]data.NotificationChannel(nil), repository.channels...), nil
+}
+
+func (repository *fakeRepository) CreateNotificationChannel(
+	_ context.Context,
+	request data.CreateNotificationChannel,
+) (data.NotificationChannel, error) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	channel := data.NotificationChannel{
+		ID:        "nc_1",
+		Name:      request.Name,
+		Provider:  request.Provider,
+		Target:    request.Target,
+		Enabled:   request.Enabled,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	repository.channels = append(repository.channels, channel)
+	return channel, nil
+}
+
+func (repository *fakeRepository) ListExchangeAccounts(context.Context) ([]data.ExchangeAccount, error) {
+	return append([]data.ExchangeAccount(nil), repository.accounts...), nil
+}
+
+func (repository *fakeRepository) CreateExchangeAccount(
+	_ context.Context,
+	request data.CreateExchangeAccount,
+) (data.ExchangeAccount, error) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	account := data.ExchangeAccount{
+		ID:        "ea_1",
+		Exchange:  request.Exchange,
+		Alias:     request.Alias,
+		Enabled:   request.Enabled,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	repository.accounts = append(repository.accounts, account)
+	return account, nil
+}
+
+func (repository *fakeRepository) ListOperators(context.Context) ([]data.Operator, error) {
+	return append([]data.Operator(nil), repository.operators...), nil
+}
+
+func (repository *fakeRepository) CreateOperator(
+	_ context.Context,
+	request data.CreateOperator,
+) (data.Operator, error) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	operator := data.Operator{
+		ID:        "op_1",
+		Username:  request.Username,
+		Enabled:   request.Enabled,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	repository.operators = append(repository.operators, operator)
+	return operator, nil
+}
+
+func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHealth, error) {
+	return data.SystemHealth{
+		Status:    "ok",
+		Database:  "ok",
+		CheckedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		Services:  []data.ServiceHealth{{Name: "api", Status: "ok"}},
+	}, nil
 }
 
 func (repository *fakeRepository) updateTask(
