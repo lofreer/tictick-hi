@@ -120,6 +120,9 @@ const summaryRows = computed(() => {
     { label: t("strategy.feeBps"), value: task.value.feeBps },
     { label: t("strategy.slippageBps"), value: task.value.slippageBps },
     { label: t("strategy.triggerMode"), value: triggerModeLabel(task.value.triggerMode) },
+    { label: t("backtests.finalEquity"), value: summaryValue("finalEquity") },
+    { label: t("backtests.returnPct"), value: summaryValue("returnPct") },
+    { label: t("backtests.totalOrders"), value: summaryValue("totalOrders") },
   ];
 });
 const paramRows = computed(() => {
@@ -190,6 +193,14 @@ async function loadCandles() {
 
 function triggerModeLabel(value: string) {
   return value === "minute_replay" ? t("strategy.minuteReplay") : t("strategy.closedCandle");
+}
+
+function summaryValue(key: string) {
+  if (!task.value) {
+    return "-";
+  }
+  const value = task.value.resultSummary[key];
+  return value === undefined || value === null || value === "" ? "-" : String(value);
 }
 
 function formatDate(value?: string) {
