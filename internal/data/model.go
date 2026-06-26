@@ -176,6 +176,13 @@ type Notification struct {
 	SentAt    *time.Time `json:"sentAt,omitempty"`
 }
 
+type TradingRunResult struct {
+	TaskID        string
+	Intents       []StrategyIntent
+	Orders        []Order
+	Notifications []Notification
+}
+
 type Candle struct {
 	Exchange  string    `json:"exchange"`
 	Symbol    string    `json:"symbol"`
@@ -229,6 +236,13 @@ type BacktestRepository interface {
 	ClaimBacktestTask(ctx context.Context, workerID string, leaseTTL time.Duration) (BacktestTask, bool, error)
 	SaveBacktestResult(ctx context.Context, result BacktestResult) error
 	MarkBacktestFailed(ctx context.Context, taskID string, err error) error
+	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+}
+
+type TradingRepository interface {
+	ClaimTradingTask(ctx context.Context, workerID string, leaseTTL time.Duration) (TradingTask, bool, error)
+	SaveTradingRunResult(ctx context.Context, result TradingRunResult) error
+	MarkTradingTaskFailed(ctx context.Context, taskID string, err error) error
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 }
 

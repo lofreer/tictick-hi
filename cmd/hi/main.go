@@ -18,6 +18,7 @@ import (
 	"github.com/lofreer/tictick-hi/internal/exchange"
 	"github.com/lofreer/tictick-hi/internal/store/postgres"
 	"github.com/lofreer/tictick-hi/internal/strategy"
+	"github.com/lofreer/tictick-hi/internal/trading"
 	webapi "github.com/lofreer/tictick-hi/internal/web/api"
 )
 
@@ -38,6 +39,8 @@ func main() {
 		err = runSync(ctx, os.Args[2:])
 	case "backtest":
 		err = runBacktest(ctx, os.Args[2:])
+	case "trading":
+		err = runTrading(ctx, os.Args[2:])
 	case "migrate":
 		err = runMigrate(ctx)
 	case "help", "-h", "--help":
@@ -50,6 +53,37 @@ func main() {
 		slog.Error("command failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func runTrading(ctx context.Context, args []string) error {
+	flags := flag.NewFlagSet("trading", flag.ContinueOnError)
+	once := flags.Bool("once", false, "run one claim cycle and exit")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	databaseURL, err := requiredEnv("DATABASE_URL")
+	if err != nil {
+		return err
+	}
+
+	store, err := postgres.Open(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	runner := trading.NewRunner(store, strategy.BuiltinRegistry(), trading.Config{
+		WorkerID:     envOrDefault("TRADING_WORKER_ID", defaultWorkerID()),
+		LeaseTTL:     durationEnv("TRADING_LEASE_TTL", 30*time.Second),
+		PollInterval: durationEnv("TRADING_POLL_INTERVAL", 10*time.Second),
+		CandleLimit:  intEnv("TRADING_CANDLE_LIMIT", 500),
+	})
+
+	if *once {
+		return runner.RunOnce(ctx)
+	}
+	return runner.Run(ctx)
 }
 
 func runBacktest(ctx context.Context, args []string) error {
@@ -223,5 +257,5 @@ func defaultWorkerID() string {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, "usage: hi <api|sync|backtest|migrate>")
+	fmt.Fprintln(os.Stderr, "usage: hi <api|sync|backtest|trading|migrate>")
 }

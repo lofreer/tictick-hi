@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -163,6 +165,197 @@ func (store *Store) ListTradingNotifications(ctx context.Context, taskID string)
 	defer rows.Close()
 
 	return pgx.CollectRows(rows, scanNotification)
+}
+
+func (store *Store) ClaimTradingTask(
+	ctx context.Context,
+	workerID string,
+	leaseTTL time.Duration,
+) (data.TradingTask, bool, error) {
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.TradingTask{}, false, fmt.Errorf("begin claim trading task: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var id string
+	err = tx.QueryRow(ctx, `
+		SELECT id
+		  FROM trading_tasks
+		 WHERE status = $1
+		   AND (locked_until IS NULL OR locked_until < now())
+		 ORDER BY created_at ASC
+		 LIMIT 1
+		 FOR UPDATE SKIP LOCKED`,
+		data.TaskStatusRunning,
+	).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return data.TradingTask{}, false, nil
+	}
+	if err != nil {
+		return data.TradingTask{}, false, fmt.Errorf("select trading task: %w", err)
+	}
+
+	row := tx.QueryRow(ctx, `
+		UPDATE trading_tasks
+		   SET locked_by = $2,
+		       locked_until = now() + $3::interval,
+		       heartbeat_at = now(),
+		       started_at = COALESCE(started_at, now()),
+		       attempt_count = attempt_count + 1,
+		       updated_at = now()
+		 WHERE id = $1
+		RETURNING `+tradingTaskColumns,
+		id, workerID, intervalLiteral(leaseTTL),
+	)
+	task, err := scanTradingTaskRow(row)
+	if err != nil {
+		return data.TradingTask{}, false, fmt.Errorf("update claimed trading task: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return data.TradingTask{}, false, fmt.Errorf("commit claim trading task: %w", err)
+	}
+	return task, true, nil
+}
+
+func (store *Store) SaveTradingRunResult(ctx context.Context, result data.TradingRunResult) error {
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin save trading run result: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, intent := range result.Intents {
+		payloadJSON, err := jsonText(intent.Payload)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO strategy_intents (
+				id, task_id, task_type, strategy_id, intent_type, idempotency_key,
+				payload, policy, status, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+			ON CONFLICT (task_id, idempotency_key)
+			DO UPDATE SET payload = EXCLUDED.payload, policy = EXCLUDED.policy, status = EXCLUDED.status`,
+			intent.ID,
+			result.TaskID,
+			intent.TaskType,
+			intent.StrategyID,
+			intent.IntentType,
+			intent.IdempotencyKey,
+			payloadJSON,
+			intent.Policy,
+			intent.Status,
+			intent.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("upsert strategy intent: %w", err)
+		}
+	}
+
+	for _, order := range result.Orders {
+		summaryJSON, err := jsonText(order.ExchangeResponseSummary)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO orders (
+				id, task_id, task_type, intent_id, idempotency_key, exchange,
+				account_id, symbol, side, order_type, price, quantity, status,
+				exchange_order_id, exchange_response_summary, last_error, created_at, updated_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+			        $11::numeric, $12::numeric, $13, NULLIF($14, ''),
+			        $15::jsonb, NULLIF($16, ''), $17, $18)
+			ON CONFLICT (task_id, idempotency_key)
+			DO UPDATE SET status = EXCLUDED.status,
+			              exchange_response_summary = EXCLUDED.exchange_response_summary,
+			              last_error = EXCLUDED.last_error,
+			              updated_at = EXCLUDED.updated_at`,
+			order.ID,
+			result.TaskID,
+			order.TaskType,
+			order.IntentID,
+			order.IdempotencyKey,
+			order.Exchange,
+			order.AccountID,
+			order.Symbol,
+			order.Side,
+			order.OrderType,
+			order.Price,
+			order.Quantity,
+			order.Status,
+			order.ExchangeOrderID,
+			summaryJSON,
+			order.LastError,
+			order.CreatedAt,
+			order.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("upsert order: %w", err)
+		}
+	}
+
+	for _, notification := range result.Notifications {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO notifications (
+				id, task_id, intent_id, channel, title, body, status, error, created_at, sent_at
+			)
+			SELECT $1, $2, NULLIF($3, ''), $4, $5, $6, $7, NULLIF($8, ''), $9, $10
+			 WHERE NOT EXISTS (
+			       SELECT 1 FROM notifications
+			        WHERE task_id = $2 AND intent_id = NULLIF($3, '') AND channel = $4
+			 )`,
+			notification.ID,
+			result.TaskID,
+			notification.IntentID,
+			notification.Channel,
+			notification.Title,
+			notification.Body,
+			notification.Status,
+			notification.Error,
+			notification.CreatedAt,
+			notification.SentAt,
+		); err != nil {
+			return fmt.Errorf("insert notification: %w", err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE trading_tasks
+		   SET locked_by = NULL,
+		       locked_until = NULL,
+		       heartbeat_at = NULL,
+		       updated_at = now()
+		 WHERE id = $1`,
+		result.TaskID,
+	); err != nil {
+		return fmt.Errorf("release trading task: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit trading run result: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, taskErr error) error {
+	_, err := store.pool.Exec(ctx, `
+		UPDATE trading_tasks
+		   SET status = $2,
+		       locked_by = NULL,
+		       locked_until = NULL,
+		       heartbeat_at = NULL,
+		       last_error = $3,
+		       updated_at = now()
+		 WHERE id = $1`,
+		taskID,
+		data.TaskStatusFailed,
+		taskErr.Error(),
+	)
+	if err != nil {
+		return fmt.Errorf("mark trading task failed: %w", err)
+	}
+	return nil
 }
 
 func scanTradingTask(row pgx.CollectableRow) (data.TradingTask, error) {
