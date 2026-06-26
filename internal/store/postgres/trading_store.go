@@ -11,7 +11,7 @@ import (
 )
 
 const tradingTaskColumns = `
-	id, name, type, exchange, account_id, symbol, strategy_id,
+	id, name, type, exchange, account_id, symbol, interval, strategy_id,
 	strategy_params::text, intent_policy::text, status, started_at,
 	finished_at, COALESCE(last_error, ''), attempt_count, created_at, updated_at`
 
@@ -47,10 +47,10 @@ func (store *Store) CreateTradingTask(
 
 	row := store.pool.QueryRow(ctx, `
 		INSERT INTO trading_tasks (
-			id, name, type, exchange, account_id, symbol, strategy_id,
+			id, name, type, exchange, account_id, symbol, interval, strategy_id,
 			strategy_params, intent_policy
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
 		RETURNING `+tradingTaskColumns,
 		id,
 		task.Name,
@@ -58,6 +58,7 @@ func (store *Store) CreateTradingTask(
 		task.Exchange,
 		task.AccountID,
 		task.Symbol,
+		task.Interval,
 		task.StrategyID,
 		paramsJSON,
 		policyJSON,
@@ -181,6 +182,7 @@ func scanTradingTaskRow(row rowScanner) (data.TradingTask, error) {
 		&task.Exchange,
 		&task.AccountID,
 		&task.Symbol,
+		&task.Interval,
 		&task.StrategyID,
 		&strategyParamsJSON,
 		&intentPolicyJSON,

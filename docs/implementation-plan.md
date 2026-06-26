@@ -542,6 +542,7 @@ i18n：vue-i18n
 - 交易所。
 - 账号。
 - 交易对。
+- K 线周期。
 - 策略。
 - 策略参数摘要。
 - 运行状态。
@@ -1258,6 +1259,7 @@ trading_tasks
   exchange
   account_id
   symbol
+  interval
   strategy_id
   strategy_params
   intent_policy

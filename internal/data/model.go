@@ -105,6 +105,7 @@ type TradingTask struct {
 	Exchange       string         `json:"exchange"`
 	AccountID      string         `json:"accountId"`
 	Symbol         string         `json:"symbol"`
+	Interval       string         `json:"interval"`
 	StrategyID     string         `json:"strategyId"`
 	StrategyParams map[string]any `json:"strategyParams"`
 	IntentPolicy   map[string]any `json:"intentPolicy"`
@@ -123,6 +124,7 @@ type CreateTradingTask struct {
 	Exchange       string         `json:"exchange"`
 	AccountID      string         `json:"accountId"`
 	Symbol         string         `json:"symbol"`
+	Interval       string         `json:"interval"`
 	StrategyID     string         `json:"strategyId"`
 	StrategyParams map[string]any `json:"strategyParams"`
 	IntentPolicy   map[string]any `json:"intentPolicy"`

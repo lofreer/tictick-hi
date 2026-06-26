@@ -511,11 +511,14 @@ func normalizeCreateTradingTask(task *data.CreateTradingTask) {
 }
 
 func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.Definition) error {
-	if task.Name == "" || task.Type == "" || task.Exchange == "" || task.Symbol == "" || task.StrategyID == "" {
-		return errors.New("name, type, exchange, symbol and strategyId are required")
+	if task.Name == "" || task.Type == "" || task.Exchange == "" || task.Symbol == "" || task.Interval == "" || task.StrategyID == "" {
+		return errors.New("name, type, exchange, symbol, interval and strategyId are required")
 	}
 	if task.Type != "paper" && task.Type != "live" {
 		return errors.New("type must be paper or live")
+	}
+	if !contains(definition.SupportedIntervals, task.Interval) {
+		return errors.New("strategy does not support interval")
 	}
 	if task.AccountID == "" {
 		return errors.New("accountId is required")

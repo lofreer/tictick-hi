@@ -165,6 +165,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 		"exchange":"binance",
 		"accountId":"paper",
 		"symbol":"BTCUSDT",
+		"interval":"5m",
 		"strategyId":"ema-cross",
 		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
 		"intentPolicy":{"orderIntent":"execute","notificationChannel":"default"}
@@ -189,6 +190,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 		"exchange":"binance",
 		"accountId":"acct_live",
 		"symbol":"BTCUSDT",
+		"interval":"5m",
 		"strategyId":"ema-cross",
 		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
 		"intentPolicy":{"orderIntent":"notify","notificationChannel":"default"}
@@ -369,6 +371,7 @@ func (repository *fakeRepository) CreateTradingTask(
 		Exchange:       request.Exchange,
 		AccountID:      request.AccountID,
 		Symbol:         request.Symbol,
+		Interval:       request.Interval,
 		StrategyID:     request.StrategyID,
 		StrategyParams: request.StrategyParams,
 		IntentPolicy:   request.IntentPolicy,
