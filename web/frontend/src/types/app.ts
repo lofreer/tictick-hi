@@ -96,6 +96,86 @@ export type BacktestOrder = {
   occurredAt: string;
 };
 
+export type TradingTaskType = "paper" | "live";
+
+export type TradingTask = {
+  id: string;
+  name: string;
+  type: TradingTaskType;
+  exchange: string;
+  accountId: string;
+  symbol: string;
+  interval: string;
+  strategyId: string;
+  strategyParams: Record<string, unknown>;
+  intentPolicy: Record<string, unknown>;
+  status: TaskStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  lastError?: string;
+  attemptCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateTradingTask = {
+  name: string;
+  type: TradingTaskType;
+  exchange: string;
+  accountId: string;
+  symbol: string;
+  interval: string;
+  strategyId: string;
+  strategyParams: StrategyParamValues;
+  intentPolicy: Record<string, unknown>;
+};
+
+export type StrategyIntent = {
+  id: string;
+  taskId: string;
+  taskType: string;
+  strategyId: string;
+  intentType: string;
+  idempotencyKey: string;
+  payload: Record<string, unknown>;
+  policy: string;
+  status: string;
+  createdAt: string;
+};
+
+export type Order = {
+  id: string;
+  taskId: string;
+  taskType: string;
+  intentId?: string;
+  idempotencyKey: string;
+  exchange: string;
+  accountId: string;
+  symbol: string;
+  side: string;
+  orderType: string;
+  price: string;
+  quantity: string;
+  status: string;
+  exchangeOrderId?: string;
+  exchangeResponseSummary: Record<string, unknown>;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Notification = {
+  id: string;
+  intentId?: string;
+  channel: string;
+  title: string;
+  body: string;
+  status: string;
+  error?: string;
+  createdAt: string;
+  sentAt?: string;
+};
+
 export type StrategyParamValue = string | number | boolean | null;
 
 export type StrategyParamValues = Record<string, StrategyParamValue>;

@@ -20,7 +20,7 @@
           <section class="task-form-section">
             <h2 class="task-section-title">{{ t("strategy.market") }}</h2>
             <div class="task-field-grid">
-              <NFormItem v-if="isBacktest" class="task-field--wide" :label="t('strategy.taskName')">
+              <NFormItem class="task-field--wide" :label="t('strategy.taskName')">
                 <NInput v-model:value="form.name" class="task-control" />
               </NFormItem>
               <NFormItem :label="t('research.exchange')">
@@ -79,6 +79,9 @@
                 <NFormItem :label="t('strategy.executionMode')">
                   <NSelect v-model:value="form.executionMode" class="task-control" :options="executionModeOptions" />
                 </NFormItem>
+                <NFormItem :label="t('trading.accountId')">
+                  <NInput v-model:value="form.accountId" class="task-control" />
+                </NFormItem>
                 <NFormItem :label="t('strategy.riskLimitPct')">
                   <NInputNumber
                     v-model:value="form.riskLimitPct"
@@ -87,6 +90,15 @@
                     :max="100"
                     :step="0.5"
                   />
+                </NFormItem>
+                <NFormItem :label="t('trading.orderIntent')">
+                  <NSelect v-model:value="form.orderIntent" class="task-control" :options="orderIntentOptions" />
+                </NFormItem>
+                <NFormItem :label="t('trading.notificationChannel')">
+                  <NInput v-model:value="form.notificationChannel" class="task-control" />
+                </NFormItem>
+                <NFormItem v-if="form.executionMode === 'live' && form.orderIntent === 'execute'" :label="t('trading.liveConfirm')">
+                  <NSwitch v-model:value="form.liveExecutionConfirmed" />
                 </NFormItem>
               </template>
             </div>
@@ -157,6 +169,7 @@ import {
   NInput,
   NInputNumber,
   NSelect,
+  NSwitch,
   NTag,
   NText,
   type SelectOption,
@@ -215,6 +228,11 @@ const executionModeOptions = computed<SelectOption[]>(() => [
   { label: t("strategy.live"), value: "live" },
 ]);
 
+const orderIntentOptions = computed<SelectOption[]>(() => [
+  { label: t("trading.orderIntentExecute"), value: "execute" },
+  { label: t("trading.orderIntentNotify"), value: "notify" },
+]);
+
 const triggerModeOptions = computed<SelectOption[]>(() => [
   { label: t("strategy.closedCandle"), value: "closed_candle" },
   { label: t("strategy.minuteReplay"), value: "minute_replay" },
@@ -241,7 +259,10 @@ const summaryRows = computed(() => {
   } else {
     rows.push(
       { label: t("strategy.executionMode"), value: t(`strategy.${form.executionMode}`) },
+      { label: t("trading.accountId"), value: form.accountId },
       { label: t("strategy.riskLimitPct"), value: `${form.riskLimitPct}%` },
+      { label: t("trading.orderIntent"), value: orderIntentLabel(form.orderIntent) },
+      { label: t("trading.notificationChannel"), value: form.notificationChannel },
     );
   }
 
@@ -272,6 +293,10 @@ function formatParamValue(value: StrategyParamValue | undefined) {
 
 function triggerModeLabel(value: string) {
   return value === "minute_replay" ? t("strategy.minuteReplay") : t("strategy.closedCandle");
+}
+
+function orderIntentLabel(value: string) {
+  return value === "execute" ? t("trading.orderIntentExecute") : t("trading.orderIntentNotify");
 }
 </script>
 

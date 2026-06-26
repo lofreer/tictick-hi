@@ -7,7 +7,9 @@ import BacktestsPage from "@/pages/BacktestsPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import PageStub from "@/pages/PageStub.vue";
 import ResearchPage from "@/pages/ResearchPage.vue";
+import TradingDetailPage from "@/pages/TradingDetailPage.vue";
 import TradingNewPage from "@/pages/TradingNewPage.vue";
+import TradingPage from "@/pages/TradingPage.vue";
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -51,8 +53,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "trading",
         name: "trading",
-        component: PageStub,
-        props: { titleKey: "page.trading.title", subtitleKey: "page.trading.subtitle" },
+        component: TradingPage,
       },
       {
         path: "trading/new",
@@ -62,8 +63,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "trading/:id",
         name: "trading-detail",
-        component: PageStub,
-        props: { titleKey: "page.tradingDetail.title" },
+        component: TradingDetailPage,
       },
       {
         path: "system/notifications",

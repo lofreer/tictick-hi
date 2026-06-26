@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 
 import { backtestsApi } from "@/services/api/backtests";
 import { strategiesApi } from "@/services/api/strategies";
+import { tradingApi } from "@/services/api/trading";
 import type {
   BacktestTriggerMode,
   StrategyDefinition,
@@ -28,6 +29,10 @@ type StrategyTaskForm = {
   slippageBps: number;
   triggerMode: BacktestTriggerMode;
   executionMode: "paper" | "live";
+  accountId: string;
+  orderIntent: "execute" | "notify";
+  notificationChannel: string;
+  liveExecutionConfirmed: boolean;
   riskLimitPct: number;
 };
 
@@ -57,6 +62,10 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     slippageBps: 0,
     triggerMode: "closed_candle",
     executionMode: "paper",
+    accountId: "paper",
+    orderIntent: "execute",
+    notificationChannel: "default",
+    liveExecutionConfirmed: false,
     riskLimitPct: 10,
   });
 
@@ -97,6 +106,19 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     }
     paramValues.value = defaultParamValues(strategy.params);
   });
+
+  watch(
+    () => form.executionMode,
+    (mode) => {
+      if (mode === "live" && form.orderIntent === "execute") {
+        form.orderIntent = "notify";
+        form.liveExecutionConfirmed = false;
+      }
+      if (mode === "paper" && form.accountId === "") {
+        form.accountId = "paper";
+      }
+    },
+  );
 
   onMounted(() => {
     void loadStrategies();
@@ -145,8 +167,24 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
         message.success(t("strategy.backtestCreated"));
         await router.push({ name: "backtests-detail", params: { id: created.id } });
       } else {
-        await Promise.resolve();
-        message.success(t("strategy.tradingReady"));
+        const created = await tradingApi.createTask({
+          name: form.name,
+          type: form.executionMode,
+          exchange: form.exchange,
+          accountId: form.accountId,
+          symbol: form.symbol,
+          interval: form.interval,
+          strategyId: selectedStrategy.value.id,
+          strategyParams: compactParamValues(paramValues.value),
+          intentPolicy: {
+            orderIntent: form.orderIntent,
+            notificationChannel: form.notificationChannel,
+            liveExecutionConfirmed: form.liveExecutionConfirmed,
+            riskLimitPct: form.riskLimitPct,
+          },
+        });
+        message.success(t("strategy.tradingCreated"));
+        await router.push({ name: "trading-detail", params: { id: created.id } });
       }
     } catch (submitError) {
       const fallback = mode === "backtest" ? t("strategy.backtestCreateFailed") : t("strategy.taskSubmitFailed");
@@ -158,7 +196,13 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
 
   function taskFieldsValid() {
     if (mode !== "backtest") {
-      return true;
+      return (
+        form.name !== "" &&
+        form.accountId !== "" &&
+        form.riskLimitPct >= 0 &&
+        form.riskLimitPct <= 100 &&
+        (form.executionMode !== "live" || form.orderIntent !== "execute" || form.liveExecutionConfirmed)
+      );
     }
     return (
       form.name !== "" &&
