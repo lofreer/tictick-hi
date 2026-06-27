@@ -24,18 +24,13 @@ func AggregateCandles(baseCandles []Candle, targetInterval string) ([]Candle, er
 		return nil, nil
 	}
 
-	candles := append([]Candle(nil), baseCandles...)
-	sort.Slice(candles, func(i int, j int) bool {
-		return candles[i].OpenTime.Before(candles[j].OpenTime)
-	})
-
 	aggregator := candleAggregator{
 		targetInterval: targetInterval,
 		targetDuration: targetDuration,
 		baseDuration:   baseDuration,
 		expectedCount:  int(targetDuration / baseDuration),
 	}
-	for _, candle := range candles {
+	for _, candle := range sortedCandles(baseCandles) {
 		if err := aggregator.add(candle); err != nil {
 			return nil, err
 		}
@@ -43,6 +38,14 @@ func AggregateCandles(baseCandles []Candle, targetInterval string) ([]Candle, er
 	aggregator.flush()
 
 	return aggregator.result, nil
+}
+
+func sortedCandles(candles []Candle) []Candle {
+	ordered := append([]Candle(nil), candles...)
+	sort.Slice(ordered, func(i int, j int) bool {
+		return ordered[i].OpenTime.Before(ordered[j].OpenTime)
+	})
+	return ordered
 }
 
 type candleAggregator struct {

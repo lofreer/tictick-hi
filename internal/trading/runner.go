@@ -86,7 +86,7 @@ func (runner *Runner) runTask(ctx context.Context, task data.TradingTask) error 
 	if err != nil {
 		return err
 	}
-	candles, err := runner.repository.ListCandles(ctx, data.CandleQuery{
+	candleResult, err := runner.repository.GetCandles(ctx, data.CandleQuery{
 		Exchange: task.Exchange,
 		Symbol:   task.Symbol,
 		Interval: task.Interval,
@@ -95,6 +95,7 @@ func (runner *Runner) runTask(ctx context.Context, task data.TradingTask) error 
 	if err != nil {
 		return err
 	}
+	candles := candleResult.Candles
 	intents, err := strategy.GenerateIntents(ctx, definition, candles, task.StrategyParams)
 	if err != nil {
 		return err

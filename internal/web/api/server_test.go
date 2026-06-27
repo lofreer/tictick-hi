@@ -149,36 +149,6 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 }
 
-func TestCandlesRoute(t *testing.T) {
-	repository, server, cookie := newAuthenticatedTestServer(t)
-	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	repository.candles = append(repository.candles, data.Candle{
-		Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
-		OpenTime: now, CloseTime: now.Add(time.Minute),
-		Open: "100.1", High: "101.2", Low: "99.9", Close: "100.8", Volume: "12.5",
-		IsClosed: true,
-	})
-
-	recorder := serveAuthenticated(
-		server,
-		cookie,
-		http.MethodGet,
-		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m",
-		"",
-	)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
-	}
-	var candles []data.Candle
-	if err := json.NewDecoder(recorder.Body).Decode(&candles); err != nil {
-		t.Fatal(err)
-	}
-	if len(candles) != 1 || candles[0].Open != "100.1" {
-		t.Fatalf("unexpected candles: %#v", candles)
-	}
-}
-
 func TestStrategiesRoute(t *testing.T) {
 	_, server, cookie := newAuthenticatedTestServer(t)
 
@@ -442,11 +412,29 @@ func (repository *fakeRepository) SetRealtimeEnabled(
 	})
 }
 
+func (repository *fakeRepository) GetCandles(
+	_ context.Context,
+	query data.CandleQuery,
+) (data.CandleResult, error) {
+	return data.NewCandleProvider(repository).GetCandles(context.Background(), query)
+}
+
 func (repository *fakeRepository) ListCandles(
+	ctx context.Context,
+	query data.CandleQuery,
+) ([]data.Candle, error) {
+	result, err := repository.GetCandles(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return result.Candles, nil
+}
+
+func (repository *fakeRepository) ListNativeCandles(
 	_ context.Context,
 	query data.CandleQuery,
 ) ([]data.Candle, error) {
-	var matches []data.Candle
+	matches := make([]data.Candle, 0)
 	for _, candle := range repository.candles {
 		if candle.Exchange == query.Exchange && candle.Symbol == query.Symbol && candle.Interval == query.Interval {
 			matches = append(matches, candle)

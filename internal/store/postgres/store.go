@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -108,32 +107,18 @@ func (store *Store) SetRealtimeEnabled(
 }
 
 func (store *Store) ListCandles(ctx context.Context, query data.CandleQuery) ([]data.Candle, error) {
-	candles, err := store.listNativeCandles(ctx, query)
+	result, err := store.GetCandles(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	if len(candles) > 0 || query.Interval == "1m" {
-		return candles, nil
-	}
-
-	baseQuery := query
-	baseQuery.Interval = "1m"
-	baseQuery.Limit = baseLimitForAggregation(query.Interval, query.Limit)
-	baseCandles, err := store.listNativeCandles(ctx, baseQuery)
-	if err != nil {
-		return nil, err
-	}
-	aggregated, err := data.AggregateCandles(baseCandles, query.Interval)
-	if err != nil {
-		return nil, err
-	}
-	if query.Limit > 0 && len(aggregated) > query.Limit {
-		return aggregated[:query.Limit], nil
-	}
-	return aggregated, nil
+	return result.Candles, nil
 }
 
-func (store *Store) listNativeCandles(ctx context.Context, query data.CandleQuery) ([]data.Candle, error) {
+func (store *Store) GetCandles(ctx context.Context, query data.CandleQuery) (data.CandleResult, error) {
+	return data.NewCandleProvider(store).GetCandles(ctx, query)
+}
+
+func (store *Store) ListNativeCandles(ctx context.Context, query data.CandleQuery) ([]data.Candle, error) {
 	limit := query.Limit
 	if limit <= 0 || limit > 5000 {
 		limit = 1000
@@ -158,25 +143,6 @@ func (store *Store) listNativeCandles(ctx context.Context, query data.CandleQuer
 	defer rows.Close()
 
 	return pgx.CollectRows(rows, scanCandle)
-}
-
-func baseLimitForAggregation(interval string, limit int) int {
-	duration, err := data.IntervalDuration(interval)
-	if err != nil {
-		return limit
-	}
-	ratio := int(duration / time.Minute)
-	if ratio < 1 {
-		ratio = 1
-	}
-	if limit <= 0 {
-		limit = 1000
-	}
-	baseLimit := limit * ratio
-	if baseLimit > 5000 {
-		return 5000
-	}
-	return baseLimit
 }
 
 func (store *Store) updateTaskFlag(

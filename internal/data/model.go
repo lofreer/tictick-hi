@@ -278,12 +278,48 @@ type CandleQuery struct {
 	Limit    int
 }
 
+type CandleSource string
+
+const (
+	CandleSourceNative     CandleSource = "native"
+	CandleSourceAggregated CandleSource = "aggregated"
+	CandleSourceNone       CandleSource = "none"
+)
+
+type CandleHealth string
+
+const (
+	CandleHealthOK           CandleHealth = "ok"
+	CandleHealthGap          CandleHealth = "gap"
+	CandleHealthInsufficient CandleHealth = "insufficient"
+)
+
+type CandleGap struct {
+	From           time.Time `json:"from"`
+	To             time.Time `json:"to"`
+	MissingCandles int       `json:"missingCandles"`
+}
+
+type CandleResult struct {
+	Candles           []Candle     `json:"candles"`
+	Source            CandleSource `json:"source"`
+	RequestedInterval string       `json:"requestedInterval"`
+	BaseInterval      string       `json:"baseInterval,omitempty"`
+	Health            CandleHealth `json:"health"`
+	Gaps              []CandleGap  `json:"gaps,omitempty"`
+}
+
+type NativeCandleStore interface {
+	ListNativeCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+}
+
 type Repository interface {
 	ListDataSyncTasks(ctx context.Context) ([]DataSyncTask, error)
 	CreateDataSyncTask(ctx context.Context, task CreateDataSyncTask) (DataSyncTask, error)
 	DeleteDataSyncTask(ctx context.Context, id string) error
 	SetSyncEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	SetRealtimeEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
+	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
 	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
@@ -319,14 +355,14 @@ type BacktestRepository interface {
 	ClaimBacktestTask(ctx context.Context, workerID string, leaseTTL time.Duration) (BacktestTask, bool, error)
 	SaveBacktestResult(ctx context.Context, result BacktestResult) error
 	MarkBacktestFailed(ctx context.Context, taskID string, err error) error
-	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 }
 
 type TradingRepository interface {
 	ClaimTradingTask(ctx context.Context, workerID string, leaseTTL time.Duration) (TradingTask, bool, error)
 	SaveTradingRunResult(ctx context.Context, result TradingRunResult) error
 	MarkTradingTaskFailed(ctx context.Context, taskID string, err error) error
-	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 }
 
 type DataSyncResult struct {

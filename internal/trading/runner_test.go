@@ -102,11 +102,17 @@ func (repository *fakeTradingRepository) MarkTradingTaskFailed(context.Context, 
 	return nil
 }
 
-func (repository *fakeTradingRepository) ListCandles(
+func (repository *fakeTradingRepository) GetCandles(
 	context.Context,
 	data.CandleQuery,
-) ([]data.Candle, error) {
-	return append([]data.Candle(nil), repository.candles...), nil
+) (data.CandleResult, error) {
+	return data.CandleResult{
+		Candles:           append([]data.Candle(nil), repository.candles...),
+		Source:            data.CandleSourceNative,
+		RequestedInterval: "1m",
+		BaseInterval:      "1m",
+		Health:            data.CandleHealthOK,
+	}, nil
 }
 
 func runnerTestCandles(closes []string) []data.Candle {

@@ -106,12 +106,12 @@ func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	candles, err := server.repository.ListCandles(r.Context(), query)
+	result, err := server.repository.GetCandles(r.Context(), query)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, candles)
+	writeJSON(w, http.StatusOK, result)
 }
 
 type taskCommand struct {
