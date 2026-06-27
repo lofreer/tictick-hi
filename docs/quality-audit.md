@@ -378,7 +378,7 @@ scripts/quality-gate.sh
 - `TradingViewChart` 不再使用图表库内部 `autoSize`。
 - 图表改为按容器实际 `getBoundingClientRect()` 尺寸显式初始化和 resize。
 - resize 观察目标从可能受图表子节点影响的 chart body 收敛到固定 `.chart-panel`。
-- 图表高度由 `.research-chart-body` 的宽度和 `.chart-panel` 剩余高度共同推导；当 body 高度为 0 或被子节点撑大时，回退到 panel 剩余高度。
+- 图表高度不再信任 `.research-chart-body` 的实时高度，统一从固定 `.chart-panel` 的 computed/client/bounds 最小有效高度扣除图表槽 top offset，避免被图表库子节点污染后继续写回更大高度。
 - 图表 canvas 在 `createChart` 和 `resize` 前写入显式像素宽高，避免 lightweight-charts 内部 DOM 反向改变宿主测量结果。
 - resize 通过 `requestAnimationFrame` 合并，并在尺寸未变化时跳过。
 - 组件卸载时断开 `ResizeObserver`、窗口 resize 事件和待执行 animation frame。
@@ -401,6 +401,8 @@ scripts/quality-gate.sh
 - Headless Chrome 桌面 `2048x1024` 打开 `/research?exchange=binance&symbol=BTCUSDT&interval=5m`，30 次采样 `scrollHeight=2026`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=681`、`tvHeight=680`，无增长。
 - Headless Chrome 移动 `390x844` 打开 `/research`，30 次采样 `scrollHeight=1984`、`panelHeight=624`、`bodyHeight=457`、`chartHeight=457`、`canvasHeight=455`、`tvHeight=454`，无增长。
 - 浏览器采样未捕获 `ResizeObserver`、JS exception 或 console error。
+- 本轮追加回归验证：`pnpm run test` 覆盖 26 个前端测试，其中 `TradingViewChart` 新增 polluted host / inflated panel 两个高度污染场景。
+- 本轮追加本地 8080 验证：`docker compose up -d --build api` 后，Headless Chrome `2048x1024` 登录并打开 `/research`，30 次采样 first/last 均为 `scrollHeight=2354`、`panel=717`、`body=640`、`chart=640`、`canvas=638`、`tv=638`，`uniqueCount=1`，无 runtime/log error。
 
 失败：
 

@@ -208,6 +208,87 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
+  it("uses panel height even when the chart host reports a smaller polluted height", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 800 });
+
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: 800 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1200, height: 320 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mount(TradingViewChart, {
+      attachTo: host,
+      props: {
+        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+        emptyTitle: "No candles",
+      },
+    });
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1200,
+        height: 720,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
+  it("uses computed panel height when content measurement is already inflated", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    panel.style.height = "800px";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 2000 });
+
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: 2000 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1200, height: 1800 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mount(TradingViewChart, {
+      attachTo: host,
+      props: {
+        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+        emptyTitle: "No candles",
+      },
+    });
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1200,
+        height: 720,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
   it("uses remaining chart panel space when the chart body reports no height", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";

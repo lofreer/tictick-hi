@@ -157,7 +157,7 @@ function readHostSize() {
 
   const bounds = host.getBoundingClientRect();
   const width = Math.floor(bounds.width);
-  const height = Math.floor(readChartHeight(bounds.height, bounds.top, host));
+  const height = Math.floor(readChartHeight(bounds.top, host));
   if (width <= 0 || height <= 0) return null;
 
   return { width, height };
@@ -175,20 +175,21 @@ function readLayoutHost() {
   return root.closest<HTMLElement>(".research-chart-body, .chart-panel") ?? root.parentElement ?? root;
 }
 
-function readChartHeight(hostHeight: number, hostTop: number, host: HTMLElement) {
+function readChartHeight(hostTop: number, host: HTMLElement) {
   const chartPanel = host.closest<HTMLElement>(".chart-panel");
-  if (!chartPanel) return hostHeight;
+  if (!chartPanel) return host.getBoundingClientRect().height;
 
   const panelBounds = chartPanel.getBoundingClientRect();
-  const panelHeight = chartPanel.clientHeight || panelBounds.height;
+  const panelHeight = readElementHeight(chartPanel, panelBounds.height);
   const availableHeight = panelHeight - Math.max(0, hostTop - panelBounds.top);
-  if (availableHeight <= 0) return hostHeight;
+  return availableHeight > 0 ? availableHeight : panelHeight;
+}
 
-  if (hostHeight <= 0 || hostHeight > availableHeight) {
-    return availableHeight;
-  }
-
-  return hostHeight;
+function readElementHeight(element: HTMLElement, fallbackHeight: number) {
+  const computedHeight = Number.parseFloat(window.getComputedStyle(element).height);
+  const heights = [computedHeight, element.clientHeight, fallbackHeight].filter((height) => Number.isFinite(height) && height > 0);
+  if (heights.length === 0) return fallbackHeight;
+  return Math.min(...heights);
 }
 
 function applyContainerSize(size: { width: number; height: number }) {
