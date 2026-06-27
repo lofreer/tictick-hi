@@ -201,7 +201,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
         form.accountId !== "" &&
         form.riskLimitPct >= 0 &&
         form.riskLimitPct <= 100 &&
-        (form.executionMode !== "live" || form.orderIntent !== "execute" || form.liveExecutionConfirmed)
+        (form.executionMode !== "live" || form.orderIntent !== "execute")
       );
     }
     return (

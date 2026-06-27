@@ -50,4 +50,25 @@ describe("trading api", () => {
       }),
     );
   });
+
+  it("lists trading executions and positions", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ id: "exe_1" }]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ symbol: "BTCUSDT" }]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(tradingApi.listExecutions("tt_1")).resolves.toEqual([{ id: "exe_1" }]);
+    await expect(tradingApi.listPositions("tt_1")).resolves.toEqual([{ symbol: "BTCUSDT" }]);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/trading/tasks/tt_1/executions",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/trading/tasks/tt_1/positions",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

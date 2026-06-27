@@ -152,6 +152,9 @@ export type TradingTask = {
   strategyParams: Record<string, unknown>;
   intentPolicy: Record<string, unknown>;
   status: TaskStatus;
+  lockedBy?: string;
+  lockedUntil?: string;
+  heartbeatAt?: string;
   startedAt?: string;
   finishedAt?: string;
   lastError?: string;
@@ -190,6 +193,37 @@ export type Order = {
   exchangeResponseSummary: Record<string, unknown>;
   lastError?: string;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type Execution = {
+  id: string;
+  taskId: string;
+  taskType: string;
+  orderId: string;
+  intentId?: string;
+  idempotencyKey: string;
+  exchange: string;
+  accountId: string;
+  symbol: string;
+  side: string;
+  price: string;
+  quantity: string;
+  fee: string;
+  status: string;
+  executedAt: string;
+  createdAt: string;
+};
+
+export type Position = {
+  taskId: string;
+  taskType: string;
+  exchange: string;
+  accountId: string;
+  symbol: string;
+  quantity: string;
+  averagePrice: string;
+  realizedPnl: string;
   updatedAt: string;
 };
 

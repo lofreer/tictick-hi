@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api/client";
-import type { CreateTradingTask, Notification, Order, StrategyIntent, TradingTask } from "@/types/app";
+import type { CreateTradingTask, Execution, Notification, Order, Position, StrategyIntent, TradingTask } from "@/types/app";
 
 export const tradingApi = {
   listTasks() {
@@ -32,6 +32,14 @@ export const tradingApi = {
 
   listOrders(id: string) {
     return apiClient.get<Order[]>(`/trading/tasks/${encodeURIComponent(id)}/orders`);
+  },
+
+  listExecutions(id: string) {
+    return apiClient.get<Execution[]>(`/trading/tasks/${encodeURIComponent(id)}/executions`);
+  },
+
+  listPositions(id: string) {
+    return apiClient.get<Position[]>(`/trading/tasks/${encodeURIComponent(id)}/positions`);
   },
 
   listNotifications(id: string) {

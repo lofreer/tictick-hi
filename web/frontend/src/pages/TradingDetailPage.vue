@@ -19,7 +19,7 @@
       <section class="surface chart-panel trading-detail-chart">
         <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
         <LoadingState v-else-if="candlesLoading" />
-        <TradingViewChart v-else :data="candles" :empty-title="t('trading.chartEmpty')" />
+        <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('trading.chartEmpty')" />
       </section>
 
       <aside class="side-panel">
@@ -38,6 +38,18 @@
 
         <section class="surface trading-detail-section">
           <NTabs type="segment" animated>
+            <NTabPane name="positions" :tab="t('trading.positions')">
+              <LoadingState v-if="positionsLoading" />
+              <ErrorState v-else-if="positionsError" :title="positionsError" retryable @retry="loadPositions" />
+              <EmptyState v-else-if="positions.length === 0" :title="t('trading.noPositions')" />
+              <div v-else class="detail-list">
+                <div v-for="position in positions" :key="position.symbol" class="detail-list__item">
+                  <NTag size="small">{{ position.symbol }}</NTag>
+                  <strong>{{ position.quantity }}</strong>
+                  <span>{{ position.averagePrice }} / {{ formatDate(position.updatedAt) }}</span>
+                </div>
+              </div>
+            </NTabPane>
             <NTabPane name="intents" :tab="t('trading.intents')">
               <LoadingState v-if="intentsLoading" />
               <ErrorState v-else-if="intentsError" :title="intentsError" retryable @retry="loadIntents" />
@@ -59,6 +71,18 @@
                   <NTag :type="order.side === 'buy' ? 'success' : 'error'" size="small">{{ order.side }}</NTag>
                   <strong>{{ order.price }} / {{ order.quantity }}</strong>
                   <span>{{ order.status }} / {{ formatDate(order.createdAt) }}</span>
+                </div>
+              </div>
+            </NTabPane>
+            <NTabPane name="executions" :tab="t('trading.executions')">
+              <LoadingState v-if="executionsLoading" />
+              <ErrorState v-else-if="executionsError" :title="executionsError" retryable @retry="loadExecutions" />
+              <EmptyState v-else-if="executions.length === 0" :title="t('trading.noExecutions')" />
+              <div v-else class="detail-list">
+                <div v-for="execution in executions" :key="execution.id" class="detail-list__item">
+                  <NTag :type="execution.side === 'buy' ? 'success' : 'error'" size="small">{{ execution.side }}</NTag>
+                  <strong>{{ execution.price }} / {{ execution.quantity }}</strong>
+                  <span>{{ execution.status }} / {{ formatDate(execution.executedAt) }}</span>
                 </div>
               </div>
             </NTabPane>
@@ -100,7 +124,17 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import { dataApi } from "@/services/api/data";
 import { tradingApi } from "@/services/api/trading";
-import type { ChartCandle, Notification as TradingNotification, Order, StrategyIntent, TradingTask } from "@/types/app";
+import { appColors } from "@/theme/tokens";
+import type {
+  ChartCandle,
+  ChartMarker,
+  Execution,
+  Notification as TradingNotification,
+  Order,
+  Position,
+  StrategyIntent,
+  TradingTask,
+} from "@/types/app";
 
 const route = useRoute();
 const router = useRouter();
@@ -108,16 +142,22 @@ const { t } = useI18n();
 const task = ref<TradingTask | null>(null);
 const intents = ref<StrategyIntent[]>([]);
 const orders = ref<Order[]>([]);
+const executions = ref<Execution[]>([]);
+const positions = ref<Position[]>([]);
 const notifications = ref<TradingNotification[]>([]);
 const candles = ref<ChartCandle[]>([]);
 const taskLoading = ref(false);
 const intentsLoading = ref(false);
 const ordersLoading = ref(false);
+const executionsLoading = ref(false);
+const positionsLoading = ref(false);
 const notificationsLoading = ref(false);
 const candlesLoading = ref(false);
 const taskError = ref("");
 const intentsError = ref("");
 const ordersError = ref("");
+const executionsError = ref("");
+const positionsError = ref("");
 const notificationsError = ref("");
 const candlesError = ref("");
 
@@ -137,8 +177,22 @@ const summaryRows = computed(() => {
     { label: t("strategy.strategy"), value: task.value.strategyId },
     { label: t("trading.orderIntent"), value: String(task.value.intentPolicy.orderIntent ?? "-") },
     { label: t("trading.notificationChannel"), value: String(task.value.intentPolicy.notificationChannel ?? "-") },
+    { label: t("trading.worker"), value: task.value.lockedBy || "-" },
+    { label: t("trading.heartbeatAt"), value: formatDate(task.value.heartbeatAt) },
+    { label: t("common.error"), value: task.value.lastError || "-" },
   ];
 });
+const chartMarkers = computed<ChartMarker[]>(() =>
+  executions.value.map((execution) => ({
+    id: execution.id,
+    time: Math.floor(new Date(execution.executedAt).getTime() / 1000),
+    position: execution.side === "buy" ? "belowBar" : "aboveBar",
+    shape: execution.side === "buy" ? "arrowUp" : "arrowDown",
+    color: execution.side === "buy" ? appColors.success : appColors.danger,
+    text: `${execution.side} ${execution.quantity}`,
+    size: 1.2,
+  })),
+);
 
 onMounted(() => {
   void loadDetail();
@@ -149,7 +203,14 @@ async function loadDetail() {
   taskError.value = "";
   try {
     task.value = await tradingApi.getTask(taskID.value);
-    await Promise.all([loadCandles(), loadIntents(), loadOrders(), loadNotifications()]);
+    await Promise.all([
+      loadCandles(),
+      loadIntents(),
+      loadOrders(),
+      loadExecutions(),
+      loadPositions(),
+      loadNotifications(),
+    ]);
   } catch (loadError) {
     task.value = null;
     taskError.value = errorMessage(loadError, t("trading.detailLoadFailed"));
@@ -202,6 +263,34 @@ async function loadOrders() {
     ordersError.value = errorMessage(loadError, t("trading.ordersLoadFailed"));
   } finally {
     ordersLoading.value = false;
+  }
+}
+
+async function loadExecutions() {
+  if (!task.value) return;
+  executionsLoading.value = true;
+  executionsError.value = "";
+  try {
+    executions.value = await tradingApi.listExecutions(task.value.id);
+  } catch (loadError) {
+    executions.value = [];
+    executionsError.value = errorMessage(loadError, t("trading.executionsLoadFailed"));
+  } finally {
+    executionsLoading.value = false;
+  }
+}
+
+async function loadPositions() {
+  if (!task.value) return;
+  positionsLoading.value = true;
+  positionsError.value = "";
+  try {
+    positions.value = await tradingApi.listPositions(task.value.id);
+  } catch (loadError) {
+    positions.value = [];
+    positionsError.value = errorMessage(loadError, t("trading.positionsLoadFailed"));
+  } finally {
+    positionsLoading.value = false;
   }
 }
 
@@ -283,6 +372,9 @@ function errorMessage(loadError: unknown, fallback: string) {
 .detail-list {
   display: grid;
   gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
   padding-top: 12px;
 }
 

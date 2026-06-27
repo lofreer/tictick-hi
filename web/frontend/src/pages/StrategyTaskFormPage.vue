@@ -229,7 +229,7 @@ const executionModeOptions = computed<SelectOption[]>(() => [
 ]);
 
 const orderIntentOptions = computed<SelectOption[]>(() => [
-  { label: t("trading.orderIntentExecute"), value: "execute" },
+  { label: t("trading.orderIntentExecute"), value: "execute", disabled: form.executionMode === "live" },
   { label: t("trading.orderIntentNotify"), value: "notify" },
 ]);
 
