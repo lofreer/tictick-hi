@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
 func (server *Server) handleTradingTasks(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +53,12 @@ func (server *Server) handleTradingTaskCollection(w http.ResponseWriter, r *http
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		normalizedParams, err := strategy.NormalizeParams(definition, request.StrategyParams)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		request.StrategyParams = normalizedParams
 		task, err := server.repository.CreateTradingTask(r.Context(), request)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

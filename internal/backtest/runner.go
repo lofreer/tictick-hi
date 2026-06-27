@@ -125,6 +125,9 @@ func (runner *Runner) execute(
 	position := decimal.Zero()
 	var orders []data.BacktestOrder
 	for _, intent := range intents {
+		if intent.Type != strategy.IntentTypeOrder {
+			continue
+		}
 		price, err := decimal.Parse(intent.Price)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse intent price: %w", err)
@@ -179,6 +182,7 @@ func (runner *Runner) execute(
 		"initialBalance": initialBalance.Format(4),
 		"finalEquity":    finalEquity.Format(4),
 		"returnPct":      returnPct.Format(4),
+		"totalIntents":   len(intents),
 		"totalOrders":    len(orders),
 	}, nil
 }

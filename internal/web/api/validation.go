@@ -1,9 +1,7 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -81,7 +79,7 @@ func validateCreateBacktest(task data.CreateBacktestTask, definition strategy.De
 	if task.TriggerMode != "closed_candle" && task.TriggerMode != "minute_replay" {
 		return errors.New("triggerMode must be closed_candle or minute_replay")
 	}
-	return validateStrategyParams(definition, task.StrategyParams)
+	return strategy.ValidateParams(definition, task.StrategyParams)
 }
 
 func normalizeCreateTradingTask(task *data.CreateTradingTask) {
@@ -129,50 +127,7 @@ func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.
 			return errors.New("live execution must be explicitly confirmed")
 		}
 	}
-	return validateStrategyParams(definition, task.StrategyParams)
-}
-
-func validateStrategyParams(definition strategy.Definition, values map[string]any) error {
-	for _, param := range definition.Params {
-		value, exists := values[param.Key]
-		if !exists {
-			if param.Required {
-				return fmt.Errorf("%s is required", param.Key)
-			}
-			continue
-		}
-		if !validStrategyParamValue(param, value) {
-			return fmt.Errorf("%s has invalid value", param.Key)
-		}
-	}
-	return nil
-}
-
-func validStrategyParamValue(param strategy.ParamSpec, value any) bool {
-	switch param.Type {
-	case "number":
-		return numberValue(value)
-	case "select":
-		text, ok := value.(string)
-		if !ok || text == "" {
-			return false
-		}
-		if len(param.Options) == 0 {
-			return true
-		}
-		for _, option := range param.Options {
-			if option.Value == text {
-				return true
-			}
-		}
-		return false
-	case "boolean":
-		_, ok := value.(bool)
-		return ok
-	default:
-		text, ok := value.(string)
-		return ok && text != ""
-	}
+	return strategy.ValidateParams(definition, task.StrategyParams)
 }
 
 func validDecimal(value string, positive bool) bool {
@@ -184,22 +139,4 @@ func validDecimal(value string, positive bool) bool {
 		return number > 0
 	}
 	return number >= 0
-}
-
-func numberValue(value any) bool {
-	switch typed := value.(type) {
-	case float64:
-		return true
-	case float32:
-		return true
-	case int:
-		return true
-	case int64:
-		return true
-	case json.Number:
-		_, err := typed.Float64()
-		return err == nil
-	default:
-		return false
-	}
 }

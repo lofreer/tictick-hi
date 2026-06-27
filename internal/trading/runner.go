@@ -125,19 +125,22 @@ func (runner *Runner) result(task data.TradingTask, intents []strategy.Intent) (
 			TaskID:         task.ID,
 			TaskType:       task.Type,
 			StrategyID:     task.StrategyID,
-			IntentType:     "order",
+			IntentType:     intent.Type,
 			IdempotencyKey: idempotencyKey,
-			Payload: map[string]any{
-				"side":       intent.Side,
-				"price":      intent.Price,
-				"quantity":   intent.Quantity,
-				"symbol":     task.Symbol,
-				"occurredAt": intent.OccurredAt,
-			},
-			Policy:    policy,
-			Status:    "accepted",
-			CreatedAt: now,
+			Payload:        intentPayload(task, intent),
+			Policy:         policy,
+			Status:         "accepted",
+			CreatedAt:      now,
 		})
+
+		if intent.Type == strategy.IntentTypeNotification {
+			notification, err := runner.notification(task, intent, intentID, channel, now)
+			if err != nil {
+				return data.TradingRunResult{}, err
+			}
+			result.Notifications = append(result.Notifications, notification)
+			continue
+		}
 
 		if policy == "execute" {
 			order, err := runner.order(task, intent, intentID, idempotencyKey, now)
@@ -155,6 +158,17 @@ func (runner *Runner) result(task data.TradingTask, intents []strategy.Intent) (
 		result.Notifications = append(result.Notifications, notification)
 	}
 	return result, nil
+}
+
+func intentPayload(task data.TradingTask, intent strategy.Intent) map[string]any {
+	payload := map[string]any{}
+	for key, value := range intent.Payload {
+		payload[key] = value
+	}
+	payload["taskId"] = task.ID
+	payload["taskType"] = task.Type
+	payload["accountId"] = task.AccountID
+	return payload
 }
 
 func (runner *Runner) order(
@@ -207,11 +221,18 @@ func (runner *Runner) notification(
 		ID:        notificationID,
 		IntentID:  intentID,
 		Channel:   channel,
-		Title:     "Strategy order intent",
-		Body:      fmt.Sprintf("%s %s %s at %s", intent.Side, intent.Quantity, task.Symbol, intent.Price),
+		Title:     "Strategy intent",
+		Body:      notificationBody(task, intent),
 		Status:    "pending",
 		CreatedAt: now,
 	}, nil
+}
+
+func notificationBody(task data.TradingTask, intent strategy.Intent) string {
+	if intent.Message != "" {
+		return intent.Message
+	}
+	return fmt.Sprintf("%s %s %s at %s", intent.Side, intent.Quantity, task.Symbol, intent.Price)
 }
 
 func textPolicy(policy map[string]any, key string, fallback string) string {

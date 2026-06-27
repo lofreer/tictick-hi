@@ -12,9 +12,12 @@ import (
 
 type Intent struct {
 	ID         string
+	Type       string
 	Side       string
 	Price      string
 	Quantity   string
+	Message    string
+	Payload    map[string]any
 	OccurredAt time.Time
 }
 
@@ -24,6 +27,12 @@ func GenerateIntents(
 	candles []data.Candle,
 	params map[string]any,
 ) ([]Intent, error) {
+	normalizedParams, err := NormalizeParams(definition, params)
+	if err != nil {
+		return nil, err
+	}
+	params = normalizedParams
+
 	switch definition.ID {
 	case "ema-cross":
 		return emaCrossIntents(candles, params)
@@ -35,10 +44,7 @@ func GenerateIntents(
 }
 
 func emaCrossIntents(candles []data.Candle, params map[string]any) ([]Intent, error) {
-	if textParam(params, "signalMode", "order") != "order" {
-		return nil, nil
-	}
-
+	signalMode := textParam(params, "signalMode", IntentTypeOrder)
 	fastPeriod := intParamValue(params, "fastPeriod", 12)
 	slowPeriod := intParamValue(params, "slowPeriod", 26)
 	if fastPeriod <= 0 || slowPeriod <= fastPeriod {
@@ -69,9 +75,9 @@ func emaCrossIntents(candles []data.Candle, params map[string]any) ([]Intent, er
 
 		switch {
 		case previousFast <= previousSlow && fast > slow:
-			intents = append(intents, intent("ema-cross", len(intents), "buy", candles[index], quantity))
+			intents = append(intents, signalIntent("ema-cross", len(intents), signalMode, "buy", candles[index], quantity))
 		case previousFast >= previousSlow && fast < slow:
-			intents = append(intents, intent("ema-cross", len(intents), "sell", candles[index], quantity))
+			intents = append(intents, signalIntent("ema-cross", len(intents), signalMode, "sell", candles[index], quantity))
 		}
 	}
 	return intents, nil
@@ -84,6 +90,7 @@ func breakoutRangeIntents(candles []data.Candle, params map[string]any) ([]Inten
 	}
 	buffer := numberParamValue(params, "breakoutBufferPct", 0.2) / 100
 	quantity := decimalParam(params, "orderSize", "0.01")
+	signalMode := textParam(params, "signalMode", IntentTypeOrder)
 	side := textParam(params, "side", "both")
 
 	var (
@@ -101,23 +108,41 @@ func breakoutRangeIntents(candles []data.Candle, params map[string]any) ([]Inten
 		}
 
 		if closePrice > high*(1+buffer) && side != "short" && lastSide != "buy" {
-			intents = append(intents, intent("breakout-range", len(intents), "buy", candles[index], quantity))
+			intents = append(intents, signalIntent("breakout-range", len(intents), signalMode, "buy", candles[index], quantity))
 			lastSide = "buy"
 		}
 		if closePrice < low*(1-buffer) && side != "long" && lastSide != "sell" {
-			intents = append(intents, intent("breakout-range", len(intents), "sell", candles[index], quantity))
+			intents = append(intents, signalIntent("breakout-range", len(intents), signalMode, "sell", candles[index], quantity))
 			lastSide = "sell"
 		}
 	}
 	return intents, nil
 }
 
-func intent(prefix string, index int, side string, candle data.Candle, quantity string) Intent {
+func signalIntent(prefix string, index int, intentType string, side string, candle data.Candle, quantity string) Intent {
+	if intentType != IntentTypeNotification {
+		intentType = IntentTypeOrder
+	}
+	message := fmt.Sprintf("%s %s signal for %s at %s", prefix, side, candle.Symbol, candle.Close)
 	return Intent{
-		ID:         fmt.Sprintf("%s_%d", prefix, index+1),
-		Side:       side,
-		Price:      candle.Close,
-		Quantity:   quantity,
+		ID:       fmt.Sprintf("%s_%s_%d", prefix, intentType, index+1),
+		Type:     intentType,
+		Side:     side,
+		Price:    candle.Close,
+		Quantity: quantity,
+		Message:  message,
+		Payload: map[string]any{
+			"strategy":   prefix,
+			"intentType": intentType,
+			"side":       side,
+			"price":      candle.Close,
+			"quantity":   quantity,
+			"exchange":   candle.Exchange,
+			"symbol":     candle.Symbol,
+			"interval":   candle.Interval,
+			"occurredAt": candle.OpenTime,
+			"message":    message,
+		},
 		OccurredAt: candle.OpenTime,
 	}
 }

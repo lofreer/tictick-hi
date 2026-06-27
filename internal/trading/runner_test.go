@@ -48,6 +48,29 @@ func TestRunnerRunOnceSavesNotification(t *testing.T) {
 	}
 }
 
+func TestRunnerRunOncePersistsStrategyNotificationIntent(t *testing.T) {
+	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
+	repository.task.StrategyParams["signalMode"] = "notification"
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(repository.result.Intents) == 0 {
+		t.Fatal("expected saved strategy intent")
+	}
+	if repository.result.Intents[0].IntentType != strategy.IntentTypeNotification {
+		t.Fatalf("intent type = %s", repository.result.Intents[0].IntentType)
+	}
+	if len(repository.result.Orders) != 0 {
+		t.Fatalf("notification intent should not create orders: %#v", repository.result.Orders)
+	}
+	if len(repository.result.Notifications) == 0 {
+		t.Fatal("expected notification record")
+	}
+}
+
 type fakeTradingRepository struct {
 	task    data.TradingTask
 	candles []data.Candle

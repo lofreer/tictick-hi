@@ -2,6 +2,8 @@ package strategy
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -32,6 +34,16 @@ type ParamSpec struct {
 	Options     []Option `json:"options,omitempty"`
 	Description string   `json:"description,omitempty"`
 }
+
+const (
+	ParamTypeNumber  = "number"
+	ParamTypeSelect  = "select"
+	ParamTypeBoolean = "boolean"
+	ParamTypeText    = "text"
+
+	IntentTypeOrder        = "order"
+	IntentTypeNotification = "notification"
+)
 
 type Option struct {
 	Label string `json:"label"`
@@ -73,6 +85,10 @@ func BuiltinRegistry() Registry {
 				intParam("lookback", "Lookback Candles", 20, 5, 300, 1),
 				numberParam("breakoutBufferPct", "Breakout Buffer %", 0.2, 0, 10, 0.1),
 				numberParam("orderSize", "Order Size", 0.01, 0.0001, 100, 0.0001),
+				selectParam("signalMode", "Signal Mode", "order", []Option{
+					{Label: "Order intent", Value: "order"},
+					{Label: "Notification only", Value: "notification"},
+				}),
 				selectParam("side", "Side", "both", []Option{
 					{Label: "Both", Value: "both"},
 					{Label: "Long only", Value: "long"},
@@ -111,7 +127,7 @@ func numberParam(
 	return ParamSpec{
 		Key:      key,
 		Label:    label,
-		Type:     "number",
+		Type:     ParamTypeNumber,
 		Required: true,
 		Default:  defaultValue,
 		Min:      &min,
@@ -124,9 +140,114 @@ func selectParam(key string, label string, defaultValue string, options []Option
 	return ParamSpec{
 		Key:      key,
 		Label:    label,
-		Type:     "select",
+		Type:     ParamTypeSelect,
 		Required: true,
 		Default:  defaultValue,
 		Options:  options,
+	}
+}
+
+func ValidateParams(definition Definition, values map[string]any) error {
+	_, err := NormalizeParams(definition, values)
+	return err
+}
+
+func NormalizeParams(definition Definition, values map[string]any) (map[string]any, error) {
+	if values == nil {
+		values = map[string]any{}
+	}
+
+	specs := make(map[string]ParamSpec, len(definition.Params))
+	for _, param := range definition.Params {
+		specs[param.Key] = param
+	}
+	for key := range values {
+		if _, exists := specs[key]; !exists {
+			return nil, fmt.Errorf("unknown strategy parameter %s", key)
+		}
+	}
+
+	normalized := make(map[string]any, len(definition.Params))
+	for _, param := range definition.Params {
+		value, exists := values[param.Key]
+		if !exists {
+			if param.Default != nil {
+				value = param.Default
+				exists = true
+			}
+		}
+		if !exists {
+			if param.Required {
+				return nil, fmt.Errorf("%s is required", param.Key)
+			}
+			continue
+		}
+		if err := validateParamValue(param, value); err != nil {
+			return nil, fmt.Errorf("%s has invalid value: %w", param.Key, err)
+		}
+		normalized[param.Key] = value
+	}
+	return normalized, nil
+}
+
+func validateParamValue(param ParamSpec, value any) error {
+	switch param.Type {
+	case ParamTypeNumber:
+		number, ok := numericValue(value)
+		if !ok {
+			return fmt.Errorf("expected number")
+		}
+		if param.Min != nil && number < *param.Min {
+			return fmt.Errorf("below min %v", *param.Min)
+		}
+		if param.Max != nil && number > *param.Max {
+			return fmt.Errorf("above max %v", *param.Max)
+		}
+		return nil
+	case ParamTypeSelect:
+		text, ok := value.(string)
+		if !ok || text == "" {
+			return fmt.Errorf("expected select option")
+		}
+		if len(param.Options) == 0 {
+			return nil
+		}
+		for _, option := range param.Options {
+			if option.Value == text {
+				return nil
+			}
+		}
+		return fmt.Errorf("unsupported option %q", text)
+	case ParamTypeBoolean:
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("expected boolean")
+		}
+		return nil
+	case ParamTypeText:
+		text, ok := value.(string)
+		if !ok || param.Required && text == "" {
+			return fmt.Errorf("expected text")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported parameter type %q", param.Type)
+	}
+}
+
+func numericValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case float32:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case json.Number:
+		parsed, err := typed.Float64()
+		return parsed, err == nil
+	default:
+		return 0, false
 	}
 }
