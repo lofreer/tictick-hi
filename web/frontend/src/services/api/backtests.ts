@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api/client";
-import type { BacktestOrder, BacktestTask, CreateBacktestTask } from "@/types/app";
+import type { BacktestOrder, BacktestTask, CreateBacktestTask, StrategyIntent } from "@/types/app";
 
 export const backtestsApi = {
   listBacktests() {
@@ -16,5 +16,9 @@ export const backtestsApi = {
 
   listOrders(id: string) {
     return apiClient.get<BacktestOrder[]>(`/backtests/${encodeURIComponent(id)}/orders`);
+  },
+
+  listIntents(id: string) {
+    return apiClient.get<StrategyIntent[]>(`/backtests/${encodeURIComponent(id)}/intents`);
   },
 };

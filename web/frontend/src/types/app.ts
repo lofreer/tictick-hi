@@ -36,6 +36,16 @@ export type ChartCandle = {
   close: number;
 };
 
+export type ChartMarker = {
+  id?: string;
+  time: number;
+  position: "aboveBar" | "belowBar" | "inBar";
+  shape: "circle" | "square" | "arrowUp" | "arrowDown";
+  color: string;
+  text?: string;
+  size?: number;
+};
+
 export type CandleSource = "native" | "aggregated" | "none";
 
 export type CandleHealth = "ok" | "gap" | "insufficient";
@@ -115,6 +125,19 @@ export type BacktestOrder = {
   occurredAt: string;
 };
 
+export type StrategyIntent = {
+  id: string;
+  taskId: string;
+  taskType: string;
+  strategyId: string;
+  intentType: string;
+  idempotencyKey: string;
+  payload: Record<string, unknown>;
+  policy: string;
+  status: string;
+  createdAt: string;
+};
+
 export type TradingTaskType = "paper" | "live";
 
 export type TradingTask = {
@@ -147,19 +170,6 @@ export type CreateTradingTask = {
   strategyId: string;
   strategyParams: StrategyParamValues;
   intentPolicy: Record<string, unknown>;
-};
-
-export type StrategyIntent = {
-  id: string;
-  taskId: string;
-  taskType: string;
-  strategyId: string;
-  intentType: string;
-  idempotencyKey: string;
-  payload: Record<string, unknown>;
-  policy: string;
-  status: string;
-  createdAt: string;
 };
 
 export type Order = {

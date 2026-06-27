@@ -11,9 +11,12 @@
 import {
   CandlestickSeries,
   createChart,
+  createSeriesMarkers,
   type CandlestickData,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
   type Time,
 } from "lightweight-charts";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
@@ -21,18 +24,20 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartTheme } from "@/theme/tokens";
-import type { ChartCandle } from "@/types/app";
+import type { ChartCandle, ChartMarker } from "@/types/app";
 import "./TradingViewChart.css";
 
 const props = defineProps<{
   data: ChartCandle[];
   emptyTitle: string;
+  markers?: ChartMarker[];
 }>();
 
 const themeStore = useThemeStore();
 const containerRef = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
+let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
 
 onMounted(() => {
   if (!containerRef.value) return;
@@ -51,6 +56,7 @@ onMounted(() => {
     wickUpColor: appColors.success,
     wickDownColor: appColors.danger,
   });
+  markerPlugin = createSeriesMarkers(series, []);
 
   syncData();
 });
@@ -62,6 +68,12 @@ onBeforeUnmount(() => {
 watch(
   () => props.data,
   () => syncData(),
+  { deep: true },
+);
+
+watch(
+  () => props.markers,
+  () => syncMarkers(),
   { deep: true },
 );
 
@@ -80,6 +92,15 @@ function syncData() {
   }));
 
   series?.setData(candleData);
+  syncMarkers();
   chart?.timeScale().fitContent();
+}
+
+function syncMarkers() {
+  const markerData: SeriesMarker<Time>[] = (props.markers ?? []).map((marker) => ({
+    ...marker,
+    time: marker.time as Time,
+  }));
+  markerPlugin?.setMarkers(markerData);
 }
 </script>

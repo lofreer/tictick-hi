@@ -55,4 +55,35 @@ describe("backtests api", () => {
       }),
     );
   });
+
+  it("lists backtest strategy intents", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify([
+          {
+            id: "si_1",
+            taskId: "bt_1",
+            taskType: "backtest",
+            strategyId: "ema-cross",
+            intentType: "order",
+            idempotencyKey: "bt_1:ema-cross_order_1",
+            payload: { side: "buy" },
+            policy: "simulate",
+            status: "accepted",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const intents = await backtestsApi.listIntents("bt_1");
+
+    expect(intents[0].taskType).toBe("backtest");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/backtests/bt_1/intents",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

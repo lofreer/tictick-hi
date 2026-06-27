@@ -19,7 +19,7 @@
       <section class="surface chart-panel backtest-chart-panel">
         <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
         <LoadingState v-else-if="candlesLoading" />
-        <TradingViewChart v-else :data="candles" :empty-title="t('backtests.chartEmpty')" />
+        <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('backtests.chartEmpty')" />
       </section>
 
       <aside class="side-panel">
@@ -44,6 +44,24 @@
               <dd>{{ row.value }}</dd>
             </template>
           </dl>
+        </section>
+
+        <section class="surface backtest-side-section">
+          <h2>{{ t("backtests.intents") }}</h2>
+          <LoadingState v-if="intentsLoading" />
+          <ErrorState v-else-if="intentsError" :title="intentsError" retryable @retry="loadIntents" />
+          <EmptyState v-else-if="intents.length === 0" :title="t('backtests.noIntents')" />
+          <div v-else class="intents-list">
+            <div v-for="intent in intents" :key="intent.id" class="intents-list__item">
+              <NTag :type="intent.intentType === 'order' ? 'info' : 'warning'" size="small">
+                {{ intent.intentType }}
+              </NTag>
+              <div>
+                <strong>{{ intent.status }}</strong>
+                <span>{{ intent.policy }} / {{ formatDate(intent.createdAt) }}</span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="surface backtest-side-section">
@@ -83,18 +101,22 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import { backtestsApi } from "@/services/api/backtests";
 import { dataApi } from "@/services/api/data";
-import type { BacktestOrder, BacktestTask, ChartCandle } from "@/types/app";
+import { appColors } from "@/theme/tokens";
+import type { BacktestOrder, BacktestTask, ChartCandle, ChartMarker, StrategyIntent } from "@/types/app";
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const task = ref<BacktestTask | null>(null);
+const intents = ref<StrategyIntent[]>([]);
 const orders = ref<BacktestOrder[]>([]);
 const candles = ref<ChartCandle[]>([]);
 const taskLoading = ref(false);
+const intentsLoading = ref(false);
 const ordersLoading = ref(false);
 const candlesLoading = ref(false);
 const taskError = ref("");
+const intentsError = ref("");
 const ordersError = ref("");
 const candlesError = ref("");
 
@@ -120,8 +142,11 @@ const summaryRows = computed(() => {
     { label: t("strategy.feeBps"), value: task.value.feeBps },
     { label: t("strategy.slippageBps"), value: task.value.slippageBps },
     { label: t("strategy.triggerMode"), value: triggerModeLabel(task.value.triggerMode) },
+    { label: t("backtests.executionInterval"), value: summaryValue("executionInterval") },
+    { label: t("backtests.candleSource"), value: summaryValue("candleSource") },
     { label: t("backtests.finalEquity"), value: summaryValue("finalEquity") },
     { label: t("backtests.returnPct"), value: summaryValue("returnPct") },
+    { label: t("backtests.totalIntents"), value: summaryValue("totalIntents") },
     { label: t("backtests.totalOrders"), value: summaryValue("totalOrders") },
   ];
 });
@@ -135,6 +160,17 @@ const paramRows = computed(() => {
   }));
   return rows.length > 0 ? rows : [{ label: "-", value: "-" }];
 });
+const chartMarkers = computed<ChartMarker[]>(() =>
+  orders.value.map((order) => ({
+    id: order.id,
+    time: Math.floor(new Date(order.occurredAt).getTime() / 1000),
+    position: order.side === "buy" ? "belowBar" : "aboveBar",
+    shape: order.side === "buy" ? "arrowUp" : "arrowDown",
+    color: order.side === "buy" ? appColors.success : appColors.danger,
+    text: `${order.side} ${order.quantity}`,
+    size: 1.2,
+  })),
+);
 
 onMounted(() => {
   void loadDetail();
@@ -145,12 +181,27 @@ async function loadDetail() {
   taskError.value = "";
   try {
     task.value = await backtestsApi.getBacktest(backtestID.value);
-    await Promise.all([loadOrders(), loadCandles()]);
+    await Promise.all([loadIntents(), loadOrders(), loadCandles()]);
   } catch (loadError) {
     task.value = null;
     taskError.value = errorMessage(loadError, t("backtests.detailLoadFailed"));
   } finally {
     taskLoading.value = false;
+  }
+}
+
+async function loadIntents() {
+  if (!task.value) return;
+
+  intentsLoading.value = true;
+  intentsError.value = "";
+  try {
+    intents.value = await backtestsApi.listIntents(task.value.id);
+  } catch (loadError) {
+    intents.value = [];
+    intentsError.value = errorMessage(loadError, t("backtests.intentsLoadFailed"));
+  } finally {
+    intentsLoading.value = false;
   }
 }
 
@@ -264,11 +315,16 @@ function errorMessage(loadError: unknown, fallback: string) {
   text-align: right;
 }
 
+.intents-list,
 .orders-list {
   display: grid;
   gap: 10px;
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
+.intents-list__item,
 .orders-list__item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -277,11 +333,14 @@ function errorMessage(loadError: unknown, fallback: string) {
   border-bottom: 1px solid var(--tt-line);
 }
 
+.intents-list__item:last-child,
 .orders-list__item:last-child {
   padding-bottom: 0;
   border-bottom: 0;
 }
 
+.intents-list__item strong,
+.intents-list__item span,
 .orders-list__item strong,
 .orders-list__item span {
   display: block;
@@ -289,6 +348,7 @@ function errorMessage(loadError: unknown, fallback: string) {
   line-height: 1.45;
 }
 
+.intents-list__item span,
 .orders-list__item span {
   color: var(--tt-muted);
   font-size: 12px;
