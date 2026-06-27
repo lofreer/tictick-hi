@@ -157,24 +157,39 @@ function readHostSize() {
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
-  const width = Math.floor(bounds.width);
-  const height = clampHostHeight(host, bounds);
+  const width = Math.floor(readClientWidth(host) ?? bounds.width);
+  const height = readStableHostHeight(host, bounds);
   if (width <= 0 || height <= 0) return null;
 
   return { width, height };
 }
 
-function clampHostHeight(host: HTMLElement, hostBounds: DOMRect) {
-  const measuredHeight = Math.floor(hostBounds.height);
+function readStableHostHeight(host: HTMLElement, hostBounds: DOMRect) {
+  const measuredHeight = readClientHeight(host) ?? Math.floor(hostBounds.height);
   const panel = host.closest<HTMLElement>(".chart-panel");
-  if (!panel) return Math.min(measuredHeight, maxRenderedChartHeight);
+  if (!panel) return clampRenderedHeight(measuredHeight);
 
   const panelBounds = panel.getBoundingClientRect();
-  const panelHeight = readPixelHeight(panel) ?? panelBounds.height;
-  const availableHeight = Math.floor(panelBounds.top + panelHeight - hostBounds.top);
-  if (availableHeight <= 0) return Math.min(measuredHeight, maxRenderedChartHeight);
+  const panelHeight = readClientHeight(panel) ?? readPixelHeight(panel) ?? Math.floor(panelBounds.height);
+  const offsetTop = host === panel ? 0 : Math.max(0, Math.floor(hostBounds.top - panelBounds.top));
+  const availableHeight = Math.floor(panelHeight - offsetTop);
+  if (availableHeight <= 0) return clampRenderedHeight(measuredHeight);
 
-  return Math.min(measuredHeight, availableHeight, maxRenderedChartHeight);
+  return clampRenderedHeight(Math.min(measuredHeight, availableHeight));
+}
+
+function clampRenderedHeight(height: number) {
+  const viewportHeight = window.innerHeight > 0 ? window.innerHeight : fallbackSize.height;
+  const safeMaxHeight = Math.min(maxRenderedChartHeight, Math.max(fallbackSize.height, viewportHeight));
+  return Math.min(Math.floor(height), safeMaxHeight);
+}
+
+function readClientWidth(element: HTMLElement) {
+  return element.clientWidth > 0 ? element.clientWidth : null;
+}
+
+function readClientHeight(element: HTMLElement) {
+  return element.clientHeight > 0 ? element.clientHeight : null;
 }
 
 function readPixelHeight(element: HTMLElement) {
@@ -195,8 +210,13 @@ function readLayoutHost() {
 }
 
 function applyContainerSize(size: { width: number; height: number }) {
-  if (!containerRef.value) return;
-  containerRef.value.style.width = `${size.width}px`;
-  containerRef.value.style.height = `${size.height}px`;
+  if (rootRef.value) {
+    rootRef.value.style.width = `${size.width}px`;
+    rootRef.value.style.height = `${size.height}px`;
+  }
+  if (containerRef.value) {
+    containerRef.value.style.width = `${size.width}px`;
+    containerRef.value.style.height = `${size.height}px`;
+  }
 }
 </script>

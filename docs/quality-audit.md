@@ -416,6 +416,45 @@ scripts/quality-gate.sh
 
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
+### 阶段 1 研究页 K 线高度稳定性二次加固
+
+执行时间：2026-06-27
+
+触发问题：
+
+- 用户侧继续观察到 K 线图表存在持续拉高页面并最终拖崩浏览器的风险。
+
+修复范围：
+
+- `TradingViewChart` 尺寸读取优先使用固定宿主的 `clientWidth/clientHeight`，不再把可能被图表内部 DOM 污染的 `getBoundingClientRect().height` 当作主要高度来源。
+- 图表高度继续由最近的 `.chart-panel` 做边界，但边界读取改为优先使用 `clientHeight`，再回退 computed height 和 bounds height。
+- 根节点 `.trading-chart` 和 `.trading-chart__canvas` 同步写入同一组显式像素尺寸，避免根节点和 canvas 宿主之间出现尺寸漂移。
+- 绝对定位从 `inset: 0` 收敛为 `top/left + explicit width/height`，减少右/下约束与显式尺寸并存时的布局解算不确定性。
+- 新增单测覆盖宿主 bounds 被污染到 `3200px` 但 client 高度仍固定的场景。
+
+验证：
+
+- `cd web/frontend && pnpm run test -- src/components/chart/TradingViewChart.test.ts`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run build`
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- Headless Chrome 桌面 `2048x1034` 登录并打开 `/research`，45 次采样 first/last 均为 `scrollHeight=1318`、`panel=760`、`body=683`、`chart=682`、`canvasHost=682`、`tv=682`，`uniqueCount=1`，无 console error。
+- Headless Chrome 桌面 `2048x1034` 登录并打开 `/research?exchange=binance&symbol=BTCUSDT&interval=5m`，45 次采样 first/last 均为 `scrollHeight=1318`、`panel=760`、`body=683`、`chart=682`、`canvasHost=682`、`tv=682`，`uniqueCount=1`，无 console error。
+- Headless Chrome 移动 `390x844` 登录并打开 `/research`，45 次采样 first/last 均为 `scrollHeight=1256`、`panel=624`、`body=457`、`chart=456`、`canvasHost=456`、`tv=456`，`uniqueCount=1`，无 console error。
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
 ### 阶段 1 Candle 查询 limit 边界补充
 
 执行时间：2026-06-27
