@@ -41,7 +41,7 @@ done            用户确认关闭
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | scaffold | 返工 / 延后 live | 已经通过 CandleProvider 取 K 线并落库 order / notification intent，paper/live executor 未真正分离，live 只是本地 pending 订单 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，live execute 已禁用；仍缺可信风控、真实通知 provider、统一 worker lease 和实盘安全边界 |
 | 实盘安全 | below-scaffold | 延后 | 密钥字段名叫 encrypted，实际是 digest，不是真加密也不能解密 |
 | 通知 | scaffold | 返工 | 有通知记录雏形，但 provider/outbox/retry 不完整 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
@@ -133,7 +133,7 @@ scripts/quality-gate.sh
 后续风险审计仍保留：
 
 - 交易所账号密钥仍然使用 `secretDigest`，不是真加密。
-- live trading 仍停留在本地 `pending_submission`，不是实盘 executor。
+- live executor 仍禁用，实盘安全边界未建立。
 
 这些风险关闭前，项目整体仍为 `scaffold`，但它们不阻断阶段 0 的基础工程质量验收。
 
@@ -157,7 +157,7 @@ scripts/quality-gate.sh
 后续风险审计：
 
 - `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- live executor 仍禁用，实盘安全边界未建立。
 
 阶段 0 结论：
 
@@ -350,7 +350,7 @@ scripts/quality-gate.sh
 后续风险审计：
 
 - `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- live executor 仍禁用，实盘安全边界未建立。
 - worker lease 仍没有运行中 heartbeat loop 和完整停止状态机。
 
 阶段 1 结论：
@@ -455,7 +455,7 @@ scripts/quality-gate.sh
 后续风险审计：
 
 - `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- live executor 仍禁用，实盘安全边界未建立。
 - worker lease 仍没有运行中 heartbeat loop 和完整停止状态机。
 - 通知仍没有 outbox / provider / retry。
 
@@ -574,7 +574,7 @@ scripts/quality-gate.sh
 后续风险审计：
 
 - `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- live executor 仍禁用，实盘安全边界未建立。
 - 通知仍没有 outbox / provider / retry。
 
 阶段 3 结论：
@@ -582,23 +582,143 @@ scripts/quality-gate.sh
 - 回测链路达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
+### 阶段 4 Definition of Done：模拟盘
+
+目标等级：demo
+
+范围内：
+
+- 交易任务 `paper` 类型从前端创建，经 API 保存到 PostgreSQL，并由 `hi trading` worker 领取执行。
+- 交易 runner 继续通过 CandleProvider 读取 K 线并生成策略 intent。
+- paper executor 和 live executor 在代码边界上明确分离；阶段 4 禁止 live executor 真实下单，也不再用本地 `pending_submission` 冒充 live 执行。
+- `order` intent 在 paper executor 中生成 paper order 和 execution；`notification` intent 或 `notify` policy 生成 notification 记录。
+- 持仓从 paper executions 可重复计算并写入 position 事实表，worker 重跑不能重复累加。
+- 交易详情页必须读取任务、K 线、intent、order、execution、position、notification，并能观察 worker heartbeat / lease 状态。
+- 订单、成交、持仓继续禁止使用 `float64` 作为交易事实。
+- trading worker 在任务运行期间至少具备 heartbeat 刷新能力，避免只 claim 不续租。
+
+范围外：
+
+- 真实交易所下单。
+- 真实成交回报、部分成交、撤单、订单簿和撮合深度。
+- 可信 PnL、保证金、杠杆、资金费率、手续费模型。
+- Notification provider / outbox / retry。
+- 统一 worker lease 包完全抽取。
+- 实盘密钥真加密和 testnet / sandbox live executor。
+
+用户可见行为：
+
+- 用户能创建并启动 paper trading task。
+- worker 运行后，交易详情页能看到策略 intent、paper order、execution、position 和 notification。
+- 交易详情页图表展示 paper buy / sell 标记。
+- live execute 在阶段 4 明确被拒绝或失败，不能伪装成已提交交易所。
+
+后端验收：
+
+- API 提供 `/api/trading/tasks/:id/executions` 和 `/api/trading/tasks/:id/positions`。
+- TradingRepository 保存并读取 paper executions / positions。
+- Trading worker 单元测试覆盖 paper order+execution+position、notification intent、live execute 禁止、heartbeat。
+- API route 测试覆盖 trading executions / positions 路由。
+
+前端验收：
+
+- Trading API client 支持读取 executions / positions。
+- 交易详情页展示 positions / executions / intents / orders / notifications 和 worker 状态。
+- 交易详情图表支持 paper order markers。
+- `pnpm run typecheck`、`pnpm run test`、`pnpm run build` 通过。
+
+数据验收：
+
+- 新增 paper execution / position 事实表必须有幂等约束。
+- position 必须从 executions 重算或等价可重复机制更新，不能依赖内存累计。
+- 不引入 live 真实下单路径。
+
+安全验收：
+
+- 阶段 4 不声明模拟盘 usable。
+- live executor 不允许真实下单，不允许把 pending 本地记录说成交易所提交。
+- 实盘风险继续保留为后续阶段风险。
+
+测试验收：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+
+### 阶段 4 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `git diff --check`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `docker compose up --build -d`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- PostgreSQL migration 已执行到 `0007_paper_trading_facts.sql`
+
+本地 smoke：
+
+- 登录本地 API 后创建 `Stage4 paper smoke` paper trading task，任务 ID：`tt_4ba4b4e5eb78a7900dbaef64`。
+- `POST /api/trading/tasks/:id/start` 后任务进入 `running`。
+- trading worker 写入 111 条 strategy intent、111 条 paper order、111 条 execution、1 条 position、0 条 notification。
+- 等待一个 worker 周期后，`attemptCount` 从 4 到 5，但 intent / order / execution / position 数量保持 111 / 111 / 111 / 1，证明幂等约束没有重复累加。
+- `heartbeatAt` 从 `2026-06-27T04:40:18.298269Z` 更新到 `2026-06-27T04:40:28.305982Z`。
+- `POST /api/trading/tasks` 创建 live + execute 返回 `400`，错误为 `live execution is disabled until the live safety stage`。
+- smoke 结束后任务已暂停，保留结果供页面检查。
+
+浏览器验收：
+
+- Headless Chrome 打开 `/trading/tt_4ba4b4e5eb78a7900dbaef64`，能看到模拟盘、持仓、成交、最近心跳。
+- 交易详情图表 6 次采样高度稳定：panel 780px、canvas 750px、`maxPanelDelta=0`、`maxBodyDelta=0`。
+- 浏览器验收没有 console error 或 page error。
+- 截图保留在 `/tmp/tictick-stage4-trading-detail.png`。
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+- 当前 position 的 `realizedPnl` 仍为占位级 `0`，阶段 4 只保证 position 从 execution 可重复计算，不声明 PnL 可信。
+- Notification 仍只是本地记录，没有 provider/outbox/retry。
+
+后续风险审计：
+
+- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
+- live executor 仍禁用，实盘安全边界未建立。
+- 统一 worker lease 包仍未抽取，当前只是 trading/backtest 局部 heartbeat。
+
+阶段 4 结论：
+
+- 模拟盘 paper 链路达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
 ## 4. 下一条可推进切片
 
 下一步只推进：
 
 ```text
-阶段 4：模拟盘 / paper executor demo 链路
+阶段 5：通知 demo 链路
 ```
 
 目标等级：`demo`，不是 usable。
 
 Definition of Done：
 
-- 交易 runner 通过 CandleProvider 执行任务。
-- paper executor 和 live executor 明确分离，live 仍禁止真实下单。
-- paper order / notification intent 有一致的状态流和结果记录。
-- 交易详情页能展示 intent、paper order、notification 和 worker 状态。
-- worker heartbeat 和失败状态能被本地 smoke 验证。
+- NotificationIntent 从策略 intent 进入 notification outbox。
+- notification provider 抽象明确，阶段 5 只启用安全的本地 / webhook-like demo provider，不接入真实敏感凭据。
+- 通知发送状态、失败原因、重试次数可追踪。
+- 交易详情和系统通知页能观察 notification 状态流。
 - 后端、前端和质量门禁检查通过。
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
@@ -609,7 +729,7 @@ Definition of Done：
 - 实盘下单。
 - tick 数据。
 - 交易所账号真加密。
-- 通知 provider。
+- 真实第三方通知凭据和生产通知通道。
 - 回测撮合可信度升级。
 
 ## 5. 保留 / 返工 / 删除 / 延后
