@@ -14,7 +14,7 @@ func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
 	defer cancel()
 
 	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
-	parentTaskID, _, parentOrderID, _ := seedIntegrationTradingGraph(t, ctx, store, "domain_"+suffix)
+	parentTaskID, _, parentOrderID, parentNotificationID := seedIntegrationTradingGraph(t, ctx, store, "domain_"+suffix)
 	cases := []struct {
 		name       string
 		statement  string
@@ -126,6 +126,66 @@ func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
 				time.Date(2026, 6, 27, 3, 2, 0, 0, time.UTC),
 			},
 			constraint: "executions_decimal_bounds_check",
+		},
+		{
+			name: "data sync partial lease",
+			statement: `
+				INSERT INTO data_sync_tasks (
+					id, exchange, symbol, interval, status, locked_by
+				)
+				VALUES ($1, 'binance', $2, '1m', 'running', 'worker')`,
+			args:       []any{"dst_bad_lease_" + suffix, "ITBADLEASE" + suffix + "USDT"},
+			constraint: "data_sync_tasks_lease_consistency_check",
+		},
+		{
+			name: "backtest non running lease",
+			statement: `
+				INSERT INTO backtest_tasks (
+					id, name, exchange, symbol, interval, strategy_id,
+					initial_balance, trigger_mode, status,
+					locked_by, locked_until, heartbeat_at
+				)
+				VALUES ($1, 'bad lease', 'binance', $2, '1m', 'ema-cross',
+				        10000, 'closed_candle', 'pending', 'worker', $3, $3)`,
+			args: []any{
+				"bt_bad_lease_" + suffix,
+				"ITBADBTLEASE" + suffix + "USDT",
+				time.Date(2026, 6, 27, 3, 3, 0, 0, time.UTC),
+			},
+			constraint: "backtest_tasks_lease_consistency_check",
+		},
+		{
+			name: "trading missing heartbeat lease",
+			statement: `
+				INSERT INTO trading_tasks (
+					id, name, type, exchange, account_id, symbol, strategy_id,
+					status, locked_by, locked_until
+				)
+				VALUES ($1, 'bad lease', 'paper', 'binance', 'paper',
+				        $2, 'ema-cross', 'running', 'worker', $3)`,
+			args: []any{
+				"tt_bad_lease_" + suffix,
+				"ITBADTTLEASE" + suffix + "USDT",
+				time.Date(2026, 6, 27, 3, 4, 0, 0, time.UTC),
+			},
+			constraint: "trading_tasks_lease_consistency_check",
+		},
+		{
+			name: "notification outbox non running lease",
+			statement: `
+				INSERT INTO notification_outbox (
+					id, notification_id, task_id, channel, provider, target,
+					title, body, status, locked_by, locked_until
+				)
+				VALUES ($1, $2, $3, 'default', 'local', 'default',
+				        'title', 'body', 'pending', 'worker', $4)`,
+			args: []any{
+				"no_bad_lease_" + suffix,
+				parentNotificationID,
+				parentTaskID,
+				time.Date(2026, 6, 27, 3, 5, 0, 0, time.UTC),
+			},
+			constraint: "notification_outbox_lease_consistency_check",
 		},
 	}
 

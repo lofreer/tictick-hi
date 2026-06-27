@@ -32,7 +32,7 @@ done            用户确认关闭
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，集成测试和 Stage 8 smoke 已验证；仍缺完整状态机约束、数据迁移/回滚策略和部分多态任务参照约束 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，集成测试和 Stage 8 smoke 已验证；仍缺完整状态流转约束、数据迁移/回滚策略和部分多态任务参照约束 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；登录和系统管理写操作已有基础操作审计日志；仍缺完整 request / response mapping、更细错误分类和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
@@ -1593,7 +1593,7 @@ Definition of Done：
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
-| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，并由 PostgreSQL 集成测试覆盖非法值与 orphan 写入拒绝 | 完整状态机约束、`strategy_intents` 多态 task 参照、数据迁移/回滚策略不足 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，并由 PostgreSQL 集成测试覆盖非法值、orphan 写入和非法 lease 写入拒绝 | 完整状态流转约束、`strategy_intents` 多态 task 参照、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code` | 完整 request/response mapping、全量错误分类和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
@@ -1628,7 +1628,7 @@ Definition of Done：
 - Stage 8 当前已建立可重复全链路 smoke gate，并完成 usable readiness 重审计；重审计显示多个核心模块仍为 `demo` 或 `scaffold`，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
-- worker claim id 查询、claim 状态更新、部分非 claim 状态更新、共享字段、过期谓词和 PostgreSQL heartbeat 刷新已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选条件、排序、数据库状态机约束和部分业务状态切换仍未抽取为完整统一状态机。
+- worker claim id 查询、claim 状态更新、部分非 claim 状态更新、共享字段、过期谓词和 PostgreSQL heartbeat 刷新已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐，数据库已拒绝半截 lease 和非 running 加锁；但领域候选条件、排序、完整状态流转约束和部分业务状态切换仍未抽取为完整统一状态机。
 - 回测撮合、paper position PnL、真实通知 provider 生产启用边界、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 主入口 chunk 过大已由路由级 code split 关闭；前端仍缺系统性桌面 / 移动 / 主题视觉回归。
 
@@ -1724,7 +1724,7 @@ Definition of Done：
 
 剩余风险：
 
-- PostgreSQL migrations 仍为 `scaffold`；核心事实表 FK 已补，但 `strategy_intents` 多态 task 参照、完整状态流转约束、数据修复迁移和 rollback 策略仍未关闭。
+- PostgreSQL migrations 仍为 `scaffold`；核心事实表 FK 和 worker lease 一致性 CHECK 已补，但 `strategy_intents` 多态 task 参照、完整状态流转约束、数据修复迁移和 rollback 策略仍未关闭。
 
 ### 阶段 8 PostgreSQL referential constraints 补充
 
@@ -1778,7 +1778,37 @@ Definition of Done：
 
 剩余风险：
 
-- PostgreSQL migrations 仍为 `scaffold`；`strategy_intents` 的多态 task 归属、完整状态机约束、数据修复迁移、rollback 策略和生产数据备份/恢复验证仍未关闭。
+- PostgreSQL migrations 仍为 `scaffold`；`strategy_intents` 的多态 task 归属、完整状态流转约束、数据修复迁移、rollback 策略和生产数据备份/恢复验证仍未关闭。
+
+### 阶段 8 PostgreSQL worker lease constraints 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- Worker lease 的应用层 claim / heartbeat / release helper 已持续收敛，但数据库仍允许直接写入半截 lease 字段，例如只有 `locked_by` 没有 `locked_until` / `heartbeat_at`。
+- 数据库也允许非 `running` 状态持有 active lock，这会削弱恢复、观测和后续状态机审计。
+
+修复范围：
+
+- 新增 `0016_worker_lease_constraints.sql`，为 `data_sync_tasks`、`backtest_tasks`、`trading_tasks` 和 `notification_outbox` 增加 lease 字段一致性 CHECK。
+- task 表要求 lock 三元组 `locked_by` / `locked_until` / `heartbeat_at` 要么全部为空，要么全部非空且状态为 `running`。
+- notification outbox 无 `heartbeat_at` 字段，要求 `locked_by` / `locked_until` 要么全部为空，要么全部非空且状态为 `running`。
+- 约束使用 `NOT VALID`，避免已有历史脏行阻断迁移；新写入和后续更新仍会被约束。
+- 集成测试新增非法 lease 写入拒绝断言，覆盖 partial lock、非 running lock、缺 heartbeat lock 和 outbox 非 running lock。
+
+验证：
+
+- `go test ./internal/store/postgres -run 'TestIntegrationDatabaseConstraintsRejectInvalidDomainValues|TestIntegrationNotificationProviderConstraintsAllowExternalProviders'`
+- 本轮通用门禁见最终回复。
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- PostgreSQL migrations 仍为 `scaffold`；本轮只约束 lease 字段一致性，未关闭完整状态流转、`strategy_intents` 多态 task 参照、数据修复迁移、rollback 策略和生产备份/恢复验证。
 
 ### 阶段 8 API error model 补充
 
