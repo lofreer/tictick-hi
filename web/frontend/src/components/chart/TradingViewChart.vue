@@ -66,7 +66,7 @@ onMounted(() => {
   markerPlugin = createSeriesMarkers(series, []);
 
   resizeObserver = new ResizeObserver(scheduleResize);
-  resizeObserver.observe(containerRef.value);
+  resizeObserver.observe(rootRef.value);
   window.addEventListener("resize", scheduleResize);
 
   syncData();
@@ -144,9 +144,9 @@ function resizeChart() {
 }
 
 function readHostSize() {
-  if (!containerRef.value) return null;
+  if (!rootRef.value) return null;
 
-  const bounds = containerRef.value.getBoundingClientRect();
+  const bounds = rootRef.value.getBoundingClientRect();
   const width = Math.floor(bounds.width);
   const height = Math.floor(clampHeightToChartPanel(bounds.height));
   if (width <= 0 || height <= 0) return null;
@@ -155,11 +155,11 @@ function readHostSize() {
 }
 
 function clampHeightToChartPanel(height: number) {
-  const chartPanel = containerRef.value?.closest<HTMLElement>(".chart-panel");
-  if (!chartPanel || !containerRef.value) return height;
+  const chartPanel = rootRef.value?.closest<HTMLElement>(".chart-panel");
+  if (!chartPanel || !rootRef.value) return height;
 
   const panelBounds = chartPanel.getBoundingClientRect();
-  const containerBounds = containerRef.value.getBoundingClientRect();
+  const containerBounds = rootRef.value.getBoundingClientRect();
   const panelHeight = chartPanel.clientHeight;
   const availableHeight = panelHeight - Math.max(0, containerBounds.top - panelBounds.top);
   if (availableHeight <= 0) return height;

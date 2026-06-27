@@ -69,7 +69,7 @@ describe("TradingViewChart", () => {
     Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 
-  it("observes the canvas host instead of layout ancestors", () => {
+  it("observes the stable chart host instead of the chart library mount node", () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -84,15 +84,15 @@ describe("TradingViewChart", () => {
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(canvasHost);
-    expect(observedTarget).not.toBe(root);
+    expect(observedTarget).toBe(root);
+    expect(observedTarget).not.toBe(canvasHost);
     expect(observedTarget).not.toBe(root.parentElement);
 
     wrapper.unmount();
     host.remove();
   });
 
-  it("uses the stable canvas host size instead of inflated ancestor heights", () => {
+  it("uses the stable chart host size instead of inflated chart library heights", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
@@ -110,10 +110,10 @@ describe("TradingViewChart", () => {
         return rect({ top: 180, width: 1200, height: 3200 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart")) {
-        return rect({ top: 180, width: 1200, height: 3200 });
+        return rect({ top: 180, width: 1200, height: 680 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
-        return rect({ top: 180, width: 1200, height: 680 });
+        return rect({ top: 180, width: 1200, height: 3200 });
       }
       return originalGetBoundingClientRect.call(this);
     };
@@ -138,7 +138,7 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
-  it("clamps oversized canvas height to the remaining chart panel space", () => {
+  it("clamps oversized chart host height to the remaining chart panel space", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
