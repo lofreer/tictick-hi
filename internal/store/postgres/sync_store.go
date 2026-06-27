@@ -175,6 +175,7 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 			"sync_enabled = false",
 			"realtime_enabled = false",
 			"last_error = $3",
+			"finished_at = now()",
 		},
 		where: "id = $1",
 	}),

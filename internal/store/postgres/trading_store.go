@@ -225,6 +225,7 @@ func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, ta
 		assignments: []string{
 			"status = $2",
 			"last_error = $3",
+			"finished_at = now()",
 		},
 		where: "id = $1",
 	}),
