@@ -5,7 +5,8 @@
     :row-key="rowKey"
     :bordered="false"
     :single-line="false"
-    :scroll-x="1020"
+    :max-height="260"
+    :scroll-x="1140"
     size="small"
   />
 </template>
@@ -62,7 +63,7 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.lastError"),
     key: "lastError",
-    minWidth: 180,
+    width: 300,
     render: lastErrorCell,
   },
   {
@@ -115,13 +116,6 @@ function lastErrorCell(row: DataSyncTask) {
           {
             class: "task-error-text",
             title: row.lastError,
-            style: {
-              display: "block",
-              maxWidth: "260px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            },
           },
           summary,
         ),
@@ -157,7 +151,7 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
 <style scoped>
 .task-error-text {
   display: block;
-  max-width: 260px;
+  max-width: 100%;
   overflow: hidden;
   color: var(--tt-danger);
   text-overflow: ellipsis;

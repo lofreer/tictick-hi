@@ -34,11 +34,13 @@ function mockChartApi() {
 
 describe("TradingViewChart", () => {
   let observedTarget: Element | null = null;
+  let resizeCallback: ResizeObserverCallback | null = null;
   let originalGetBoundingClientRect: typeof Element.prototype.getBoundingClientRect;
 
   beforeEach(() => {
     setActivePinia(createPinia());
     observedTarget = null;
+    resizeCallback = null;
     originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
     vi.clearAllMocks();
     chartMocks.createChart.mockReset();
@@ -46,12 +48,14 @@ describe("TradingViewChart", () => {
 
     window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
       callback(0);
-      return 1;
+      return 0;
     }) as typeof window.requestAnimationFrame;
     window.cancelAnimationFrame = vi.fn() as typeof window.cancelAnimationFrame;
 
     class ResizeObserverTestDouble {
-      constructor(_callback: ResizeObserverCallback) {}
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
 
       observe(target: Element) {
         observedTarget = target;
@@ -69,19 +73,12 @@ describe("TradingViewChart", () => {
     Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 
-  it("observes the stable chart host instead of the chart component or library mount node", () => {
+  it("observes the chart viewport instead of the component or chart library node", () => {
     const host = document.createElement("div");
-    host.className = "chart-panel";
+    host.className = "research-chart-body";
     document.body.append(host);
 
-    const wrapper = mount(TradingViewChart, {
-      attachTo: host,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
-
+    const wrapper = mountChart(host);
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
@@ -93,30 +90,7 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
-  it("observes the chart panel instead of the research chart body", () => {
-    const panel = document.createElement("section");
-    panel.className = "chart-panel";
-    const body = document.createElement("div");
-    body.className = "research-chart-body";
-    panel.append(body);
-    document.body.append(panel);
-
-    const wrapper = mount(TradingViewChart, {
-      attachTo: body,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
-
-    expect(observedTarget).toBe(panel);
-    expect(observedTarget).not.toBe(body);
-
-    wrapper.unmount();
-    panel.remove();
-  });
-
-  it("uses the stable chart host size instead of inflated chart library heights", () => {
+  it("uses the parent chart viewport size without reading inflated chart children", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
@@ -124,203 +98,31 @@ describe("TradingViewChart", () => {
     panel.append(host);
     document.body.append(panel);
 
-    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 760 });
-
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
       if (this === panel) {
-        return rect({ top: 100, width: 1200, height: 760 });
+        return rect({ top: 100, width: 1200, height: 1200 });
       }
       if (this === host) {
-        return rect({ top: 180, width: 1200, height: 680 });
+        return rect({ top: 180, width: 1180, height: 640 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart")) {
-        return rect({ top: 180, width: 1200, height: 3200 });
+        return rect({ top: 180, width: 1180, height: 3200 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
-        return rect({ top: 180, width: 1200, height: 3200 });
+        return rect({ top: 180, width: 1180, height: 3200 });
+      }
+      if (this instanceof Element && this.classList.contains("tv-lightweight-charts")) {
+        return rect({ top: 180, width: 1180, height: 3200 });
       }
       return originalGetBoundingClientRect.call(this);
     };
 
-    const wrapper = mount(TradingViewChart, {
-      attachTo: host,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
+    const wrapper = mountChart(host);
 
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: 1200,
-        height: 680,
-      }),
-    );
-
-    wrapper.unmount();
-    panel.remove();
-  });
-
-  it("clamps oversized chart host height to the remaining chart panel space", () => {
-    const panel = document.createElement("section");
-    panel.className = "chart-panel";
-    const host = document.createElement("div");
-    host.className = "research-chart-body";
-    panel.append(host);
-    document.body.append(panel);
-
-    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 800 });
-
-    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
-      if (this === panel) {
-        return rect({ top: 100, width: 1200, height: 800 });
-      }
-      if (this === host) {
-        return rect({ top: 180, width: 1200, height: 1200 });
-      }
-      if (this instanceof Element && this.classList.contains("trading-chart")) {
-        return rect({ top: 180, width: 1200, height: 1200 });
-      }
-      if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
-        return rect({ top: 180, width: 1200, height: 1200 });
-      }
-      return originalGetBoundingClientRect.call(this);
-    };
-
-    const wrapper = mount(TradingViewChart, {
-      attachTo: host,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
-
-    expect(mockedCreateChart).toHaveBeenCalledWith(
-      expect.any(HTMLElement),
-      expect.objectContaining({
-        width: 1200,
-        height: 720,
-      }),
-    );
-
-    wrapper.unmount();
-    panel.remove();
-  });
-
-  it("uses panel height even when the chart host reports a smaller polluted height", () => {
-    const panel = document.createElement("section");
-    panel.className = "chart-panel";
-    const host = document.createElement("div");
-    host.className = "research-chart-body";
-    panel.append(host);
-    document.body.append(panel);
-
-    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 800 });
-
-    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
-      if (this === panel) {
-        return rect({ top: 100, width: 1200, height: 800 });
-      }
-      if (this === host) {
-        return rect({ top: 180, width: 1200, height: 320 });
-      }
-      return originalGetBoundingClientRect.call(this);
-    };
-
-    const wrapper = mount(TradingViewChart, {
-      attachTo: host,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
-
-    expect(mockedCreateChart).toHaveBeenCalledWith(
-      expect.any(HTMLElement),
-      expect.objectContaining({
-        width: 1200,
-        height: 720,
-      }),
-    );
-
-    wrapper.unmount();
-    panel.remove();
-  });
-
-  it("uses computed panel height when content measurement is already inflated", () => {
-    const panel = document.createElement("section");
-    panel.className = "chart-panel";
-    panel.style.height = "800px";
-    const host = document.createElement("div");
-    host.className = "research-chart-body";
-    panel.append(host);
-    document.body.append(panel);
-
-    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 2000 });
-
-    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
-      if (this === panel) {
-        return rect({ top: 100, width: 1200, height: 2000 });
-      }
-      if (this === host) {
-        return rect({ top: 180, width: 1200, height: 1800 });
-      }
-      return originalGetBoundingClientRect.call(this);
-    };
-
-    const wrapper = mount(TradingViewChart, {
-      attachTo: host,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
-
-    expect(mockedCreateChart).toHaveBeenCalledWith(
-      expect.any(HTMLElement),
-      expect.objectContaining({
-        width: 1200,
-        height: 720,
-      }),
-    );
-
-    wrapper.unmount();
-    panel.remove();
-  });
-
-  it("uses remaining chart panel space when the chart body reports no height", () => {
-    const panel = document.createElement("section");
-    panel.className = "chart-panel";
-    const host = document.createElement("div");
-    host.className = "research-chart-body";
-    panel.append(host);
-    document.body.append(panel);
-
-    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 760 });
-
-    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
-      if (this === panel) {
-        return rect({ top: 100, width: 1200, height: 760 });
-      }
-      if (this === host) {
-        return rect({ top: 220, width: 1200, height: 0 });
-      }
-      return originalGetBoundingClientRect.call(this);
-    };
-
-    const wrapper = mount(TradingViewChart, {
-      attachTo: host,
-      props: {
-        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
-        emptyTitle: "No candles",
-      },
-    });
-
-    expect(mockedCreateChart).toHaveBeenCalledWith(
-      expect.any(HTMLElement),
-      expect.objectContaining({
-        width: 1200,
+        width: 1180,
         height: 640,
       }),
     );
@@ -328,7 +130,72 @@ describe("TradingViewChart", () => {
     wrapper.unmount();
     panel.remove();
   });
+
+  it("uses the chart panel size when the component is mounted directly in a panel", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    document.body.append(panel);
+
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 900, height: 560 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mountChart(panel);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 900,
+        height: 560,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
+  it("resizes only to changed viewport dimensions", () => {
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    document.body.append(host);
+
+    let size = { width: 1000, height: 620 };
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === host) {
+        return rect({ top: 100, width: size.width, height: size.height });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mountChart(host);
+    chartMocks.resize.mockClear();
+
+    resizeCallback?.([], {} as ResizeObserver);
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    size = { width: 1000, height: 580 };
+    resizeCallback?.([], {} as ResizeObserver);
+
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 580);
+
+    wrapper.unmount();
+    host.remove();
+  });
 });
+
+function mountChart(host: HTMLElement) {
+  return mount(TradingViewChart, {
+    attachTo: host,
+    props: {
+      data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+      emptyTitle: "No candles",
+    },
+  });
+}
 
 function rect({ top, width, height }: { top: number; width: number; height: number }) {
   return {

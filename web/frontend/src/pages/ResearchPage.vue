@@ -211,6 +211,7 @@ const healthTagType = computed<TagProps["type"]>(() => {
 }
 
 .research-tasks-panel {
+  max-height: 360px;
   overflow: hidden;
 }
 
