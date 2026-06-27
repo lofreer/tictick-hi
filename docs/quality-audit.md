@@ -826,10 +826,11 @@ Definition of Done：
 - 系统通知页展示通知状态、provider、attempt、nextAttempt、错误和 retry 操作。
 - 交易详情页通知 tab 展示通知状态、provider、attempt 和错误 / 发送时间。
 - Docker 本地 smoke：`docker compose up -d --build` 成功，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
-- migration smoke：`schema_migrations` 最新包含 `0008_notification_outbox.sql`。
+- migration smoke：`schema_migrations` 最新包含 `0009_notification_outbox_terminal_state.sql` 和 `0008_notification_outbox.sql`。
 - 成功投递 smoke：paper trading notification-only 任务生成 111 条通知；`notifications` 全部 `sent`，`notification_outbox` 全部 `delivered`，attemptCount 为 1。
 - 失败重试 smoke：目标为 `fail-target` 的 demo 通道生成 111 条 `retry_scheduled` 通知，错误为 `demo provider rejected target "fail-target"`。
 - 手动 retry smoke：`POST /api/system/notifications/:id/retry` 后，该通知重新投递失败，attemptCount 从 1 增至 2，`notifications` 和 `notification_outbox` 同步记录 `retry_scheduled`、错误和下一次重试时间。
+- 终态失败 smoke：重试耗尽后失败任务的 111 条通知全部进入 `failed`，`notification_outbox` 保持 `failed`，notify worker 保持 `running`，不再因终态 `next_attempt_at = NULL` 重启。
 - 前端 DOM smoke：`/system/notifications` 显示 `sent` / `retry_scheduled` 和 stage5 目标；`/trading/:id` 可切换到通知 tab 并看到 `stage5-smoke` / `sent`。
 
 失败：

@@ -168,8 +168,10 @@ func (store *Store) ClaimNotificationDelivery(
 	err = tx.QueryRow(ctx, `
 		SELECT id
 		  FROM notification_outbox
-		 WHERE status IN ('pending', 'retry_scheduled')
-		   AND next_attempt_at <= now()
+		 WHERE (
+		       (status IN ('pending', 'retry_scheduled') AND next_attempt_at <= now())
+		       OR status = 'running'
+		   )
 		   AND (locked_until IS NULL OR locked_until < now())
 		 ORDER BY next_attempt_at ASC, created_at ASC
 		 LIMIT 1
