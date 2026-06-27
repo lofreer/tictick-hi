@@ -241,14 +241,18 @@ const healthTagType = computed<TagProps["type"]>(() => {
 }
 
 .research-chart-panel {
+  --research-chart-viewport-height: clamp(483px, calc(100vh - 297px), 683px);
+  --research-chart-viewport-height: clamp(483px, calc(100dvh - 297px), 683px);
+
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  height: clamp(560px, calc(100vh - 220px), 760px);
-  max-height: 760px;
+  height: auto;
+  max-height: none;
   min-height: 0;
   overflow: hidden;
   align-self: start;
+  contain: layout paint;
 }
 
 .research-toolbar {
@@ -278,12 +282,12 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-chart-body {
   position: relative;
   display: block;
-  flex: 1 1 0;
+  flex: 0 0 var(--research-chart-viewport-height);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  height: 0;
-  max-height: 100%;
+  height: var(--research-chart-viewport-height);
+  max-height: var(--research-chart-viewport-height);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -311,6 +315,11 @@ const healthTagType = computed<TagProps["type"]>(() => {
 }
 
 @media (max-width: 760px) {
+  .research-chart-panel {
+    --research-chart-viewport-height: clamp(360px, calc(100vh - 387px), 457px);
+    --research-chart-viewport-height: clamp(360px, calc(100dvh - 387px), 457px);
+  }
+
   .research-toolbar {
     align-items: flex-start;
     flex-direction: column;

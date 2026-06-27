@@ -163,35 +163,18 @@ function resizeChart() {
 }
 
 function readHostSize() {
-  const host = readLayoutHost();
+  const host = readResizeHost();
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
-  const width = Math.floor(readClientWidth(host) ?? readObservedWidth(host) ?? bounds.width);
-  const height = readStableHostHeight(host);
+  const measuredWidth = readClientWidth(host) ?? readObservedWidth(host) ?? positiveFloor(bounds.width);
+  const measuredHeight =
+    readClientHeight(host) ?? readObservedHeight(host) ?? readPixelHeight(host) ?? positiveFloor(bounds.height);
+  const width = measuredWidth ?? fallbackSize.width;
+  const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
   if (width <= 0 || height <= 0) return null;
 
   return { width, height };
-}
-
-function readStableHostHeight(host: HTMLElement) {
-  const panelCap = readPanelAvailableHeight(host);
-  if (panelCap) {
-    const clientHeight = readClientHeight(host);
-    return clampRenderedHeight(clientHeight ? Math.min(clientHeight, panelCap) : panelCap);
-  }
-
-  const clientHeight = readClientHeight(host);
-  if (clientHeight) {
-    return clampRenderedHeight(Math.min(clientHeight, fallbackSize.height));
-  }
-
-  const pixelHeight = readPixelHeight(host);
-  if (pixelHeight) {
-    return clampRenderedHeight(Math.min(pixelHeight, fallbackSize.height));
-  }
-
-  return fallbackSize.height;
 }
 
 function clampRenderedHeight(height: number) {
@@ -214,37 +197,14 @@ function readPixelHeight(element: HTMLElement) {
   return value;
 }
 
-function readPanelAvailableHeight(host: HTMLElement) {
-  const panel = host.closest<HTMLElement>(".chart-panel");
-  if (!panel) return null;
-
-  const panelBounds = panel.getBoundingClientRect();
-  const panelHeight = readSmallestPositive([
-    readClientHeight(panel),
-    readPixelHeight(panel),
-    Math.floor(panelBounds.height),
-  ]);
-  if (!panelHeight) return null;
-
-  if (panel === host) {
-    return panelHeight;
-  }
-
-  const measuredOffsetTop = Math.floor(host.offsetTop || host.getBoundingClientRect().top - panelBounds.top);
-  const offsetTop = measuredOffsetTop > 0 && measuredOffsetTop < panelHeight ? measuredOffsetTop : 0;
-  const availableHeight = panelHeight - offsetTop;
-  return availableHeight > 0 ? availableHeight : null;
-}
-
-function readSmallestPositive(values: Array<number | null>) {
-  const positive = values.filter((value): value is number => value !== null && value > 0);
-  if (positive.length === 0) return null;
-  return Math.min(...positive);
-}
-
 function readObservedWidth(element: HTMLElement) {
   if (element !== observedResizeHost || !observedResizeHostSize) return null;
   return observedResizeHostSize.width > 0 ? observedResizeHostSize.width : null;
+}
+
+function readObservedHeight(element: HTMLElement) {
+  if (element !== observedResizeHost || !observedResizeHostSize) return null;
+  return observedResizeHostSize.height > 0 ? observedResizeHostSize.height : null;
 }
 
 function readObserverContentSize(entry: ResizeObserverEntry) {
@@ -258,13 +218,11 @@ function readObserverContentSize(entry: ResizeObserverEntry) {
 }
 
 function readResizeHost() {
-  return readLayoutHost();
+  return containerRef.value;
 }
 
-function readLayoutHost() {
-  const root = rootRef.value;
-  if (!root) return null;
-  const parent = root.parentElement;
-  return parent?.closest<HTMLElement>(".research-chart-body, .chart-panel") ?? parent ?? root;
+function positiveFloor(value: number) {
+  const floored = Math.floor(value);
+  return floored > 0 ? floored : null;
 }
 </script>

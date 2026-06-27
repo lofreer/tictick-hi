@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 flex 剩余空间和面板边界切断高度反馈，`.research-chart-body` 使用 `flex: 1 1 0` + `height: 0` + `contain: strict` 阻断图表内部 DOM 参与父级固有尺寸计算，lightweight-charts 外层视口使用固定 100% CSS 边界、视口 `clientWidth/clientHeight` 单向输入和面板可用高度上限，JS 不再信任 `ResizeObserver` / bounds height 作为图表高度输入，也不再把 chart 内部高度反写到 root/canvas，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取自己的 `.trading-chart__canvas` viewport，不再向上查找 `.research-chart-body` / `.chart-panel` 或把祖先高度喂回 `chart.resize`，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -761,6 +761,50 @@ scripts/quality-gate.sh
 剩余风险：
 
 - 本轮仍未在用户可见 Chrome 会话中复现原始无限增长；当前 8080 服务已重建，需要用户刷新可见 Chrome 页面确认。但当前源码和构建产物已经把研究页图表 body 的 flex 基准收敛为固定 0，不再允许子图表内容放大父级基础高度。
+
+### 阶段 1 研究页 K 线高度稳定性十一次加固
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 复查发现当前 `TradingViewChart` 仍会自己向上查找 `.research-chart-body` / `.chart-panel` 并推导高度；这让真实浏览器里任何祖先高度污染都有机会继续进入 `chart.resize`。
+- 本轮第一次改为 `height:auto` 后，headless Chrome 采样发现 `.research-chart-panel` 继承全局 `.chart-panel { contain: size layout paint; }` 时会折叠到 `2px`，必须同时覆盖 containment。
+
+修复范围：
+
+- `TradingViewChart` 的 ResizeObserver 目标从页面布局祖先收敛到自己的 `.trading-chart__canvas`。
+- `TradingViewChart` 初始化和 resize 只读取 canvas viewport 的 `clientWidth/clientHeight`、observer content box、computed height 或自身 bounds；不再向上读取 `.research-chart-body` / `.chart-panel`，也不再计算 panel 可用高度。
+- 研究页图表槽改为 `--research-chart-viewport-height` 控制的固定高度；`.research-chart-body` 使用 `flex: 0 0 var(...)`、`height: var(...)`、`max-height: var(...)` 和 `contain: strict`。
+- `.research-chart-panel` 保持 auto 高度但覆盖 `contain: layout paint`，避免全局 size containment 把 panel auto 高度折叠。
+- `ResearchPage.layout.test.ts` 增加固定 viewport、`contain: layout paint`、不回退到 grid / `height:100%` 的布局契约检查。
+- `TradingViewChart.test.ts` 改为验证组件只观察 canvas viewport、祖先膨胀不影响初始化、viewport 变化才 resize、异常直接 viewport 高度仍被安全上限截断，且不写 inline 宽高。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `go vet ./...`
+- `go test ./...`（首次因本机磁盘空间不足失败，`go clean -cache -testcache` 后重试通过）
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- 本地生产构建产物 `web/frontend/dist/assets/ResearchPage-B18wn4Jg.css` 包含 `--research-chart-viewport-height`、`.research-chart-body` 固定高度和 `.research-chart-panel{...contain:layout paint}`。
+- Headless Chrome + 本轮 mock preview 桌面 `1440x900` 打开 `/research`，100 次采样 first/last 均为 `documentHeight=1020`、`panelHeight=680`、`chartBodyHeight=603`、`chartHeight=603`、`tvHeight=603`，`uniqueDocs=[1020]`、`uniquePanels=[680]`、`uniqueBodies=[603]`、`uniqueCharts=[603]`、`grew=false`。
+- Headless Chrome + 本轮 mock preview 移动 `390x844` 打开 `/research`，80 次采样 first/last 均为 `documentHeight=1058`、`panelHeight=624`、`chartBodyHeight=457`、`chartHeight=457`、`tvHeight=457`，`uniqueDocs=[1058]`、`uniquePanels=[624]`、`uniqueBodies=[457]`、`uniqueCharts=[457]`、`grew=false`。
+
+失败：
+
+- 第一次浏览器采样发现 `.research-chart-panel` 因全局 `contain:size` 在 auto 高度下折叠到 `2px`；已通过研究页覆盖 `contain: layout paint` 修正，并由后续桌面/移动采样验证。
+- `docker compose up -d --build api` 第二次替换 8080 时 Docker Desktop 返回 `metadata_v2.db: input/output error`；重试又返回 `postgres:16-alpine` blob `input/output error`。当前 8080 容器随后出现 `/`、`/research`、assets 均 404，`/api/auth/login` 返回 500，不能作为本轮真实运行验收依据。
+- `go test ./...` 首次失败于 okx 测试链接阶段：`mapping output file failed: no space left on device`；`df -h` 显示可用空间约 `146MiB`。执行 `go clean -cache -testcache` 后可用空间约 `1.4GiB`，重试 `go test ./...` 通过。
+
+剩余风险：
+
+- 本轮通过 mock preview 验证了最新前端产物的浏览器布局稳定性，但由于本机 Docker Desktop 存储层 I/O 异常，未能把最终修正版可靠替换到 `127.0.0.1:8080` 真实 API 容器。
+- 用户可见 Chrome 会话仍需在 Docker 恢复后用真实 8080 再做一次确认；当前代码已经移除图表组件向上读取祖先高度的反馈入口。
 
 ### 阶段 1 Candle 查询 limit 边界补充
 

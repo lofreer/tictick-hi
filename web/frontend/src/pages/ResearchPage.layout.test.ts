@@ -9,10 +9,16 @@ describe("ResearchPage chart layout contract", () => {
 
     expect(panelStyle).toContain("display: flex;");
     expect(panelStyle).toContain("flex-direction: column;");
+    expect(panelStyle).toContain("--research-chart-viewport-height:");
+    expect(panelStyle).toContain("height: auto;");
+    expect(panelStyle).toContain("max-height: none;");
+    expect(panelStyle).toContain("contain: layout paint;");
+    expect(panelStyle).not.toContain("contain: size");
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
-    expect(bodyStyle).toContain("flex: 1 1 0;");
-    expect(bodyStyle).toContain("height: 0;");
+    expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
+    expect(bodyStyle).toContain("height: var(--research-chart-viewport-height);");
+    expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height);");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
     expect(bodyStyle).toContain("contain: strict;");
   });
