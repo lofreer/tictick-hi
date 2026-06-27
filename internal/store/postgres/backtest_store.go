@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -135,24 +134,19 @@ func (store *Store) ClaimBacktestTask(
 	}
 	defer tx.Rollback(ctx)
 
-	var id string
-	err = tx.QueryRow(ctx, fmt.Sprintf(`
-		SELECT id
-		  FROM backtest_tasks
-		 WHERE status = $1
-		   AND %s
-		 ORDER BY created_at ASC
-		 LIMIT 1
-		 FOR UPDATE SKIP LOCKED`,
-		claimableLeasePredicate(),
-	),
-		data.TaskStatusPending,
-	).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return data.BacktestTask{}, false, nil
-	}
+	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
+		resource: backtestTaskLease,
+		where:    "status = $1",
+		orderBy:  "created_at ASC",
+		args: []any{
+			data.TaskStatusPending,
+		},
+	})
 	if err != nil {
 		return data.BacktestTask{}, false, fmt.Errorf("select backtest task: %w", err)
+	}
+	if !ok {
+		return data.BacktestTask{}, false, nil
 	}
 
 	row := tx.QueryRow(ctx, fmt.Sprintf(`
@@ -186,23 +180,19 @@ func (store *Store) HeartbeatBacktestTask(
 	workerID string,
 	leaseTTL time.Duration,
 ) error {
-	commandTag, err := store.pool.Exec(ctx, `
-		UPDATE backtest_tasks
-		   SET heartbeat_at = now(),
-		       locked_until = now() + $3::interval,
-		       updated_at = now()
-		 WHERE id = $1
-		   AND locked_by = $2
-		   AND status = $4`,
+	alive, err := heartbeatLease(
+		ctx,
+		store.pool,
+		backtestTaskLease,
 		taskID,
 		workerID,
 		intervalLiteral(leaseTTL),
-		data.TaskStatusRunning,
+		string(data.TaskStatusRunning),
 	)
 	if err != nil {
 		return fmt.Errorf("heartbeat backtest task: %w", err)
 	}
-	if commandTag.RowsAffected() == 0 {
+	if !alive {
 		return fmt.Errorf("heartbeat backtest task: lease lost for %s", taskID)
 	}
 	return nil

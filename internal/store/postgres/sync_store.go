@@ -2,12 +2,9 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -23,26 +20,21 @@ func (store *Store) ClaimDataSyncTask(
 	}
 	defer tx.Rollback(ctx)
 
-	var id string
-	err = tx.QueryRow(ctx, fmt.Sprintf(`
-		SELECT id
-		  FROM data_sync_tasks
-		 WHERE (sync_enabled = true OR realtime_enabled = true)
-		   AND status IN ($1, $2)
-		   AND %s
-		 ORDER BY realtime_enabled DESC, created_at ASC
-		 LIMIT 1
-		 FOR UPDATE SKIP LOCKED`,
-		claimableLeasePredicate(),
-	),
-		data.TaskStatusPending,
-		data.TaskStatusRunning,
-	).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return data.DataSyncTask{}, false, nil
-	}
+	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
+		resource: dataSyncTaskLease,
+		where: `(sync_enabled = true OR realtime_enabled = true)
+			   AND status IN ($1, $2)`,
+		orderBy: "realtime_enabled DESC, created_at ASC",
+		args: []any{
+			data.TaskStatusPending,
+			data.TaskStatusRunning,
+		},
+	})
 	if err != nil {
 		return data.DataSyncTask{}, false, fmt.Errorf("select data sync task: %w", err)
+	}
+	if !ok {
+		return data.DataSyncTask{}, false, nil
 	}
 
 	row := tx.QueryRow(ctx, fmt.Sprintf(`
@@ -78,23 +70,19 @@ func (store *Store) HeartbeatDataSyncTask(
 	workerID string,
 	leaseTTL time.Duration,
 ) error {
-	commandTag, err := store.pool.Exec(ctx, `
-		UPDATE data_sync_tasks
-		   SET heartbeat_at = now(),
-		       locked_until = now() + $3::interval,
-		       updated_at = now()
-		 WHERE id = $1
-		   AND locked_by = $2
-		   AND status = $4`,
+	alive, err := heartbeatLease(
+		ctx,
+		store.pool,
+		dataSyncTaskLease,
 		taskID,
 		workerID,
 		intervalLiteral(leaseTTL),
-		data.TaskStatusRunning,
+		string(data.TaskStatusRunning),
 	)
 	if err != nil {
 		return fmt.Errorf("heartbeat data sync task: %w", err)
 	}
-	if commandTag.RowsAffected() == 0 {
+	if !alive {
 		return fmt.Errorf("heartbeat data sync task: lease lost for %s", taskID)
 	}
 	return nil

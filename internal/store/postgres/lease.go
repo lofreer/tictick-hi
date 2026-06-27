@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -23,6 +25,17 @@ var (
 
 type leaseExec interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+type leaseQueryer interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+type leaseClaimQuery struct {
+	resource leaseResource
+	where    string
+	orderBy  string
+	args     []any
 }
 
 func clearLeaseAssignments(resource leaseResource) string {
@@ -54,6 +67,34 @@ func claimableLeasePredicate() string {
 	return "(locked_until IS NULL OR locked_until < now())"
 }
 
+func claimLeaseIDSQL(query leaseClaimQuery) string {
+	return fmt.Sprintf(`
+			SELECT %s
+			  FROM %s
+			 WHERE %s
+			   AND %s
+			 ORDER BY %s
+			 LIMIT 1
+			 FOR UPDATE SKIP LOCKED`,
+		query.resource.keyColumn,
+		query.resource.table,
+		query.where,
+		claimableLeasePredicate(),
+		query.orderBy,
+	)
+}
+
+func claimLeaseID(ctx context.Context, queryer leaseQueryer, query leaseClaimQuery) (string, bool, error) {
+	var id string
+	if err := queryer.QueryRow(ctx, claimLeaseIDSQL(query), query.args...).Scan(&id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return id, true, nil
+}
+
 func claimLeaseAssignments(resource leaseResource, workerArg string, ttlArg string, extraAssignments ...string) string {
 	assignments := []string{
 		"locked_by = " + workerArg,
@@ -73,7 +114,7 @@ func claimLeaseAssignments(resource leaseResource, workerArg string, ttlArg stri
 
 func releaseLease(ctx context.Context, exec leaseExec, resource leaseResource, id string) error {
 	_, err := exec.Exec(ctx, fmt.Sprintf(`
-		UPDATE %s
+			UPDATE %s
 		   SET %s,
 		       updated_at = now()
 		 WHERE %s = $1`,
@@ -82,4 +123,38 @@ func releaseLease(ctx context.Context, exec leaseExec, resource leaseResource, i
 		resource.keyColumn,
 	), id)
 	return err
+}
+
+func heartbeatLease(
+	ctx context.Context,
+	exec leaseExec,
+	resource leaseResource,
+	id string,
+	workerID string,
+	leaseTTLSeconds string,
+	status string,
+) (bool, error) {
+	if !resource.hasHeartbeat {
+		return false, fmt.Errorf("lease resource %s does not support heartbeat", resource.table)
+	}
+	commandTag, err := exec.Exec(ctx, fmt.Sprintf(`
+			UPDATE %s
+			   SET heartbeat_at = now(),
+			       locked_until = now() + $3::interval,
+			       updated_at = now()
+			 WHERE %s = $1
+			   AND locked_by = $2
+			   AND status = $4`,
+		resource.table,
+		resource.keyColumn,
+	),
+		id,
+		workerID,
+		leaseTTLSeconds,
+		status,
+	)
+	if err != nil {
+		return false, err
+	}
+	return commandTag.RowsAffected() > 0, nil
 }

@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -153,24 +152,19 @@ func (store *Store) ClaimTradingTask(
 	}
 	defer tx.Rollback(ctx)
 
-	var id string
-	err = tx.QueryRow(ctx, fmt.Sprintf(`
-		SELECT id
-		  FROM trading_tasks
-		 WHERE status = $1
-		   AND %s
-		 ORDER BY updated_at ASC, created_at ASC
-		 LIMIT 1
-		 FOR UPDATE SKIP LOCKED`,
-		claimableLeasePredicate(),
-	),
-		data.TaskStatusRunning,
-	).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return data.TradingTask{}, false, nil
-	}
+	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
+		resource: tradingTaskLease,
+		where:    "status = $1",
+		orderBy:  "updated_at ASC, created_at ASC",
+		args: []any{
+			data.TaskStatusRunning,
+		},
+	})
 	if err != nil {
 		return data.TradingTask{}, false, fmt.Errorf("select trading task: %w", err)
+	}
+	if !ok {
+		return data.TradingTask{}, false, nil
 	}
 
 	row := tx.QueryRow(ctx, fmt.Sprintf(`
@@ -203,23 +197,19 @@ func (store *Store) HeartbeatTradingTask(
 	workerID string,
 	leaseTTL time.Duration,
 ) error {
-	tag, err := store.pool.Exec(ctx, `
-		UPDATE trading_tasks
-		   SET heartbeat_at = now(),
-		       locked_until = now() + $3::interval,
-		       updated_at = now()
-		 WHERE id = $1
-		   AND locked_by = $2
-		   AND status = $4`,
+	alive, err := heartbeatLease(
+		ctx,
+		store.pool,
+		tradingTaskLease,
 		taskID,
 		workerID,
 		intervalLiteral(leaseTTL),
-		data.TaskStatusRunning,
+		string(data.TaskStatusRunning),
 	)
 	if err != nil {
 		return fmt.Errorf("heartbeat trading task: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if !alive {
 		return data.ErrNotFound
 	}
 	return nil

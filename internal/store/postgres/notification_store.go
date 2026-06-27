@@ -162,25 +162,19 @@ func (store *Store) ClaimNotificationDelivery(
 	}
 	defer tx.Rollback(ctx)
 
-	var id string
-	err = tx.QueryRow(ctx, fmt.Sprintf(`
-		SELECT id
-		  FROM notification_outbox
-		 WHERE (
-		       (status IN ('pending', 'retry_scheduled') AND next_attempt_at <= now())
-		       OR status = 'running'
-		   )
-		   AND %s
-		 ORDER BY next_attempt_at ASC, created_at ASC
-		 LIMIT 1
-		 FOR UPDATE SKIP LOCKED`,
-		claimableLeasePredicate(),
-	)).Scan(&id)
-	if err == pgx.ErrNoRows {
-		return data.NotificationDelivery{}, false, nil
-	}
+	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
+		resource: notificationOutboxLease,
+		where: `(
+			       (status IN ('pending', 'retry_scheduled') AND next_attempt_at <= now())
+			       OR status = 'running'
+			   )`,
+		orderBy: "next_attempt_at ASC, created_at ASC",
+	})
 	if err != nil {
 		return data.NotificationDelivery{}, false, fmt.Errorf("select notification outbox: %w", err)
+	}
+	if !ok {
+		return data.NotificationDelivery{}, false, nil
 	}
 
 	row := tx.QueryRow(ctx, fmt.Sprintf(`
