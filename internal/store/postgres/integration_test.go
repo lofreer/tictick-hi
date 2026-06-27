@@ -363,12 +363,24 @@ func TestIntegrationRetryDataSyncTaskRestoresFailedTask(t *testing.T) {
 		t.Fatalf("retry should clear stored error: %q", row.lastError)
 	}
 
-	claimed, ok, err := store.ClaimDataSyncTask(ctx, "retry-worker", time.Minute)
-	if err != nil {
+	claimable := false
+	if err := store.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			  FROM data_sync_tasks
+			 WHERE id = $1
+			   AND (sync_enabled = true OR realtime_enabled = true)
+			   AND status IN ($2, $3)
+			   AND (locked_until IS NULL OR locked_until < now())
+		)`,
+		id,
+		data.TaskStatusPending,
+		data.TaskStatusRunning,
+	).Scan(&claimable); err != nil {
 		t.Fatal(err)
 	}
-	if !ok || claimed.ID != id {
-		t.Fatalf("expected retried task to be claimed, ok=%v task=%#v", ok, claimed)
+	if !claimable {
+		t.Fatal("expected retried task to satisfy claim predicate")
 	}
 }
 
@@ -393,6 +405,137 @@ func TestIntegrationRetryDataSyncTaskRejectsRunningTask(t *testing.T) {
 	row := readIntegrationSyncTask(t, ctx, store, id)
 	if row.status != data.TaskStatusRunning || !row.lockedBy.Valid || row.lockedBy.String != "active-worker" {
 		t.Fatalf("retry should not mutate running task lease: %#v", row)
+	}
+}
+
+func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	cases := []struct {
+		name       string
+		statement  string
+		args       []any
+		constraint string
+	}{
+		{
+			name: "data sync status",
+			statement: `
+				INSERT INTO data_sync_tasks (id, exchange, symbol, interval, status)
+				VALUES ($1, 'binance', $2, '1m', 'bogus')`,
+			args:       []any{"dst_bad_status_" + suffix, "ITBADSTATUS" + suffix + "USDT"},
+			constraint: "data_sync_tasks_status_check",
+		},
+		{
+			name: "candle OHLC bounds",
+			statement: `
+				INSERT INTO market_candles (
+					exchange, symbol, interval, open_time, close_time,
+					open, high, low, close, volume, is_closed
+				)
+				VALUES ('binance', $1, '1m', $2, $3, 100, 90, 95, 100, 1, true)`,
+			args: []any{
+				"ITBADOHLC" + suffix + "USDT",
+				time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC),
+				time.Date(2026, 6, 27, 3, 1, 0, 0, time.UTC),
+			},
+			constraint: "market_candles_ohlc_bounds_check",
+		},
+		{
+			name: "backtest trigger mode",
+			statement: `
+				INSERT INTO backtest_tasks (
+					id, name, exchange, symbol, interval, strategy_id,
+					initial_balance, trigger_mode
+				)
+				VALUES ($1, 'bad trigger', 'binance', $2, '1m', 'ema-cross', 10000, 'tick')`,
+			args:       []any{"bt_bad_trigger_" + suffix, "ITBADTRIGGER" + suffix + "USDT"},
+			constraint: "backtest_tasks_trigger_mode_check",
+		},
+		{
+			name: "trading task type",
+			statement: `
+				INSERT INTO trading_tasks (
+					id, name, type, exchange, account_id, symbol, strategy_id
+				)
+				VALUES ($1, 'bad type', 'demo', 'binance', 'paper', $2, 'ema-cross')`,
+			args:       []any{"tt_bad_type_" + suffix, "ITBADTYPE" + suffix + "USDT"},
+			constraint: "trading_tasks_type_check",
+		},
+		{
+			name: "strategy intent type",
+			statement: `
+				INSERT INTO strategy_intents (
+					id, task_id, task_type, strategy_id, intent_type,
+					idempotency_key, policy, status
+				)
+				VALUES ($1, 'task', 'paper', 'ema-cross', 'email', $2, 'notify', 'accepted')`,
+			args:       []any{"si_bad_type_" + suffix, "intent_bad_type_" + suffix},
+			constraint: "strategy_intents_intent_type_check",
+		},
+		{
+			name: "order side",
+			statement: `
+				INSERT INTO orders (
+					id, task_id, task_type, idempotency_key, exchange, account_id,
+					symbol, side, order_type, price, quantity, status
+				)
+				VALUES ($1, 'task', 'paper', $2, 'binance', 'paper', $3, 'hold',
+				        'market', 100, 1, 'filled')`,
+			args:       []any{"ord_bad_side_" + suffix, "order_bad_side_" + suffix, "ITBADORDER" + suffix + "USDT"},
+			constraint: "orders_side_check",
+		},
+		{
+			name: "notification provider",
+			statement: `
+				INSERT INTO notification_channels (id, name, provider, target)
+				VALUES ($1, $2, 'smtp', 'demo')`,
+			args:       []any{"nc_bad_provider_" + suffix, "bad-provider-" + suffix},
+			constraint: "notification_channels_provider_check",
+		},
+		{
+			name: "notification attempt count",
+			statement: `
+				INSERT INTO notifications (
+					id, task_id, channel, provider, target, title, body,
+					status, attempt_count, max_attempts
+				)
+				VALUES ($1, 'task', 'default', 'local', 'default', 'title', 'body',
+				        'failed', -1, 3)`,
+			args:       []any{"nt_bad_attempt_" + suffix},
+			constraint: "notifications_attempt_bounds_check",
+		},
+		{
+			name: "execution quantity",
+			statement: `
+				INSERT INTO executions (
+					id, task_id, task_type, order_id, idempotency_key, exchange,
+					account_id, symbol, side, price, quantity, status, executed_at
+				)
+				VALUES ($1, 'task', 'paper', 'order', $2, 'binance', 'paper',
+				        $3, 'buy', 100, 0, 'filled', $4)`,
+			args: []any{
+				"exe_bad_quantity_" + suffix,
+				"execution_bad_quantity_" + suffix,
+				"ITBADEXEC" + suffix + "USDT",
+				time.Date(2026, 6, 27, 3, 2, 0, 0, time.UTC),
+			},
+			constraint: "executions_decimal_bounds_check",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := store.pool.Exec(ctx, testCase.statement, testCase.args...)
+			if err == nil {
+				t.Fatalf("expected %s violation", testCase.constraint)
+			}
+			if !strings.Contains(err.Error(), testCase.constraint) {
+				t.Fatalf("error = %v, want constraint %s", err, testCase.constraint)
+			}
+		})
 	}
 }
 

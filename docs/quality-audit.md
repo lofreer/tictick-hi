@@ -32,7 +32,7 @@ done            用户确认关闭
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK、集成测试和 Stage 8 smoke 已验证；仍缺外键、完整状态机约束、数据迁移/回滚策略 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
@@ -1407,7 +1407,7 @@ Definition of Done：
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
-| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行 | 表约束、外键、状态约束、数据迁移/回滚策略不足 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，并由 PostgreSQL 集成测试覆盖非法值拒绝 | 外键、完整跨表一致性约束、完整状态机约束、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验和 retry API 可测 | request/response mapping、错误分类、审计日志和一致错误模型不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流有 route/smoke 覆盖 | 限流内存态、无会话列表/撤销、无密码策略/RBAC/审计 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
@@ -1488,6 +1488,57 @@ Definition of Done：
 剩余风险：
 
 - 前端基础设施仍为 `scaffold`；概览页薄、缺系统性桌面 / 移动 / 主题视觉回归，不能因 code split 声明 usable。
+
+### 阶段 8 PostgreSQL domain constraints 补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- Stage 8 readiness 重审计将 PostgreSQL migrations 维持为 `scaffold`，其中一个明确 blocker 是核心表缺少数据库层 domain 约束。
+- 仅靠应用层枚举和参数校验不能阻止直接写库、历史脚本或未来 worker bug 写入非法状态、非法类型或明显不可能的数值。
+
+修复范围：
+
+- 新增 `0011_domain_constraints.sql`，为 data sync、market candles、backtest、trading、strategy intents、orders、notifications、exchange accounts、operators、outbox、executions 和 positions 补充核心 CHECK 约束。
+- 约束范围覆盖状态枚举、任务类型、订单方向、通知 provider、K 线 OHLC 边界、时间范围、尝试次数和基础价格/数量非负边界。
+- 集成测试新增非法 domain value 写入拒绝断言，并要求错误中包含具体约束名。
+- 不新增业务字段，不改变 API 行为，不把 migrations 升级为 usable。
+
+验证：
+
+- `go test ./internal/store/postgres`
+- Docker network PostgreSQL 集成测试：`go test ./internal/store/postgres -run Integration -count=1 -v`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/stage8-smoke.sh`
+- 当前 compose 数据库已记录 `schema_migrations.version = '0011_domain_constraints.sql'`
+
+本轮 smoke 证据：
+
+- symbol `S81782575757USDT`
+- data task `dst_cc86b8502161bd81c70bbd73`
+- backtest `bt_c75662af21a13631d37e1d19`
+- paper execute `tt_996b4185ac27573ca9d9d514`
+- paper notify `tt_d26ba1ae3d68c27c76d6f110`
+- notification channel `stage8-smoke-1782575757`
+
+过程发现：
+
+- 首次用 `127.0.0.1:5432` 跑集成测试失败，因为本地 compose PostgreSQL 端口未发布；改为 Docker network 内连接后通过。
+- 原计划把 `attempt_count <= max_attempts` 作为通知历史记录硬约束，但现有失败通知存在 `attempt_count > max_attempts` 的合法历史终态；迁移改为保留 `attempt_count >= 0` 和 `max_attempts > 0`，避免破坏历史数据。
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- PostgreSQL migrations 仍为 `scaffold`；外键、跨表一致性、完整状态流转约束、数据修复迁移和 rollback 策略仍未关闭。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
