@@ -185,7 +185,7 @@ function readStableHostHeight(host: HTMLElement, hostBounds: DOMRect) {
   }
 
   const panelBounds = panel.getBoundingClientRect();
-  const panelHeight = readObservedHeight(panel) ?? readClientHeight(panel) ?? readPixelHeight(panel) ?? Math.floor(panelBounds.height);
+  const panelHeight = readPixelHeight(panel) ?? readClientHeight(panel) ?? readObservedHeight(panel) ?? Math.floor(panelBounds.height);
   const offsetTop = host === panel ? 0 : Math.max(0, Math.floor(hostBounds.top - panelBounds.top));
   const availableHeight = Math.floor(panelHeight - offsetTop);
   if (availableHeight <= 0) {

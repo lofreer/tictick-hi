@@ -346,6 +346,40 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
+  it("ignores inflated observer height when the chart panel has a fixed css height", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    panel.style.height = "760px";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    let inflated = false;
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: inflated ? 5200 : 760 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1180, height: inflated ? 5000 : 680 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mountChart(host);
+    chartMocks.resize.mockClear();
+
+    inflated = true;
+    resizeCallback?.([resizeEntry(panel, { width: 1200, height: 5200 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+    expect(wrapper.get<HTMLElement>(".trading-chart").element.style.height).toBe("680px");
+    expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("680px");
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
   it("caps chart-driven host growth to the viewport without a panel boundary", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
