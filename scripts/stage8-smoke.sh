@@ -325,6 +325,9 @@ log "compose up"
 docker compose up -d --build
 curl -fsS "$BASE_URL/readyz" >/dev/null
 
+log "migration audit"
+scripts/stage8-migration-audit.sh
+
 log "login and csrf"
 LOGIN_PAYLOAD="$(node - <<'NODE'
 console.log(JSON.stringify({

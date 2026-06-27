@@ -32,7 +32,7 @@ done            用户确认关闭
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，集成测试和 Stage 8 smoke 已验证；仍缺完整状态流转约束、数据迁移/回滚策略和历史数据验证 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke；仍缺完整状态流转约束、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；登录和系统管理写操作已有基础操作审计日志；仍缺完整 request / response mapping、更细错误分类和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
@@ -1631,7 +1631,7 @@ Definition of Done：
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
-| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，并由 PostgreSQL 集成测试覆盖非法值、orphan 写入、非法 lease 写入、intent 父任务错配拒绝、父任务删除拒绝和终态缺失 finished_at 拒绝 | 完整状态流转约束、历史数据验证、数据迁移/回滚策略不足 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整状态流转约束、全量历史数据验证、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code` | 完整 request/response mapping、全量错误分类和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
@@ -1847,6 +1847,39 @@ Definition of Done：
 剩余风险：
 
 - PostgreSQL migrations 仍为 `scaffold`；本轮只约束 lease 字段一致性，未关闭完整状态流转、父任务删除级联/历史数据验证、数据修复迁移、rollback 策略和生产备份/恢复验证。
+
+### 阶段 8 PostgreSQL worker lease validation 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- `0016_worker_lease_constraints.sql` 使用 `NOT VALID`，只保护新写入和后续更新，没有验证历史数据。
+- 本地 migration audit 首次运行发现 14 行历史 `trading_tasks` 为 `paused`，`locked_by` / `locked_until` 已清空但 `heartbeat_at` 残留，属于历史半截 lease。
+
+修复范围：
+
+- 新增 `0020_validate_worker_lease_constraints.sql`。
+- 迁移先清理 `data_sync_tasks`、`backtest_tasks`、`trading_tasks` 和 `notification_outbox` 中不满足 worker lease 一致性的历史锁字段。
+- 随后对 `data_sync_tasks_lease_consistency_check`、`backtest_tasks_lease_consistency_check`、`trading_tasks_lease_consistency_check` 和 `notification_outbox_lease_consistency_check` 执行 `VALIDATE CONSTRAINT`。
+- 新增 `scripts/stage8-migration-audit.sh`，校验所有 migration 已记录、worker lease CHECK 已 validated、终态任务有 `finished_at`、lease 字段一致、strategy intent parent 存在且类型匹配、核心事实表不存在 orphan。
+- `scripts/stage8-smoke.sh` 在 compose 启动和 `/readyz` 后调用 migration audit，使 Stage 8 smoke 包含迁移历史不变量验证。
+- 新增 `TestIntegrationWorkerLeaseConstraintsAreValidated`，防止新库迁移后 CHECK 继续停留在 `NOT VALID`。
+
+验证：
+
+- `go test ./internal/store/postgres -run 'TestIntegrationWorkerLeaseConstraintsAreValidated|TestIntegrationTaskTerminalStatusesRequireFinishedAt|TestIntegrationFailureTransitionsSetFinishedAt' -count=1`
+- `docker compose up -d --build migrate api`
+- `scripts/stage8-migration-audit.sh`
+- 本轮通用门禁见最终回复。
+
+失败：
+
+- 首次 `scripts/stage8-migration-audit.sh` 失败：`trading inconsistent lease rows has 14 violating rows`。已通过 `0020_validate_worker_lease_constraints.sql` 修补历史半截 heartbeat 后重跑通过。
+
+剩余风险：
+
+- PostgreSQL migrations 仍为 `scaffold`；本轮只把 worker lease 历史修补和部分历史不变量审计纳入可重复脚本，未关闭完整状态流转、全量历史数据验证、数据迁移 rollback 策略和生产备份/恢复验证。
 
 ### 阶段 8 PostgreSQL strategy intent parent constraints 补充
 

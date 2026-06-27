@@ -71,6 +71,40 @@ func TestIntegrationTaskTerminalStatusesRequireFinishedAt(t *testing.T) {
 	}
 }
 
+func TestIntegrationWorkerLeaseConstraintsAreValidated(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	constraints := []string{
+		"data_sync_tasks_lease_consistency_check",
+		"backtest_tasks_lease_consistency_check",
+		"trading_tasks_lease_consistency_check",
+		"notification_outbox_lease_consistency_check",
+	}
+	for _, constraint := range constraints {
+		t.Run(constraint, func(t *testing.T) {
+			var validated bool
+			if err := store.pool.QueryRow(ctx, `
+				SELECT COALESCE(
+				  (
+				    SELECT convalidated
+				      FROM pg_constraint
+				     WHERE conname = $1
+				  ),
+				  false
+				)`,
+				constraint,
+			).Scan(&validated); err != nil {
+				t.Fatal(err)
+			}
+			if !validated {
+				t.Fatalf("%s is not validated", constraint)
+			}
+		})
+	}
+}
+
 func TestIntegrationFailureTransitionsSetFinishedAt(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
