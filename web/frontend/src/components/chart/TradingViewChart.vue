@@ -1,5 +1,5 @@
 <template>
-  <div class="trading-chart">
+  <div ref="rootRef" class="trading-chart">
     <div ref="containerRef" class="trading-chart__canvas" />
     <div v-if="data.length === 0" class="trading-chart__empty">
       <EmptyState :title="emptyTitle" />
@@ -34,6 +34,7 @@ const props = defineProps<{
 }>();
 
 const themeStore = useThemeStore();
+const rootRef = ref<HTMLDivElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
@@ -43,9 +44,9 @@ let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
 
 onMounted(() => {
-  if (!containerRef.value) return;
+  if (!rootRef.value || !containerRef.value) return;
 
-  const initialSize = readContainerSize() ?? { width: 1, height: 1 };
+  const initialSize = readHostSize() ?? { width: 1, height: 360 };
   lastSize = initialSize;
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
@@ -65,7 +66,7 @@ onMounted(() => {
   markerPlugin = createSeriesMarkers(series, []);
 
   resizeObserver = new ResizeObserver(scheduleResize);
-  resizeObserver.observe(containerRef.value);
+  resizeObserver.observe(rootRef.value);
   window.addEventListener("resize", scheduleResize);
 
   syncData();
@@ -134,7 +135,7 @@ function resizeChart() {
   resizeFrame = 0;
   if (!chart) return;
 
-  const nextSize = readContainerSize();
+  const nextSize = readHostSize();
   if (!nextSize) return;
   if (nextSize.width === lastSize.width && nextSize.height === lastSize.height) return;
 
@@ -142,10 +143,10 @@ function resizeChart() {
   chart.resize(nextSize.width, nextSize.height);
 }
 
-function readContainerSize() {
-  if (!containerRef.value) return null;
+function readHostSize() {
+  if (!rootRef.value) return null;
 
-  const bounds = containerRef.value.getBoundingClientRect();
+  const bounds = rootRef.value.getBoundingClientRect();
   const width = Math.floor(bounds.width);
   const height = Math.floor(bounds.height);
   if (width <= 0 || height <= 0) return null;

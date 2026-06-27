@@ -260,19 +260,22 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-chart-body {
   display: flex;
   flex: 1 1 0;
+  block-size: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
 .research-chart-body :deep(.state-block),
 .research-chart-body :deep(.trading-chart) {
-  flex: 1 1 0;
+  flex: 1 1 auto;
+  width: 100%;
   min-height: 0;
-  height: auto;
+  height: 100%;
 }
 
 .research-chart-body :deep(.trading-chart__canvas) {
   min-height: 0;
+  height: 100%;
 }
 
 .research-select {
