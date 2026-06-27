@@ -21,6 +21,14 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, health)
 		return
 	}
+	if len(parts) == 3 && parts[2] == "api-contract" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		writeJSON(w, http.StatusOK, apiContractDocument())
+		return
+	}
 	if len(parts) == 4 && parts[2] == "notifications" && parts[3] == "channels" {
 		server.handleNotificationChannels(w, r)
 		return

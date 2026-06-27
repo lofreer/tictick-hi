@@ -25,6 +25,7 @@ func TestAPIMethodNotAllowedContracts(t *testing.T) {
 		{method: http.MethodGet, path: "/api/trading/tasks/tt_1/start", allow: http.MethodPost},
 		{method: http.MethodPost, path: "/api/trading/tasks/tt_1/orders", allow: http.MethodGet},
 		{method: http.MethodPost, path: "/api/system/health", allow: http.MethodGet},
+		{method: http.MethodPost, path: "/api/system/api-contract", allow: http.MethodGet},
 		{method: http.MethodGet, path: "/api/system/notifications/nt_1/retry", allow: http.MethodPost},
 		{method: http.MethodGet, path: "/api/system/operators/op_admin/disable", allow: http.MethodPost},
 	}
