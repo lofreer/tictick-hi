@@ -38,13 +38,19 @@ const containerRef = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
 let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
+let resizeObserver: ResizeObserver | null = null;
+let resizeFrame = 0;
+let lastSize = { width: 0, height: 0 };
 
 onMounted(() => {
   if (!containerRef.value) return;
 
+  const initialSize = readContainerSize() ?? { width: 1, height: 1 };
+  lastSize = initialSize;
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
-    autoSize: true,
+    width: initialSize.width,
+    height: initialSize.height,
     localization: {
       priceFormatter: (price: number) => price.toFixed(2),
     },
@@ -58,11 +64,26 @@ onMounted(() => {
   });
   markerPlugin = createSeriesMarkers(series, []);
 
+  resizeObserver = new ResizeObserver(scheduleResize);
+  resizeObserver.observe(containerRef.value);
+  window.addEventListener("resize", scheduleResize);
+
   syncData();
+  scheduleResize();
 });
 
 onBeforeUnmount(() => {
+  if (resizeFrame > 0) {
+    window.cancelAnimationFrame(resizeFrame);
+    resizeFrame = 0;
+  }
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  window.removeEventListener("resize", scheduleResize);
   chart?.remove();
+  chart = null;
+  series = null;
+  markerPlugin = null;
 });
 
 watch(
@@ -102,5 +123,33 @@ function syncMarkers() {
     time: marker.time as Time,
   }));
   markerPlugin?.setMarkers(markerData);
+}
+
+function scheduleResize() {
+  if (resizeFrame > 0) return;
+  resizeFrame = window.requestAnimationFrame(resizeChart);
+}
+
+function resizeChart() {
+  resizeFrame = 0;
+  if (!chart) return;
+
+  const nextSize = readContainerSize();
+  if (!nextSize) return;
+  if (nextSize.width === lastSize.width && nextSize.height === lastSize.height) return;
+
+  lastSize = nextSize;
+  chart.resize(nextSize.width, nextSize.height);
+}
+
+function readContainerSize() {
+  if (!containerRef.value) return null;
+
+  const bounds = containerRef.value.getBoundingClientRect();
+  const width = Math.floor(bounds.width);
+  const height = Math.floor(bounds.height);
+  if (width <= 0 || height <= 0) return null;
+
+  return { width, height };
 }
 </script>

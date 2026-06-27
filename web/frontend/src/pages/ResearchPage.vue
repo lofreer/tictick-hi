@@ -63,14 +63,16 @@
             </div>
           </div>
         </div>
-        <ErrorState
-          v-if="candlesError"
-          :title="candlesError"
-          retryable
-          @retry="loadCandles"
-        />
-        <LoadingState v-else-if="candlesLoading" />
-        <TradingViewChart v-else :data="candles" :empty-title="t('research.chartEmpty')" />
+        <div class="research-chart-body">
+          <ErrorState
+            v-if="candlesError"
+            :title="candlesError"
+            retryable
+            @retry="loadCandles"
+          />
+          <LoadingState v-else-if="candlesLoading" />
+          <TradingViewChart v-else :data="candles" :empty-title="t('research.chartEmpty')" />
+        </div>
       </section>
     </div>
 
@@ -228,6 +230,7 @@ const healthTagType = computed<TagProps["type"]>(() => {
   flex-direction: column;
   height: clamp(560px, calc(100vh - 220px), 760px);
   min-height: 0;
+  overflow: hidden;
 }
 
 .research-toolbar {
@@ -254,13 +257,21 @@ const healthTagType = computed<TagProps["type"]>(() => {
   flex-wrap: wrap;
 }
 
-.research-chart-panel :deep(.trading-chart) {
-  flex: 1 1 auto;
+.research-chart-body {
+  display: flex;
+  flex: 1 1 0;
   min-height: 0;
-  height: 100%;
+  overflow: hidden;
 }
 
-.research-chart-panel :deep(.trading-chart__canvas) {
+.research-chart-body :deep(.state-block),
+.research-chart-body :deep(.trading-chart) {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+
+.research-chart-body :deep(.trading-chart__canvas) {
   min-height: 0;
 }
 

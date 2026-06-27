@@ -358,6 +358,44 @@ scripts/quality-gate.sh
 - 研究核心达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
+### 阶段 1 研究页 K 线高度稳定性补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- 研究页 K 线图表存在高度反馈风险，用户侧观察到图表区域持续拉高并可能拖崩页面。
+
+修复范围：
+
+- `TradingViewChart` 不再使用图表库内部 `autoSize`。
+- 图表改为按容器实际 `getBoundingClientRect()` 尺寸显式初始化和 resize。
+- resize 通过 `requestAnimationFrame` 合并，并在尺寸未变化时跳过。
+- 组件卸载时断开 `ResizeObserver`、窗口 resize 事件和待执行 animation frame。
+- 研究页图表区域新增固定 flex body，工具栏之外的剩余空间才是 K 线图表高度来源。
+
+验证：
+
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `git diff --check`
+- `scripts/quality-gate.sh`
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- Headless Chrome 桌面 `2048x1024` 打开 `/research`，30 次采样 `scrollHeight=1099`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=683`，无增长。
+- Headless Chrome 桌面 `2048x1024` 打开 `/research?exchange=binance&symbol=BTCUSDT&interval=5m`，30 次采样 `scrollHeight=1099`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=683`，无增长。
+- Headless Chrome 移动 `390x844` 打开 `/research`，30 次采样 `scrollHeight=1058`、`panelHeight=624`、`bodyHeight=457`、`chartHeight=457`、`canvasHeight=457`，无增长。
+- 浏览器采样未捕获 `ResizeObserver`、JS exception 或 console error。
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
 ### 阶段 2 Definition of Done：策略沉淀
 
 目标等级：demo
