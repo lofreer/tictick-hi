@@ -37,7 +37,7 @@ done            用户确认关闭
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；用户 stop sync / realtime 会释放 active lease；仍缺完整统一 lease 状态机和容器退出收尾证明 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
-| Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
+| Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
@@ -1002,12 +1002,12 @@ Definition of Done：
 
 本轮 smoke 证据：
 
-- symbol：`S81782554308USDT`
-- data task：`dst_4b223127d7379607a93fe834`
-- backtest：`bt_54dff086f95188e7552a0bdd`
-- paper execute：`tt_655415ad7609542401ef6cad`
-- paper notify：`tt_3e8f49c87cc7143ed50a657f`
-- notification channel：`stage8-smoke-1782554308`
+- symbol：`S81782554850USDT`
+- data task：`dst_fd943770f99e59c4aea6d094`
+- backtest：`bt_0d0699901ad01ee2ae1549ef`
+- paper execute：`tt_9b8d0f1b8da9fa472b15691a`
+- paper notify：`tt_d7ae3b9429261997e9b107f2`
+- notification channel：`stage8-smoke-1782554850`
 
 前端 DOM smoke：
 
@@ -1050,6 +1050,13 @@ Definition of Done：
 - `SetTradingTaskStatus(paused|failed|cancelled)` 清理 active lease；trading runner 正常释放和 failed 路径也会清理 `heartbeat_at`。
 - Stage 8 smoke 使用真实 API 创建任务、直接模拟 active lease、再调用 stop / pause API，并用 PostgreSQL 断言锁字段为空。
 
+已收敛的交易所 K 线错误边界：
+
+- `internal/exchange` 提供共享 HTTP status / transport error 分类和 endpoint 错误摘要，避免 adapter 泄露完整请求路径和 query 参数。
+- Binance / OKX adapter 统一将 EOF、deadline、transport error、HTTP 429、HTTP 5xx 识别为临时错误；OKX 业务码 `50011` 识别为临时限流错误，`51001` 等配置 / symbol 错误不重试。
+- `hi sync` 继续通过 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 对临时 market data 错误做有限重试；`last_error` 保持规范化和 500 rune 截断。
+- 单元测试覆盖 URL 摘要脱敏、临时 / 永久错误分类、Binance fallback、OKX rate-limit 码和 sync runner 临时错误重试。
+
 失败：
 
 - 无当前硬失败。
@@ -1058,6 +1065,7 @@ Definition of Done：
 
 - Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
+- 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
 - worker 仍未抽取包含 claim / release / fail / pause 的完整统一 lease 状态机，容器退出和优雅停止收尾仍未完整证明。
 - 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。

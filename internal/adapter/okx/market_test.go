@@ -1,8 +1,11 @@
 package okx
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +66,54 @@ func TestFetchCandlesMarksServiceUnavailableTemporary(t *testing.T) {
 	}
 }
 
+func TestFetchCandlesMarksRateLimitCodeTemporary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"50011","msg":"Requests too frequent","data":[]}`))
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !exchange.IsTemporaryError(err) {
+		t.Fatalf("rate limit code should be temporary: %v", err)
+	}
+}
+
+func TestFetchCandlesDoesNotMarkInstrumentCodeTemporary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"51001","msg":"Instrument ID does not exist","data":[]}`))
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if exchange.IsTemporaryError(err) {
+		t.Fatalf("instrument code should not be temporary: %v", err)
+	}
+}
+
 func TestFetchCandlesDoesNotMarkBadRequestTemporary(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -83,5 +134,21 @@ func TestFetchCandlesDoesNotMarkBadRequestTemporary(t *testing.T) {
 	}
 	if exchange.IsTemporaryError(err) {
 		t.Fatalf("bad request should not be temporary: %v", err)
+	}
+}
+
+func TestEndpointErrorHidesQueryURL(t *testing.T) {
+	err := &url.Error{
+		Op:  "Get",
+		URL: "https://www.okx.com/api/v5/market/history-candles?instId=BTC-USDT&limit=100",
+		Err: errors.New("EOF"),
+	}
+
+	summary := exchange.EndpointErrorSummary("https://www.okx.com", err)
+	if strings.Contains(summary, "/api/v5/market") || strings.Contains(summary, "instId=BTC-USDT") {
+		t.Fatalf("summary leaks request URL: %s", summary)
+	}
+	if !strings.Contains(summary, "www.okx.com") || !strings.Contains(summary, "EOF") {
+		t.Fatalf("summary misses host or reason: %s", summary)
 	}
 }

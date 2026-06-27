@@ -3,7 +3,6 @@ package binance
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -55,10 +54,10 @@ func (client *MarketClient) FetchCandles(
 		if err == nil {
 			return candles, nil
 		}
-		if !isTemporaryEndpointError(err) {
+		if !exchange.IsTemporaryEndpointError(err) {
 			allTemporary = false
 		}
-		errors = append(errors, endpointError(baseURL, err))
+		errors = append(errors, exchange.EndpointErrorSummary(baseURL, err))
 	}
 	message := strings.Join(errors, "; ")
 	if allTemporary {
@@ -96,7 +95,7 @@ func (client *MarketClient) fetchCandlesFrom(
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return nil, statusError{code: response.StatusCode, status: response.Status}
+		return nil, exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
 	}
 
 	var rows []binanceKline
@@ -128,37 +127,6 @@ func normalizeBaseURLs(baseURLs []string) []string {
 		return append([]string(nil), defaultBaseURLs...)
 	}
 	return normalized
-}
-
-func endpointError(baseURL string, err error) string {
-	parsed, parseErr := url.Parse(baseURL)
-	host := baseURL
-	if parseErr == nil && parsed.Host != "" {
-		host = parsed.Host
-	}
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		return fmt.Sprintf("%s: %s %v", host, urlErr.Op, urlErr.Err)
-	}
-	return fmt.Sprintf("%s: %v", host, err)
-}
-
-type statusError struct {
-	code   int
-	status string
-}
-
-func (err statusError) Error() string {
-	return "status " + err.status
-}
-
-func isTemporaryEndpointError(err error) bool {
-	var statusErr statusError
-	if errors.As(err, &statusErr) {
-		return statusErr.code == http.StatusTooManyRequests || statusErr.code >= 500
-	}
-	var urlErr *url.Error
-	return errors.As(err, &urlErr) || errors.Is(err, context.DeadlineExceeded)
 }
 
 type binanceKline []json.RawMessage

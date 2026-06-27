@@ -82,7 +82,7 @@ func TestEndpointErrorHidesQueryURL(t *testing.T) {
 		Err: errors.New("EOF"),
 	}
 
-	summary := endpointError("https://api.binance.com", err)
+	summary := exchange.EndpointErrorSummary("https://api.binance.com", err)
 	if strings.Contains(summary, "/api/v3/klines") || strings.Contains(summary, "symbol=BTCUSDT") {
 		t.Fatalf("summary leaks request URL: %s", summary)
 	}

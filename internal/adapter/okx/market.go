@@ -3,7 +3,6 @@ package okx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -59,15 +58,15 @@ func (client *MarketClient) FetchCandles(
 
 	response, err := client.httpClient.Do(httpRequest)
 	if err != nil {
-		return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+endpointError(client.baseURL, err), err)
+		return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err), err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		err := statusError{code: response.StatusCode, status: response.Status}
-		if isTemporaryEndpointError(err) {
-			return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+endpointError(client.baseURL, err), err)
+		err := exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
+		if exchange.IsTemporaryEndpointError(err) {
+			return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err), err)
 		}
-		return nil, fmt.Errorf("okx candles unavailable: %s", endpointError(client.baseURL, err))
+		return nil, fmt.Errorf("okx candles unavailable: %s", exchange.EndpointErrorSummary(client.baseURL, err))
 	}
 
 	var envelope okxCandlesResponse
@@ -75,7 +74,11 @@ func (client *MarketClient) FetchCandles(
 		return nil, fmt.Errorf("decode okx candles: %w", err)
 	}
 	if envelope.Code != "0" {
-		return nil, fmt.Errorf("okx candles code %s: %s", envelope.Code, envelope.Message)
+		err := fmt.Errorf("okx candles code %s: %s", envelope.Code, envelope.Message)
+		if isTemporaryOKXCode(envelope.Code) {
+			return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+err.Error(), err)
+		}
+		return nil, err
 	}
 
 	candles := make([]data.Candle, 0, len(envelope.Data))
@@ -147,6 +150,10 @@ func okxInterval(interval string) string {
 	return interval
 }
 
+func isTemporaryOKXCode(code string) bool {
+	return code == "50011"
+}
+
 func limit(value int, max int) int {
 	if value <= 0 {
 		return max
@@ -155,35 +162,4 @@ func limit(value int, max int) int {
 		return max
 	}
 	return value
-}
-
-type statusError struct {
-	code   int
-	status string
-}
-
-func (err statusError) Error() string {
-	return "status " + err.status
-}
-
-func endpointError(baseURL string, err error) string {
-	parsed, parseErr := url.Parse(baseURL)
-	host := baseURL
-	if parseErr == nil && parsed.Host != "" {
-		host = parsed.Host
-	}
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		return fmt.Sprintf("%s: %s %v", host, urlErr.Op, urlErr.Err)
-	}
-	return fmt.Sprintf("%s: %v", host, err)
-}
-
-func isTemporaryEndpointError(err error) bool {
-	var statusErr statusError
-	if errors.As(err, &statusErr) {
-		return statusErr.code == http.StatusTooManyRequests || statusErr.code >= 500
-	}
-	var urlErr *url.Error
-	return errors.As(err, &urlErr) || errors.Is(err, context.DeadlineExceeded)
 }
