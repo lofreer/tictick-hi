@@ -42,19 +42,31 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limitKey := server.loginLimitKey(r, request.Username)
+	if !server.loginLimiter.allow(limitKey) {
+		writeError(w, http.StatusTooManyRequests, "too many login attempts")
+		return
+	}
 	operator, err := server.repository.AuthenticateOperator(
 		r.Context(),
 		request.Username,
 		request.Password,
 	)
 	if err != nil {
+		server.loginLimiter.recordFailure(limitKey)
 		writeAuthError(w, err)
 		return
 	}
+	server.loginLimiter.recordSuccess(limitKey)
 
 	token, tokenHash, err := newSessionToken()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	csrfToken, err := newCSRFToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("generate csrf token: %w", err).Error())
 		return
 	}
 	expiresAt := time.Now().UTC().Add(server.sessionTTL)
@@ -69,6 +81,7 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server.setSessionCookie(w, token, expiresAt)
+	server.setCSRFCookie(w, csrfToken, expiresAt)
 	writeJSON(w, http.StatusOK, operator)
 }
 
@@ -82,6 +95,9 @@ func (server *Server) handleCurrentOperator(w http.ResponseWriter, r *http.Reque
 }
 
 func (server *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if !server.validateCSRF(w, r) {
+		return
+	}
 	_, tokenHash, err := server.currentOperator(r)
 	if err == nil {
 		if err := server.repository.DeleteOperatorSession(r.Context(), tokenHash); err != nil {
@@ -90,6 +106,7 @@ func (server *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	server.clearSessionCookie(w)
+	server.clearCSRFCookie(w)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -128,6 +145,19 @@ func (server *Server) setSessionCookie(w http.ResponseWriter, token string, expi
 	})
 }
 
+func (server *Server) setCSRFCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    token,
+		Path:     "/",
+		Expires:  expiresAt,
+		MaxAge:   int(server.sessionTTL.Seconds()),
+		HttpOnly: false,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   server.cookieSecure,
+	})
+}
+
 func (server *Server) clearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
@@ -135,6 +165,18 @@ func (server *Server) clearSessionCookie(w http.ResponseWriter) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   server.cookieSecure,
+	})
+}
+
+func (server *Server) clearCSRFCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   server.cookieSecure,
 	})

@@ -15,6 +15,8 @@ export class ApiError extends Error {
 
 type JsonBody = Record<string, unknown> | unknown[];
 type JsonRequestInit = Omit<RequestInit, "body"> & { body?: JsonBody };
+const csrfCookieName = "tictick_hi_csrf";
+const csrfHeaderName = "X-CSRF-Token";
 
 export class ApiClient {
   private readonly baseUrl: string;
@@ -36,13 +38,10 @@ export class ApiClient {
   }
 
   private async request<T>(path: string, init: JsonRequestInit) {
+    const headers = requestHeaders(init);
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...init.headers,
-      },
+      headers,
       credentials: "same-origin",
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
@@ -59,6 +58,38 @@ export class ApiClient {
 async function readJson(response: Response) {
   const text = await response.text();
   return text.length > 0 ? JSON.parse(text) : null;
+}
+
+function requestHeaders(init: JsonRequestInit) {
+  const headers = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  });
+  new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+  if (!isSafeMethod(init.method ?? "GET")) {
+    const token = readCookie(csrfCookieName);
+    if (token !== "") {
+      headers.set(csrfHeaderName, token);
+    }
+  }
+  return headers;
+}
+
+function isSafeMethod(method: string) {
+  const normalized = method.toUpperCase();
+  return normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS";
+}
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") {
+    return "";
+  }
+  const prefix = `${encodeURIComponent(name)}=`;
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+    ?.slice(prefix.length) ?? "";
 }
 
 export const apiClient = new ApiClient();

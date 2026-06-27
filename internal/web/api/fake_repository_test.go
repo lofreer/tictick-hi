@@ -352,6 +352,20 @@ func (repository *fakeRepository) CreateOperator(
 	return operator, nil
 }
 
+func (repository *fakeRepository) SetOperatorEnabled(
+	_ context.Context,
+	id string,
+	enabled bool,
+) (data.Operator, error) {
+	for index := range repository.operators {
+		if repository.operators[index].ID == id {
+			repository.operators[index].Enabled = enabled
+			return repository.operators[index], nil
+		}
+	}
+	return data.Operator{}, data.ErrNotFound
+}
+
 func (repository *fakeRepository) AuthenticateOperator(
 	_ context.Context,
 	username string,
@@ -396,11 +410,30 @@ func (repository *fakeRepository) DeleteOperatorSession(_ context.Context, token
 }
 
 func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHealth, error) {
+	pendingCount := 1
+	runningCount := 1
+	lockedCount := 1
+	staleLeaseCount := 0
+	heartbeat := time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC)
+	lockedUntil := time.Date(2026, 1, 1, 0, 2, 0, 0, time.UTC)
 	return data.SystemHealth{
 		Status:    "ok",
 		Database:  "ok",
 		CheckedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		Services:  []data.ServiceHealth{{Name: "api", Status: "ok"}},
+		Services: []data.ServiceHealth{
+			{Name: "api", Status: "ok"},
+			{
+				Name:            "trading-worker",
+				Status:          "ok",
+				Detail:          "pending=1 running=1 locked=1 stale=0",
+				PendingCount:    &pendingCount,
+				RunningCount:    &runningCount,
+				LockedCount:     &lockedCount,
+				StaleLeaseCount: &staleLeaseCount,
+				LastHeartbeatAt: &heartbeat,
+				LockedUntil:     &lockedUntil,
+			},
+		},
 	}, nil
 }
 

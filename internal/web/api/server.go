@@ -9,12 +9,19 @@ import (
 	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
-const sessionCookieName = "tictick_hi_session"
+const (
+	sessionCookieName = "tictick_hi_session"
+	csrfCookieName    = "tictick_hi_csrf"
+	csrfHeaderName    = "X-CSRF-Token"
+)
 
 type Config struct {
-	StaticRoot   string
-	SessionTTL   time.Duration
-	CookieSecure bool
+	StaticRoot         string
+	SessionTTL         time.Duration
+	CookieSecure       bool
+	LoginFailureLimit  int
+	LoginFailureWindow time.Duration
+	LoginLockout       time.Duration
 }
 
 type Server struct {
@@ -23,6 +30,7 @@ type Server struct {
 	staticRoot         string
 	sessionTTL         time.Duration
 	cookieSecure       bool
+	loginLimiter       *loginLimiter
 }
 
 func NewServer(repository data.Repository, staticRoot string) http.Handler {
@@ -33,12 +41,22 @@ func NewServerWithConfig(repository data.Repository, config Config) http.Handler
 	if config.SessionTTL <= 0 {
 		config.SessionTTL = 12 * time.Hour
 	}
+	if config.LoginFailureLimit <= 0 {
+		config.LoginFailureLimit = 5
+	}
+	if config.LoginFailureWindow <= 0 {
+		config.LoginFailureWindow = 5 * time.Minute
+	}
+	if config.LoginLockout <= 0 {
+		config.LoginLockout = 5 * time.Minute
+	}
 	return &Server{
 		repository:         repository,
 		strategyRepository: strategy.BuiltinRegistry(),
 		staticRoot:         config.StaticRoot,
 		sessionTTL:         config.SessionTTL,
 		cookieSecure:       config.CookieSecure,
+		loginLimiter:       newLoginLimiter(config.LoginFailureLimit, config.LoginFailureWindow, config.LoginLockout),
 	}
 }
 
@@ -50,6 +68,9 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		server.handleAuth(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		if _, ok := server.authenticateRequest(w, r); !ok {
+			return
+		}
+		if !server.validateCSRF(w, r) {
 			return
 		}
 		server.serveAPI(w, r)

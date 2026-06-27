@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -178,6 +179,26 @@ func (store *Store) CreateOperator(ctx context.Context, operator data.CreateOper
 	return created, nil
 }
 
+func (store *Store) SetOperatorEnabled(ctx context.Context, id string, enabled bool) (data.Operator, error) {
+	row := store.pool.QueryRow(ctx, `
+		UPDATE operators
+		   SET enabled = $2,
+		       updated_at = now()
+		 WHERE id = $1
+		RETURNING id, username, enabled, created_at, updated_at`,
+		id,
+		enabled,
+	)
+	operator, err := scanOperatorRow(row)
+	if err == pgx.ErrNoRows {
+		return data.Operator{}, data.ErrNotFound
+	}
+	if err != nil {
+		return data.Operator{}, fmt.Errorf("set operator enabled: %w", err)
+	}
+	return operator, nil
+}
+
 func (store *Store) EnsureOperator(
 	ctx context.Context,
 	operator data.CreateOperator,
@@ -304,19 +325,119 @@ func (store *Store) SystemHealth(ctx context.Context) (data.SystemHealth, error)
 			},
 		}, nil
 	}
+	services := []data.ServiceHealth{
+		{Name: "postgres", Status: "ok"},
+		{Name: "api", Status: "ok"},
+	}
+	workerChecks := []struct {
+		name  string
+		query string
+	}{
+		{
+			name: "sync-worker",
+			query: `
+				SELECT count(*) FILTER (WHERE status = 'pending')::int,
+				       count(*) FILTER (WHERE status = 'running')::int,
+				       count(*) FILTER (WHERE locked_by IS NOT NULL AND locked_until IS NOT NULL)::int,
+				       count(*) FILTER (WHERE locked_until IS NOT NULL AND locked_until < now())::int,
+				       max(heartbeat_at),
+				       max(locked_until)
+				  FROM data_sync_tasks`,
+		},
+		{
+			name: "backtest-worker",
+			query: `
+				SELECT count(*) FILTER (WHERE status = 'pending')::int,
+				       count(*) FILTER (WHERE status = 'running')::int,
+				       count(*) FILTER (WHERE locked_by IS NOT NULL AND locked_until IS NOT NULL)::int,
+				       count(*) FILTER (WHERE locked_until IS NOT NULL AND locked_until < now())::int,
+				       max(heartbeat_at),
+				       max(locked_until)
+				  FROM backtest_tasks`,
+		},
+		{
+			name: "trading-worker",
+			query: `
+				SELECT count(*) FILTER (WHERE status = 'running')::int,
+				       count(*) FILTER (WHERE status = 'running')::int,
+				       count(*) FILTER (WHERE locked_by IS NOT NULL AND locked_until IS NOT NULL)::int,
+				       count(*) FILTER (WHERE locked_until IS NOT NULL AND locked_until < now())::int,
+				       max(heartbeat_at),
+				       max(locked_until)
+				  FROM trading_tasks`,
+		},
+		{
+			name: "notify-worker",
+			query: `
+				SELECT count(*) FILTER (WHERE status IN ('pending', 'retry_scheduled'))::int,
+				       count(*) FILTER (WHERE status = 'running')::int,
+				       count(*) FILTER (WHERE locked_by IS NOT NULL AND locked_until IS NOT NULL)::int,
+				       count(*) FILTER (WHERE locked_until IS NOT NULL AND locked_until < now())::int,
+				       max(last_attempt_at),
+				       max(locked_until)
+				  FROM notification_outbox`,
+		},
+	}
+	status := "ok"
+	for _, check := range workerChecks {
+		service, err := store.workerHealth(ctx, check.name, check.query)
+		if err != nil {
+			return data.SystemHealth{}, err
+		}
+		if service.Status != "ok" {
+			status = "degraded"
+		}
+		services = append(services, service)
+	}
 	return data.SystemHealth{
-		Status:    "ok",
+		Status:    status,
 		Database:  "ok",
 		CheckedAt: checkedAt,
-		Services: []data.ServiceHealth{
-			{Name: "postgres", Status: "ok"},
-			{Name: "api", Status: "ok"},
-			{Name: "sync-worker", Status: "external"},
-			{Name: "backtest-worker", Status: "external"},
-			{Name: "trading-worker", Status: "external"},
-			{Name: "notify-worker", Status: "external"},
-		},
+		Services:  services,
 	}, nil
+}
+
+func (store *Store) workerHealth(ctx context.Context, name string, query string) (data.ServiceHealth, error) {
+	var pendingCount int
+	var runningCount int
+	var lockedCount int
+	var staleLeaseCount int
+	var heartbeat sql.NullTime
+	var lockedUntil sql.NullTime
+	service := data.ServiceHealth{Name: name}
+	err := store.pool.QueryRow(ctx, query).Scan(
+		&pendingCount,
+		&runningCount,
+		&lockedCount,
+		&staleLeaseCount,
+		&heartbeat,
+		&lockedUntil,
+	)
+	if err != nil {
+		return data.ServiceHealth{}, fmt.Errorf("read %s health: %w", name, err)
+	}
+	service.Status = "ok"
+	if staleLeaseCount > 0 {
+		service.Status = "warning"
+	}
+	service.PendingCount = &pendingCount
+	service.RunningCount = &runningCount
+	service.LockedCount = &lockedCount
+	service.StaleLeaseCount = &staleLeaseCount
+	service.Detail = fmt.Sprintf(
+		"pending=%d running=%d locked=%d stale=%d",
+		pendingCount,
+		runningCount,
+		lockedCount,
+		staleLeaseCount,
+	)
+	if heartbeat.Valid {
+		service.LastHeartbeatAt = &heartbeat.Time
+	}
+	if lockedUntil.Valid {
+		service.LockedUntil = &lockedUntil.Time
+	}
+	return service, nil
 }
 
 func scanNotificationChannel(row pgx.CollectableRow) (data.NotificationChannel, error) {

@@ -26,11 +26,37 @@
         <h2>{{ t("system.services") }}</h2>
         <div class="health-service-list">
           <div v-for="service in health.services" :key="service.name" class="health-service">
-            <div>
+            <div class="health-service__main">
               <strong>{{ service.name }}</strong>
               <span v-if="service.detail">{{ service.detail }}</span>
+              <dl v-if="hasWorkerStats(service)" class="health-service__stats">
+                <div>
+                  <dt>{{ t("system.pending") }}</dt>
+                  <dd>{{ service.pendingCount ?? 0 }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("system.running") }}</dt>
+                  <dd>{{ service.runningCount ?? 0 }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("system.locked") }}</dt>
+                  <dd>{{ service.lockedCount ?? 0 }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("system.staleLease") }}</dt>
+                  <dd>{{ service.staleLeaseCount ?? 0 }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("system.lastHeartbeat") }}</dt>
+                  <dd>{{ formatDate(service.lastHeartbeatAt) }}</dd>
+                </div>
+                <div>
+                  <dt>{{ t("system.lockedUntil") }}</dt>
+                  <dd>{{ formatDate(service.lockedUntil) }}</dd>
+                </div>
+              </dl>
             </div>
-            <NTag :type="service.status === 'ok' ? 'success' : service.status === 'failed' ? 'error' : 'default'">
+            <NTag :type="serviceType(service.status)">
               {{ service.status }}
             </NTag>
           </div>
@@ -41,14 +67,14 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NTag } from "naive-ui";
+import { NButton, NTag, type TagProps } from "naive-ui";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
-import type { SystemHealth } from "@/types/app";
+import type { ServiceHealth, SystemHealth } from "@/types/app";
 
 const { t } = useI18n();
 const health = ref<SystemHealth | null>(null);
@@ -74,6 +100,24 @@ async function loadHealth() {
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
+}
+
+function hasWorkerStats(service: ServiceHealth) {
+  return (
+    service.pendingCount !== undefined ||
+    service.runningCount !== undefined ||
+    service.lockedCount !== undefined ||
+    service.staleLeaseCount !== undefined ||
+    service.lastHeartbeatAt !== undefined ||
+    service.lockedUntil !== undefined
+  );
+}
+
+function serviceType(status: string): TagProps["type"] {
+  if (status === "ok") return "success";
+  if (status === "failed") return "error";
+  if (status === "warning") return "warning";
+  return "default";
 }
 
 function errorMessage(loadError: unknown, fallback: string) {
@@ -131,11 +175,15 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .health-service {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--tt-line);
+}
+
+.health-service__main {
+  min-width: 0;
 }
 
 .health-service:last-child {
@@ -152,6 +200,33 @@ function errorMessage(loadError: unknown, fallback: string) {
 .health-service span {
   color: var(--tt-muted);
   font-size: 12px;
+}
+
+.health-service__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 10px 0 0;
+}
+
+.health-service__stats div {
+  min-width: 0;
+}
+
+.health-service__stats dt,
+.health-service__stats dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.health-service__stats dt {
+  color: var(--tt-muted);
+}
+
+.health-service__stats dd {
+  overflow-wrap: anywhere;
+  font-weight: 650;
 }
 
 @media (max-width: 900px) {

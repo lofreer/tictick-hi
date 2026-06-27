@@ -43,6 +43,11 @@ export const systemApi = {
     return apiClient.post<Operator>("/system/operators", request);
   },
 
+  setOperatorEnabled(id: string, enabled: boolean) {
+    const action = enabled ? "enable" : "disable";
+    return apiClient.post<Operator>(`/system/operators/${encodeURIComponent(id)}/${action}`);
+  },
+
   health() {
     return apiClient.get<SystemHealth>("/system/health");
   },

@@ -304,6 +304,12 @@ export type ServiceHealth = {
   name: string;
   status: string;
   detail?: string;
+  pendingCount?: number;
+  runningCount?: number;
+  lockedCount?: number;
+  staleLeaseCount?: number;
+  lastHeartbeatAt?: string;
+  lockedUntil?: string;
 };
 
 export type SystemHealth = {

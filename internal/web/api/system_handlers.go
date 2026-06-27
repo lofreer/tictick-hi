@@ -47,6 +47,10 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleOperators(w, r)
 		return
 	}
+	if len(parts) == 5 && parts[2] == "operators" {
+		server.handleOperatorAction(w, r, parts[3], parts[4])
+		return
+	}
 	writeError(w, http.StatusNotFound, "system route not found")
 }
 
@@ -138,4 +142,27 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Request, id string, action string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var enabled bool
+	switch action {
+	case "enable":
+		enabled = true
+	case "disable":
+		enabled = false
+	default:
+		writeError(w, http.StatusNotFound, "operator action not found")
+		return
+	}
+	operator, err := server.repository.SetOperatorEnabled(r.Context(), id, enabled)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, operator)
 }

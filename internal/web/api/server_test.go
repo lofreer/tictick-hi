@@ -18,16 +18,21 @@ const (
 	testPassword = "secret123"
 )
 
-func newAuthenticatedTestServer(t *testing.T) (*fakeRepository, http.Handler, *http.Cookie) {
+type authTestSession struct {
+	session *http.Cookie
+	csrf    *http.Cookie
+}
+
+func newAuthenticatedTestServer(t *testing.T) (*fakeRepository, http.Handler, *authTestSession) {
 	t.Helper()
 
 	repository := newFakeRepository()
 	server := NewServer(repository, "")
-	cookie := loginTestOperator(t, server)
-	return repository, server, cookie
+	auth := loginTestOperator(t, server)
+	return repository, server, auth
 }
 
-func loginTestOperator(t *testing.T, server http.Handler) *http.Cookie {
+func loginTestOperator(t *testing.T, server http.Handler) *authTestSession {
 	t.Helper()
 
 	body := bytes.NewBufferString(`{"username":"` + testUsername + `","password":"` + testPassword + `"}`)
@@ -36,24 +41,52 @@ func loginTestOperator(t *testing.T, server http.Handler) *http.Cookie {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("login status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
+	auth := &authTestSession{}
 	for _, cookie := range recorder.Result().Cookies() {
 		if cookie.Name == sessionCookieName {
-			return cookie
+			auth.session = cookie
+		}
+		if cookie.Name == csrfCookieName {
+			auth.csrf = cookie
 		}
 	}
-	t.Fatal("login did not set session cookie")
-	return nil
+	if auth.session == nil {
+		t.Fatal("login did not set session cookie")
+	}
+	if auth.csrf == nil {
+		t.Fatal("login did not set csrf cookie")
+	}
+	return auth
 }
 
 func serveAuthenticated(
 	server http.Handler,
-	cookie *http.Cookie,
+	auth *authTestSession,
 	method string,
 	path string,
 	body string,
 ) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
-	request.AddCookie(cookie)
+	request.AddCookie(auth.session)
+	request.AddCookie(auth.csrf)
+	if !isSafeMethod(method) {
+		request.Header.Set(csrfHeaderName, auth.csrf.Value)
+	}
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func serveAuthenticatedWithoutCSRF(
+	server http.Handler,
+	auth *authTestSession,
+	method string,
+	path string,
+	body string,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	request.AddCookie(auth.session)
+	request.AddCookie(auth.csrf)
 	recorder := httptest.NewRecorder()
 	server.ServeHTTP(recorder, request)
 	return recorder
@@ -72,21 +105,64 @@ func TestAPIRequiresAuthentication(t *testing.T) {
 
 func TestAuthRoutes(t *testing.T) {
 	server := NewServer(newFakeRepository(), "")
-	cookie := loginTestOperator(t, server)
+	auth := loginTestOperator(t, server)
 
-	meRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/auth/me", "")
+	meRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/auth/me", "")
 	if meRecorder.Code != http.StatusOK {
 		t.Fatalf("me status = %d body = %s", meRecorder.Code, meRecorder.Body.String())
 	}
 
-	logoutRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/auth/logout", "")
+	logoutRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/auth/logout", "")
 	if logoutRecorder.Code != http.StatusOK {
 		t.Fatalf("logout status = %d body = %s", logoutRecorder.Code, logoutRecorder.Body.String())
 	}
 
-	afterLogout := serveAuthenticated(server, cookie, http.MethodGet, "/api/auth/me", "")
+	afterLogout := serveAuthenticated(server, auth, http.MethodGet, "/api/auth/me", "")
 	if afterLogout.Code != http.StatusUnauthorized {
 		t.Fatalf("after logout status = %d body = %s", afterLogout.Code, afterLogout.Body.String())
+	}
+}
+
+func TestCSRFProtectionRejectsUnsafeRequestsWithoutToken(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticatedWithoutCSRF(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m"}`,
+	)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestLoginRateLimit(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServerWithConfig(repository, Config{
+		LoginFailureLimit:  2,
+		LoginFailureWindow: time.Minute,
+		LoginLockout:       time.Hour,
+	})
+
+	body := `{"username":"` + testUsername + `","password":"wrong"}`
+	for index := 0; index < 2; index++ {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
+		request.RemoteAddr = "203.0.113.10:12345"
+		server.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d status = %d body = %s", index+1, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
+	request.RemoteAddr = "203.0.113.10:12345"
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("limited status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -411,9 +487,28 @@ func TestSystemRoutes(t *testing.T) {
 		}
 	}
 
+	disableOperatorRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/system/operators/op_ops/disable", "")
+	if disableOperatorRecorder.Code != http.StatusOK {
+		t.Fatalf("disable operator status = %d body = %s", disableOperatorRecorder.Code, disableOperatorRecorder.Body.String())
+	}
+	var disabledOperator data.Operator
+	if err := json.NewDecoder(disableOperatorRecorder.Body).Decode(&disabledOperator); err != nil {
+		t.Fatal(err)
+	}
+	if disabledOperator.Enabled {
+		t.Fatalf("operator was not disabled: %#v", disabledOperator)
+	}
+
 	healthRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/system/health", "")
 	if healthRecorder.Code != http.StatusOK {
 		t.Fatalf("health status = %d body = %s", healthRecorder.Code, healthRecorder.Body.String())
+	}
+	var health data.SystemHealth
+	if err := json.NewDecoder(healthRecorder.Body).Decode(&health); err != nil {
+		t.Fatal(err)
+	}
+	if len(health.Services) < 2 || health.Services[1].LastHeartbeatAt == nil || health.Services[1].LockedUntil == nil {
+		t.Fatalf("health response does not expose worker lease fields: %#v", health.Services)
 	}
 
 	notificationsRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/system/notifications", "")

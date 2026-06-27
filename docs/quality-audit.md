@@ -33,9 +33,9 @@ done            用户确认关闭
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，但还缺完整 smoke gate |
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
-| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，仍缺统一 request / response mapping 和更强错误边界 |
-| 登录会话 | scaffold | 返工加强 | 有 cookie session，但 CSRF、防暴力破解、会话审计不足 |
-| 数据同步 worker | scaffold | 返工加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，但没有真正 heartbeat loop、优雅停止状态机 |
+| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
+| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
+| 数据同步 worker | scaffold | 返工加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，health 已暴露 task count / heartbeat / locked_until；但没有真正 heartbeat loop、优雅停止状态机 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
 | Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
@@ -46,7 +46,8 @@ done            用户确认关闭
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo provider、失败重试和系统页 retry；真实第三方 provider、通道更新/删除、统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
-| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，live executor/testnet、worker lease 和登录安全作为后续风险审计保留 |
+| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、审计、完整 session 管理和生产监控 |
+| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，live executor/testnet、统一 worker lease 和生产级登录安全作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
 
@@ -897,31 +898,71 @@ Definition of Done：
 - 实盘安全边界达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
+### 阶段 7 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `git diff --check`
+
+本地 smoke：
+
+- `docker compose up -d --build` 成功，`curl -fsS http://127.0.0.1:8080/readyz` 返回健康。
+- 登录成功后同时设置 `tictick_hi_session` 和 `tictick_hi_csrf` cookie。
+- 不带 `X-CSRF-Token` 的 `POST /api/system/operators` 返回 `403`。
+- 带 CSRF header 创建操作台账号返回 `201`，随后 `POST /api/system/operators/:id/disable` 返回 `enabled=false`，`POST /api/system/operators/:id/enable` 返回 `enabled=true`。
+- 使用不存在账号连续失败登录后触发节流，最终返回 `429`。
+- `GET /api/system/health` 返回 `sync-worker`、`backtest-worker`、`trading-worker`、`notify-worker`，并为 worker 暴露 `pendingCount`、`runningCount`、`lockedCount`、`staleLeaseCount`、heartbeat / locked_until 字段。
+- 前端 DOM smoke：`/system/health` 渲染 worker 统计字段，`/system/operators` 渲染创建和启停操作。
+
+失败：
+
+- 无。
+
+警告：
+
+- CSRF 采用 double-submit cookie，本阶段只到本地 demo 边界，不是完整生产 CSRF/session 防护。
+- 登录失败节流为 API 进程内存态，多实例、重启后持久化和全局限流未实现。
+- 操作台账号启停没有 RBAC、自保护规则、审计记录或强密码策略。
+- 运维健康能观察现有 task lease 字段，但全系统统一 worker lease、持续 heartbeat loop 和优雅停止状态机仍未完成。
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
+阶段 7 结论：
+
+- 运维健康和操作台账号达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
 ## 5. 下一条可推进切片
 
 下一步只推进：
 
 ```text
-阶段 7：运维健康和操作台账号
+阶段 8：整体 usable 验收
 ```
 
-目标等级：`scaffold` 到 `demo`，不能声明 production-safe。
+目标等级：尝试从 `scaffold` 推进到 `usable`，但只有全链路 smoke 和完整质量门禁证明后才能升级。
 
 Definition of Done：
 
-- 登录会话加强，至少补齐 CSRF 或等价同源写保护设计和测试。
-- 登录失败节流 / 防暴力破解进入 API 边界。
-- 运维健康页展示数据库、worker 和关键后台服务健康状态。
-- worker heartbeat 可观察，运行中任务能看到最近 heartbeat / locked_until。
-- 操作台账号管理支持更明确的启停和创建校验。
+- Docker Compose 一键启动，迁移、api、sync、backtest、trading、notify 服务均健康或可观察。
+- 研究 -> 策略 -> 回测 -> 模拟盘 -> 通知全链路 smoke 通过，并能从前端观察关键结果。
+- 数据同步、CandleProvider、策略、回测、模拟盘、通知和系统管理文档与实现一致。
+- 所有模块等级重新审计，不能把 demo 风险冒充 usable。
 - 完整质量门禁通过。
 
 范围外：
 
-- 完整 RBAC。
-- 企业级审计日志。
-- 生产级 SSO。
-- Kubernetes / 多实例编排。
+- 真实实盘 production 下单。
+- 企业级 SSO / RBAC / 审计。
+- Kubernetes / 多实例生产编排。
+- 真实第三方通知 provider。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

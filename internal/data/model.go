@@ -314,9 +314,15 @@ type SystemHealth struct {
 }
 
 type ServiceHealth struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Detail string `json:"detail,omitempty"`
+	Name            string     `json:"name"`
+	Status          string     `json:"status"`
+	Detail          string     `json:"detail,omitempty"`
+	PendingCount    *int       `json:"pendingCount,omitempty"`
+	RunningCount    *int       `json:"runningCount,omitempty"`
+	LockedCount     *int       `json:"lockedCount,omitempty"`
+	StaleLeaseCount *int       `json:"staleLeaseCount,omitempty"`
+	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
+	LockedUntil     *time.Time `json:"lockedUntil,omitempty"`
 }
 
 type Candle struct {
@@ -408,6 +414,7 @@ type Repository interface {
 	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
 	ListOperators(ctx context.Context) ([]Operator, error)
 	CreateOperator(ctx context.Context, operator CreateOperator) (Operator, error)
+	SetOperatorEnabled(ctx context.Context, id string, enabled bool) (Operator, error)
 	AuthenticateOperator(ctx context.Context, username string, password string) (Operator, error)
 	CreateOperatorSession(ctx context.Context, session OperatorSession) error
 	GetOperatorBySession(ctx context.Context, tokenHash string, now time.Time) (Operator, error)

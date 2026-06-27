@@ -22,6 +22,7 @@
               <th>{{ t("auth.username") }}</th>
               <th>{{ t("system.enabled") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
+              <th>{{ t("research.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -29,6 +30,17 @@
               <td>{{ operator.username }}</td>
               <td><NTag :type="operator.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(operator.enabled) }}</NTag></td>
               <td>{{ formatDate(operator.createdAt) }}</td>
+              <td>
+                <NButton
+                  size="small"
+                  :type="operator.enabled ? 'warning' : 'primary'"
+                  secondary
+                  :loading="updatingOperatorId === operator.id"
+                  @click="toggleOperator(operator)"
+                >
+                  {{ operator.enabled ? t("system.disableOperator") : t("system.enableOperator") }}
+                </NButton>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -69,6 +81,7 @@ const operators = ref<Operator[]>([]);
 const loading = ref(false);
 const creating = ref(false);
 const error = ref("");
+const updatingOperatorId = ref("");
 const createOpen = ref(false);
 const form = reactive({ username: "", password: "", enabled: true });
 
@@ -102,6 +115,19 @@ async function createOperator() {
     message.error(errorMessage(loadError, t("system.createFailed")));
   } finally {
     creating.value = false;
+  }
+}
+
+async function toggleOperator(operator: Operator) {
+  updatingOperatorId.value = operator.id;
+  try {
+    await systemApi.setOperatorEnabled(operator.id, !operator.enabled);
+    message.success(t("system.operatorUpdated"));
+    await loadOperators();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.operatorUpdateFailed")));
+  } finally {
+    updatingOperatorId.value = "";
   }
 }
 
