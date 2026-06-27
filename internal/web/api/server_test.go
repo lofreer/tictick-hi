@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -319,13 +320,27 @@ func TestTradingTaskRoutes(t *testing.T) {
 }
 
 func TestSystemRoutes(t *testing.T) {
-	_, server, cookie := newAuthenticatedTestServer(t)
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.notifications = append(repository.notifications, data.Notification{
+		ID:           "nt_1",
+		TaskID:       "tt_1",
+		Channel:      "Ops",
+		Provider:     "local",
+		Target:       "ops",
+		Title:        "Strategy intent",
+		Body:         "signal",
+		Status:       "failed",
+		Error:        "demo failure",
+		AttemptCount: 1,
+		MaxAttempts:  3,
+		CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	})
 
 	cases := []struct {
 		path string
 		body string
 	}{
-		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook","target":"https://example.test","enabled":true}`},
+		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook-demo","target":"demo://ops","enabled":true}`},
 		{path: "/api/system/exchange-accounts", body: `{"exchange":"binance","alias":"main","apiKey":"key","apiSecret":"secret","enabled":true}`},
 		{path: "/api/system/operators", body: `{"username":"ops","password":"secret123","enabled":true}`},
 	}
@@ -344,5 +359,15 @@ func TestSystemRoutes(t *testing.T) {
 	healthRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/system/health", "")
 	if healthRecorder.Code != http.StatusOK {
 		t.Fatalf("health status = %d body = %s", healthRecorder.Code, healthRecorder.Body.String())
+	}
+
+	notificationsRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/system/notifications", "")
+	if notificationsRecorder.Code != http.StatusOK {
+		t.Fatalf("notifications status = %d body = %s", notificationsRecorder.Code, notificationsRecorder.Body.String())
+	}
+
+	retryRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/system/notifications/nt_1/retry", "")
+	if retryRecorder.Code != http.StatusOK {
+		t.Fatalf("retry status = %d body = %s", retryRecorder.Code, retryRecorder.Body.String())
 	}
 }

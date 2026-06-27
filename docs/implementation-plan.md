@@ -38,7 +38,7 @@
 - 后端除数据库驱动等必要依赖外，尽量少用第三方库，主打安全、清晰、可审计实现。
 - 数据库使用 PostgreSQL。
 - 交易所架构必须可扩展，但当前需要支持 Binance 和 OKX。
-- 系统按同一 Go 项目的单二进制多子命令模式拆分：`hi api`、`hi sync`、`hi trading`、`hi backtest`、`hi migrate`。
+- 系统按同一 Go 项目的单二进制多子命令模式拆分：`hi api`、`hi sync`、`hi trading`、`hi backtest`、`hi notify`、`hi migrate`。
 - 第一版运行部署使用 Docker / Docker Compose；同一镜像通过不同 command 启动不同子命令。
 - worker 必须使用统一 lease 状态机。
 - 数据同步必须幂等，并支持重启后的断点恢复和尾部缺口修复。
@@ -49,7 +49,7 @@
 
 - 第一版具体支持哪些 K 线周期。
 - TradingView 开源图表库的具体接入包和授权边界。
-- 通知通道第一版启用哪些。
+- 真实邮件、Telegram、飞书 provider 的凭据模型和生产启用边界。
 
 ## 1. 产品定位
 
@@ -678,6 +678,13 @@ i18n：vue-i18n
 
 通知通道第一版启用范围待确认。
 
+阶段 5 demo 只启用安全的本地通知投递：
+
+- `local`：只在本地 outbox 中记录投递成功，不访问外部网络。
+- `webhook-demo`：webhook-like 演示 provider，只记录目标和模拟投递结果，不访问真实 webhook。
+
+真实邮件、Telegram、飞书 provider 必须等凭据、脱敏、重试和审计边界确认后再接入。
+
 ### 12.2 交易所账号管理
 
 交易所账号管理负责：
@@ -748,6 +755,7 @@ hi api       操作台 API + 前端服务
 hi sync      数据同步 worker
 hi trading   模拟盘 / 实盘任务 runner
 hi backtest  回测 worker
+hi notify    通知 outbox worker
 hi migrate   数据库迁移
 ```
 
@@ -778,6 +786,9 @@ hi sync
 hi trading
   -> PostgreSQL
   -> Binance / OKX 交易接口
+
+hi notify
+  -> PostgreSQL
   -> 通知 Provider
 
 hi backtest
@@ -794,6 +805,7 @@ hi migrate
 - `hi sync` 领取数据同步任务并更新同步进度。
 - `hi trading` 领取模拟盘 / 实盘任务并运行策略。
 - `hi backtest` 领取回测任务并写入结果。
+- `hi notify` 领取 notification outbox 并执行通知投递。
 - `hi migrate` 执行数据库迁移。
 - 不使用消息队列。
 - 不使用复杂服务注册。
@@ -801,7 +813,7 @@ hi migrate
 
 ### 14.1 统一 worker lease
 
-`hi sync`、`hi backtest`、`hi trading` 都必须使用统一 worker lease 模型领取任务。
+`hi sync`、`hi backtest`、`hi trading`、`hi notify` 都必须使用统一 worker lease 模型领取任务。
 
 目标：
 
@@ -1423,6 +1435,8 @@ GET  /api/trading/tasks/:id/notifications
 系统管理：
 
 ```text
+GET  /api/system/notifications
+POST /api/system/notifications/:id/retry
 GET  /api/system/notifications/channels
 POST /api/system/notifications/channels
 GET  /api/system/exchange-accounts

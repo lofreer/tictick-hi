@@ -13,7 +13,54 @@
 
     <section class="surface system-panel">
       <LoadingState v-if="loading" />
-      <ErrorState v-else-if="error" :title="error" retryable @retry="loadChannels" />
+      <ErrorState v-else-if="error" :title="error" retryable @retry="loadAll" />
+      <EmptyState v-else-if="notifications.length === 0" :title="t('system.noNotifications')" />
+      <div v-else class="system-table-wrap">
+        <table class="system-table system-table--wide">
+          <thead>
+            <tr>
+              <th>{{ t("system.status") }}</th>
+              <th>{{ t("system.channel") }}</th>
+              <th>{{ t("system.provider") }}</th>
+              <th>{{ t("system.title") }}</th>
+              <th>{{ t("system.attempts") }}</th>
+              <th>{{ t("system.nextAttempt") }}</th>
+              <th>{{ t("common.error") }}</th>
+              <th>{{ t("research.actions") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="notification in notifications" :key="notification.id">
+              <td><NTag :type="statusType(notification.status)" size="small">{{ notification.status }}</NTag></td>
+              <td>{{ notification.channel }}</td>
+              <td>{{ notification.provider }}</td>
+              <td>
+                <strong>{{ notification.title }}</strong>
+                <span class="system-table__muted">{{ notification.body }}</span>
+              </td>
+              <td>{{ notification.attemptCount }} / {{ notification.maxAttempts }}</td>
+              <td>{{ formatDate(notification.nextAttemptAt) }}</td>
+              <td><span class="system-table__error">{{ notification.error || "-" }}</span></td>
+              <td>
+                <NButton
+                  size="tiny"
+                  quaternary
+                  :disabled="notification.status !== 'failed'"
+                  :loading="retryingId === notification.id"
+                  @click="retryNotification(notification.id)"
+                >
+                  {{ t("common.retry") }}
+                </NButton>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="surface system-panel">
+      <LoadingState v-if="channelsLoading" />
+      <ErrorState v-else-if="channelsError" :title="channelsError" retryable @retry="loadChannels" />
       <EmptyState v-else-if="channels.length === 0" :title="t('system.noChannels')" />
       <div v-else class="system-table-wrap">
         <table class="system-table">
@@ -42,7 +89,7 @@
     <NModal v-model:show="createOpen" preset="card" :title="t('system.createChannel')" class="system-modal">
       <NForm label-placement="top">
         <NFormItem :label="t('system.name')"><NInput v-model:value="form.name" /></NFormItem>
-        <NFormItem :label="t('system.provider')"><NInput v-model:value="form.provider" /></NFormItem>
+        <NFormItem :label="t('system.provider')"><NSelect v-model:value="form.provider" :options="providerOptions" /></NFormItem>
         <NFormItem :label="t('system.target')"><NInput v-model:value="form.target" /></NFormItem>
         <NFormItem :label="t('system.enabled')"><NSwitch v-model:value="form.enabled" /></NFormItem>
       </NForm>
@@ -58,7 +105,20 @@
 
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
-import { NButton, NForm, NFormItem, NInput, NModal, NSpace, NSwitch, NTag, useMessage } from "naive-ui";
+import {
+  NButton,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NSelect,
+  NSpace,
+  NSwitch,
+  NTag,
+  type SelectOption,
+  type TagProps,
+  useMessage,
+} from "naive-ui";
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -66,31 +126,55 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
-import type { NotificationChannel } from "@/types/app";
+import type { Notification, NotificationChannel } from "@/types/app";
 
 const { t } = useI18n();
 const message = useMessage();
 const channels = ref<NotificationChannel[]>([]);
+const notifications = ref<Notification[]>([]);
 const loading = ref(false);
+const channelsLoading = ref(false);
 const creating = ref(false);
 const error = ref("");
+const channelsError = ref("");
 const createOpen = ref(false);
-const form = reactive({ name: "", provider: "webhook", target: "", enabled: true });
+const retryingId = ref("");
+const form = reactive({ name: "", provider: "local", target: "default", enabled: true });
+const providerOptions: SelectOption[] = [
+  { label: "local", value: "local" },
+  { label: "webhook-demo", value: "webhook-demo" },
+];
 
 onMounted(() => {
-  void loadChannels();
+  void loadAll();
 });
 
-async function loadChannels() {
+async function loadAll() {
   loading.value = true;
   error.value = "";
+  try {
+    await Promise.all([loadNotifications(), loadChannels()]);
+  } catch (loadError) {
+    error.value = errorMessage(loadError, t("system.notificationsLoadFailed"));
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadNotifications() {
+  notifications.value = await systemApi.listNotifications();
+}
+
+async function loadChannels() {
+  channelsLoading.value = true;
+  channelsError.value = "";
   try {
     channels.value = await systemApi.listNotificationChannels();
   } catch (loadError) {
     channels.value = [];
-    error.value = errorMessage(loadError, t("system.channelsLoadFailed"));
+    channelsError.value = errorMessage(loadError, t("system.channelsLoadFailed"));
   } finally {
-    loading.value = false;
+    channelsLoading.value = false;
   }
 }
 
@@ -101,7 +185,7 @@ async function createChannel() {
     createOpen.value = false;
     message.success(t("system.created"));
     form.name = "";
-    form.target = "";
+    form.target = "default";
     await loadChannels();
   } catch (loadError) {
     message.error(errorMessage(loadError, t("system.createFailed")));
@@ -110,8 +194,29 @@ async function createChannel() {
   }
 }
 
+async function retryNotification(id: string) {
+  retryingId.value = id;
+  try {
+    await systemApi.retryNotification(id);
+    message.success(t("system.notificationRetried"));
+    await loadNotifications();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.notificationRetryFailed")));
+  } finally {
+    retryingId.value = "";
+  }
+}
+
 function enabledLabel(enabled: boolean) {
   return enabled ? t("common.yes") : t("common.no");
+}
+
+function statusType(status: string): TagProps["type"] {
+  if (status === "sent" || status === "delivered") return "success";
+  if (status === "failed") return "error";
+  if (status === "retry_scheduled") return "warning";
+  if (status === "running") return "info";
+  return "default";
 }
 
 function formatDate(value?: string) {
@@ -138,6 +243,10 @@ function errorMessage(loadError: unknown, fallback: string) {
   border-collapse: collapse;
 }
 
+.system-table--wide {
+  min-width: 1120px;
+}
+
 .system-table th,
 .system-table td {
   padding: 12px 14px;
@@ -150,6 +259,20 @@ function errorMessage(loadError: unknown, fallback: string) {
 .system-table th {
   color: var(--tt-muted);
   font-weight: 720;
+}
+
+.system-table__muted,
+.system-table__error {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--tt-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-table__error {
+  color: var(--tt-danger);
 }
 
 .system-table tbody tr:last-child td {

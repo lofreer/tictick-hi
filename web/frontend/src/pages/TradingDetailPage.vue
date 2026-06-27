@@ -99,7 +99,11 @@
                 <div v-for="notification in notifications" :key="notification.id" class="detail-list__item">
                   <NTag size="small">{{ notification.channel }}</NTag>
                   <strong>{{ notification.title }}</strong>
-                  <span>{{ notification.status }} / {{ formatDate(notification.createdAt) }}</span>
+                  <span>
+                    {{ notification.status }} / {{ notification.provider }} /
+                    {{ notification.attemptCount }} / {{ notification.maxAttempts }}
+                  </span>
+                  <span>{{ notification.error || (notification.nextAttemptAt ? formatDate(notification.nextAttemptAt) : formatDate(notification.createdAt)) }}</span>
                 </div>
               </div>
             </NTabPane>

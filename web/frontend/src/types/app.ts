@@ -229,12 +229,19 @@ export type Position = {
 
 export type Notification = {
   id: string;
+  taskId?: string;
   intentId?: string;
   channel: string;
+  provider: string;
+  target: string;
   title: string;
   body: string;
   status: string;
   error?: string;
+  attemptCount: number;
+  maxAttempts: number;
+  nextAttemptAt?: string;
+  lastAttemptAt?: string;
   createdAt: string;
   sentAt?: string;
 };

@@ -41,9 +41,9 @@ done            用户确认关闭
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，live execute 已禁用；仍缺可信风控、真实通知 provider、统一 worker lease 和实盘安全边界 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、统一 worker lease 和实盘安全边界 |
 | 实盘安全 | below-scaffold | 延后 | 密钥字段名叫 encrypted，实际是 digest，不是真加密也不能解密 |
-| 通知 | scaffold | 返工 | 有通知记录雏形，但 provider/outbox/retry 不完整 |
+| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo provider、失败重试和系统页 retry；真实第三方 provider、通道更新/删除、统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
 | 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，实盘安全和 live executor 作为后续风险审计保留 |
@@ -769,7 +769,7 @@ scripts/quality-gate.sh
 
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 - 当前 position 的 `realizedPnl` 仍为占位级 `0`，阶段 4 只保证 position 从 execution 可重复计算，不声明 PnL 可信。
-- Notification 仍只是本地记录，没有 provider/outbox/retry。
+- Notification provider/outbox/retry 已进入阶段 5 demo，真实第三方 provider 仍未接入。
 
 后续风险审计：
 
@@ -782,13 +782,7 @@ scripts/quality-gate.sh
 - 模拟盘 paper 链路达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
-## 4. 下一条可推进切片
-
-下一步只推进：
-
-```text
-阶段 5：通知 demo 链路
-```
+## 4. 阶段 5：通知 demo 链路
 
 目标等级：`demo`，不是 usable。
 
@@ -811,7 +805,84 @@ Definition of Done：
 - 真实第三方通知凭据和生产通知通道。
 - 回测撮合可信度升级。
 
-## 5. 保留 / 返工 / 删除 / 延后
+### 阶段 5 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `git diff --check`
+- `NotificationIntent` 由 trading runner 保存到 `notifications` 和 `notification_outbox`。
+- `hi notify` 已加入单二进制子命令和 Docker Compose service。
+- provider 抽象已建立，阶段 5 只启用 `local` / `webhook-demo` demo provider，不访问真实第三方网络。
+- notify worker 常驻模式会 drain 当前可领取 outbox，避免一次策略输出大量通知时每 10 秒只处理 1 条。
+- 系统通知 API 支持 `GET /api/system/notifications` 和 `POST /api/system/notifications/:id/retry`。
+- 系统通知页展示通知状态、provider、attempt、nextAttempt、错误和 retry 操作。
+- 交易详情页通知 tab 展示通知状态、provider、attempt 和错误 / 发送时间。
+- Docker 本地 smoke：`docker compose up -d --build` 成功，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- migration smoke：`schema_migrations` 最新包含 `0008_notification_outbox.sql`。
+- 成功投递 smoke：paper trading notification-only 任务生成 111 条通知；`notifications` 全部 `sent`，`notification_outbox` 全部 `delivered`，attemptCount 为 1。
+- 失败重试 smoke：目标为 `fail-target` 的 demo 通道生成 111 条 `retry_scheduled` 通知，错误为 `demo provider rejected target "fail-target"`。
+- 手动 retry smoke：`POST /api/system/notifications/:id/retry` 后，该通知重新投递失败，attemptCount 从 1 增至 2，`notifications` 和 `notification_outbox` 同步记录 `retry_scheduled`、错误和下一次重试时间。
+- 前端 DOM smoke：`/system/notifications` 显示 `sent` / `retry_scheduled` 和 stage5 目标；`/trading/:id` 可切换到通知 tab 并看到 `stage5-smoke` / `sent`。
+
+失败：
+
+- 无当前硬失败。
+
+警告：
+
+- 真实邮件、Telegram、飞书 provider 未接入；阶段 5 只声明 demo。
+- 通知通道只有创建和读取，没有更新、删除、启停编辑和凭据脱敏模型。
+- `hi notify` 已有 outbox claim/lock，但仍未抽取全系统统一 worker lease 包。
+- 通知 provider 未实现生产级限流、熔断、模板、审计签名或外部回执。
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
+后续风险审计：
+
+- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
+- live executor 仍禁用，实盘安全边界未建立。
+- 登录会话仍缺 CSRF、防暴力破解和更完整 session 管理。
+
+阶段 5 结论：
+
+- 通知链路达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
+## 5. 下一条可推进切片
+
+下一步只推进：
+
+```text
+阶段 6：实盘安全边界
+```
+
+目标等级：`scaffold` 到 `demo`，不能声明实盘可用或 production-safe。
+
+Definition of Done：
+
+- exchange account 不再用 digest 冒充 encrypted secret。
+- 定义并实现本地开发可验证的 AEAD 加密边界，`ENCRYPTION_KEY` 来源明确。
+- API key / secret 列表和详情永不返回完整明文。
+- live executor 与 paper executor 的边界保持隔离，live execute 继续默认禁用。
+- 实盘订单必须先落库，再提交交易所；幂等键和账号禁用检查进入设计和测试。
+- 先 testnet / sandbox，再讨论 production。
+- 完整质量门禁通过。
+
+范围外：
+
+- 真实 production 实盘下单。
+- 复杂权限系统。
+- 通知真实 provider。
+- worker lease 全系统抽取。
+
+## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
 
@@ -842,12 +913,12 @@ Definition of Done：
 延后：
 
 - 实盘真实下单。
-- 通知真实 provider。
+- 通知真实第三方 provider。
 - 概览页深度指标。
 - 聚合 K 线持久化缓存。
 - tick / trade 级数据。
 
-## 6. 当前不能做的声明
+## 7. 当前不能做的声明
 
 在上述 P0 关闭前，禁止对外声明：
 

@@ -271,6 +271,7 @@ func (store *Store) SystemHealth(ctx context.Context) (data.SystemHealth, error)
 			{Name: "sync-worker", Status: "external"},
 			{Name: "backtest-worker", Status: "external"},
 			{Name: "trading-worker", Status: "external"},
+			{Name: "notify-worker", Status: "external"},
 		},
 	}, nil
 }

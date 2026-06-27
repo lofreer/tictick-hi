@@ -21,6 +21,24 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleNotificationChannels(w, r)
 		return
 	}
+	if len(parts) == 3 && parts[2] == "notifications" && r.Method == http.MethodGet {
+		notifications, err := server.repository.ListNotifications(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, notifications)
+		return
+	}
+	if len(parts) == 5 && parts[2] == "notifications" && parts[4] == "retry" && r.Method == http.MethodPost {
+		notification, err := server.repository.RetryNotification(r.Context(), parts[3])
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, notification)
+		return
+	}
 	if len(parts) == 3 && parts[2] == "exchange-accounts" {
 		server.handleExchangeAccounts(w, r)
 		return

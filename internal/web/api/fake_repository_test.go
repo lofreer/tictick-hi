@@ -12,6 +12,7 @@ type fakeRepository struct {
 	backtestIntents map[string][]data.StrategyIntent
 	backtests       []data.BacktestTask
 	channels        []data.NotificationChannel
+	notifications   []data.Notification
 	accounts        []data.ExchangeAccount
 	operators       []data.Operator
 	passwords       map[string]string
@@ -256,6 +257,21 @@ func (repository *fakeRepository) ListTradingPositions(context.Context, string) 
 
 func (repository *fakeRepository) ListTradingNotifications(context.Context, string) ([]data.Notification, error) {
 	return nil, nil
+}
+
+func (repository *fakeRepository) ListNotifications(context.Context) ([]data.Notification, error) {
+	return append([]data.Notification(nil), repository.notifications...), nil
+}
+
+func (repository *fakeRepository) RetryNotification(_ context.Context, id string) (data.Notification, error) {
+	for index := range repository.notifications {
+		if repository.notifications[index].ID == id {
+			repository.notifications[index].Status = "pending"
+			repository.notifications[index].Error = ""
+			return repository.notifications[index], nil
+		}
+	}
+	return data.Notification{}, data.ErrNotFound
 }
 
 func (repository *fakeRepository) ListNotificationChannels(context.Context) ([]data.NotificationChannel, error) {

@@ -159,15 +159,26 @@ func scanPosition(row pgx.CollectableRow) (data.Position, error) {
 }
 
 func scanNotification(row pgx.CollectableRow) (data.Notification, error) {
+	return scanNotificationRow(row)
+}
+
+func scanNotificationRow(row rowScanner) (data.Notification, error) {
 	var notification data.Notification
 	err := row.Scan(
 		&notification.ID,
+		&notification.TaskID,
 		&notification.IntentID,
 		&notification.Channel,
+		&notification.Provider,
+		&notification.Target,
 		&notification.Title,
 		&notification.Body,
 		&notification.Status,
 		&notification.Error,
+		&notification.AttemptCount,
+		&notification.MaxAttempts,
+		&notification.NextAttemptAt,
+		&notification.LastAttemptAt,
 		&notification.CreatedAt,
 		&notification.SentAt,
 	)

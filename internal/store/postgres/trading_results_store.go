@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/lofreer/tictick-hi/internal/core"
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
@@ -74,8 +75,9 @@ func (store *Store) listTradingPositions(ctx context.Context, taskID string) ([]
 
 func (store *Store) listTradingNotifications(ctx context.Context, taskID string) ([]data.Notification, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, COALESCE(intent_id, ''), channel, title, body, status,
-		       COALESCE(error, ''), created_at, sent_at
+		SELECT id, task_id, COALESCE(intent_id, ''), channel, provider, target,
+		       title, body, status, COALESCE(error, ''), attempt_count,
+		       max_attempts, next_attempt_at, last_attempt_at, created_at, sent_at
 		  FROM notifications
 		 WHERE task_id = $1
 		 ORDER BY created_at DESC`, taskID)
@@ -246,30 +248,99 @@ func upsertExecution(ctx context.Context, tx pgx.Tx, taskID string, execution da
 }
 
 func insertNotification(ctx context.Context, tx pgx.Tx, taskID string, notification data.Notification) error {
-	_, err := tx.Exec(ctx, `
+	route, err := notificationRoute(ctx, tx, notification.Channel)
+	if err != nil {
+		return err
+	}
+	status := notification.Status
+	errorText := notification.Error
+	if !route.Enabled {
+		status = "failed"
+		errorText = "notification channel is disabled"
+	}
+	outboxID := core.StablePrefixedID("no", "outbox:"+notification.ID)
+	_, err = tx.Exec(ctx, `
 		INSERT INTO notifications (
-			id, task_id, intent_id, channel, title, body, status, error, created_at, sent_at
+			id, task_id, intent_id, channel, provider, target, title, body,
+			status, error, attempt_count, max_attempts, next_attempt_at,
+			created_at, sent_at, updated_at
 		)
-		SELECT $1, $2, NULLIF($3, ''), $4, $5, $6, $7, NULLIF($8, ''), $9, $10
-		 WHERE NOT EXISTS (
-		       SELECT 1 FROM notifications
-		        WHERE task_id = $2 AND intent_id = NULLIF($3, '') AND channel = $4
-		 )`,
+		VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9, NULLIF($10, ''),
+		        0, 3, $11, $12, $13, $12)
+		ON CONFLICT (id) DO NOTHING`,
 		notification.ID,
 		taskID,
 		notification.IntentID,
 		notification.Channel,
+		route.Provider,
+		route.Target,
 		notification.Title,
 		notification.Body,
-		notification.Status,
-		notification.Error,
+		status,
+		errorText,
+		notification.CreatedAt,
 		notification.CreatedAt,
 		notification.SentAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert notification: %w", err)
 	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO notification_outbox (
+			id, notification_id, task_id, intent_id, channel, provider, target,
+			title, body, status, attempt_count, max_attempts, next_attempt_at,
+			last_error, created_at, updated_at
+		)
+		SELECT $1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10,
+		       0, 3, $11, NULLIF($12, ''), $11, $11
+		 WHERE EXISTS (SELECT 1 FROM notifications WHERE id = $2)
+		ON CONFLICT (notification_id) DO NOTHING`,
+		outboxID,
+		notification.ID,
+		taskID,
+		notification.IntentID,
+		notification.Channel,
+		route.Provider,
+		route.Target,
+		notification.Title,
+		notification.Body,
+		status,
+		notification.CreatedAt,
+		errorText,
+	)
+	if err != nil {
+		return fmt.Errorf("insert notification outbox: %w", err)
+	}
 	return nil
+}
+
+type resolvedNotificationRoute struct {
+	Provider string
+	Target   string
+	Enabled  bool
+}
+
+func notificationRoute(ctx context.Context, tx pgx.Tx, channel string) (resolvedNotificationRoute, error) {
+	route := resolvedNotificationRoute{Provider: "local", Target: channel, Enabled: true}
+	row := tx.QueryRow(ctx, `
+		SELECT provider, target, enabled
+		  FROM notification_channels
+		 WHERE name = $1 OR id = $1
+		 ORDER BY created_at DESC
+		 LIMIT 1`, channel)
+	if err := row.Scan(&route.Provider, &route.Target, &route.Enabled); err != nil {
+		if err == pgx.ErrNoRows {
+			return route, nil
+		}
+		return resolvedNotificationRoute{}, fmt.Errorf("resolve notification route: %w", err)
+	}
+	if route.Provider == "" {
+		route.Provider = "local"
+	}
+	if route.Target == "" {
+		route.Target = channel
+	}
+	return route, nil
 }
 
 func recalculatePositions(ctx context.Context, tx pgx.Tx, taskID string) error {

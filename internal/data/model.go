@@ -200,15 +200,22 @@ type Position struct {
 }
 
 type Notification struct {
-	ID        string     `json:"id"`
-	IntentID  string     `json:"intentId,omitempty"`
-	Channel   string     `json:"channel"`
-	Title     string     `json:"title"`
-	Body      string     `json:"body"`
-	Status    string     `json:"status"`
-	Error     string     `json:"error,omitempty"`
-	CreatedAt time.Time  `json:"createdAt"`
-	SentAt    *time.Time `json:"sentAt,omitempty"`
+	ID            string     `json:"id"`
+	TaskID        string     `json:"taskId,omitempty"`
+	IntentID      string     `json:"intentId,omitempty"`
+	Channel       string     `json:"channel"`
+	Provider      string     `json:"provider"`
+	Target        string     `json:"target"`
+	Title         string     `json:"title"`
+	Body          string     `json:"body"`
+	Status        string     `json:"status"`
+	Error         string     `json:"error,omitempty"`
+	AttemptCount  int        `json:"attemptCount"`
+	MaxAttempts   int        `json:"maxAttempts"`
+	NextAttemptAt *time.Time `json:"nextAttemptAt,omitempty"`
+	LastAttemptAt *time.Time `json:"lastAttemptAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	SentAt        *time.Time `json:"sentAt,omitempty"`
 }
 
 type TradingRunResult struct {
@@ -217,6 +224,26 @@ type TradingRunResult struct {
 	Orders        []Order
 	Executions    []Execution
 	Notifications []Notification
+}
+
+type NotificationDelivery struct {
+	ID             string
+	NotificationID string
+	TaskID         string
+	IntentID       string
+	Channel        string
+	Provider       string
+	Target         string
+	Title          string
+	Body           string
+	Status         string
+	AttemptCount   int
+	MaxAttempts    int
+	NextAttemptAt  time.Time
+	LastAttemptAt  *time.Time
+	LastError      string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type NotificationChannel struct {
@@ -371,6 +398,8 @@ type Repository interface {
 	ListTradingExecutions(ctx context.Context, taskID string) ([]Execution, error)
 	ListTradingPositions(ctx context.Context, taskID string) ([]Position, error)
 	ListTradingNotifications(ctx context.Context, taskID string) ([]Notification, error)
+	ListNotifications(ctx context.Context) ([]Notification, error)
+	RetryNotification(ctx context.Context, id string) (Notification, error)
 	ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error)
 	CreateNotificationChannel(ctx context.Context, channel CreateNotificationChannel) (NotificationChannel, error)
 	ListExchangeAccounts(ctx context.Context) ([]ExchangeAccount, error)
@@ -404,6 +433,12 @@ type TradingRepository interface {
 	SaveTradingRunResult(ctx context.Context, result TradingRunResult) error
 	MarkTradingTaskFailed(ctx context.Context, taskID string, err error) error
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
+}
+
+type NotificationRepository interface {
+	ClaimNotificationDelivery(ctx context.Context, workerID string, leaseTTL time.Duration) (NotificationDelivery, bool, error)
+	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time) error
+	MarkNotificationFailed(ctx context.Context, deliveryID string, err error, nextAttemptAt *time.Time) error
 }
 
 type DataSyncResult struct {

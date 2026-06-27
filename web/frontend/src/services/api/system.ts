@@ -4,12 +4,21 @@ import type {
   CreateNotificationChannel,
   CreateOperator,
   ExchangeAccount,
+  Notification,
   NotificationChannel,
   Operator,
   SystemHealth,
 } from "@/types/app";
 
 export const systemApi = {
+  listNotifications() {
+    return apiClient.get<Notification[]>("/system/notifications");
+  },
+
+  retryNotification(id: string) {
+    return apiClient.post<Notification>(`/system/notifications/${encodeURIComponent(id)}/retry`);
+  },
+
   listNotificationChannels() {
     return apiClient.get<NotificationChannel[]>("/system/notifications/channels");
   },
