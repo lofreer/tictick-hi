@@ -21,15 +21,35 @@ func (server *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
-	case len(parts) == 3 && parts[2] == "login" && r.Method == http.MethodPost:
+	case len(parts) == 3 && parts[2] == "login":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
 		server.handleLogin(w, r)
-	case len(parts) == 3 && parts[2] == "me" && r.Method == http.MethodGet:
+	case len(parts) == 3 && parts[2] == "me":
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		server.handleCurrentOperator(w, r)
-	case len(parts) == 3 && parts[2] == "logout" && r.Method == http.MethodPost:
+	case len(parts) == 3 && parts[2] == "logout":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
 		server.handleLogout(w, r)
-	case len(parts) == 3 && parts[2] == "sessions" && r.Method == http.MethodGet:
+	case len(parts) == 3 && parts[2] == "sessions":
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		server.handleListOperatorSessions(w, r)
-	case len(parts) == 4 && parts[2] == "sessions" && r.Method == http.MethodDelete:
+	case len(parts) == 4 && parts[2] == "sessions":
+		if r.Method != http.MethodDelete {
+			writeMethodNotAllowed(w, http.MethodDelete)
+			return
+		}
 		server.handleDeleteOperatorSession(w, r, parts[3])
 	default:
 		writeError(w, http.StatusNotFound, "auth route not found")

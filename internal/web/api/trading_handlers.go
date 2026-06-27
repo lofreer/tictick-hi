@@ -15,16 +15,32 @@ func (server *Server) handleTradingTasks(w http.ResponseWriter, r *http.Request)
 		server.handleTradingTaskCollection(w, r)
 		return
 	}
-	if len(parts) == 4 && r.Method == http.MethodGet {
+	if len(parts) == 4 {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		server.getTradingTask(w, r, parts[3])
 		return
 	}
-	if len(parts) == 5 && r.Method == http.MethodPost {
-		server.handleTradingTaskCommand(w, r, parts[3], parts[4])
-		return
-	}
-	if len(parts) == 5 && r.Method == http.MethodGet {
-		server.handleTradingTaskDetailCollection(w, r, parts[3], parts[4])
+	if len(parts) == 5 {
+		if isTradingTaskCommand(parts[4]) {
+			if r.Method != http.MethodPost {
+				writeMethodNotAllowed(w, http.MethodPost)
+				return
+			}
+			server.handleTradingTaskCommand(w, r, parts[3], parts[4])
+			return
+		}
+		if isTradingTaskDetailCollection(parts[4]) {
+			if r.Method != http.MethodGet {
+				writeMethodNotAllowed(w, http.MethodGet)
+				return
+			}
+			server.handleTradingTaskDetailCollection(w, r, parts[3], parts[4])
+			return
+		}
+		writeError(w, http.StatusNotFound, "trading task collection not found")
 		return
 	}
 	writeError(w, http.StatusNotFound, "trading task route not found")
@@ -72,7 +88,7 @@ func (server *Server) handleTradingTaskCollection(w http.ResponseWriter, r *http
 		}
 		writeJSON(w, http.StatusCreated, task)
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
 }
 
@@ -172,5 +188,18 @@ func (server *Server) handleTradingTaskDetailCollection(
 		writeJSON(w, http.StatusOK, notifications)
 	default:
 		writeError(w, http.StatusNotFound, "trading task collection not found")
+	}
+}
+
+func isTradingTaskCommand(action string) bool {
+	return action == "start" || action == "pause" || action == "stop"
+}
+
+func isTradingTaskDetailCollection(collection string) bool {
+	switch collection {
+	case "intents", "orders", "executions", "positions", "notifications":
+		return true
+	default:
+		return false
 	}
 }

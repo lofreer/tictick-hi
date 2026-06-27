@@ -13,15 +13,23 @@ func (server *Server) handleBacktests(w http.ResponseWriter, r *http.Request) {
 		server.handleBacktestCollection(w, r)
 		return
 	}
-	if len(parts) == 3 && r.Method == http.MethodGet {
+	if len(parts) == 3 {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		server.getBacktest(w, r, parts[2])
 		return
 	}
-	if len(parts) == 4 && parts[3] == "orders" && r.Method == http.MethodGet {
-		server.listBacktestOrders(w, r, parts[2])
-		return
-	}
-	if len(parts) == 4 && parts[3] == "intents" && r.Method == http.MethodGet {
+	if len(parts) == 4 && (parts[3] == "orders" || parts[3] == "intents") {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		if parts[3] == "orders" {
+			server.listBacktestOrders(w, r, parts[2])
+			return
+		}
 		server.listBacktestIntents(w, r, parts[2])
 		return
 	}
@@ -66,7 +74,7 @@ func (server *Server) handleBacktestCollection(w http.ResponseWriter, r *http.Re
 		}
 		writeJSON(w, http.StatusCreated, task)
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
 }
 

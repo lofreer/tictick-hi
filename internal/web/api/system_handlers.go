@@ -8,7 +8,11 @@ import (
 
 func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 	parts := pathParts(r.URL.Path)
-	if len(parts) == 3 && parts[2] == "health" && r.Method == http.MethodGet {
+	if len(parts) == 3 && parts[2] == "health" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		health, err := server.repository.SystemHealth(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -21,7 +25,11 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleNotificationChannels(w, r)
 		return
 	}
-	if len(parts) == 3 && parts[2] == "notifications" && r.Method == http.MethodGet {
+	if len(parts) == 3 && parts[2] == "notifications" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		notifications, err := server.repository.ListNotifications(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -30,7 +38,11 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, notifications)
 		return
 	}
-	if len(parts) == 3 && parts[2] == "audit-events" && r.Method == http.MethodGet {
+	if len(parts) == 3 && parts[2] == "audit-events" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
 		events, err := server.repository.ListAuditEvents(r.Context(), parseAuditLimit(r))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -39,7 +51,11 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, events)
 		return
 	}
-	if len(parts) == 5 && parts[2] == "notifications" && parts[4] == "retry" && r.Method == http.MethodPost {
+	if len(parts) == 5 && parts[2] == "notifications" && parts[4] == "retry" {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
 		actor, _, authErr := server.currentOperator(r)
 		if authErr != nil {
 			writeAuthError(w, authErr)
@@ -111,7 +127,7 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 		}
 		writeJSON(w, http.StatusCreated, channel)
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
 }
 
@@ -154,7 +170,7 @@ func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Requ
 		}
 		writeJSON(w, http.StatusCreated, account)
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
 }
 
@@ -196,13 +212,13 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusCreated, operator)
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
 }
 
 func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Request, id string, action string) {
 	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodPost)
 		return
 	}
 	actor, _, authErr := server.currentOperator(r)

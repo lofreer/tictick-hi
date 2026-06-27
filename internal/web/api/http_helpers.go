@@ -50,6 +50,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeAPIError(w, status, code, safeMessage)
 }
 
+func writeMethodNotAllowed(w http.ResponseWriter, allowedMethods ...string) {
+	w.Header().Set("Allow", strings.Join(allowedMethods, ", "))
+	writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+}
+
 type apiErrorResponse struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

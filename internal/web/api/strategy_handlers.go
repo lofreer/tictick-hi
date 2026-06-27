@@ -6,7 +6,7 @@ import (
 
 func (server *Server) handleStrategies(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet)
 		return
 	}
 

@@ -15,15 +15,27 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		server.handleTaskCollection(w, r)
 		return
 	}
-	if len(parts) == 4 && r.Method == http.MethodDelete {
+	if len(parts) == 4 {
+		if r.Method != http.MethodDelete {
+			writeMethodNotAllowed(w, http.MethodDelete)
+			return
+		}
 		server.deleteDataTask(w, r, parts[3])
 		return
 	}
-	if len(parts) == 5 && r.Method == http.MethodPost && parts[4] == "retry" {
+	if len(parts) == 5 && parts[4] == "retry" {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
 		server.retryDataTask(w, r, parts[3])
 		return
 	}
-	if len(parts) == 6 && r.Method == http.MethodPost {
+	if len(parts) == 6 && (parts[4] == "sync" || parts[4] == "realtime") {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
 		server.handleTaskCommand(w, r, taskCommand{
 			id:       parts[3],
 			category: parts[4],
@@ -60,7 +72,7 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 		}
 		writeJSON(w, http.StatusCreated, task)
 	default:
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
 }
 
@@ -110,7 +122,7 @@ func (server *Server) retryDataTask(w http.ResponseWriter, r *http.Request, id s
 
 func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		writeMethodNotAllowed(w, http.MethodGet)
 		return
 	}
 
