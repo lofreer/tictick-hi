@@ -138,7 +138,7 @@ func runSync(ctx context.Context, args []string) error {
 	defer store.Close()
 
 	runner := datasync.NewRunner(store, exchange.NewRegistry(map[string]exchange.MarketDataClient{
-		"binance": binance.NewMarketClient(nil),
+		"binance": binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil),
 		"okx":     okx.NewMarketClient(nil),
 	}), datasync.Config{
 		WorkerID:       envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
@@ -298,6 +298,22 @@ func boolEnv(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func stringListEnv(key string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
 }
 
 func defaultWorkerID() string {

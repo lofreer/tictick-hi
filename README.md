@@ -58,3 +58,5 @@ docker compose down -v
 ```
 
 Change `POSTGRES_PASSWORD` and `BOOTSTRAP_OPERATOR_PASSWORD` before using the stack in any shared environment. `AUTH_COOKIE_SECURE=false` is only for local HTTP; enable it behind HTTPS.
+
+If Docker cannot reach `api.binance.com`, set `BINANCE_BASE_URLS` in `.env`. The local default tries `https://api.binance.com` first and falls back to `https://data-api.binance.vision`.

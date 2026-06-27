@@ -13,8 +13,30 @@
       </NButton>
     </header>
 
-    <div class="workspace-grid">
-      <section class="surface chart-panel">
+    <div class="research-workspace">
+      <section class="surface research-tasks-panel">
+        <div class="research-section-header">
+          <h2>{{ t("research.syncTasks") }}</h2>
+        </div>
+        <LoadingState v-if="tasksLoading" />
+        <ErrorState
+          v-else-if="tasksError"
+          :title="tasksError"
+          retryable
+          @retry="loadTasks"
+        />
+        <DataSyncTaskTable
+          v-else-if="tasks.length > 0"
+          :tasks="tasks"
+          @view="selectTask"
+          @delete="deleteTask"
+          @toggle-realtime="toggleRealtime"
+          @toggle-sync="toggleSync"
+        />
+        <EmptyState v-else :title="t('research.noTasks')" />
+      </section>
+
+      <section class="surface chart-panel research-chart-panel">
         <div class="research-toolbar">
           <div class="toolbar-row">
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
@@ -34,27 +56,6 @@
         <LoadingState v-else-if="candlesLoading" />
         <TradingViewChart v-else :data="candles" :empty-title="t('research.chartEmpty')" />
       </section>
-
-      <aside class="side-panel">
-        <NCard :title="t('research.syncTasks')" :bordered="false" class="surface">
-          <LoadingState v-if="tasksLoading" />
-          <ErrorState
-            v-else-if="tasksError"
-            :title="tasksError"
-            retryable
-            @retry="loadTasks"
-          />
-          <DataSyncTaskTable
-            v-else-if="tasks.length > 0"
-            :tasks="tasks"
-            @view="selectTask"
-            @delete="deleteTask"
-            @toggle-realtime="toggleRealtime"
-            @toggle-sync="toggleSync"
-          />
-          <EmptyState v-else :title="t('research.noTasks')" />
-        </NCard>
-      </aside>
     </div>
 
     <NModal
@@ -101,7 +102,6 @@
 import { Plus } from "@lucide/vue";
 import {
   NButton,
-  NCard,
   NDatePicker,
   NForm,
   NFormItem,
@@ -169,6 +169,30 @@ const intervalOptions = computed<SelectOption[]>(() => [
 </script>
 
 <style scoped>
+.research-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.research-tasks-panel {
+  overflow: hidden;
+}
+
+.research-section-header {
+  padding: 16px 16px 8px;
+}
+
+.research-section-header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 760;
+}
+
+.research-chart-panel {
+  min-height: 560px;
+}
+
 .research-toolbar {
   display: flex;
   align-items: center;

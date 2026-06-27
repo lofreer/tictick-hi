@@ -63,6 +63,7 @@ services:
     command: ["sync"]
     environment:
       <<: *app-environment
+      BINANCE_BASE_URLS: ${BINANCE_BASE_URLS:-https://api.binance.com,https://data-api.binance.vision}
       SYNC_POLL_INTERVAL: ${SYNC_POLL_INTERVAL:-10s}
     depends_on:
       postgres:

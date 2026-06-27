@@ -16,6 +16,7 @@ import {
   NDataTable,
   NSpace,
   NText,
+  NTooltip,
   type DataTableColumns,
   type DataTableRowKey,
 } from "naive-ui";
@@ -60,8 +61,8 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.lastError"),
     key: "lastError",
-    minWidth: 120,
-    render: (row) => h(NText, { depth: row.lastError ? 1 : 3 }, () => row.lastError ?? "-"),
+    minWidth: 180,
+    render: lastErrorCell,
   },
   {
     title: t("research.actions"),
@@ -99,7 +100,41 @@ function iconButton(
   );
 }
 
+function lastErrorCell(row: DataSyncTask) {
+  if (!row.lastError) {
+    return h(NText, { depth: 3 }, () => "-");
+  }
+  const summary = summarizeError(row.lastError);
+  return h(
+    NTooltip,
+    { trigger: "hover", width: 420 },
+    {
+      trigger: () => h("span", { class: "task-error-text" }, summary),
+      default: () => row.lastError,
+    },
+  );
+}
+
+function summarizeError(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 90) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 87)}...`;
+}
+
 function rowKey(row: DataSyncTask): DataTableRowKey {
   return row.id;
 }
 </script>
+
+<style scoped>
+.task-error-text {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--tt-danger);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

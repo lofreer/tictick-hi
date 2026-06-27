@@ -23,7 +23,7 @@ type MarketClient struct {
 
 func NewMarketClient(httpClient *http.Client) *MarketClient {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{Timeout: 15 * time.Second}
 	}
 	return &MarketClient{baseURL: defaultBaseURL, httpClient: httpClient}
 }

@@ -3,10 +3,12 @@ package binance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -15,29 +17,54 @@ import (
 
 const defaultBaseURL = "https://api.binance.com"
 
+var defaultBaseURLs = []string{
+	defaultBaseURL,
+	"https://data-api.binance.vision",
+}
+
 type MarketClient struct {
-	baseURL    string
+	baseURLs   []string
 	httpClient *http.Client
 }
 
 func NewMarketClient(httpClient *http.Client) *MarketClient {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{Timeout: 15 * time.Second}
 	}
-	return &MarketClient{baseURL: defaultBaseURL, httpClient: httpClient}
+	return &MarketClient{baseURLs: append([]string(nil), defaultBaseURLs...), httpClient: httpClient}
+}
+
+func NewMarketClientWithBaseURLs(baseURLs []string, httpClient *http.Client) *MarketClient {
+	client := NewMarketClient(httpClient)
+	client.baseURLs = normalizeBaseURLs(baseURLs)
+	return client
 }
 
 func NewMarketClientForURL(baseURL string, httpClient *http.Client) *MarketClient {
-	client := NewMarketClient(httpClient)
-	client.baseURL = baseURL
-	return client
+	return NewMarketClientWithBaseURLs([]string{baseURL}, httpClient)
 }
 
 func (client *MarketClient) FetchCandles(
 	ctx context.Context,
 	request exchange.CandleRequest,
 ) ([]data.Candle, error) {
-	endpoint, err := url.Parse(client.baseURL + "/api/v3/klines")
+	var errors []string
+	for _, baseURL := range client.baseURLs {
+		candles, err := client.fetchCandlesFrom(ctx, baseURL, request)
+		if err == nil {
+			return candles, nil
+		}
+		errors = append(errors, endpointError(baseURL, err))
+	}
+	return nil, fmt.Errorf("binance klines unavailable: %s", strings.Join(errors, "; "))
+}
+
+func (client *MarketClient) fetchCandlesFrom(
+	ctx context.Context,
+	baseURL string,
+	request exchange.CandleRequest,
+) ([]data.Candle, error) {
+	endpoint, err := url.Parse(strings.TrimRight(baseURL, "/") + "/api/v3/klines")
 	if err != nil {
 		return nil, fmt.Errorf("binance endpoint: %w", err)
 	}
@@ -57,11 +84,11 @@ func (client *MarketClient) FetchCandles(
 
 	response, err := client.httpClient.Do(httpRequest)
 	if err != nil {
-		return nil, fmt.Errorf("binance klines: %w", err)
+		return nil, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("binance klines status: %s", response.Status)
+		return nil, fmt.Errorf("status %s", response.Status)
 	}
 
 	var rows []binanceKline
@@ -79,6 +106,33 @@ func (client *MarketClient) FetchCandles(
 		candles = append(candles, candle)
 	}
 	return candles, nil
+}
+
+func normalizeBaseURLs(baseURLs []string) []string {
+	normalized := make([]string, 0, len(baseURLs))
+	for _, baseURL := range baseURLs {
+		baseURL = strings.TrimSpace(baseURL)
+		if baseURL != "" {
+			normalized = append(normalized, baseURL)
+		}
+	}
+	if len(normalized) == 0 {
+		return append([]string(nil), defaultBaseURLs...)
+	}
+	return normalized
+}
+
+func endpointError(baseURL string, err error) string {
+	parsed, parseErr := url.Parse(baseURL)
+	host := baseURL
+	if parseErr == nil && parsed.Host != "" {
+		host = parsed.Host
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Sprintf("%s: %s %v", host, urlErr.Op, urlErr.Err)
+	}
+	return fmt.Sprintf("%s: %v", host, err)
 }
 
 type binanceKline []json.RawMessage
