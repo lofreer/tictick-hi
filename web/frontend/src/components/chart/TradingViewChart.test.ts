@@ -232,6 +232,7 @@ describe("TradingViewChart", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     document.body.append(panel);
+    setClientSize(panel, { width: 900, height: 560 });
 
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
       if (this === panel) {
@@ -258,6 +259,7 @@ describe("TradingViewChart", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
     document.body.append(host);
+    setClientSize(host, { width: 1000, height: 620 });
 
     let size = { width: 1000, height: 620 };
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
@@ -274,6 +276,7 @@ describe("TradingViewChart", () => {
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
     size = { width: 1000, height: 580 };
+    setClientSize(host, size);
     resizeCallback?.([], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
@@ -316,13 +319,15 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
-  it("uses the observed chart viewport content box when chart internals inflate layout bounds", () => {
+  it("ignores observed chart viewport height when chart internals inflate layout bounds", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
     host.className = "research-chart-body";
     panel.append(host);
     document.body.append(panel);
+    setClientSize(panel, { width: 1200, height: 760 });
+    setClientSize(host, { width: 1180, height: 680 });
 
     let inflated = false;
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
@@ -381,7 +386,7 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
-  it("caps chart-driven host growth to the viewport without a panel boundary", () => {
+  it("does not chase chart-driven host growth without a trusted height boundary", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
     document.body.append(host);
@@ -402,13 +407,12 @@ describe("TradingViewChart", () => {
     hostHeight = 5000;
     resizeCallback?.([], {} as ResizeObserver);
 
-    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 768);
+    expect(chartMocks.resize).not.toHaveBeenCalled();
 
     hostHeight = 8000;
     resizeCallback?.([], {} as ResizeObserver);
 
-    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).not.toHaveBeenCalled();
 
     wrapper.unmount();
     host.remove();

@@ -175,10 +175,22 @@ function readHostSize() {
 }
 
 function readStableHostHeight(host: HTMLElement, hostBounds: DOMRect) {
-  const rawHeight = readClientHeight(host) ?? readObservedHeight(host) ?? readPixelHeight(host) ?? Math.floor(hostBounds.height);
   const panelCap = readPanelAvailableHeight(host);
-  const cappedHeight = panelCap ? Math.min(rawHeight, panelCap) : rawHeight;
-  return clampRenderedHeight(cappedHeight);
+  const clientHeight = readClientHeight(host);
+  if (clientHeight) {
+    return clampRenderedHeight(panelCap ? Math.min(clientHeight, panelCap) : clientHeight);
+  }
+  if (panelCap) {
+    return clampRenderedHeight(panelCap);
+  }
+
+  const pixelHeight = readPixelHeight(host);
+  if (pixelHeight) {
+    return clampRenderedHeight(pixelHeight);
+  }
+
+  const height = Math.floor(hostBounds.height);
+  return clampRenderedHeight(height > 0 ? Math.min(height, fallbackSize.height) : fallbackSize.height);
 }
 
 function clampRenderedHeight(height: number) {
@@ -206,7 +218,7 @@ function readPanelAvailableHeight(host: HTMLElement) {
   if (!panel || panel === host) return null;
 
   const panelBounds = panel.getBoundingClientRect();
-  const panelHeight = readClientHeight(panel) ?? readPixelHeight(panel) ?? readObservedHeight(panel) ?? Math.floor(panelBounds.height);
+  const panelHeight = readPixelHeight(panel) ?? readClientHeight(panel) ?? Math.floor(panelBounds.height);
   const offsetTop = Math.max(0, Math.floor(host.offsetTop || host.getBoundingClientRect().top - panelBounds.top));
   const availableHeight = panelHeight - offsetTop;
   return availableHeight > 0 ? availableHeight : null;
@@ -215,11 +227,6 @@ function readPanelAvailableHeight(host: HTMLElement) {
 function readObservedWidth(element: HTMLElement) {
   if (element !== observedResizeHost || !observedResizeHostSize) return null;
   return observedResizeHostSize.width > 0 ? observedResizeHostSize.width : null;
-}
-
-function readObservedHeight(element: HTMLElement) {
-  if (element !== observedResizeHost || !observedResizeHostSize) return null;
-  return observedResizeHostSize.height > 0 ? observedResizeHostSize.height : null;
 }
 
 function readObserverContentSize(entry: ResizeObserverEntry) {

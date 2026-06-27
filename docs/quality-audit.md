@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，lightweight-charts 外层视口使用 `contain: strict`、固定 100% CSS 边界、视口 `clientWidth/clientHeight` 单向输入和面板可用高度上限，不再把 chart 内部高度反写到 root/canvas，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 flex 剩余空间和面板边界切断高度反馈，lightweight-charts 外层视口使用 `contain: strict`、固定 100% CSS 边界、视口 `clientWidth/clientHeight` 单向输入和面板可用高度上限，JS 不再信任 `ResizeObserver` / bounds height 作为图表高度输入，也不再把 chart 内部高度反写到 root/canvas，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -611,6 +611,38 @@ scripts/quality-gate.sh
 
 - 本轮未执行 `scripts/stage8-smoke.sh`、`scripts/stage8-sigterm-smoke.sh`；本次修复范围限定为前端图表高度反馈和本地 API 静态资源更新。
 - 浏览器采样仍出现登录前 `/api/auth/me` 的预期 `401` 和 Chrome 对 password autocomplete 的提示；未捕获 JS runtime error。
+
+### 阶段 1 研究页 K 线高度稳定性七次加固
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户侧继续反馈 K 线图表界面会无限拉高，直到页面崩掉。
+- 本地 `8080/research` 当前构建 headless Chrome 未复现持续增长，但旧实现仍允许在没有可信 `clientHeight` 时，把 `ResizeObserver` height 或 bounds height 作为图表高度输入。
+
+修复范围：
+
+- `TradingViewChart` 高度读取收敛为：优先使用 chart viewport `clientHeight`；如果存在 `.chart-panel`，只使用固定面板可用高度作为上限和兜底；最后才退回固定 fallback。
+- `ResizeObserver` 只保留宽度辅助输入，observer height 不再参与图表高度计算。
+- `.chart-panel` 可用高度读取优先使用 CSS computed height，再回退 client / bounds，避免 observer height 污染面板高度。
+- 研究页图表面板从 grid 百分比行改为 flex 列布局，`.research-chart-body` 只占工具栏之外的剩余空间，不再用 `height: 100%` 参与自身高度解算。
+- 图表单测更新为新契约：没有可信高度边界时不追随图表驱动的宿主增高；有固定面板时忽略膨胀 observer height。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/components/chart/TradingViewChart.test.ts`
+- 本轮通用门禁见最终回复。
+- Headless Chrome `1440x900` 登录并打开 `/research`，80 次采样 first/last 均为 `documentHeight=1238`、`panel=680`、`chartBody=603`、`chart=603`、`canvasHost=603`、`tv=603`，`uniqueCount=1`，无增长。
+- Headless Chrome mobile `390x844` 登录并打开 `/research`，80 次采样 first/last 均为 `documentHeight=1256`、`panel=624`、`chartBody=457`、`chart=457`、`canvasHost=457`、`tv=457`，`uniqueCount=1`，无增长。
+
+失败：
+
+- 旧图表单测首次运行失败 4 项，原因是测试仍断言旧策略允许无可信边界时追随 bounds/viewport 高度；已按新高度输入契约改写并重新通过。
+
+剩余风险：
+
+- 本地 headless Chrome 仍未复现用户侧持续增长；本轮通过删除 observer/bounds height 输入来关闭主要反馈入口，但仍需用户在真实可见浏览器中确认。
 
 ### 阶段 1 Candle 查询 limit 边界补充
 
