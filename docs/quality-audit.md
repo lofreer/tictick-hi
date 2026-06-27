@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 flex 剩余空间和面板边界切断高度反馈，lightweight-charts 外层视口使用 `contain: strict`、固定 100% CSS 边界、视口 `clientWidth/clientHeight` 单向输入和面板可用高度上限，JS 不再信任 `ResizeObserver` / bounds height 作为图表高度输入，也不再把 chart 内部高度反写到 root/canvas，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 flex 剩余空间和面板边界切断高度反馈，`.research-chart-body` 使用 `flex: 1 1 0` + `height: 0` + `contain: strict` 阻断图表内部 DOM 参与父级固有尺寸计算，lightweight-charts 外层视口使用固定 100% CSS 边界、视口 `clientWidth/clientHeight` 单向输入和面板可用高度上限，JS 不再信任 `ResizeObserver` / bounds height 作为图表高度输入，也不再把 chart 内部高度反写到 root/canvas，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -724,6 +724,43 @@ scripts/quality-gate.sh
 剩余风险：
 
 - 本轮在 headless Chrome 桌面/移动均未复现持续增长；用户可见 Chrome 会话仍需要人工确认，但已关闭当前代码中实际存在的 grid 百分比高度回归入口。
+
+### 阶段 1 研究页 K 线高度稳定性十次加固
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 本地 Vite 页面、`127.0.0.1:8080` 当前静态页和真实 API 登录后的 headless Chrome 采样均未复现持续增长，但九次加固后的 `.research-chart-body` 仍保留 `height: auto`，在 flex 固有尺寸计算上仍不够硬。
+
+修复范围：
+
+- `.research-chart-body` 从 `height: auto` 改为 `height: 0`，保持 `flex: 1 1 0` 和 `contain: strict`，让图表槽只接受父面板分配的剩余空间，不再让子内容参与 flex item 的基础高度计算。
+- `ResearchPage.layout.test.ts` 增加对 `height: 0` 和 `contain: strict` 的布局契约检查，防止再次回退到 `auto` / `100%` 高度。
+- 重新执行生产构建，确认构建产物包含 `.research-chart-body{height:0;contain:strict}`。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/components/chart/TradingViewChart.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- Headless Chrome + Vite mock API 桌面 `2048x997` 打开 `/research`，40 次采样 first/last 均为 `scrollHeight=1099`、`panel=760`、`body=683`、`chart=683`、`tv=683`，`stable=true`。
+- 修复前已对 `127.0.0.1:8080/research` 当前静态页做 60 次 mock API 采样和 80 次真实 API 登录采样，均未复现持续增长；本轮改动进一步收紧 CSS flex 基准。
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/assets/ResearchPage-DDrIJRVm.css` 确认构建产物包含 `.research-chart-body{height:0;contain:strict}`。
+- Headless Chrome + 重建后的 `127.0.0.1:8080` 真实 API 桌面 `2048x997` 登录并打开 `/research`，100 次采样 first/last 均为 `scrollHeight=1318`、`panel=760`、`body=683`、`chart=683`、`tv=683`，`stable=true`、`uniqueDocHeights=[1318]`、`uniqueChartHeights=[683]`。
+- `go test ./...`
+- `go vet ./...`
+
+失败：
+
+- 无硬失败。
+
+剩余风险：
+
+- 本轮仍未在用户可见 Chrome 会话中复现原始无限增长；当前 8080 服务已重建，需要用户刷新可见 Chrome 页面确认。但当前源码和构建产物已经把研究页图表 body 的 flex 基准收敛为固定 0，不再允许子图表内容放大父级基础高度。
 
 ### 阶段 1 Candle 查询 limit 边界补充
 

@@ -12,8 +12,9 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
     expect(bodyStyle).toContain("flex: 1 1 0;");
-    expect(bodyStyle).toContain("height: auto;");
+    expect(bodyStyle).toContain("height: 0;");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
+    expect(bodyStyle).toContain("contain: strict;");
   });
 });
 

@@ -282,7 +282,7 @@ const healthTagType = computed<TagProps["type"]>(() => {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  height: auto;
+  height: 0;
   max-height: 100%;
   min-width: 0;
   min-height: 0;
