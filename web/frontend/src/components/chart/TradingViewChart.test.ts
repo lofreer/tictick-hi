@@ -255,7 +255,38 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
-  it("writes one explicit pixel size to the root and canvas hosts", () => {
+  it("does not chase chart-driven host height growth beyond the panel boundary", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    let hostHeight = 680;
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: 760 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1180, height: hostHeight });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mountChart(host);
+    chartMocks.resize.mockClear();
+
+    hostHeight = 3200;
+    resizeCallback?.([], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
+  it("leaves root and canvas sizing under CSS control", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
     document.body.append(host);
@@ -265,10 +296,10 @@ describe("TradingViewChart", () => {
     const root = wrapper.get<HTMLElement>(".trading-chart").element;
     const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
 
-    expect(root.style.width).toBe("1000px");
-    expect(root.style.height).toBe("620px");
-    expect(canvasHost.style.width).toBe("1000px");
-    expect(canvasHost.style.height).toBe("620px");
+    expect(root.style.width).toBe("");
+    expect(root.style.height).toBe("");
+    expect(canvasHost.style.width).toBe("");
+    expect(canvasHost.style.height).toBe("");
 
     wrapper.unmount();
     host.remove();

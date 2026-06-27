@@ -273,10 +273,12 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-chart-body {
   position: relative;
   display: block;
+  height: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  contain: size layout paint;
+  contain: layout paint;
 }
 
 .research-chart-body :deep(.state-block),

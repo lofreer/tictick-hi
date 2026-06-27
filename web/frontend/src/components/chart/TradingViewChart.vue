@@ -50,7 +50,6 @@ onMounted(() => {
 
   const initialSize = readHostSize() ?? fallbackSize;
   lastSize = initialSize;
-  applyContainerSize(initialSize);
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
     width: initialSize.width,
@@ -146,7 +145,6 @@ function resizeChart() {
   if (nextSize.width === lastSize.width && nextSize.height === lastSize.height) return;
 
   lastSize = nextSize;
-  applyContainerSize(nextSize);
   chart.resize(nextSize.width, nextSize.height);
 }
 
@@ -207,16 +205,5 @@ function readLayoutHost() {
   if (!root) return null;
   const parent = root.parentElement;
   return parent?.closest<HTMLElement>(".research-chart-body, .chart-panel") ?? parent ?? root;
-}
-
-function applyContainerSize(size: { width: number; height: number }) {
-  if (rootRef.value) {
-    rootRef.value.style.width = `${size.width}px`;
-    rootRef.value.style.height = `${size.height}px`;
-  }
-  if (containerRef.value) {
-    containerRef.value.style.width = `${size.width}px`;
-    containerRef.value.style.height = `${size.height}px`;
-  }
 }
 </script>
