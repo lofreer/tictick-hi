@@ -382,16 +382,7 @@ func recalculatePositions(ctx context.Context, tx pgx.Tx, taskID string) error {
 }
 
 func releaseTradingTask(ctx context.Context, tx pgx.Tx, taskID string) error {
-	_, err := tx.Exec(ctx, `
-		UPDATE trading_tasks
-		   SET locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
-		       updated_at = now()
-		 WHERE id = $1`,
-		taskID,
-	)
-	if err != nil {
+	if err := releaseLease(ctx, tx, tradingTaskLease, taskID); err != nil {
 		return fmt.Errorf("release trading task: %w", err)
 	}
 	return nil

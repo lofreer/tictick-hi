@@ -137,7 +137,7 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `
+	if _, err := tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE data_sync_tasks
 		   SET last_synced_open_time = COALESCE($2, last_synced_open_time),
 		       status = CASE
@@ -149,16 +149,14 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 		         WHEN $4::boolean AND NOT realtime_enabled THEN false
 		         ELSE sync_enabled
 		       END,
-		       locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
+		       %s,
 		       finished_at = CASE
 		         WHEN $4::boolean AND NOT realtime_enabled THEN now()
 		         ELSE finished_at
 		       END,
 		       last_error = NULL,
 		       updated_at = now()
-		 WHERE id = $1`,
+		 WHERE id = $1`, clearLeaseAssignments(dataSyncTaskLease)),
 		result.TaskID,
 		result.LastOpenTime,
 		data.TaskStatusRunning,
@@ -177,18 +175,16 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 
 func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskErr error) error {
 	retryable := exchange.IsTemporaryError(taskErr)
-	_, err := store.pool.Exec(ctx, `
+	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
 		UPDATE data_sync_tasks
 		   SET status = CASE
 		         WHEN $4::boolean AND (sync_enabled OR realtime_enabled) THEN $5
 		         ELSE $2
 		       END,
-		       locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
+		       %s,
 		       last_error = $3,
 		       updated_at = now()
-		 WHERE id = $1`,
+		 WHERE id = $1`, clearLeaseAssignments(dataSyncTaskLease)),
 		taskID,
 		data.TaskStatusFailed,
 		normalizeTaskError(taskErr),

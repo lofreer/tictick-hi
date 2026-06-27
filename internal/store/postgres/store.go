@@ -162,15 +162,15 @@ func (store *Store) updateTaskFlag(
 		UPDATE data_sync_tasks
 		   SET %s = $2,
 		       status = $3,
-		       locked_by = CASE WHEN $2::boolean THEN locked_by ELSE NULL END,
-		       locked_until = CASE WHEN $2::boolean THEN locked_until ELSE NULL END,
-		       heartbeat_at = CASE WHEN $2::boolean THEN heartbeat_at ELSE NULL END,
+		       %s,
 		       finished_at = CASE WHEN $2::boolean THEN finished_at ELSE now() END,
 		       updated_at = now()
 		 WHERE id = $1
 		RETURNING id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`, column),
+		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		column,
+		clearLeaseCaseAssignments(dataSyncTaskLease, "NOT $2::boolean")),
 		id, enabled, status,
 	)
 

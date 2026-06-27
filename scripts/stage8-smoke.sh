@@ -129,7 +129,7 @@ assert_task_unlocked() {
   local id="$2"
   local expected_status="$3"
   case "$table" in
-    data_sync_tasks|trading_tasks) ;;
+    data_sync_tasks|backtest_tasks|trading_tasks) ;;
     *) fail "unsupported lock assertion table $table" ;;
   esac
   local count
@@ -145,6 +145,23 @@ SQL
 )"
   if [ "$count" != "1" ]; then
     fail "expected $table $id to be $expected_status and unlocked"
+  fi
+}
+
+assert_notification_outbox_unlocked() {
+  local task_id="$1"
+  local count
+  count="$(psql_exec -At -v task_id="$task_id" <<'SQL' | tr -d '[:space:]'
+SELECT count(*)
+  FROM notification_outbox
+ WHERE task_id = :'task_id'
+   AND status = 'delivered'
+   AND locked_by IS NULL
+   AND locked_until IS NULL;
+SQL
+)"
+  if [ "$count" = "0" ]; then
+    fail "expected delivered notification_outbox rows for $task_id to be unlocked"
   fi
 }
 
@@ -394,6 +411,7 @@ api_post "/api/backtests" \
   201
 BACKTEST_ID="$(json_get "$BODY_FILE" id)"
 wait_for_backtest "$BACKTEST_ID"
+assert_task_unlocked backtest_tasks "$BACKTEST_ID" succeeded
 api_get "/api/backtests/$BACKTEST_ID/orders"
 if [ "$(json_get "$BODY_FILE" length)" -le 0 ]; then
   fail "expected backtest orders"
@@ -435,6 +453,7 @@ fi
 api_post "/api/trading/tasks/$EXECUTE_TASK_ID/pause" "{}"
 api_post "/api/trading/tasks/$NOTIFY_TASK_ID/pause" "{}"
 wait_for_notifications_sent "$NOTIFY_TASK_ID"
+assert_notification_outbox_unlocked "$NOTIFY_TASK_ID"
 
 log "system health"
 api_get "/api/system/health"

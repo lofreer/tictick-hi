@@ -272,17 +272,15 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `
+	if _, err := tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE backtest_tasks
 		   SET status = $2,
 		       result_summary = $3::jsonb,
-		       locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
+		       %s,
 		       finished_at = now(),
 		       last_error = NULL,
 		       updated_at = now()
-		 WHERE id = $1`,
+		 WHERE id = $1`, clearLeaseAssignments(backtestTaskLease)),
 		result.TaskID,
 		data.TaskStatusSucceeded,
 		summaryJSON,
@@ -297,16 +295,14 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 }
 
 func (store *Store) MarkBacktestFailed(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, `
+	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
 		UPDATE backtest_tasks
 		   SET status = $2,
-		       locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
+		       %s,
 		       last_error = $3,
 		       finished_at = now(),
 		       updated_at = now()
-		 WHERE id = $1`,
+		 WHERE id = $1`, clearLeaseAssignments(backtestTaskLease)),
 		taskID,
 		data.TaskStatusFailed,
 		taskErr.Error(),

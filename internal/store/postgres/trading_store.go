@@ -95,17 +95,15 @@ func (store *Store) SetTradingTaskStatus(
 	id string,
 	status data.TaskStatus,
 ) (data.TradingTask, error) {
-	row := store.pool.QueryRow(ctx, `
+	row := store.pool.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE trading_tasks
 		   SET status = $2,
-		       locked_by = CASE WHEN $2 IN ($4, $5, $6) THEN NULL ELSE locked_by END,
-		       locked_until = CASE WHEN $2 IN ($4, $5, $6) THEN NULL ELSE locked_until END,
-		       heartbeat_at = CASE WHEN $2 IN ($4, $5, $6) THEN NULL ELSE heartbeat_at END,
+		       %s,
 		       started_at = CASE WHEN $2 = $3 THEN COALESCE(started_at, now()) ELSE started_at END,
 		       finished_at = CASE WHEN $2 IN ($4, $5, $6) THEN now() ELSE finished_at END,
 		       updated_at = now()
 		 WHERE id = $1
-		RETURNING `+tradingTaskColumns,
+		RETURNING `+tradingTaskColumns, clearLeaseCaseAssignments(tradingTaskLease, "$2 IN ($4, $5, $6)")),
 		id,
 		status,
 		data.TaskStatusRunning,
@@ -228,15 +226,13 @@ func (store *Store) SaveTradingRunResult(ctx context.Context, result data.Tradin
 }
 
 func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, `
+	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
 		UPDATE trading_tasks
 		   SET status = $2,
-		       locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
+		       %s,
 		       last_error = $3,
 		       updated_at = now()
-		 WHERE id = $1`,
+		 WHERE id = $1`, clearLeaseAssignments(tradingTaskLease)),
 		taskID,
 		data.TaskStatusFailed,
 		taskErr.Error(),

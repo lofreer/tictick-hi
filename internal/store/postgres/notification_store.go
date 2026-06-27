@@ -56,17 +56,16 @@ func (store *Store) RetryNotification(ctx context.Context, id string) (data.Noti
 		return notification, nil
 	}
 
-	commandTag, err := tx.Exec(ctx, `
+	commandTag, err := tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE notification_outbox
 		   SET status = 'pending',
 		       provider = $2,
 		       target = $3,
 		       next_attempt_at = now(),
-		       locked_by = NULL,
-		       locked_until = NULL,
+		       %s,
 		       last_error = NULL,
 		       updated_at = now()
-		 WHERE notification_id = $1`,
+		 WHERE notification_id = $1`, clearLeaseAssignments(notificationOutboxLease)),
 		id,
 		route.Provider,
 		route.Target,
@@ -112,17 +111,16 @@ func markRetriedNotificationDisabled(
 	route resolvedNotificationRoute,
 	message string,
 ) error {
-	commandTag, err := tx.Exec(ctx, `
+	commandTag, err := tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE notification_outbox
 		   SET status = 'failed',
 		       provider = $2,
 		       target = $3,
 		       next_attempt_at = NULL,
-		       locked_by = NULL,
-		       locked_until = NULL,
+		       %s,
 		       last_error = $4,
 		       updated_at = now()
-		 WHERE notification_id = $1`,
+		 WHERE notification_id = $1`, clearLeaseAssignments(notificationOutboxLease)),
 		id,
 		route.Provider,
 		route.Target,
@@ -232,16 +230,15 @@ func (store *Store) MarkNotificationDelivered(ctx context.Context, deliveryID st
 
 	var notificationID string
 	var attemptCount int
-	err = tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE notification_outbox
 		   SET status = 'delivered',
 		       delivered_at = $2,
 		       last_error = NULL,
-		       locked_by = NULL,
-		       locked_until = NULL,
+		       %s,
 		       updated_at = now()
 		 WHERE id = $1
-		RETURNING notification_id, attempt_count`,
+		RETURNING notification_id, attempt_count`, clearLeaseAssignments(notificationOutboxLease)),
 		deliveryID,
 		deliveredAt,
 	).Scan(&notificationID, &attemptCount)
@@ -292,16 +289,15 @@ func (store *Store) MarkNotificationFailed(
 
 	var notificationID string
 	var attemptCount int
-	err = tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE notification_outbox
 		   SET status = $2,
 		       next_attempt_at = $3,
 		       last_error = $4,
-		       locked_by = NULL,
-		       locked_until = NULL,
+		       %s,
 		       updated_at = now()
 		 WHERE id = $1
-		RETURNING notification_id, attempt_count`,
+		RETURNING notification_id, attempt_count`, clearLeaseAssignments(notificationOutboxLease)),
 		deliveryID,
 		status,
 		nextAttempt,
