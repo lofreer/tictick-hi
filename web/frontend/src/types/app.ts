@@ -224,6 +224,11 @@ export type CreateOperator = {
   enabled: boolean;
 };
 
+export type LoginCredentials = {
+  username: string;
+  password: string;
+};
+
 export type ServiceHealth = {
   name: string;
   status: string;

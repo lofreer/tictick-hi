@@ -231,6 +231,17 @@ type CreateOperator struct {
 	Enabled  bool   `json:"enabled"`
 }
 
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type OperatorSession struct {
+	OperatorID string
+	TokenHash  string
+	ExpiresAt  time.Time
+}
+
 type SystemHealth struct {
 	Status    string          `json:"status"`
 	Database  string          `json:"database"`
@@ -291,6 +302,10 @@ type Repository interface {
 	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
 	ListOperators(ctx context.Context) ([]Operator, error)
 	CreateOperator(ctx context.Context, operator CreateOperator) (Operator, error)
+	AuthenticateOperator(ctx context.Context, username string, password string) (Operator, error)
+	CreateOperatorSession(ctx context.Context, session OperatorSession) error
+	GetOperatorBySession(ctx context.Context, tokenHash string, now time.Time) (Operator, error)
+	DeleteOperatorSession(ctx context.Context, tokenHash string) error
 	SystemHealth(ctx context.Context) (SystemHealth, error)
 }
 

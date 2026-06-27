@@ -20,7 +20,9 @@
               :placeholder="t('auth.passwordPlaceholder')"
             />
           </NFormItem>
-          <NButton attr-type="submit" block type="primary">{{ t("auth.login") }}</NButton>
+          <NButton attr-type="submit" block type="primary" :loading="submitting">
+            {{ t("auth.login") }}
+          </NButton>
         </NForm>
       </NSpace>
     </NCard>
@@ -44,16 +46,23 @@ const authStore = useAuthStore();
 
 const username = ref("admin");
 const password = ref("");
+const submitting = ref(false);
 
-function submit() {
+async function submit() {
   if (!username.value.trim() || !password.value.trim()) {
     message.error(t("auth.required"));
     return;
   }
 
-  authStore.login(username.value);
-  const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "/overview";
-  router.push(redirect);
+  submitting.value = true;
+  try {
+    await authStore.login(username.value, password.value);
+    const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "/overview";
+    await router.push(redirect);
+  } catch {
+    message.error(t("auth.invalid"));
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
-

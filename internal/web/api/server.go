@@ -1,6 +1,10 @@
 package api
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,17 +19,36 @@ import (
 	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
+const sessionCookieName = "tictick_hi_session"
+
+type Config struct {
+	StaticRoot   string
+	SessionTTL   time.Duration
+	CookieSecure bool
+}
+
 type Server struct {
 	repository         data.Repository
 	strategyRepository strategy.Repository
 	staticRoot         string
+	sessionTTL         time.Duration
+	cookieSecure       bool
 }
 
 func NewServer(repository data.Repository, staticRoot string) http.Handler {
+	return NewServerWithConfig(repository, Config{StaticRoot: staticRoot})
+}
+
+func NewServerWithConfig(repository data.Repository, config Config) http.Handler {
+	if config.SessionTTL <= 0 {
+		config.SessionTTL = 12 * time.Hour
+	}
 	return &Server{
 		repository:         repository,
 		strategyRepository: strategy.BuiltinRegistry(),
-		staticRoot:         staticRoot,
+		staticRoot:         config.StaticRoot,
+		sessionTTL:         config.SessionTTL,
+		cookieSecure:       config.CookieSecure,
 	}
 }
 
@@ -33,6 +56,20 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/readyz":
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	case strings.HasPrefix(r.URL.Path, "/api/auth"):
+		server.handleAuth(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/"):
+		if _, ok := server.authenticateRequest(w, r); !ok {
+			return
+		}
+		server.serveAPI(w, r)
+	default:
+		server.serveFrontend(w, r)
+	}
+}
+
+func (server *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
+	switch {
 	case strings.HasPrefix(r.URL.Path, "/api/data/tasks"):
 		server.handleDataTasks(w, r)
 	case r.URL.Path == "/api/candles":
@@ -50,6 +87,134 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		server.serveFrontend(w, r)
 	}
+}
+
+func (server *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
+	parts := pathParts(r.URL.Path)
+	if len(parts) != 3 || parts[0] != "api" || parts[1] != "auth" {
+		writeError(w, http.StatusNotFound, "auth route not found")
+		return
+	}
+
+	switch {
+	case parts[2] == "login" && r.Method == http.MethodPost:
+		server.handleLogin(w, r)
+	case parts[2] == "me" && r.Method == http.MethodGet:
+		server.handleCurrentOperator(w, r)
+	case parts[2] == "logout" && r.Method == http.MethodPost:
+		server.handleLogout(w, r)
+	default:
+		writeError(w, http.StatusNotFound, "auth route not found")
+	}
+}
+
+func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var request data.LoginRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if request.Username == "" || request.Password == "" {
+		writeError(w, http.StatusBadRequest, "username and password are required")
+		return
+	}
+
+	operator, err := server.repository.AuthenticateOperator(
+		r.Context(),
+		request.Username,
+		request.Password,
+	)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+
+	token, tokenHash, err := newSessionToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	expiresAt := time.Now().UTC().Add(server.sessionTTL)
+	err = server.repository.CreateOperatorSession(r.Context(), data.OperatorSession{
+		OperatorID: operator.ID,
+		TokenHash:  tokenHash,
+		ExpiresAt:  expiresAt,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	server.setSessionCookie(w, token, expiresAt)
+	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) handleCurrentOperator(w http.ResponseWriter, r *http.Request) {
+	operator, _, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	_, tokenHash, err := server.currentOperator(r)
+	if err == nil {
+		if err := server.repository.DeleteOperatorSession(r.Context(), tokenHash); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	server.clearSessionCookie(w)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (server *Server) authenticateRequest(w http.ResponseWriter, r *http.Request) (data.Operator, bool) {
+	operator, _, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return data.Operator{}, false
+	}
+	return operator, true
+}
+
+func (server *Server) currentOperator(r *http.Request) (data.Operator, string, error) {
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil || cookie.Value == "" {
+		return data.Operator{}, "", data.ErrUnauthorized
+	}
+	tokenHash := sessionTokenHash(cookie.Value)
+	operator, err := server.repository.GetOperatorBySession(r.Context(), tokenHash, time.Now().UTC())
+	if err != nil {
+		return data.Operator{}, "", err
+	}
+	return operator, tokenHash, nil
+}
+
+func (server *Server) setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		Expires:  expiresAt,
+		MaxAge:   int(server.sessionTTL.Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   server.cookieSecure,
+	})
+}
+
+func (server *Server) clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   server.cookieSecure,
+	})
 }
 
 func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
@@ -498,7 +663,7 @@ func (server *Server) handleStrategies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *Server) serveFrontend(w http.ResponseWriter, r *http.Request) {
-	if server.staticRoot == "" || r.Method != http.MethodGet {
+	if server.staticRoot == "" || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
@@ -580,6 +745,9 @@ func validateExchangeAccount(account data.CreateExchangeAccount) error {
 func validateOperator(operator data.CreateOperator) error {
 	if operator.Username == "" || operator.Password == "" {
 		return errors.New("username and password are required")
+	}
+	if len(operator.Password) < 8 {
+		return errors.New("password must be at least 8 characters")
 	}
 	return nil
 }
@@ -785,6 +953,14 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+func writeAuthError(w http.ResponseWriter, err error) {
+	if errors.Is(err, data.ErrUnauthorized) || errors.Is(err, data.ErrNotFound) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, err.Error())
+}
+
 func writeStoreError(w http.ResponseWriter, err error) {
 	if errors.Is(err, data.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
@@ -802,4 +978,18 @@ func parseOptionalTime(value string) (*time.Time, error) {
 		return nil, err
 	}
 	return &parsed, nil
+}
+
+func newSessionToken() (string, string, error) {
+	var bytes [32]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return "", "", fmt.Errorf("generate session token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(bytes[:])
+	return token, sessionTokenHash(token), nil
+}
+
+func sessionTokenHash(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(digest[:])
 }

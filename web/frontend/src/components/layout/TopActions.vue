@@ -33,8 +33,8 @@ const { t } = useI18n();
 const router = useRouter();
 const authStore = useAuthStore();
 
-function logout() {
-  authStore.logout();
-  router.push("/login");
+async function logout() {
+  await authStore.logout();
+  await router.push("/login");
 }
 </script>

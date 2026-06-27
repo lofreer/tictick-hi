@@ -6,19 +6,117 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
-func TestDataSyncTaskRoutes(t *testing.T) {
+const (
+	testUsername = "admin"
+	testPassword = "secret123"
+)
+
+func newAuthenticatedTestServer(t *testing.T) (*fakeRepository, http.Handler, *http.Cookie) {
+	t.Helper()
+
 	repository := newFakeRepository()
 	server := NewServer(repository, "")
+	cookie := loginTestOperator(t, server)
+	return repository, server, cookie
+}
 
-	createBody := bytes.NewBufferString(`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m"}`)
-	createRecorder := httptest.NewRecorder()
-	server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, "/api/data/tasks", createBody))
+func loginTestOperator(t *testing.T, server http.Handler) *http.Cookie {
+	t.Helper()
+
+	body := bytes.NewBufferString(`{"username":"` + testUsername + `","password":"` + testPassword + `"}`)
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/auth/login", body))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("login status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	for _, cookie := range recorder.Result().Cookies() {
+		if cookie.Name == sessionCookieName {
+			return cookie
+		}
+	}
+	t.Fatal("login did not set session cookie")
+	return nil
+}
+
+func serveAuthenticated(
+	server http.Handler,
+	cookie *http.Cookie,
+	method string,
+	path string,
+	body string,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	request.AddCookie(cookie)
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func TestAPIRequiresAuthentication(t *testing.T) {
+	server := NewServer(newFakeRepository(), "")
+
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/strategies", nil))
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestAuthRoutes(t *testing.T) {
+	server := NewServer(newFakeRepository(), "")
+	cookie := loginTestOperator(t, server)
+
+	meRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/auth/me", "")
+	if meRecorder.Code != http.StatusOK {
+		t.Fatalf("me status = %d body = %s", meRecorder.Code, meRecorder.Body.String())
+	}
+
+	logoutRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/auth/logout", "")
+	if logoutRecorder.Code != http.StatusOK {
+		t.Fatalf("logout status = %d body = %s", logoutRecorder.Code, logoutRecorder.Body.String())
+	}
+
+	afterLogout := serveAuthenticated(server, cookie, http.MethodGet, "/api/auth/me", "")
+	if afterLogout.Code != http.StatusUnauthorized {
+		t.Fatalf("after logout status = %d body = %s", afterLogout.Code, afterLogout.Body.String())
+	}
+}
+
+func TestServeFrontendSupportsGetAndHead(t *testing.T) {
+	staticRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(staticRoot, "index.html"), []byte("<!doctype html>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := NewServer(newFakeRepository(), staticRoot)
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		recorder := httptest.NewRecorder()
+		server.ServeHTTP(recorder, httptest.NewRequest(method, "/", nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", method, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
+func TestDataSyncTaskRoutes(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+
+	createRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m"}`,
+	)
 	if createRecorder.Code != http.StatusCreated {
 		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
 	}
@@ -31,15 +129,13 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		t.Fatalf("unexpected created task: %#v", created)
 	}
 
-	startRecorder := httptest.NewRecorder()
 	startPath := "/api/data/tasks/" + created.ID + "/realtime/start"
-	server.ServeHTTP(startRecorder, httptest.NewRequest(http.MethodPost, startPath, nil))
+	startRecorder := serveAuthenticated(server, cookie, http.MethodPost, startPath, "")
 	if startRecorder.Code != http.StatusOK {
 		t.Fatalf("start status = %d body = %s", startRecorder.Code, startRecorder.Body.String())
 	}
 
-	listRecorder := httptest.NewRecorder()
-	server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/data/tasks", nil))
+	listRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/data/tasks", "")
 	if listRecorder.Code != http.StatusOK {
 		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
 	}
@@ -54,7 +150,7 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 }
 
 func TestCandlesRoute(t *testing.T) {
-	repository := newFakeRepository()
+	repository, server, cookie := newAuthenticatedTestServer(t)
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	repository.candles = append(repository.candles, data.Candle{
 		Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
@@ -63,10 +159,13 @@ func TestCandlesRoute(t *testing.T) {
 		IsClosed: true,
 	})
 
-	server := NewServer(repository, "")
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m", nil)
-	server.ServeHTTP(recorder, request)
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m",
+		"",
+	)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
@@ -81,10 +180,9 @@ func TestCandlesRoute(t *testing.T) {
 }
 
 func TestStrategiesRoute(t *testing.T) {
-	server := NewServer(newFakeRepository(), "")
+	_, server, cookie := newAuthenticatedTestServer(t)
 
-	listRecorder := httptest.NewRecorder()
-	server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/strategies", nil))
+	listRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/strategies", "")
 
 	if listRecorder.Code != http.StatusOK {
 		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
@@ -97,18 +195,16 @@ func TestStrategiesRoute(t *testing.T) {
 		t.Fatal("expected at least one strategy")
 	}
 
-	detailRecorder := httptest.NewRecorder()
-	server.ServeHTTP(detailRecorder, httptest.NewRequest(http.MethodGet, "/api/strategies/ema-cross", nil))
+	detailRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/strategies/ema-cross", "")
 	if detailRecorder.Code != http.StatusOK {
 		t.Fatalf("detail status = %d body = %s", detailRecorder.Code, detailRecorder.Body.String())
 	}
 }
 
 func TestBacktestRoutes(t *testing.T) {
-	repository := newFakeRepository()
-	server := NewServer(repository, "")
+	_, server, cookie := newAuthenticatedTestServer(t)
 
-	createBody := bytes.NewBufferString(`{
+	createBody := `{
 		"name":"EMA BTC backtest",
 		"exchange":"binance",
 		"symbol":"BTCUSDT",
@@ -121,9 +217,8 @@ func TestBacktestRoutes(t *testing.T) {
 		"feeBps":"1",
 		"slippageBps":"0.5",
 		"triggerMode":"closed_candle"
-	}`)
-	createRecorder := httptest.NewRecorder()
-	server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, "/api/backtests", createBody))
+	}`
+	createRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/backtests", createBody)
 	if createRecorder.Code != http.StatusCreated {
 		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
 	}
@@ -136,30 +231,32 @@ func TestBacktestRoutes(t *testing.T) {
 		t.Fatalf("unexpected created backtest: %#v", created)
 	}
 
-	listRecorder := httptest.NewRecorder()
-	server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/backtests", nil))
+	listRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/backtests", "")
 	if listRecorder.Code != http.StatusOK {
 		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
 	}
 
-	detailRecorder := httptest.NewRecorder()
-	server.ServeHTTP(detailRecorder, httptest.NewRequest(http.MethodGet, "/api/backtests/"+created.ID, nil))
+	detailRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/backtests/"+created.ID, "")
 	if detailRecorder.Code != http.StatusOK {
 		t.Fatalf("detail status = %d body = %s", detailRecorder.Code, detailRecorder.Body.String())
 	}
 
-	ordersRecorder := httptest.NewRecorder()
-	server.ServeHTTP(ordersRecorder, httptest.NewRequest(http.MethodGet, "/api/backtests/"+created.ID+"/orders", nil))
+	ordersRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/backtests/"+created.ID+"/orders",
+		"",
+	)
 	if ordersRecorder.Code != http.StatusOK {
 		t.Fatalf("orders status = %d body = %s", ordersRecorder.Code, ordersRecorder.Body.String())
 	}
 }
 
 func TestTradingTaskRoutes(t *testing.T) {
-	repository := newFakeRepository()
-	server := NewServer(repository, "")
+	_, server, cookie := newAuthenticatedTestServer(t)
 
-	createBody := bytes.NewBufferString(`{
+	createBody := `{
 		"name":"Paper EMA",
 		"type":"paper",
 		"exchange":"binance",
@@ -169,9 +266,8 @@ func TestTradingTaskRoutes(t *testing.T) {
 		"strategyId":"ema-cross",
 		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
 		"intentPolicy":{"orderIntent":"execute","notificationChannel":"default"}
-	}`)
-	createRecorder := httptest.NewRecorder()
-	server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, "/api/trading/tasks", createBody))
+	}`
+	createRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", createBody)
 	if createRecorder.Code != http.StatusCreated {
 		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
 	}
@@ -184,7 +280,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 		t.Fatalf("unexpected trading task: %#v", created)
 	}
 
-	liveBody := bytes.NewBufferString(`{
+	liveBody := `{
 		"name":"Live EMA",
 		"type":"live",
 		"exchange":"binance",
@@ -194,15 +290,19 @@ func TestTradingTaskRoutes(t *testing.T) {
 		"strategyId":"ema-cross",
 		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
 		"intentPolicy":{"orderIntent":"notify","notificationChannel":"default"}
-	}`)
-	liveRecorder := httptest.NewRecorder()
-	server.ServeHTTP(liveRecorder, httptest.NewRequest(http.MethodPost, "/api/trading/tasks", liveBody))
+	}`
+	liveRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", liveBody)
 	if liveRecorder.Code != http.StatusCreated {
 		t.Fatalf("live create status = %d body = %s", liveRecorder.Code, liveRecorder.Body.String())
 	}
 
-	startRecorder := httptest.NewRecorder()
-	server.ServeHTTP(startRecorder, httptest.NewRequest(http.MethodPost, "/api/trading/tasks/"+created.ID+"/start", nil))
+	startRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/trading/tasks/"+created.ID+"/start",
+		"",
+	)
 	if startRecorder.Code != http.StatusOK {
 		t.Fatalf("start status = %d body = %s", startRecorder.Code, startRecorder.Body.String())
 	}
@@ -214,8 +314,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 		"/api/trading/tasks/" + created.ID + "/orders",
 		"/api/trading/tasks/" + created.ID + "/notifications",
 	} {
-		recorder := httptest.NewRecorder()
-		server.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		recorder := serveAuthenticated(server, cookie, http.MethodGet, path, "")
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("%s status = %d body = %s", path, recorder.Code, recorder.Body.String())
 		}
@@ -223,8 +322,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 }
 
 func TestSystemRoutes(t *testing.T) {
-	repository := newFakeRepository()
-	server := NewServer(repository, "")
+	_, server, cookie := newAuthenticatedTestServer(t)
 
 	cases := []struct {
 		path string
@@ -232,24 +330,21 @@ func TestSystemRoutes(t *testing.T) {
 	}{
 		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook","target":"https://example.test","enabled":true}`},
 		{path: "/api/system/exchange-accounts", body: `{"exchange":"binance","alias":"main","apiKey":"key","apiSecret":"secret","enabled":true}`},
-		{path: "/api/system/operators", body: `{"username":"admin","password":"secret","enabled":true}`},
+		{path: "/api/system/operators", body: `{"username":"ops","password":"secret123","enabled":true}`},
 	}
 	for _, item := range cases {
-		createRecorder := httptest.NewRecorder()
-		server.ServeHTTP(createRecorder, httptest.NewRequest(http.MethodPost, item.path, bytes.NewBufferString(item.body)))
+		createRecorder := serveAuthenticated(server, cookie, http.MethodPost, item.path, item.body)
 		if createRecorder.Code != http.StatusCreated {
 			t.Fatalf("%s create status = %d body = %s", item.path, createRecorder.Code, createRecorder.Body.String())
 		}
 
-		listRecorder := httptest.NewRecorder()
-		server.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, item.path, nil))
+		listRecorder := serveAuthenticated(server, cookie, http.MethodGet, item.path, "")
 		if listRecorder.Code != http.StatusOK {
 			t.Fatalf("%s list status = %d body = %s", item.path, listRecorder.Code, listRecorder.Body.String())
 		}
 	}
 
-	healthRecorder := httptest.NewRecorder()
-	server.ServeHTTP(healthRecorder, httptest.NewRequest(http.MethodGet, "/api/system/health", nil))
+	healthRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/system/health", "")
 	if healthRecorder.Code != http.StatusOK {
 		t.Fatalf("health status = %d body = %s", healthRecorder.Code, healthRecorder.Body.String())
 	}
@@ -261,13 +356,30 @@ type fakeRepository struct {
 	channels       []data.NotificationChannel
 	accounts       []data.ExchangeAccount
 	operators      []data.Operator
+	passwords      map[string]string
+	sessions       map[string]data.OperatorSession
 	tradingTasks   []data.TradingTask
 	tasks          []data.DataSyncTask
 	candles        []data.Candle
 }
 
 func newFakeRepository() *fakeRepository {
-	return &fakeRepository{backtestOrders: map[string][]data.BacktestOrder{}}
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{
+		backtestOrders: map[string][]data.BacktestOrder{},
+		passwords:      map[string]string{},
+		sessions:       map[string]data.OperatorSession{},
+	}
+	operator := data.Operator{
+		ID:        "op_admin",
+		Username:  testUsername,
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	repository.operators = append(repository.operators, operator)
+	repository.passwords[operator.ID] = testPassword
+	return repository
 }
 
 func (repository *fakeRepository) ListDataSyncTasks(context.Context) ([]data.DataSyncTask, error) {
@@ -507,14 +619,58 @@ func (repository *fakeRepository) CreateOperator(
 ) (data.Operator, error) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	operator := data.Operator{
-		ID:        "op_1",
+		ID:        "op_" + request.Username,
 		Username:  request.Username,
 		Enabled:   request.Enabled,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
 	repository.operators = append(repository.operators, operator)
+	repository.passwords[operator.ID] = request.Password
 	return operator, nil
+}
+
+func (repository *fakeRepository) AuthenticateOperator(
+	_ context.Context,
+	username string,
+	password string,
+) (data.Operator, error) {
+	for _, operator := range repository.operators {
+		if operator.Username == username && operator.Enabled && repository.passwords[operator.ID] == password {
+			return operator, nil
+		}
+	}
+	return data.Operator{}, data.ErrUnauthorized
+}
+
+func (repository *fakeRepository) CreateOperatorSession(
+	_ context.Context,
+	session data.OperatorSession,
+) error {
+	repository.sessions[session.TokenHash] = session
+	return nil
+}
+
+func (repository *fakeRepository) GetOperatorBySession(
+	_ context.Context,
+	tokenHash string,
+	now time.Time,
+) (data.Operator, error) {
+	session, exists := repository.sessions[tokenHash]
+	if !exists || !session.ExpiresAt.After(now) {
+		return data.Operator{}, data.ErrUnauthorized
+	}
+	for _, operator := range repository.operators {
+		if operator.ID == session.OperatorID && operator.Enabled {
+			return operator, nil
+		}
+	}
+	return data.Operator{}, data.ErrUnauthorized
+}
+
+func (repository *fakeRepository) DeleteOperatorSession(_ context.Context, tokenHash string) error {
+	delete(repository.sessions, tokenHash)
+	return nil
 }
 
 func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHealth, error) {

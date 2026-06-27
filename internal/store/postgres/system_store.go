@@ -135,6 +135,119 @@ func (store *Store) CreateOperator(ctx context.Context, operator data.CreateOper
 	return created, nil
 }
 
+func (store *Store) EnsureOperator(
+	ctx context.Context,
+	operator data.CreateOperator,
+) (data.Operator, bool, error) {
+	row := store.pool.QueryRow(ctx, `
+		SELECT id, username, enabled, created_at, updated_at
+		  FROM operators
+		 WHERE username = $1`, operator.Username)
+
+	existing, err := scanOperatorRow(row)
+	if err == nil {
+		return existing, false, nil
+	}
+	if err != pgx.ErrNoRows {
+		return data.Operator{}, false, fmt.Errorf("get operator: %w", err)
+	}
+
+	created, err := store.CreateOperator(ctx, operator)
+	if err != nil {
+		return data.Operator{}, false, err
+	}
+	return created, true, nil
+}
+
+func (store *Store) AuthenticateOperator(
+	ctx context.Context,
+	username string,
+	password string,
+) (data.Operator, error) {
+	var operator data.Operator
+	var passwordHash string
+	err := store.pool.QueryRow(ctx, `
+		SELECT id, username, password_hash, enabled, created_at, updated_at
+		  FROM operators
+		 WHERE username = $1`, username).Scan(
+		&operator.ID,
+		&operator.Username,
+		&passwordHash,
+		&operator.Enabled,
+		&operator.CreatedAt,
+		&operator.UpdatedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return data.Operator{}, data.ErrUnauthorized
+	}
+	if err != nil {
+		return data.Operator{}, fmt.Errorf("authenticate operator: %w", err)
+	}
+	if !operator.Enabled {
+		return data.Operator{}, data.ErrUnauthorized
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
+		return data.Operator{}, data.ErrUnauthorized
+	}
+	return operator, nil
+}
+
+func (store *Store) CreateOperatorSession(ctx context.Context, session data.OperatorSession) error {
+	if _, err := store.pool.Exec(ctx, `
+		DELETE FROM operator_sessions
+		 WHERE expires_at <= now()`); err != nil {
+		return fmt.Errorf("delete expired operator sessions: %w", err)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO operator_sessions (token_hash, operator_id, expires_at)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (token_hash)
+		DO UPDATE SET operator_id = EXCLUDED.operator_id, expires_at = EXCLUDED.expires_at`,
+		session.TokenHash,
+		session.OperatorID,
+		session.ExpiresAt,
+	); err != nil {
+		return fmt.Errorf("create operator session: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) GetOperatorBySession(
+	ctx context.Context,
+	tokenHash string,
+	now time.Time,
+) (data.Operator, error) {
+	row := store.pool.QueryRow(ctx, `
+		SELECT operators.id, operators.username, operators.enabled, operators.created_at, operators.updated_at
+		  FROM operator_sessions
+		  JOIN operators ON operators.id = operator_sessions.operator_id
+		 WHERE operator_sessions.token_hash = $1
+		   AND operator_sessions.expires_at > $2
+		   AND operators.enabled = true`,
+		tokenHash,
+		now,
+	)
+
+	operator, err := scanOperatorRow(row)
+	if err == pgx.ErrNoRows {
+		return data.Operator{}, data.ErrUnauthorized
+	}
+	if err != nil {
+		return data.Operator{}, fmt.Errorf("get operator by session: %w", err)
+	}
+	return operator, nil
+}
+
+func (store *Store) DeleteOperatorSession(ctx context.Context, tokenHash string) error {
+	if _, err := store.pool.Exec(ctx, `
+		DELETE FROM operator_sessions
+		 WHERE token_hash = $1`, tokenHash); err != nil {
+		return fmt.Errorf("delete operator session: %w", err)
+	}
+	return nil
+}
+
 func (store *Store) SystemHealth(ctx context.Context) (data.SystemHealth, error) {
 	checkedAt := time.Now().UTC()
 	if err := store.pool.Ping(ctx); err != nil {

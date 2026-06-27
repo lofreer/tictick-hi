@@ -8,12 +8,14 @@ export const router = createRouter({
   routes,
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore();
 
   if (to.meta.public) {
     return true;
   }
+
+  await authStore.restoreSession();
 
   if (!authStore.isAuthenticated) {
     return { name: "login", query: { redirect: to.fullPath } };
@@ -21,4 +23,3 @@ router.beforeEach((to) => {
 
   return true;
 });
-

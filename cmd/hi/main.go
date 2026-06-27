@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/adapter/binance"
 	"github.com/lofreer/tictick-hi/internal/adapter/okx"
 	"github.com/lofreer/tictick-hi/internal/backtest"
+	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/datasync"
 	"github.com/lofreer/tictick-hi/internal/exchange"
 	"github.com/lofreer/tictick-hi/internal/store/postgres"
@@ -168,11 +170,19 @@ func runAPI(ctx context.Context) error {
 	}
 	defer store.Close()
 
+	if err := bootstrapOperator(ctx, store); err != nil {
+		return err
+	}
+
 	addr := envOrDefault("HTTP_ADDR", "127.0.0.1:8080")
 	staticRoot := envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist")
 	server := &http.Server{
-		Addr:              addr,
-		Handler:           webapi.NewServer(store, staticRoot),
+		Addr: addr,
+		Handler: webapi.NewServerWithConfig(store, webapi.Config{
+			StaticRoot:   staticRoot,
+			SessionTTL:   durationEnv("AUTH_SESSION_TTL", 12*time.Hour),
+			CookieSecure: boolEnv("AUTH_COOKIE_SECURE", false),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -206,6 +216,33 @@ func runMigrate(ctx context.Context) error {
 	defer store.Close()
 
 	return store.Migrate(ctx)
+}
+
+func bootstrapOperator(ctx context.Context, store *postgres.Store) error {
+	username := strings.TrimSpace(os.Getenv("BOOTSTRAP_OPERATOR_USERNAME"))
+	password := os.Getenv("BOOTSTRAP_OPERATOR_PASSWORD")
+	if username == "" && password == "" {
+		return nil
+	}
+	if username == "" || password == "" {
+		return fmt.Errorf("BOOTSTRAP_OPERATOR_USERNAME and BOOTSTRAP_OPERATOR_PASSWORD must be set together")
+	}
+	if len(password) < 8 {
+		return fmt.Errorf("BOOTSTRAP_OPERATOR_PASSWORD must be at least 8 characters")
+	}
+
+	operator, created, err := store.EnsureOperator(ctx, data.CreateOperator{
+		Username: username,
+		Password: password,
+		Enabled:  true,
+	})
+	if err != nil {
+		return err
+	}
+	if created {
+		slog.Info("bootstrapped operator", "username", operator.Username)
+	}
+	return nil
 }
 
 func requiredEnv(key string) (string, error) {
@@ -246,6 +283,21 @@ func intEnv(key string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func boolEnv(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	switch strings.ToLower(value) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 func defaultWorkerID() string {
