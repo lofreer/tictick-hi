@@ -264,12 +264,13 @@ type CreateNotificationChannel struct {
 }
 
 type ExchangeAccount struct {
-	ID        string    `json:"id"`
-	Exchange  string    `json:"exchange"`
-	Alias     string    `json:"alias"`
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID               string    `json:"id"`
+	Exchange         string    `json:"exchange"`
+	Alias            string    `json:"alias"`
+	Enabled          bool      `json:"enabled"`
+	CredentialStatus string    `json:"credentialStatus"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 type CreateExchangeAccount struct {
@@ -403,6 +404,7 @@ type Repository interface {
 	ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error)
 	CreateNotificationChannel(ctx context.Context, channel CreateNotificationChannel) (NotificationChannel, error)
 	ListExchangeAccounts(ctx context.Context) ([]ExchangeAccount, error)
+	GetExchangeAccount(ctx context.Context, exchange string, accountID string) (ExchangeAccount, error)
 	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
 	ListOperators(ctx context.Context) ([]Operator, error)
 	CreateOperator(ctx context.Context, operator CreateOperator) (Operator, error)

@@ -9,13 +9,19 @@ import (
 
 	"github.com/lofreer/tictick-hi/internal/core"
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/secretbox"
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool      *pgxpool.Pool
+	secretBox *secretbox.Box
 }
 
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
+	box, err := secretbox.FromEnv()
+	if err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
@@ -24,7 +30,7 @@ func Open(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Store{pool: pool}, nil
+	return &Store{pool: pool, secretBox: box}, nil
 }
 
 func (store *Store) Close() {

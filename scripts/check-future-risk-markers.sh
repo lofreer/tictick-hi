@@ -4,9 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FOUND=0
 
-if rg -n 'secretDigest|sha256:' "$ROOT_DIR/internal" "$ROOT_DIR/web/frontend/src"; then
+if rg -n 'secretDigest' "$ROOT_DIR/internal" "$ROOT_DIR/web/frontend/src"; then
   echo
-  echo "AUDIT exchange account secrets are still handled as digest or documented digest-like storage."
+  echo "AUDIT exchange account secrets are still handled by the legacy digest helper."
   FOUND=1
 fi
 

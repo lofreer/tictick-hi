@@ -234,7 +234,30 @@ func TestBacktestRoutes(t *testing.T) {
 }
 
 func TestTradingTaskRoutes(t *testing.T) {
-	_, server, cookie := newAuthenticatedTestServer(t)
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.accounts = append(repository.accounts,
+		data.ExchangeAccount{
+			ID:               "acct_live",
+			Exchange:         "binance",
+			Alias:            "main",
+			Enabled:          true,
+			CredentialStatus: "encrypted",
+		},
+		data.ExchangeAccount{
+			ID:               "acct_disabled",
+			Exchange:         "binance",
+			Alias:            "disabled",
+			Enabled:          false,
+			CredentialStatus: "encrypted",
+		},
+		data.ExchangeAccount{
+			ID:               "acct_legacy",
+			Exchange:         "binance",
+			Alias:            "legacy",
+			Enabled:          true,
+			CredentialStatus: "legacy",
+		},
+	)
 
 	createBody := `{
 		"name":"Paper EMA",
@@ -274,6 +297,38 @@ func TestTradingTaskRoutes(t *testing.T) {
 	liveRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", liveBody)
 	if liveRecorder.Code != http.StatusCreated {
 		t.Fatalf("live create status = %d body = %s", liveRecorder.Code, liveRecorder.Body.String())
+	}
+
+	disabledLiveBody := `{
+		"name":"Disabled Live EMA",
+		"type":"live",
+		"exchange":"binance",
+		"accountId":"acct_disabled",
+		"symbol":"BTCUSDT",
+		"interval":"5m",
+		"strategyId":"ema-cross",
+		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
+		"intentPolicy":{"orderIntent":"notify","notificationChannel":"default"}
+	}`
+	disabledLiveRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", disabledLiveBody)
+	if disabledLiveRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("disabled live status = %d body = %s", disabledLiveRecorder.Code, disabledLiveRecorder.Body.String())
+	}
+
+	legacyLiveBody := `{
+		"name":"Legacy Live EMA",
+		"type":"live",
+		"exchange":"binance",
+		"accountId":"acct_legacy",
+		"symbol":"BTCUSDT",
+		"interval":"5m",
+		"strategyId":"ema-cross",
+		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
+		"intentPolicy":{"orderIntent":"notify","notificationChannel":"default"}
+	}`
+	legacyLiveRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", legacyLiveBody)
+	if legacyLiveRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("legacy live status = %d body = %s", legacyLiveRecorder.Code, legacyLiveRecorder.Body.String())
 	}
 
 	liveExecuteBody := `{

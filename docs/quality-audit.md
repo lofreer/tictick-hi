@@ -42,11 +42,11 @@ done            用户确认关闭
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、统一 worker lease 和实盘安全边界 |
-| 实盘安全 | below-scaffold | 延后 | 密钥字段名叫 encrypted，实际是 digest，不是真加密也不能解密 |
+| 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo provider、失败重试和系统页 retry；真实第三方 provider、通道更新/删除、统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
-| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，实盘安全和 live executor 作为后续风险审计保留 |
+| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，live executor/testnet、worker lease 和登录安全作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
 
@@ -96,7 +96,7 @@ done            用户确认关闭
 安全验收：
 
 - 不把 scaffold 说成 demo、usable 或 production-safe。
-- 实盘密钥和 live executor 风险继续保留为 scaffold / below-scaffold，不在阶段 0 冒充关闭。
+- 实盘密钥、live executor 和生产安全风险不在阶段 0 冒充关闭。
 
 测试验收：
 
@@ -132,8 +132,8 @@ scripts/quality-gate.sh
 
 后续风险审计仍保留：
 
-- 交易所账号密钥仍然使用 `secretDigest`，不是真加密。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`：新建账号使用 `ENCRYPTION_KEY` + AES-GCM 加密，历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 
 这些风险关闭前，项目整体仍为 `scaffold`，但它们不阻断阶段 0 的基础工程质量验收。
 
@@ -156,8 +156,8 @@ scripts/quality-gate.sh
 
 后续风险审计：
 
-- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 
 阶段 0 结论：
 
@@ -213,19 +213,19 @@ scripts/quality-gate.sh
 
 ### P0：实盘密钥不能用 digest 冒充加密
 
-现状问题：
+阶段 6 状态：
 
-- `encrypted_api_key` / `encrypted_api_secret` 存的是 SHA-256 digest。
-- digest 不能解密，未来 live executor 无法拿到密钥。
-- 字段名会误导后续实现。
+- 新建 `exchange_accounts` 凭据已从 `secretDigest` 改为 AES-GCM ciphertext，前缀为 `v1:aesgcm:`。
+- `ENCRYPTION_KEY` 来源已定义为 32 字节 base64/hex 环境变量；`.env.example` 和 compose 已暴露配置入口。
+- 列表/API 响应只返回账号元数据和 `credentialStatus`，不返回完整 API key/secret。
+- 历史非 AES-GCM 行标记为 `legacy`，不能用于创建新的 live 任务。
 
-关闭条件：
+继续加强条件：
 
-- 定义真正加密边界。
-- `ENCRYPTION_KEY` 来源明确。
-- 使用成熟 AEAD 加密。
-- 列表和日志永不展示完整密钥。
-- 禁用账号后不能提交新实盘订单。
+- testnet/sandbox live executor 能用加密凭据解密后提交测试订单。
+- 订单先落库再提交交易所，且幂等键贯穿 retry。
+- 生产密钥来源升级为 KMS/secret manager 或等价方案。
+- 轮换 `ENCRYPTION_KEY` 和历史 `legacy` 账号迁移策略明确。
 
 ### P0：交易事实不能用 float64
 
@@ -309,7 +309,7 @@ scripts/quality-gate.sh
 安全验收：
 
 - 不把阶段 1 说成 usable。
-- 实盘密钥和 live executor 风险继续保留为后续阶段风险。
+- 实盘真实下单、testnet/sandbox 和幂等提交继续保留为后续阶段风险。
 
 测试验收：
 
@@ -349,8 +349,8 @@ scripts/quality-gate.sh
 
 后续风险审计：
 
-- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 - worker lease 仍没有运行中 heartbeat loop 和完整停止状态机。
 
 阶段 1 结论：
@@ -533,8 +533,8 @@ scripts/quality-gate.sh
 
 后续风险审计：
 
-- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 - worker lease 仍没有运行中 heartbeat loop 和完整停止状态机。
 - 通知仍没有 outbox / provider / retry。
 
@@ -652,8 +652,8 @@ scripts/quality-gate.sh
 
 后续风险审计：
 
-- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 - 通知仍没有 outbox / provider / retry。
 
 阶段 3 结论：
@@ -773,8 +773,8 @@ scripts/quality-gate.sh
 
 后续风险审计：
 
-- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 - 统一 worker lease 包仍未抽取，当前只是 trading/backtest 局部 heartbeat。
 
 阶段 4 结论：
@@ -847,8 +847,8 @@ Definition of Done：
 
 后续风险审计：
 
-- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
-- live executor 仍禁用，实盘安全边界未建立。
+- 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
+- live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 - 登录会话仍缺 CSRF、防暴力破解和更完整 session 管理。
 
 阶段 5 结论：
@@ -856,32 +856,72 @@ Definition of Done：
 - 通知链路达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
+### 阶段 6 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `git diff --check`
+
+本地 smoke：
+
+- 使用 `ENCRYPTION_KEY` 重建并启动 `api` 服务。
+- `POST /api/system/exchange-accounts` 新建账号返回 `credentialStatus=encrypted`，响应不包含 `apiKey` / `apiSecret`。
+- PostgreSQL 中新建账号 `encrypted_api_key` 和 `encrypted_api_secret` 均为 `v1:aesgcm:` 前缀，且不包含 smoke 明文 key / secret。
+- 使用 encrypted enabled 账号创建 live notify 任务返回 `201`。
+- 使用 disabled 账号创建 live notify 任务返回 `400`。
+- 使用 legacy 非 AES-GCM 账号创建 live notify 任务返回 `400`。
+- 使用 encrypted enabled 账号创建 live execute 任务返回 `400`，live execute 仍默认禁用。
+
+失败：
+
+- 无。
+
+后续风险审计：
+
+- 阶段 6 只达到 `demo` 检查点，不能声明实盘可用。
+- 真实 testnet/sandbox live executor 未实现。
+- 订单先落库再提交交易所、交易所响应回写和幂等 retry 仍未完成。
+- 生产级 KMS / secret manager、密钥轮换和历史 `legacy` 账号迁移策略仍未完成。
+- 全系统 worker lease、登录会话 CSRF / 防暴力破解仍未完成。
+
+阶段 6 结论：
+
+- 实盘安全边界达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
 ## 5. 下一条可推进切片
 
 下一步只推进：
 
 ```text
-阶段 6：实盘安全边界
+阶段 7：运维健康和操作台账号
 ```
 
-目标等级：`scaffold` 到 `demo`，不能声明实盘可用或 production-safe。
+目标等级：`scaffold` 到 `demo`，不能声明 production-safe。
 
 Definition of Done：
 
-- exchange account 不再用 digest 冒充 encrypted secret。
-- 定义并实现本地开发可验证的 AEAD 加密边界，`ENCRYPTION_KEY` 来源明确。
-- API key / secret 列表和详情永不返回完整明文。
-- live executor 与 paper executor 的边界保持隔离，live execute 继续默认禁用。
-- 实盘订单必须先落库，再提交交易所；幂等键和账号禁用检查进入设计和测试。
-- 先 testnet / sandbox，再讨论 production。
+- 登录会话加强，至少补齐 CSRF 或等价同源写保护设计和测试。
+- 登录失败节流 / 防暴力破解进入 API 边界。
+- 运维健康页展示数据库、worker 和关键后台服务健康状态。
+- worker heartbeat 可观察，运行中任务能看到最近 heartbeat / locked_until。
+- 操作台账号管理支持更明确的启停和创建校验。
 - 完整质量门禁通过。
 
 范围外：
 
-- 真实 production 实盘下单。
-- 复杂权限系统。
-- 通知真实 provider。
-- worker lease 全系统抽取。
+- 完整 RBAC。
+- 企业级审计日志。
+- 生产级 SSO。
+- Kubernetes / 多实例编排。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
@@ -906,7 +946,7 @@ Definition of Done：
 
 删除或替换：
 
-- 用 digest 冒充 encrypted secret 的实现。
+- 阶段 6 前用 digest 冒充 encrypted secret 的实现已替换为本地 AES-GCM 边界。
 - 回测中的交易事实 `float64`。
 - 只返回裸 candles 的 `/api/candles` 语义。
 - 空泛的 “external worker health”。

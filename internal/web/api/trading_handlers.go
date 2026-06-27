@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -53,6 +55,10 @@ func (server *Server) handleTradingTaskCollection(w http.ResponseWriter, r *http
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if err := server.validateTradingAccount(r.Context(), request); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		normalizedParams, err := strategy.NormalizeParams(definition, request.StrategyParams)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -68,6 +74,26 @@ func (server *Server) handleTradingTaskCollection(w http.ResponseWriter, r *http
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (server *Server) validateTradingAccount(ctx context.Context, request data.CreateTradingTask) error {
+	if request.Type != "live" {
+		return nil
+	}
+	account, err := server.repository.GetExchangeAccount(ctx, request.Exchange, request.AccountID)
+	if err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			return errors.New("live exchange account must exist")
+		}
+		return err
+	}
+	if !account.Enabled {
+		return errors.New("live exchange account must be enabled")
+	}
+	if account.CredentialStatus != "encrypted" {
+		return errors.New("live exchange account credentials must be encrypted")
+	}
+	return nil
 }
 
 func (server *Server) getTradingTask(w http.ResponseWriter, r *http.Request, id string) {

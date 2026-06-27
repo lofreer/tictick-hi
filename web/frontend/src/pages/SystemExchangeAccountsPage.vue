@@ -22,6 +22,7 @@
               <th>{{ t("research.exchange") }}</th>
               <th>{{ t("system.alias") }}</th>
               <th>{{ t("system.enabled") }}</th>
+              <th>{{ t("system.credentials") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
             </tr>
           </thead>
@@ -30,6 +31,7 @@
               <td>{{ account.exchange }}</td>
               <td>{{ account.alias }}</td>
               <td><NTag :type="account.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(account.enabled) }}</NTag></td>
+              <td><NTag :type="credentialType(account.credentialStatus)" size="small">{{ credentialLabel(account.credentialStatus) }}</NTag></td>
               <td>{{ formatDate(account.createdAt) }}</td>
             </tr>
           </tbody>
@@ -57,7 +59,7 @@
 
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
-import { NButton, NForm, NFormItem, NInput, NModal, NSpace, NSwitch, NTag, useMessage } from "naive-ui";
+import { NButton, NForm, NFormItem, NInput, NModal, NSpace, NSwitch, NTag, type TagProps, useMessage } from "naive-ui";
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -112,6 +114,14 @@ async function createAccount() {
 
 function enabledLabel(enabled: boolean) {
   return enabled ? t("common.yes") : t("common.no");
+}
+
+function credentialLabel(status: string) {
+  return status === "encrypted" ? t("system.credentialsEncrypted") : t("system.credentialsLegacy");
+}
+
+function credentialType(status: string): TagProps["type"] {
+  return status === "encrypted" ? "success" : "warning";
 }
 
 function formatDate(value?: string) {

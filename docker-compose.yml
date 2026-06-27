@@ -7,6 +7,7 @@ x-hi-app: &hi-app
 
 x-app-environment: &app-environment
   DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}?sslmode=disable
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
 
 services:
   postgres:

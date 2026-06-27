@@ -2,8 +2,7 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -55,7 +54,13 @@ func (store *Store) CreateNotificationChannel(
 
 func (store *Store) ListExchangeAccounts(ctx context.Context) ([]data.ExchangeAccount, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, exchange, alias, enabled, created_at, updated_at
+		SELECT id, exchange, alias, enabled,
+		       CASE
+		         WHEN encrypted_api_key LIKE 'v1:aesgcm:%'
+		          AND encrypted_api_secret LIKE 'v1:aesgcm:%' THEN 'encrypted'
+		         ELSE 'legacy'
+		       END,
+		       created_at, updated_at
 		  FROM exchange_accounts
 		 ORDER BY created_at DESC`)
 	if err != nil {
@@ -70,21 +75,32 @@ func (store *Store) CreateExchangeAccount(
 	ctx context.Context,
 	account data.CreateExchangeAccount,
 ) (data.ExchangeAccount, error) {
+	if store.secretBox == nil {
+		return data.ExchangeAccount{}, errors.New("ENCRYPTION_KEY is required to store exchange account credentials")
+	}
 	id, err := core.NewPrefixedID("ea")
 	if err != nil {
 		return data.ExchangeAccount{}, err
+	}
+	encryptedAPIKey, err := store.secretBox.Seal(account.APIKey)
+	if err != nil {
+		return data.ExchangeAccount{}, fmt.Errorf("encrypt api key: %w", err)
+	}
+	encryptedAPISecret, err := store.secretBox.Seal(account.APISecret)
+	if err != nil {
+		return data.ExchangeAccount{}, fmt.Errorf("encrypt api secret: %w", err)
 	}
 	row := store.pool.QueryRow(ctx, `
 		INSERT INTO exchange_accounts (
 			id, exchange, alias, encrypted_api_key, encrypted_api_secret, enabled
 		)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, exchange, alias, enabled, created_at, updated_at`,
+		RETURNING id, exchange, alias, enabled, 'encrypted', created_at, updated_at`,
 		id,
 		account.Exchange,
 		account.Alias,
-		secretDigest(account.APIKey),
-		secretDigest(account.APISecret),
+		encryptedAPIKey,
+		encryptedAPISecret,
 		account.Enabled,
 	)
 
@@ -93,6 +109,33 @@ func (store *Store) CreateExchangeAccount(
 		return data.ExchangeAccount{}, fmt.Errorf("create exchange account: %w", err)
 	}
 	return created, nil
+}
+
+func (store *Store) GetExchangeAccount(ctx context.Context, exchange string, accountID string) (data.ExchangeAccount, error) {
+	row := store.pool.QueryRow(ctx, `
+		SELECT id, exchange, alias, enabled,
+		       CASE
+		         WHEN encrypted_api_key LIKE 'v1:aesgcm:%'
+		          AND encrypted_api_secret LIKE 'v1:aesgcm:%' THEN 'encrypted'
+		         ELSE 'legacy'
+		       END,
+		       created_at, updated_at
+		  FROM exchange_accounts
+		 WHERE exchange = $1
+		   AND (id = $2 OR alias = $2)
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		exchange,
+		accountID,
+	)
+	account, err := scanExchangeAccountRow(row)
+	if err == pgx.ErrNoRows {
+		return data.ExchangeAccount{}, data.ErrNotFound
+	}
+	if err != nil {
+		return data.ExchangeAccount{}, fmt.Errorf("get exchange account: %w", err)
+	}
+	return account, nil
 }
 
 func (store *Store) ListOperators(ctx context.Context) ([]data.Operator, error) {
@@ -305,6 +348,7 @@ func scanExchangeAccountRow(row rowScanner) (data.ExchangeAccount, error) {
 		&account.Exchange,
 		&account.Alias,
 		&account.Enabled,
+		&account.CredentialStatus,
 		&account.CreatedAt,
 		&account.UpdatedAt,
 	)
@@ -325,9 +369,4 @@ func scanOperatorRow(row rowScanner) (data.Operator, error) {
 		&operator.UpdatedAt,
 	)
 	return operator, err
-}
-
-func secretDigest(value string) string {
-	digest := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(digest[:])
 }

@@ -306,15 +306,29 @@ func (repository *fakeRepository) CreateExchangeAccount(
 ) (data.ExchangeAccount, error) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	account := data.ExchangeAccount{
-		ID:        "ea_1",
-		Exchange:  request.Exchange,
-		Alias:     request.Alias,
-		Enabled:   request.Enabled,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:               "ea_1",
+		Exchange:         request.Exchange,
+		Alias:            request.Alias,
+		Enabled:          request.Enabled,
+		CredentialStatus: "encrypted",
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 	repository.accounts = append(repository.accounts, account)
 	return account, nil
+}
+
+func (repository *fakeRepository) GetExchangeAccount(
+	_ context.Context,
+	exchange string,
+	accountID string,
+) (data.ExchangeAccount, error) {
+	for _, account := range repository.accounts {
+		if account.Exchange == exchange && (account.ID == accountID || account.Alias == accountID) {
+			return account, nil
+		}
+	}
+	return data.ExchangeAccount{}, data.ErrNotFound
 }
 
 func (repository *fakeRepository) ListOperators(context.Context) ([]data.Operator, error) {

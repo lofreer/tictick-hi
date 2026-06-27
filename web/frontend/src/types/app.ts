@@ -268,6 +268,7 @@ export type ExchangeAccount = {
   exchange: string;
   alias: string;
   enabled: boolean;
+  credentialStatus: string;
   createdAt: string;
   updatedAt: string;
 };
