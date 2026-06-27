@@ -3,6 +3,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -132,6 +137,161 @@ func TestAPIContractSchemasProtectSecretBoundary(t *testing.T) {
 	if _, ok := sessionProperties["tokenHash"]; ok {
 		t.Fatal("OperatorSession response schema exposes tokenHash")
 	}
+}
+
+func TestFrontendAPIRoutesAreCoveredByContract(t *testing.T) {
+	routes, err := collectFrontendAPIRoutes(repoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) == 0 {
+		t.Fatal("no frontend api routes found")
+	}
+
+	matchers := contractRouteMatchers(apiContractDocument())
+	for _, route := range routes {
+		operation, ok := matchers.match(route.Method, route.Path)
+		if !ok {
+			t.Fatalf("frontend route %s %s from %s is missing from API contract", route.Method, route.Path, route.File)
+		}
+		if unsafeMethod(route.Method) && operationRequires(operation, "sessionCookie") && !operationRequires(operation, "csrfHeader") {
+			t.Fatalf("frontend write route %s %s from %s lacks csrfHeader contract", route.Method, route.Path, route.File)
+		}
+	}
+}
+
+type frontendAPIRoute struct {
+	Method string
+	Path   string
+	File   string
+}
+
+type contractRouteMatcher struct {
+	method    string
+	path      string
+	operation apiOperation
+}
+
+type contractRouteMatchersList []contractRouteMatcher
+
+func collectFrontendAPIRoutes(root string) ([]frontendAPIRoute, error) {
+	apiDir := filepath.Join(root, "web", "frontend", "src", "services", "api")
+	entries, err := os.ReadDir(apiDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var routes []frontendAPIRoute
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".test.ts") || name == "client.ts" {
+			continue
+		}
+		path := filepath.Join(apiDir, name)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, match := range frontendRouteExpression.FindAllSubmatch(content, -1) {
+			routePath := string(match[2])
+			if routePath == "" {
+				routePath = string(match[3])
+			}
+			routes = append(routes, frontendAPIRoute{
+				Method: strings.ToUpper(string(match[1])),
+				Path:   normalizeFrontendPath(routePath),
+				File:   filepath.ToSlash(filepath.Join("web", "frontend", "src", "services", "api", name)),
+			})
+		}
+	}
+	sort.Slice(routes, func(i, j int) bool {
+		if routes[i].File != routes[j].File {
+			return routes[i].File < routes[j].File
+		}
+		if routes[i].Path != routes[j].Path {
+			return routes[i].Path < routes[j].Path
+		}
+		return routes[i].Method < routes[j].Method
+	})
+	return routes, nil
+}
+
+var frontendRouteExpression = regexp.MustCompile("(?s)apiClient\\.(get|post|delete)\\s*(?:<.*?>)?\\s*\\(\\s*(?:\"([^\"]+)\"|`([^`]+)`)")
+var templateExpression = regexp.MustCompile(`\$\{[^}]+\}`)
+
+func normalizeFrontendPath(path string) string {
+	clean := templateExpression.ReplaceAllString(path, "{param}")
+	if index := strings.Index(clean, "?"); index >= 0 {
+		clean = clean[:index]
+	}
+	if strings.HasPrefix(clean, "/api/") {
+		return clean
+	}
+	return "/api" + clean
+}
+
+func contractRouteMatchers(contract openAPIContract) contractRouteMatchersList {
+	matchers := make(contractRouteMatchersList, 0)
+	for path, item := range contract.Paths {
+		for method, operation := range item {
+			matchers = append(matchers, contractRouteMatcher{
+				method:    strings.ToUpper(method),
+				path:      path,
+				operation: operation,
+			})
+		}
+	}
+	sort.Slice(matchers, func(i, j int) bool {
+		if matchers[i].path != matchers[j].path {
+			return matchers[i].path < matchers[j].path
+		}
+		return matchers[i].method < matchers[j].method
+	})
+	return matchers
+}
+
+func (matchers contractRouteMatchersList) match(method string, path string) (apiOperation, bool) {
+	for _, matcher := range matchers {
+		if matcher.method == method && pathsCompatible(matcher.path, path) {
+			return matcher.operation, true
+		}
+	}
+	return apiOperation{}, false
+}
+
+func pathsCompatible(contractPath string, frontendPath string) bool {
+	contractParts := strings.Split(contractPath, "/")
+	frontendParts := strings.Split(frontendPath, "/")
+	if len(contractParts) != len(frontendParts) {
+		return false
+	}
+	for index := range contractParts {
+		if contractParts[index] == frontendParts[index] {
+			continue
+		}
+		if pathParamSegment(contractParts[index]) || pathParamSegment(frontendParts[index]) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func pathParamSegment(segment string) bool {
+	return strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}")
+}
+
+func unsafeMethod(method string) bool {
+	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
+}
+
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve test file path")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
 }
 
 func operationRequires(operation apiOperation, name string) bool {
