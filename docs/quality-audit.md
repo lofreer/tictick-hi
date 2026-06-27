@@ -964,6 +964,77 @@ Definition of Done：
 - Kubernetes / 多实例生产编排。
 - 真实第三方通知 provider。
 
+### 阶段 8 当前验收快照：全链路 smoke gate
+
+执行时间：2026-06-27
+
+新增验收入口：
+
+- `scripts/stage8-smoke.sh`
+
+通过：
+
+- `scripts/stage8-smoke.sh`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `git diff --check`
+
+全链路 smoke 覆盖：
+
+- `docker compose up -d --build` 成功，`/readyz` 返回健康。
+- 登录 API 成功并设置 session / CSRF cookie；后续写请求带 `X-CSRF-Token`。
+- `GET /api/strategies` 能观察到 `ema-cross` 策略 registry。
+- 通过 API 创建专用数据同步任务，并向 `market_candles` 写入专用 `1m` K 线事实数据。
+- `GET /api/candles?interval=5m` 返回 `source=aggregated`、`health=ok`、`baseInterval=1m`，证明研究页和 CandleProvider 可用同一数据源。
+- 通过 API 创建 `webhook-demo` 通知通道。
+- 通过 API 创建回测任务，`hi backtest --once` 执行后任务进入 `succeeded`，并能读取 strategy intents 和 backtest orders。
+- 通过 API 创建 paper execute 交易任务，`hi trading --once` 执行后能读取 paper orders、executions、positions；验证后脚本立即 pause 该任务，避免继续占用 trading claim 队列。
+- 通过 API 创建 paper notification 交易任务，`hi trading --once` 生成 notification records，`hi notify --once` 投递后所有通知进入 `sent`。
+- `GET /api/system/health` 能观察 `sync-worker`、`backtest-worker`、`trading-worker`、`notify-worker`。
+
+本轮 smoke 证据：
+
+- symbol：`S81782549588USDT`
+- data task：`dst_9e135e943f10227318e3a777`
+- backtest：`bt_fdd2e012fe2b539b9e8bfabc`
+- paper execute：`tt_aaaa7de9e1a2f303d90a770e`
+- paper notify：`tt_c83e8ebd5ec045feaf0849b6`
+- notification channel：`stage8-smoke-1782549588`
+
+前端 DOM smoke：
+
+- `/research?exchange=binance&symbol=S81782549588USDT&interval=5m` 显示专用 symbol、`K 线来源: 内部聚合` 和数据健康。
+- `/backtests/bt_fdd2e012fe2b539b9e8bfabc` 显示专用 symbol、完成状态、订单数和回测详情。
+- `/trading/tt_c83e8ebd5ec045feaf0849b6` 显示专用 symbol 和通知通道。
+- `/system/notifications` 显示 `stage8-smoke-1782549588` 和 `sent` 状态。
+- 浏览器 DOM smoke 未捕获 console error 或 page error。
+
+已修正的 smoke 设计问题：
+
+- 早期 Stage 8 smoke 中，paper execute 任务验证后仍保持 `running`，会按创建时间反复被 trading worker claim，阻塞后续 paper notification 任务。
+- 新 smoke 在验证 paper execute 输出后立即 pause 任务，再创建 notification 任务，避免同一 claim 队列被旧 running 任务长期占用。
+
+失败：
+
+- 无当前硬失败。
+
+警告：
+
+- Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
+- 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
+- worker 仍未抽取全系统统一 lease 状态机，数据同步 worker 仍缺运行中 heartbeat loop 和优雅停止状态机。
+- 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
+阶段 8 当前结论：
+
+- 整体全链路 smoke gate 达到 `demo` 证据增强。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
