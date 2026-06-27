@@ -500,7 +500,7 @@ func TestSystemRoutes(t *testing.T) {
 		path string
 		body string
 	}{
-		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook-demo","target":"demo://ops","enabled":true}`},
+		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook","target":"https://example.invalid/ops","enabled":true}`},
 		{path: "/api/system/exchange-accounts", body: `{"exchange":"binance","alias":"main","apiKey":"key","apiSecret":"secret","enabled":true}`},
 		{path: "/api/system/operators", body: `{"username":"ops","password":"secret123","enabled":true}`},
 	}

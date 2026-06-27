@@ -15,7 +15,7 @@ func IsShutdown(ctx context.Context, err error) bool {
 	if err == nil || ctx.Err() == nil {
 		return false
 	}
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	return true
 }
 
 func ReleaseContext(ctx context.Context) (context.Context, context.CancelFunc) {

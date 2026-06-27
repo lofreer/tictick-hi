@@ -142,6 +142,7 @@ const retryingId = ref("");
 const form = reactive({ name: "", provider: "local", target: "default", enabled: true });
 const providerOptions: SelectOption[] = [
   { label: "local", value: "local" },
+  { label: "webhook", value: "webhook" },
   { label: "webhook-demo", value: "webhook-demo" },
 ];
 

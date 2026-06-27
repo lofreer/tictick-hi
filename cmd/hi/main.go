@@ -78,7 +78,7 @@ func runNotify(ctx context.Context, args []string) error {
 	}
 	defer store.Close()
 
-	runner := notification.NewRunner(store, notification.DemoProviders(), notification.Config{
+	runner := notification.NewRunner(store, notification.DefaultProviders(), notification.Config{
 		WorkerID:      envOrDefault("NOTIFY_WORKER_ID", defaultWorkerID()),
 		LeaseTTL:      durationEnv("NOTIFY_LEASE_TTL", 30*time.Second),
 		PollInterval:  durationEnv("NOTIFY_POLL_INTERVAL", 10*time.Second),

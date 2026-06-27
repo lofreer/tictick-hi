@@ -19,8 +19,8 @@ func validateNotificationChannel(channel data.CreateNotificationChannel) error {
 	if channel.Name == "" || channel.Provider == "" || channel.Target == "" {
 		return errors.New("name, provider and target are required")
 	}
-	if channel.Provider != "local" && channel.Provider != "webhook-demo" {
-		return errors.New("provider must be local or webhook-demo")
+	if channel.Provider != "local" && channel.Provider != "webhook-demo" && channel.Provider != "webhook" {
+		return errors.New("provider must be local, webhook-demo or webhook")
 	}
 	return nil
 }

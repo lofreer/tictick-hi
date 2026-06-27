@@ -16,6 +16,7 @@ SYMBOL="S8TERM${STAMP}USDT"
 WORKER_ID="stage8-sigterm-${STAMP}"
 BACKTEST_WORKER_ID="stage8-sigterm-backtest-${STAMP}"
 TRADING_WORKER_ID="stage8-sigterm-trading-${STAMP}"
+NOTIFY_WORKER_ID="stage8-sigterm-notify-${STAMP}"
 START_TIME="2026-01-01T00:00:00Z"
 END_TIME="2026-01-01T02:00:00Z"
 
@@ -27,6 +28,9 @@ BODY_FILE="$TMP_DIR/body.json"
 TASK_ID=""
 BACKTEST_TASK_ID=""
 TRADING_TASK_ID=""
+NOTIFICATION_TASK_ID="stage8-sigterm-notify-${STAMP}"
+NOTIFICATION_ID="nt_s8term_${STAMP}"
+OUTBOX_ID="no_s8term_${STAMP}"
 LOCK_APPS=()
 
 COMPOSE_ARGS=(-f "$ROOT_DIR/docker-compose.yml" -f "$COMPOSE_OVERRIDE")
@@ -69,6 +73,20 @@ SELECT id,
        attempt_count,
        COALESCE(last_error, '')
   FROM data_sync_tasks
+ WHERE id = :'id';
+SQL
+  fi
+  if [ -n "$OUTBOX_ID" ]; then
+    printf 'notification outbox state:\n' >&2
+    psql_exec -At -v id="$OUTBOX_ID" <<'SQL' >&2 || true
+SELECT id,
+       notification_id,
+       status,
+       COALESCE(locked_by, ''),
+       locked_until IS NULL,
+       attempt_count,
+       COALESCE(last_error, '')
+  FROM notification_outbox
  WHERE id = :'id';
 SQL
   fi
@@ -143,7 +161,9 @@ write_sigterm_compose() {
 const http = require("http");
 
 let hits = 0;
+let webhookHits = 0;
 const pending = new Set();
+const webhookPending = new Set();
 
 const server = http.createServer((request, response) => {
   if (request.url === "/ready") {
@@ -154,7 +174,12 @@ const server = http.createServer((request, response) => {
 
   if (request.url === "/status") {
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ hits, pending: pending.size }));
+    response.end(JSON.stringify({
+      hits,
+      pending: pending.size,
+      webhookHits,
+      webhookPending: webhookPending.size
+    }));
     return;
   }
 
@@ -170,6 +195,23 @@ const server = http.createServer((request, response) => {
       response.writeHead(200, { "content-type": "application/json" });
       response.end("[]");
       pending.delete(response);
+    }, 60000);
+    return;
+  }
+
+  if (request.url === "/webhook/slow") {
+    webhookHits += 1;
+    request.resume();
+    webhookPending.add(response);
+    response.on("close", () => webhookPending.delete(response));
+    setTimeout(() => {
+      if (response.destroyed || response.writableEnded) {
+        webhookPending.delete(response);
+        return;
+      }
+      response.writeHead(204);
+      response.end();
+      webhookPending.delete(response);
     }, 60000);
     return;
   }
@@ -223,6 +265,20 @@ services:
       TRADING_WORKER_ID: "$TRADING_WORKER_ID"
       TRADING_LEASE_TTL: 6s
       TRADING_POLL_INTERVAL: 1s
+
+  notify:
+    environment:
+      NOTIFY_WORKER_ID: "$NOTIFY_WORKER_ID"
+      NOTIFY_LEASE_TTL: 6s
+      NOTIFY_POLL_INTERVAL: 1s
+      NOTIFY_RETRY_DELAY: 1s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      sigterm-market:
+        condition: service_started
 YAML
 }
 
@@ -408,6 +464,108 @@ UPDATE trading_tasks
        finished_at = COALESCE(finished_at, now()),
        updated_at = now()
  WHERE symbol LIKE 'S8TERM%';
+
+DELETE FROM notification_outbox
+ WHERE task_id LIKE 'stage8-sigterm-notify-%'
+    OR notification_id LIKE 'nt_s8term_%';
+
+DELETE FROM notifications
+ WHERE task_id LIKE 'stage8-sigterm-notify-%'
+    OR id LIKE 'nt_s8term_%';
+SQL
+}
+
+seed_webhook_notification() {
+  psql_exec \
+    -v notification_id="$NOTIFICATION_ID" \
+    -v outbox_id="$OUTBOX_ID" \
+    -v task_id="$NOTIFICATION_TASK_ID" <<'SQL' >/dev/null
+INSERT INTO notifications (
+  id, task_id, intent_id, channel, title, body, status, error,
+  created_at, sent_at, provider, target, attempt_count, max_attempts,
+  next_attempt_at, last_attempt_at, updated_at
+)
+VALUES (
+  :'notification_id',
+  :'task_id',
+  NULL,
+  'stage8-sigterm-webhook',
+  'Stage 8 SIGTERM webhook',
+  'Notify worker should release the outbox lease on SIGTERM.',
+  'pending',
+  NULL,
+  now(),
+  NULL,
+  'webhook',
+  'http://sigterm-market:8080/webhook/slow',
+  0,
+  3,
+  now(),
+  NULL,
+  now()
+)
+ON CONFLICT (id) DO UPDATE
+   SET status = 'pending',
+       error = NULL,
+       sent_at = NULL,
+       provider = EXCLUDED.provider,
+       target = EXCLUDED.target,
+       attempt_count = 0,
+       max_attempts = 3,
+       next_attempt_at = now(),
+       last_attempt_at = NULL,
+       updated_at = now();
+
+INSERT INTO notification_outbox (
+  id, notification_id, task_id, intent_id, channel, provider, target,
+  title, body, status, attempt_count, max_attempts, next_attempt_at,
+  last_attempt_at, delivered_at, last_error, locked_by, locked_until,
+  created_at, updated_at
+)
+VALUES (
+  :'outbox_id',
+  :'notification_id',
+  :'task_id',
+  NULL,
+  'stage8-sigterm-webhook',
+  'webhook',
+  'http://sigterm-market:8080/webhook/slow',
+  'Stage 8 SIGTERM webhook',
+  'Notify worker should release the outbox lease on SIGTERM.',
+  'pending',
+  0,
+  3,
+  now(),
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  now(),
+  now()
+)
+ON CONFLICT (notification_id) DO UPDATE
+   SET status = 'pending',
+       provider = EXCLUDED.provider,
+       target = EXCLUDED.target,
+       attempt_count = 0,
+       max_attempts = 3,
+       next_attempt_at = now(),
+       last_attempt_at = NULL,
+       delivered_at = NULL,
+       last_error = NULL,
+       locked_by = NULL,
+       locked_until = NULL,
+       updated_at = now();
+SQL
+}
+
+delete_webhook_notification_after_proof() {
+  psql_exec \
+    -v notification_id="$NOTIFICATION_ID" \
+    -v outbox_id="$OUTBOX_ID" <<'SQL' >/dev/null
+DELETE FROM notification_outbox WHERE id = :'outbox_id';
+DELETE FROM notifications WHERE id = :'notification_id';
 SQL
 }
 
@@ -586,6 +744,29 @@ SQL
   fail "trading worker did not claim the controlled task"
 }
 
+wait_for_notify_claimed_webhook() {
+  for _ in $(seq 1 60); do
+    local claimed hits pending
+    claimed="$(psql_exec -At -v id="$OUTBOX_ID" -v worker="$NOTIFY_WORKER_ID" <<'SQL' | tr -d '[:space:]'
+SELECT count(*)
+  FROM notification_outbox
+ WHERE id = :'id'
+   AND status = 'running'
+   AND locked_by = :'worker'
+   AND locked_until > now()
+   AND attempt_count > 0;
+SQL
+)"
+    hits="$(mock_status_value webhookHits 2>/dev/null || printf '0')"
+    pending="$(mock_status_value webhookPending 2>/dev/null || printf '0')"
+    if [ "$claimed" = "1" ] && [ "${hits:-0}" -gt 0 ] && [ "${pending:-0}" -gt 0 ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "notify worker did not claim the webhook delivery and enter the slow request"
+}
+
 assert_backtest_sigterm_release() {
   for _ in $(seq 1 30); do
     local released
@@ -632,6 +813,32 @@ SQL
     sleep 1
   done
   fail "trading task lease was not released after container SIGTERM"
+}
+
+assert_notify_sigterm_release() {
+  for _ in $(seq 1 30); do
+    local released
+    released="$(psql_exec -At -v id="$OUTBOX_ID" -v notification="$NOTIFICATION_ID" <<'SQL' | tr -d '[:space:]'
+SELECT count(*)
+  FROM notification_outbox outbox
+  JOIN notifications notification ON notification.id = outbox.notification_id
+ WHERE outbox.id = :'id'
+   AND notification.id = :'notification'
+   AND outbox.status = 'running'
+   AND notification.status = 'running'
+   AND outbox.locked_by IS NULL
+   AND outbox.locked_until IS NULL
+   AND outbox.attempt_count > 0
+   AND COALESCE(outbox.last_error, '') = ''
+   AND COALESCE(notification.error, '') = '';
+SQL
+)"
+    if [ "$released" = "1" ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "notification outbox lease was not released after container SIGTERM"
 }
 
 require_env POSTGRES_USER
@@ -700,6 +907,14 @@ assert_trading_sigterm_release
 release_market_locks
 pause_trading_after_proof
 
+log "notify SIGTERM while webhook delivery is blocked"
+seed_webhook_notification
+docker compose "${COMPOSE_ARGS[@]}" up -d --build notify
+wait_for_notify_claimed_webhook
+docker compose "${COMPOSE_ARGS[@]}" stop -t 10 notify >/dev/null
+assert_notify_sigterm_release
+delete_webhook_notification_after_proof
+
 cat <<SUMMARY
 
 Stage 8 SIGTERM smoke passed
@@ -710,4 +925,6 @@ backtest=$BACKTEST_TASK_ID
 backtestWorker=$BACKTEST_WORKER_ID
 trading=$TRADING_TASK_ID
 tradingWorker=$TRADING_WORKER_ID
+notification=$NOTIFICATION_ID
+notifyWorker=$NOTIFY_WORKER_ID
 SUMMARY

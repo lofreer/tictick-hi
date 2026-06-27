@@ -13,8 +13,8 @@ describe("system api", () => {
         JSON.stringify({
           id: "nc_1",
           name: "Ops",
-          provider: "webhook-demo",
-          target: "demo://ops",
+          provider: "webhook",
+          target: "https://example.invalid/ops",
           enabled: true,
           createdAt: "2026-01-01T00:00:00Z",
           updatedAt: "2026-01-01T00:00:00Z",
@@ -26,8 +26,8 @@ describe("system api", () => {
 
     const channel = await systemApi.createNotificationChannel({
       name: "Ops",
-      provider: "webhook-demo",
-      target: "demo://ops",
+      provider: "webhook",
+      target: "https://example.invalid/ops",
       enabled: true,
     });
 
@@ -36,7 +36,7 @@ describe("system api", () => {
       "/api/system/notifications/channels",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining("\"provider\":\"webhook-demo\""),
+        body: expect.stringContaining("\"provider\":\"webhook\""),
       }),
     );
   });

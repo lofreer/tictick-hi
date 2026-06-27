@@ -89,6 +89,9 @@ func TestIsShutdownRequiresParentContextCancellation(t *testing.T) {
 	if !IsShutdown(ctx, context.Canceled) {
 		t.Fatal("expected canceled parent context to be treated as shutdown")
 	}
+	if !IsShutdown(ctx, errors.New("transport closed after signal")) {
+		t.Fatal("expected any work error after parent cancellation to be treated as shutdown")
+	}
 }
 
 func TestReleaseContextIgnoresParentCancellation(t *testing.T) {
