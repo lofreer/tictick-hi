@@ -255,8 +255,21 @@ func TestIntegrationDatabaseReferentialConstraintsRejectOrphans(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := testContext(t)
 		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM strategy_intents WHERE task_id = $1`, backtestTaskID)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM backtest_tasks WHERE id = $1`, backtestTaskID)
 	})
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO strategy_intents (
+			id, task_id, task_type, strategy_id, intent_type,
+			idempotency_key, policy, status
+		)
+		VALUES ($1, $2, 'backtest', 'ema-cross', 'order', $3, 'simulate', 'accepted')`,
+		"si_valid_backtest_"+suffix,
+		backtestTaskID,
+		"intent_valid_backtest_"+suffix,
+	); err != nil {
+		t.Fatalf("insert valid backtest intent: %v", err)
+	}
 
 	cases := []struct {
 		name       string
@@ -280,6 +293,54 @@ func TestIntegrationDatabaseReferentialConstraintsRejectOrphans(t *testing.T) {
 				"ITFKORDER" + suffix + "USDT",
 			},
 			constraint: "orders_trading_task_fk",
+		},
+		{
+			name: "strategy intent missing backtest task",
+			statement: `
+				INSERT INTO strategy_intents (
+					id, task_id, task_type, strategy_id, intent_type,
+					idempotency_key, policy, status
+				)
+				VALUES ($1, $2, 'backtest', 'ema-cross', 'order', $3,
+				        'simulate', 'accepted')`,
+			args: []any{
+				"si_fk_missing_backtest_" + suffix,
+				"bt_missing_" + suffix,
+				"si_fk_missing_backtest_key_" + suffix,
+			},
+			constraint: "strategy_intents_task_parent_fk",
+		},
+		{
+			name: "strategy intent missing trading task",
+			statement: `
+				INSERT INTO strategy_intents (
+					id, task_id, task_type, strategy_id, intent_type,
+					idempotency_key, policy, status
+				)
+				VALUES ($1, $2, 'paper', 'ema-cross', 'order', $3,
+				        'execute', 'accepted')`,
+			args: []any{
+				"si_fk_missing_trading_" + suffix,
+				"tt_missing_" + suffix,
+				"si_fk_missing_trading_key_" + suffix,
+			},
+			constraint: "strategy_intents_task_parent_fk",
+		},
+		{
+			name: "strategy intent trading type mismatch",
+			statement: `
+				INSERT INTO strategy_intents (
+					id, task_id, task_type, strategy_id, intent_type,
+					idempotency_key, policy, status
+				)
+				VALUES ($1, $2, 'live', 'ema-cross', 'order', $3,
+				        'execute', 'accepted')`,
+			args: []any{
+				"si_fk_mismatch_trading_" + suffix,
+				parentTaskID,
+				"si_fk_mismatch_trading_key_" + suffix,
+			},
+			constraint: "strategy_intents_task_parent_fk",
 		},
 		{
 			name: "order missing intent",
