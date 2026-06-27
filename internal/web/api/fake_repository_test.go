@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -410,6 +411,9 @@ func (repository *fakeRepository) CreateOperatorSession(
 	_ context.Context,
 	session data.OperatorSession,
 ) error {
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
 	repository.sessions[session.TokenHash] = session
 	return nil
 }
@@ -434,6 +438,49 @@ func (repository *fakeRepository) GetOperatorBySession(
 func (repository *fakeRepository) DeleteOperatorSession(_ context.Context, tokenHash string) error {
 	delete(repository.sessions, tokenHash)
 	return nil
+}
+
+func (repository *fakeRepository) ListOperatorSessions(
+	_ context.Context,
+	operatorID string,
+	currentTokenHash string,
+	now time.Time,
+) ([]data.OperatorSession, error) {
+	sessions := []data.OperatorSession{}
+	for tokenHash, session := range repository.sessions {
+		if session.OperatorID != operatorID || !session.ExpiresAt.After(now) {
+			continue
+		}
+		session.TokenHash = tokenHash
+		session.Current = tokenHash == currentTokenHash
+		sessions = append(sessions, session)
+	}
+	sort.SliceStable(sessions, func(left int, right int) bool {
+		if sessions[left].Current != sessions[right].Current {
+			return sessions[left].Current
+		}
+		return sessions[left].CreatedAt.After(sessions[right].CreatedAt)
+	})
+	return sessions, nil
+}
+
+func (repository *fakeRepository) DeleteOperatorSessionByID(
+	_ context.Context,
+	operatorID string,
+	sessionID string,
+	currentTokenHash string,
+) error {
+	for tokenHash, session := range repository.sessions {
+		if session.ID != sessionID || session.OperatorID != operatorID {
+			continue
+		}
+		if tokenHash == currentTokenHash {
+			return data.ErrInvalidState
+		}
+		delete(repository.sessions, tokenHash)
+		return nil
+	}
+	return data.ErrNotFound
 }
 
 func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHealth, error) {

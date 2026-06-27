@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api/client";
-import type { LoginCredentials, Operator } from "@/types/app";
+import type { LoginCredentials, Operator, OperatorSession } from "@/types/app";
 
 export const authApi = {
   login(credentials: LoginCredentials) {
@@ -12,5 +12,13 @@ export const authApi = {
 
   async logout() {
     await apiClient.post<{ status: string }>("/auth/logout");
+  },
+
+  listSessions() {
+    return apiClient.get<OperatorSession[]>("/auth/sessions");
+  },
+
+  async revokeSession(id: string) {
+    await apiClient.delete<{ status: string }>(`/auth/sessions/${encodeURIComponent(id)}`);
   },
 };

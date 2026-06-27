@@ -9,23 +9,28 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/lofreer/tictick-hi/internal/core"
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func (server *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 	parts := pathParts(r.URL.Path)
-	if len(parts) != 3 || parts[0] != "api" || parts[1] != "auth" {
+	if len(parts) < 3 || parts[0] != "api" || parts[1] != "auth" {
 		writeError(w, http.StatusNotFound, "auth route not found")
 		return
 	}
 
 	switch {
-	case parts[2] == "login" && r.Method == http.MethodPost:
+	case len(parts) == 3 && parts[2] == "login" && r.Method == http.MethodPost:
 		server.handleLogin(w, r)
-	case parts[2] == "me" && r.Method == http.MethodGet:
+	case len(parts) == 3 && parts[2] == "me" && r.Method == http.MethodGet:
 		server.handleCurrentOperator(w, r)
-	case parts[2] == "logout" && r.Method == http.MethodPost:
+	case len(parts) == 3 && parts[2] == "logout" && r.Method == http.MethodPost:
 		server.handleLogout(w, r)
+	case len(parts) == 3 && parts[2] == "sessions" && r.Method == http.MethodGet:
+		server.handleListOperatorSessions(w, r)
+	case len(parts) == 4 && parts[2] == "sessions" && r.Method == http.MethodDelete:
+		server.handleDeleteOperatorSession(w, r, parts[3])
 	default:
 		writeError(w, http.StatusNotFound, "auth route not found")
 	}
@@ -64,6 +69,11 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	sessionID, err := core.NewPrefixedID("os")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	csrfToken, err := newCSRFToken()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Errorf("generate csrf token: %w", err).Error())
@@ -71,6 +81,7 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	expiresAt := time.Now().UTC().Add(server.sessionTTL)
 	err = server.repository.CreateOperatorSession(r.Context(), data.OperatorSession{
+		ID:         sessionID,
 		OperatorID: operator.ID,
 		TokenHash:  tokenHash,
 		ExpiresAt:  expiresAt,
@@ -83,6 +94,36 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	server.setSessionCookie(w, token, expiresAt)
 	server.setCSRFCookie(w, csrfToken, expiresAt)
 	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) handleListOperatorSessions(w http.ResponseWriter, r *http.Request) {
+	operator, tokenHash, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	sessions, err := server.repository.ListOperatorSessions(r.Context(), operator.ID, tokenHash, time.Now().UTC())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (server *Server) handleDeleteOperatorSession(w http.ResponseWriter, r *http.Request, sessionID string) {
+	if !server.validateCSRF(w, r) {
+		return
+	}
+	operator, tokenHash, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	if err := server.repository.DeleteOperatorSessionByID(r.Context(), operator.ID, sessionID, tokenHash); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (server *Server) handleCurrentOperator(w http.ResponseWriter, r *http.Request) {

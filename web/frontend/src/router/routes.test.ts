@@ -35,6 +35,7 @@ describe("routes", () => {
         "/system/notifications",
         "/system/exchange-accounts",
         "/system/operators",
+        "/system/sessions",
         "/system/health",
       ]),
     );

@@ -311,6 +311,14 @@ export type LoginCredentials = {
   password: string;
 };
 
+export type OperatorSession = {
+  id: string;
+  operatorId?: string;
+  expiresAt: string;
+  createdAt: string;
+  current: boolean;
+};
+
 export type ServiceHealth = {
   name: string;
   status: string;

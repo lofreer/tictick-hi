@@ -34,7 +34,7 @@ done            用户确认关闭
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，集成测试和 Stage 8 smoke 已验证；仍缺完整状态机约束、数据迁移/回滚策略和部分多态任务参照约束 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；仍缺完整 request / response mapping、审计日志和更细错误分类 |
-| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
+| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；仍缺持久化限流、会话审计、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
@@ -46,7 +46,7 @@ done            用户确认关闭
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；webhook provider 使用真实 HTTP POST 且支持上下文取消，notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；真实邮件/Telegram/飞书 provider、通道更新/删除、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览仍薄、缺系统性桌面/移动/主题视觉回归，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
-| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、审计、完整 session 管理和生产监控 |
+| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、审计、自保护规则和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实邮件/Telegram/飞书 provider 和生产级登录安全作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
@@ -1182,7 +1182,7 @@ Definition of Done：
 
 - 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
 - live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
-- 登录会话仍缺 CSRF、防暴力破解和更完整 session 管理。
+- 登录会话仍缺持久化限流、会话审计、密码策略和生产级设备上下文。
 
 阶段 5 结论：
 
@@ -1223,7 +1223,7 @@ Definition of Done：
 - 真实 testnet/sandbox live executor 未实现。
 - 订单先落库再提交交易所、交易所响应回写和幂等 retry 仍未完成。
 - 生产级 KMS / secret manager、密钥轮换和历史 `legacy` 账号迁移策略仍未完成。
-- 全系统 worker lease、登录会话 CSRF / 防暴力破解仍未完成。
+- 全系统 worker lease、登录会话持久化限流 / 审计 / 密码策略仍未完成。
 
 阶段 6 结论：
 
@@ -1270,6 +1270,51 @@ Definition of Done：
 
 - 运维健康和操作台账号达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
+### 阶段 7 登录会话管理补充
+
+执行时间：2026-06-28
+
+目标等级：demo 增量。
+
+范围内：
+
+- 为 `operator_sessions` 增加非敏感公开 session id，避免前端暴露 token hash。
+- 登录时创建随机 `os_...` session id。
+- `GET /api/auth/sessions` 返回当前操作员有效 session 列表，并标记当前 session。
+- `DELETE /api/auth/sessions/:id` 撤销当前操作员的非当前 session，写请求继续要求 CSRF。
+- 系统管理菜单新增登录会话页面，前端可查看 session、识别当前 session 并撤销非当前 session。
+
+范围外：
+
+- RBAC、自保护规则、会话审计日志、持久化登录限流、密码策略、设备指纹、IP / UA 变更告警。
+
+验证：
+
+- `go test ./internal/web/api`
+- `go test ./internal/data ./internal/store/postgres ./internal/web/api`
+- `pnpm --dir web/frontend exec vitest run src/services/api/auth.test.ts src/router/routes.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `go test ./...`
+- `go vet ./...`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- 本地 HTTP smoke：两次登录后 `GET /api/auth/sessions` 能返回当前和非当前 session；`DELETE /api/auth/sessions/:id` 撤销非当前 session 后对应 cookie 请求 `/api/auth/me` 返回 `401`；撤销当前 session 返回 `409 invalid_state`；响应未暴露 `tokenHash`。
+- Headless Chrome DOM smoke：登录后打开 `/system/sessions`，页面标题为 `登录会话`，表格渲染 session 行，显示当前会话标记，无错误状态。
+
+失败：
+
+- 首轮 `scripts/quality-gate.sh` 失败：`internal/web/api/server_test.go` 超过 700 行、`internal/store/postgres/system_store.go` 超过 500 行。
+- 已通过拆分 `internal/web/api/auth_session_test.go` 和 `internal/store/postgres/auth_session_store.go` 关闭，重跑 `scripts/quality-gate.sh` 通过。
+
+剩余风险：
+
+- 这只是基础 session 管理，不是生产级登录安全；仍缺持久化限流、审计日志、密码策略、RBAC / 自保护和设备上下文。
+- 本轮未运行完整 `scripts/stage8-smoke.sh`；session 路由用本地 HTTP / DOM smoke 覆盖。
 
 ## 5. 下一条可推进切片
 
@@ -1446,7 +1491,7 @@ Definition of Done：
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，并由 PostgreSQL 集成测试覆盖非法值与 orphan 写入拒绝 | 完整状态机约束、`strategy_intents` 多态 task 参照、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API 和结构化错误响应可测；前端 API client 会读取服务端 `message/error` 并保留 `code` | 完整 request/response mapping、全量错误分类和审计日志不足 |
-| 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流有 route/smoke 覆盖 | 限流内存态、无会话列表/撤销、无密码策略/RBAC/审计 |
+| 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖 | 限流内存态、无密码策略/RBAC/审计、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
 | CandleProvider | demo | native/aggregated/gap/coverage metadata、runner 健康门禁和集成测试已覆盖 | 大范围分页/游标、性能压测、异常数据修复策略不足 |
 | Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码和 URL 脱敏有测试 | 无全局限流器、真实网络压测、代理/地域策略和完整业务码审计 |
@@ -1458,7 +1503,7 @@ Definition of Done：
 | 通知 | demo | outbox、local/webhook-demo/webhook provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实邮件/Telegram/飞书 provider、模板、限流、审计和通道管理不足 |
 | 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告 | 概览仍薄、缺系统性桌面/移动/主题视觉回归 |
 | 概览页 | scaffold | 有 scaffold 状态和基础健康入口 | 不是真实业务概览，缺关键指标、告警、链路摘要和操作入口 |
-| 系统管理 / 运维健康 | demo | 操作台账号启停、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、审计日志、生产监控和会话管理 |
+| 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员 session 管理、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、审计日志和生产监控 |
 | 质量门禁 | demo | 通用门禁、stage8 smoke、data sync/backtest/trading/notify SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、视觉回归和安全审计纳入硬门禁 |
 
 重审计结论：

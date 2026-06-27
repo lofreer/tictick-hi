@@ -301,9 +301,12 @@ type LoginRequest struct {
 }
 
 type OperatorSession struct {
-	OperatorID string
-	TokenHash  string
-	ExpiresAt  time.Time
+	ID         string    `json:"id"`
+	OperatorID string    `json:"operatorId,omitempty"`
+	TokenHash  string    `json:"-"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	Current    bool      `json:"current"`
 }
 
 type SystemHealth struct {
@@ -430,6 +433,8 @@ type Repository interface {
 	CreateOperatorSession(ctx context.Context, session OperatorSession) error
 	GetOperatorBySession(ctx context.Context, tokenHash string, now time.Time) (Operator, error)
 	DeleteOperatorSession(ctx context.Context, tokenHash string) error
+	ListOperatorSessions(ctx context.Context, operatorID string, currentTokenHash string, now time.Time) ([]OperatorSession, error)
+	DeleteOperatorSessionByID(ctx context.Context, operatorID string, sessionID string, currentTokenHash string) error
 	SystemHealth(ctx context.Context) (SystemHealth, error)
 }
 

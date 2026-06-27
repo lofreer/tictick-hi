@@ -13,6 +13,7 @@ const TradingDetailPage = () => import("@/pages/TradingDetailPage.vue");
 const SystemNotificationsPage = () => import("@/pages/SystemNotificationsPage.vue");
 const SystemExchangeAccountsPage = () => import("@/pages/SystemExchangeAccountsPage.vue");
 const SystemOperatorsPage = () => import("@/pages/SystemOperatorsPage.vue");
+const SystemSessionsPage = () => import("@/pages/SystemSessionsPage.vue");
 const SystemHealthPage = () => import("@/pages/SystemHealthPage.vue");
 
 export const routes: RouteRecordRaw[] = [
@@ -82,6 +83,11 @@ export const routes: RouteRecordRaw[] = [
         path: "system/operators",
         name: "system-operators",
         component: SystemOperatorsPage,
+      },
+      {
+        path: "system/sessions",
+        name: "system-sessions",
+        component: SystemSessionsPage,
       },
       {
         path: "system/health",

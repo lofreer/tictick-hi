@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { Activity, Bell, ChevronDown, KeyRound, Settings, UsersRound } from "@lucide/vue";
+import { Activity, Bell, ChevronDown, KeyRound, Settings, ShieldCheck, UsersRound } from "@lucide/vue";
 import { NButton, NDropdown, type DropdownOption } from "naive-ui";
 import { h, computed } from "vue";
 import { useI18n } from "vue-i18n";
@@ -24,6 +24,7 @@ const options = computed<DropdownOption[]>(() => [
   option("notifications", "system.notifications", Bell),
   option("exchange-accounts", "system.exchangeAccounts", KeyRound),
   option("operators", "system.operators", UsersRound),
+  option("sessions", "system.sessions", ShieldCheck),
   option("health", "system.health", Activity),
 ]);
 
