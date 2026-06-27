@@ -2,6 +2,7 @@ package backtest
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,6 +172,47 @@ func TestRunnerRunOnceIgnoresUnclosedCandleSignals(t *testing.T) {
 	}
 }
 
+func TestRunnerRunOnceFailsOnUnhealthyCandles(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repository := &fakeBacktestRepository{
+		task: data.BacktestTask{
+			ID:             "bt_1",
+			Name:           "EMA",
+			Exchange:       "binance",
+			Symbol:         "BTCUSDT",
+			Interval:       "1m",
+			StartTime:      &start,
+			EndTime:        ptrTime(start.Add(10 * time.Minute)),
+			StrategyID:     "ema-cross",
+			StrategyParams: map[string]any{"fastPeriod": 2, "slowPeriod": 3, "orderSize": 0.1, "signalMode": "order"},
+			InitialBalance: "1000",
+			Status:         data.TaskStatusPending,
+		},
+		candleResult: &data.CandleResult{
+			Candles:           runnerTestCandles([]string{"10", "9", "8", "11", "12", "10", "8"}),
+			Source:            data.CandleSourceNative,
+			RequestedInterval: "1m",
+			BaseInterval:      "1m",
+			Health:            data.CandleHealthGap,
+		},
+	}
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if !repository.failed {
+		t.Fatal("expected backtest to be marked failed")
+	}
+	if repository.saved {
+		t.Fatal("unhealthy candle data should not save backtest result")
+	}
+	if repository.failedErr == nil || !strings.Contains(repository.failedErr.Error(), "candle data health is gap") {
+		t.Fatalf("unexpected failure error: %v", repository.failedErr)
+	}
+}
+
 func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -209,11 +251,13 @@ func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 type fakeBacktestRepository struct {
 	task               data.BacktestTask
 	candles            []data.Candle
+	candleResult       *data.CandleResult
 	query              data.CandleQuery
 	result             data.BacktestResult
 	claimed            bool
 	saved              bool
 	failed             bool
+	failedErr          error
 	released           bool
 	heartbeats         int
 	cancelOnGetCandles func()
@@ -250,8 +294,9 @@ func (repository *fakeBacktestRepository) SaveBacktestResult(
 	return nil
 }
 
-func (repository *fakeBacktestRepository) MarkBacktestFailed(context.Context, string, error) error {
+func (repository *fakeBacktestRepository) MarkBacktestFailed(_ context.Context, _ string, err error) error {
 	repository.failed = true
+	repository.failedErr = err
 	return nil
 }
 
@@ -269,6 +314,11 @@ func (repository *fakeBacktestRepository) GetCandles(
 		repository.cancelOnGetCandles()
 		<-ctx.Done()
 		return data.CandleResult{}, ctx.Err()
+	}
+	if repository.candleResult != nil {
+		result := *repository.candleResult
+		result.Candles = append([]data.Candle(nil), repository.candleResult.Candles...)
+		return result, nil
 	}
 	return data.CandleResult{
 		Candles:           append([]data.Candle(nil), repository.candles...),

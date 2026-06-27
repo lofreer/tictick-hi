@@ -2,6 +2,7 @@ package trading
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,6 +118,40 @@ func TestRunnerRunOnceIgnoresUnclosedCandleSignals(t *testing.T) {
 	}
 }
 
+func TestRunnerRunOnceFailsOnLimitedCoverage(t *testing.T) {
+	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
+	repository.candleResult = &data.CandleResult{
+		Candles:           runnerTestCandles([]string{"10", "9", "8", "11", "12", "10", "8"}),
+		Source:            data.CandleSourceAggregated,
+		RequestedInterval: "1h",
+		BaseInterval:      "1m",
+		Health:            data.CandleHealthOK,
+		Coverage: data.CandleCoverage{
+			RequestedLimit:      1000,
+			ReturnedCandles:     85,
+			RequiredBaseCandles: 60000,
+			BaseLimit:           data.MaxCandleLimit,
+			ReturnedBaseCandles: data.MaxCandleLimit,
+			LimitedByBaseWindow: true,
+		},
+	}
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if !repository.failed {
+		t.Fatal("expected trading task to be marked failed")
+	}
+	if repository.saved {
+		t.Fatal("limited candle coverage should not save trading result")
+	}
+	if repository.failedErr == nil || !strings.Contains(repository.failedErr.Error(), "candle data coverage is limited") {
+		t.Fatalf("unexpected failure error: %v", repository.failedErr)
+	}
+}
+
 func TestRunnerRunOnceRejectsLiveExecute(t *testing.T) {
 	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
 	repository.task.Type = "live"
@@ -158,10 +193,12 @@ func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 type fakeTradingRepository struct {
 	task               data.TradingTask
 	candles            []data.Candle
+	candleResult       *data.CandleResult
 	result             data.TradingRunResult
 	claimed            bool
 	saved              bool
 	failed             bool
+	failedErr          error
 	released           bool
 	heartbeats         int
 	cancelOnGetCandles func()
@@ -217,8 +254,9 @@ func (repository *fakeTradingRepository) SaveTradingRunResult(
 	return nil
 }
 
-func (repository *fakeTradingRepository) MarkTradingTaskFailed(context.Context, string, error) error {
+func (repository *fakeTradingRepository) MarkTradingTaskFailed(_ context.Context, _ string, err error) error {
 	repository.failed = true
+	repository.failedErr = err
 	return nil
 }
 
@@ -235,6 +273,11 @@ func (repository *fakeTradingRepository) GetCandles(
 		repository.cancelOnGetCandles()
 		<-ctx.Done()
 		return data.CandleResult{}, ctx.Err()
+	}
+	if repository.candleResult != nil {
+		result := *repository.candleResult
+		result.Candles = append([]data.Candle(nil), repository.candleResult.Candles...)
+		return result, nil
 	}
 	return data.CandleResult{
 		Candles:           append([]data.Candle(nil), repository.candles...),

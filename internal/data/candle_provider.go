@@ -54,8 +54,8 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	result.Coverage.RequiredBaseCandles = baseWindow.Required
 	result.Coverage.BaseLimit = baseWindow.Limit
 	result.Coverage.ReturnedBaseCandles = len(baseCandles)
-	result.Coverage.LimitedByBaseWindow = baseWindow.Limited
-	if baseWindow.Limited && len(aggregated) < result.Coverage.RequestedLimit {
+	result.Coverage.LimitedByBaseWindow = baseWindow.Limited && len(baseCandles) >= baseWindow.Limit
+	if result.Coverage.LimitedByBaseWindow && len(aggregated) < result.Coverage.RequestedLimit {
 		result.Health = CandleHealthInsufficient
 	}
 	if len(baseCandles) == 0 {
