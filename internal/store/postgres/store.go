@@ -125,10 +125,7 @@ func (store *Store) GetCandles(ctx context.Context, query data.CandleQuery) (dat
 }
 
 func (store *Store) ListNativeCandles(ctx context.Context, query data.CandleQuery) ([]data.Candle, error) {
-	limit := query.Limit
-	if limit <= 0 || limit > 5000 {
-		limit = 1000
-	}
+	limit := data.NormalizeCandleLimit(query.Limit)
 
 	if query.From == nil && query.To == nil {
 		return store.listLatestNativeCandles(ctx, query, limit)

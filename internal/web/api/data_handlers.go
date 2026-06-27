@@ -126,7 +126,7 @@ func parseCandleQuery(r *http.Request) (data.CandleQuery, error) {
 		Exchange: values.Get("exchange"),
 		Symbol:   values.Get("symbol"),
 		Interval: values.Get("interval"),
-		Limit:    1000,
+		Limit:    data.DefaultCandleLimit,
 	}
 	if query.Exchange == "" || query.Symbol == "" || query.Interval == "" {
 		return data.CandleQuery{}, errors.New("exchange, symbol and interval are required")
@@ -135,6 +135,9 @@ func parseCandleQuery(r *http.Request) (data.CandleQuery, error) {
 		limit, err := strconv.Atoi(rawLimit)
 		if err != nil || limit <= 0 {
 			return data.CandleQuery{}, errors.New("limit must be a positive integer")
+		}
+		if limit > data.MaxCandleLimit {
+			return data.CandleQuery{}, fmt.Errorf("limit must be less than or equal to %d", data.MaxCandleLimit)
 		}
 		query.Limit = limit
 	}

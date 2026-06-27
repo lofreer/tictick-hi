@@ -135,11 +135,11 @@ func baseLimitForAggregation(interval string, limit int) int {
 		ratio = 1
 	}
 	if limit <= 0 {
-		limit = 1000
+		limit = DefaultCandleLimit
 	}
 	baseLimit := limit * ratio
-	if baseLimit > 5000 {
-		return 5000
+	if baseLimit > MaxCandleLimit {
+		return MaxCandleLimit
 	}
 	return baseLimit
 }

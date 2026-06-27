@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -39,5 +40,21 @@ func TestCandlesRouteReturnsMetadata(t *testing.T) {
 	}
 	if len(result.Candles) != 1 || result.Candles[0].Open != "100.1" {
 		t.Fatalf("unexpected candles: %#v", result.Candles)
+	}
+}
+
+func TestCandlesRouteRejectsOversizedLimit(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		fmt.Sprintf("/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m&limit=%d", data.MaxCandleLimit+1),
+		"",
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 }

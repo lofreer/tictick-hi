@@ -36,7 +36,7 @@ done            用户确认关闭
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
-| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
@@ -185,6 +185,7 @@ scripts/quality-gate.sh
 - 同周期 native 不健康时会尝试回退到 `1m` 聚合；无法回退时保留 native + gap 状态。
 - 回测 runner 和交易 runner 已改为通过 CandleProvider 结果取 K 线。
 - PostgreSQL 集成测试已覆盖从 `market_candles` 聚合 `1m -> 5m`、基础缺口 metadata、native gap 查询和无时间范围时默认返回最新窗口。
+- 查询 limit 已收敛到 `DefaultCandleLimit=1000`、`MaxCandleLimit=5000`；API 超过上限返回 `400`，store 直接调用时 clamp 到最大上限而不是静默降回默认值。
 - 仍缺较大时间范围性能边界、分页/游标和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
 
 关闭条件：
@@ -412,6 +413,38 @@ scripts/quality-gate.sh
 警告：
 
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
+### 阶段 1 Candle 查询 limit 边界补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- `/api/candles` 接受任意 `limit`，而 PostgreSQL 查询层对 `limit > 5000` 会静默降回默认 `1000`。
+- 这会让大范围查询看似被接受，实际只返回默认窗口，属于阶段 1 查询边界不清。
+
+修复范围：
+
+- 新增 `data.DefaultCandleLimit=1000` 和 `data.MaxCandleLimit=5000`。
+- 新增 `data.NormalizeCandleLimit`，供存储层直接调用时统一规范化。
+- `/api/candles` 对超过 `MaxCandleLimit` 的请求返回 `400`，不再把不可控大范围请求传入 store。
+- PostgreSQL `ListNativeCandles` 对直接调用的超大 limit clamp 到 `MaxCandleLimit`，不再静默降回默认 1000。
+- CandleProvider 聚合基础 K 线窗口使用同一组 limit 常量，移除硬编码。
+
+验证：
+
+- `go test ./internal/data ./internal/web/api ./internal/store/postgres`
+- `TestNormalizeCandleLimit` 覆盖默认、负数、正常值、最大值和超大值。
+- `TestCandlesRouteRejectsOversizedLimit` 覆盖 API 超大 limit 返回 `400`。
+- `TestIntegrationListNativeCandlesClampsOversizedLimit` 覆盖直接 store 查询超大 limit 时不再降回默认 1000。
+
+失败：
+
+- 无硬失败。
+
+后续风险：
+
+- 这不是完整 cursor pagination；阶段 1 仍需要明确大范围时间查询和翻页协议。
 
 ### 阶段 1/3/4 闭合 K 线信号补充
 

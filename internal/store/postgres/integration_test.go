@@ -168,6 +168,61 @@ func TestIntegrationListNativeCandlesUsesLatestWindowWithoutRange(t *testing.T) 
 	}
 }
 
+func TestIntegrationListNativeCandlesClampsOversizedLimit(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	symbol := integrationSymbol("LC")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	start := time.Date(2026, 6, 27, 2, 0, 0, 0, time.UTC)
+	count := data.DefaultCandleLimit + 5
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_candles (
+			exchange, symbol, interval, open_time, close_time,
+			open, high, low, close, volume, is_closed, updated_at
+		)
+		SELECT 'binance',
+		       $1,
+		       '1m',
+		       $2::timestamptz + (series.idx * interval '1 minute'),
+		       $2::timestamptz + ((series.idx + 1) * interval '1 minute'),
+		       series.idx::numeric,
+		       (series.idx + 1)::numeric,
+		       series.idx::numeric,
+		       series.idx::numeric,
+		       1,
+		       true,
+		       now()
+		  FROM generate_series(0, $3::int - 1) AS series(idx)`,
+		symbol,
+		start,
+		count,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	candles, err := store.ListNativeCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		Limit:    data.MaxCandleLimit + 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candles) != count {
+		t.Fatalf("candles len = %d, want %d", len(candles), count)
+	}
+	assertOpenTimes(t, candles[:1], start)
+	assertOpenTimes(t, candles[len(candles)-1:], start.Add(time.Duration(count-1)*time.Minute))
+}
+
 func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
