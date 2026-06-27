@@ -309,6 +309,37 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
+  it("uses the observed panel content box when chart internals inflate layout bounds", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    let inflated = false;
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: inflated ? 5200 : 760 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1180, height: inflated ? 5000 : 680 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mountChart(host);
+    chartMocks.resize.mockClear();
+
+    inflated = true;
+    resizeCallback?.([resizeEntry(panel, { width: 1200, height: 760 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
   it("caps chart-driven host growth to the viewport without a panel boundary", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
@@ -389,4 +420,12 @@ function rect({ top, width, height }: { top: number; width: number; height: numb
 function setClientSize(element: HTMLElement, size: { width: number; height: number }) {
   Object.defineProperty(element, "clientWidth", { configurable: true, value: size.width });
   Object.defineProperty(element, "clientHeight", { configurable: true, value: size.height });
+}
+
+function resizeEntry(target: Element, size: { width: number; height: number }) {
+  return {
+    target,
+    contentRect: rect({ top: 0, width: size.width, height: size.height }),
+    contentBoxSize: [{ inlineSize: size.width, blockSize: size.height }],
+  } as unknown as ResizeObserverEntry;
 }

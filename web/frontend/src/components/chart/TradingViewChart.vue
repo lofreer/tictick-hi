@@ -40,6 +40,8 @@ let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
 let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let observedResizeHost: HTMLElement | null = null;
+let observedResizeHostSize: { width: number; height: number } | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
 const fallbackSize = { width: 1, height: 360 };
@@ -68,10 +70,10 @@ onMounted(() => {
   });
   markerPlugin = createSeriesMarkers(series, []);
 
-  const measurementHost = readResizeHost();
-  if (measurementHost) {
-    resizeObserver = new ResizeObserver(scheduleResize);
-    resizeObserver.observe(measurementHost);
+  observedResizeHost = readResizeHost();
+  if (observedResizeHost) {
+    resizeObserver = new ResizeObserver(handleObservedResize);
+    resizeObserver.observe(observedResizeHost);
   }
   window.addEventListener("resize", scheduleResize);
 
@@ -86,6 +88,8 @@ onBeforeUnmount(() => {
   }
   resizeObserver?.disconnect();
   resizeObserver = null;
+  observedResizeHost = null;
+  observedResizeHostSize = null;
   window.removeEventListener("resize", scheduleResize);
   chart?.remove();
   chart = null;
@@ -132,6 +136,16 @@ function syncMarkers() {
   markerPlugin?.setMarkers(markerData);
 }
 
+function handleObservedResize(entries: ResizeObserverEntry[]) {
+  for (const entry of entries) {
+    if (entry.target === observedResizeHost) {
+      observedResizeHostSize = readObserverContentSize(entry);
+      break;
+    }
+  }
+  scheduleResize();
+}
+
 function scheduleResize() {
   if (resizeFrame > 0) return;
   resizeFrame = window.requestAnimationFrame(resizeChart);
@@ -157,7 +171,7 @@ function readHostSize() {
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
-  const width = Math.floor(readClientWidth(host) ?? bounds.width);
+  const width = Math.floor(readObservedWidth(host) ?? readClientWidth(host) ?? bounds.width);
   const height = readStableHostHeight(host, bounds);
   if (width <= 0 || height <= 0) return null;
 
@@ -165,17 +179,21 @@ function readHostSize() {
 }
 
 function readStableHostHeight(host: HTMLElement, hostBounds: DOMRect) {
-  const measuredHeight = readClientHeight(host) ?? Math.floor(hostBounds.height);
   const panel = host.closest<HTMLElement>(".chart-panel");
-  if (!panel) return clampRenderedHeight(measuredHeight);
+  if (!panel) {
+    return clampRenderedHeight(readObservedHeight(host) ?? readClientHeight(host) ?? Math.floor(hostBounds.height));
+  }
 
   const panelBounds = panel.getBoundingClientRect();
-  const panelHeight = readClientHeight(panel) ?? readPixelHeight(panel) ?? Math.floor(panelBounds.height);
+  const panelHeight = readObservedHeight(panel) ?? readClientHeight(panel) ?? readPixelHeight(panel) ?? Math.floor(panelBounds.height);
   const offsetTop = host === panel ? 0 : Math.max(0, Math.floor(hostBounds.top - panelBounds.top));
   const availableHeight = Math.floor(panelHeight - offsetTop);
-  if (availableHeight <= 0) return clampRenderedHeight(measuredHeight);
+  if (availableHeight <= 0) {
+    return clampRenderedHeight(readObservedHeight(host) ?? readClientHeight(host) ?? Math.floor(hostBounds.height));
+  }
 
-  return clampRenderedHeight(Math.min(measuredHeight, availableHeight));
+  const measuredHeight = readObservedHeight(host) ?? readClientHeight(host) ?? Math.floor(hostBounds.height);
+  return clampRenderedHeight(host === panel ? availableHeight : Math.min(measuredHeight, availableHeight));
 }
 
 function clampRenderedHeight(height: number) {
@@ -196,6 +214,26 @@ function readPixelHeight(element: HTMLElement) {
   const value = Number.parseFloat(window.getComputedStyle(element).height);
   if (!Number.isFinite(value) || value <= 0) return null;
   return value;
+}
+
+function readObservedWidth(element: HTMLElement) {
+  if (element !== observedResizeHost || !observedResizeHostSize) return null;
+  return observedResizeHostSize.width > 0 ? observedResizeHostSize.width : null;
+}
+
+function readObservedHeight(element: HTMLElement) {
+  if (element !== observedResizeHost || !observedResizeHostSize) return null;
+  return observedResizeHostSize.height > 0 ? observedResizeHostSize.height : null;
+}
+
+function readObserverContentSize(entry: ResizeObserverEntry) {
+  const box = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
+  const width = box?.inlineSize ?? entry.contentRect.width;
+  const height = box?.blockSize ?? entry.contentRect.height;
+  return {
+    width: Math.floor(width),
+    height: Math.floor(height),
+  };
 }
 
 function readResizeHost() {

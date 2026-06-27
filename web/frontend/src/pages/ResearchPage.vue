@@ -219,6 +219,8 @@ const healthTagType = computed<TagProps["type"]>(() => {
 <style scoped>
 .research-workspace {
   display: grid;
+  grid-auto-rows: max-content;
+  align-items: start;
   gap: 16px;
 }
 
@@ -241,9 +243,12 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-chart-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  box-sizing: border-box;
   height: clamp(560px, calc(100vh - 220px), 760px);
+  max-height: 760px;
   min-height: 0;
   overflow: hidden;
+  align-self: start;
 }
 
 .research-toolbar {
@@ -274,6 +279,8 @@ const healthTagType = computed<TagProps["type"]>(() => {
   position: relative;
   display: block;
   box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   height: 100%;
   max-height: 100%;
   min-width: 0;

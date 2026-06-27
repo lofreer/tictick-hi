@@ -177,9 +177,12 @@ a {
 
 .chart-panel {
   position: relative;
+  box-sizing: border-box;
   height: clamp(560px, calc(100vh - 180px), 820px);
+  max-height: 820px;
   min-height: 0;
   overflow: hidden;
+  contain: layout paint;
 }
 
 .side-panel {
