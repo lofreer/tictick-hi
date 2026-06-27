@@ -33,19 +33,20 @@ done            用户确认关闭
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，但还缺完整 smoke gate |
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
-| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，仍缺统一 request / response mapping 和更强错误边界 |
+| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | scaffold | 返工加强 | 有 cookie session，但 CSRF、防暴力破解、会话审计不足 |
 | 数据同步 worker | scaffold | 返工加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，但没有真正 heartbeat loop、优雅停止状态机 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
 | Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
-| 回测 | scaffold | 返工 | 已经通过 CandleProvider 取 K 线，交易事实已移出 `float64`，但费用、滑点、触发语义仍不可信 |
-| 交易 runner | scaffold | 返工 / 延后 live | 已经通过 CandleProvider 取 K 线，paper/live executor 未真正分离，live 只是本地 pending 订单 |
+| 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
+| 回测 | scaffold | 返工 | 已经通过 CandleProvider 取 K 线并按策略 schema 校验参数，交易事实已移出 `float64`，但费用、滑点、触发语义仍不可信 |
+| 交易 runner | scaffold | 返工 / 延后 live | 已经通过 CandleProvider 取 K 线并落库 order / notification intent，paper/live executor 未真正分离，live 只是本地 pending 订单 |
 | 实盘安全 | below-scaffold | 延后 | 密钥字段名叫 encrypted，实际是 digest，不是真加密也不能解密 |
 | 通知 | scaffold | 返工 | 有通知记录雏形，但 provider/outbox/retry 不完整 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，业务体验仍粗糙 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
-| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁已通过，实盘安全和 live executor 作为后续风险审计保留 |
+| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，实盘安全和 live executor 作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
 
@@ -357,35 +358,141 @@ scripts/quality-gate.sh
 - 研究核心达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
-## 4. 第一条可推进切片
+### 阶段 2 Definition of Done：策略沉淀
+
+目标等级：demo
+
+范围内：
+
+- 后端策略 registry 明确列出策略 ID、名称、版本、描述、支持周期、支持 intent 类型和参数 schema。
+- 参数 schema 支持 number / select / boolean / text，并包含 required、default、min、max、step、options、description。
+- 创建回测和交易任务时，后端按策略 schema 校验参数：必填、未知参数、类型、数值范围、select options 都必须被检查。
+- 策略 runtime 只接收 candles 和参数快照，只返回结构化 intent，不允许下单、发通知或写库。
+- 策略 intent 至少支持 `order` 和 `notification` 两类，并用 payload 表达 side、price、quantity、symbol、occurredAt、message 等结构化字段。
+- 交易 runner 只负责把策略 intent 落成任务观察记录；不把策略函数变成执行器。
+- 前端能从 `/api/strategies` 获取 schema，选择策略并按 schema 填写参数。
+- 前端提交回测 / 交易任务时保存参数快照，且 UI 能展示策略描述、支持 intent 和参数摘要。
+- 质量门禁加入策略边界检查，阻止 `internal/strategy` 反向依赖 store/web/trading/backtest 或网络发送能力。
+
+范围外：
+
+- 回测 worker 的撮合可信度升级。
+- 回测详情买卖点叠加。
+- PaperExecutor、持仓、成交和订单簿。
+- Notification outbox / provider / retry。
+- live executor、实盘密钥、实盘确认护栏。
+
+用户可见行为：
+
+- 新建回测和新建交易页面能加载策略列表。
+- 选择不同策略时，参数表单根据后端 schema 切换。
+- 策略摘要显示策略描述、支持 intent 和当前参数快照。
+- 不符合 schema 的参数不能绕过前端 / 后端进入任务。
+
+后端验收：
+
+- `internal/strategy` 有 registry/schema 单元测试。
+- `internal/strategy` 有 order intent 和 notification intent 单元测试。
+- API route 测试覆盖无效策略参数会被拒绝。
+- `scripts/quality-gate.sh` 执行策略边界检查。
+
+前端验收：
+
+- strategies API client 测试覆盖参数 schema 正规化。
+- `useStrategyTaskForm` 测试覆盖 default param values 和参数范围校验。
+- `pnpm run typecheck`、`pnpm run test`、`pnpm run build` 通过。
+
+数据验收：
+
+- 不引入新的 migration。
+- 创建任务仍保存 strategyId 和 strategyParams 快照。
+- 策略 registry 不写数据库。
+
+安全验收：
+
+- 策略代码不能直接下单、通知或写库。
+- 阶段 2 不升级实盘安全等级，不声明 usable。
+
+测试验收：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+
+### 阶段 2 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `git diff --check`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `docker compose up --build -d`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- 登录后 `GET /api/strategies` 返回 `order / notification` intent 和 `signalMode` 参数 schema。
+- 登录后 `POST /api/backtests` 只传 `fastPeriod` 时，后端保存补全后的 `strategyParams` 快照。
+- 登录后 `POST /api/backtests` 传 `fastPeriod=1` 时返回 `400`。
+- Headless Chrome 打开 `/backtests/new` 和 `/trading/new`，能看到策略 schema 参数表单、intent 标签和 `Signal Mode` 下拉选项。
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+- 策略仅是 registry/runtime demo 边界，没有沙箱、版本迁移、权限隔离或真实策略库。
+- 这次本地 API smoke 创建了一条 `Stage2 EMA defaults` 回测任务，用于确认后端参数快照规范化。
+
+后续风险审计：
+
+- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
+- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- worker lease 仍没有运行中 heartbeat loop 和完整停止状态机。
+- 通知仍没有 outbox / provider / retry。
+
+阶段 2 结论：
+
+- 策略沉淀达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
+## 4. 下一条可推进切片
 
 下一步只推进：
 
 ```text
-CandleProvider + 数据同步 + 研究页
+统一 worker lease 状态机
 ```
 
-目标等级：`demo`，不是 usable。
+目标等级：`scaffold` 到 `demo` 的可靠性切片，不是 usable。
 
 Definition of Done：
 
-- 数据同步任务能写入 `1m` K 线。
-- 请求 `1m` 返回 native。
-- 请求 `5m / 15m / 1h` 时没有 native 就由 `1m` 聚合。
-- 返回数据来源和缺口状态。
-- 研究页显示数据来源：native / aggregated。
-- 研究页显示数据健康：正常 / 缺口 / 数据不足。
-- 回测和交易 runner 不直接绕过 CandleProvider。
+- 提取统一 lease 包，支持 claim、heartbeat、release、fail、pause。
+- 数据同步、回测、交易 worker 领取任务必须走同一套 lease 状态机。
+- 长任务运行期间持续刷新 `locked_until` / `heartbeat_at`。
+- heartbeat 失败达到阈值后停止外部副作用。
+- 进程退出或任务暂停时能明确释放或标记任务状态。
+- 重启后能认领过期 lease，不重复制造不可控副作用。
 - `go test ./...` 通过。
-- `scripts/quality-gate.sh` 通过或明确列出历史债失败项。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
 
 范围外：
 
 - 实盘下单。
 - tick 数据。
-- 指标系统。
+- 交易所账号真加密。
 - 通知 provider。
-- 复杂回测指标。
+- 回测撮合可信度升级。
 
 ## 5. 保留 / 返工 / 删除 / 延后
 
