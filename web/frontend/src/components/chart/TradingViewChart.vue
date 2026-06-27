@@ -40,6 +40,7 @@ let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
 let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let resizeTarget: Element | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
 
@@ -65,8 +66,9 @@ onMounted(() => {
   });
   markerPlugin = createSeriesMarkers(series, []);
 
+  resizeTarget = getResizeTarget();
   resizeObserver = new ResizeObserver(scheduleResize);
-  resizeObserver.observe(rootRef.value);
+  resizeObserver.observe(resizeTarget);
   window.addEventListener("resize", scheduleResize);
 
   syncData();
@@ -80,6 +82,7 @@ onBeforeUnmount(() => {
   }
   resizeObserver?.disconnect();
   resizeObserver = null;
+  resizeTarget = null;
   window.removeEventListener("resize", scheduleResize);
   chart?.remove();
   chart = null;
@@ -146,11 +149,28 @@ function resizeChart() {
 function readHostSize() {
   if (!rootRef.value) return null;
 
-  const bounds = rootRef.value.getBoundingClientRect();
+  const target = resizeTarget ?? getResizeTarget();
+  const bounds = target.getBoundingClientRect();
   const width = Math.floor(bounds.width);
-  const height = Math.floor(bounds.height);
+  const height = Math.floor(clampHeightToChartPanel(bounds.height));
   if (width <= 0 || height <= 0) return null;
 
   return { width, height };
+}
+
+function getResizeTarget() {
+  return rootRef.value?.parentElement ?? rootRef.value!;
+}
+
+function clampHeightToChartPanel(height: number) {
+  const chartPanel = rootRef.value?.closest(".chart-panel");
+  if (!chartPanel || !rootRef.value) return height;
+
+  const panelBounds = chartPanel.getBoundingClientRect();
+  const rootBounds = rootRef.value.getBoundingClientRect();
+  const availableHeight = panelBounds.bottom - rootBounds.top;
+  if (availableHeight <= 0) return height;
+
+  return Math.min(height, availableHeight);
 }
 </script>

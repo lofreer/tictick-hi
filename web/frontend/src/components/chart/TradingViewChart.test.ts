@@ -1,38 +1,48 @@
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TradingViewChart from "@/components/chart/TradingViewChart.vue";
+import { createChart } from "lightweight-charts";
 
-const resize = vi.fn();
-const remove = vi.fn();
-const setData = vi.fn();
-const setMarkers = vi.fn();
-const fitContent = vi.fn();
+const chartMocks = vi.hoisted(() => ({
+  createChart: vi.fn(),
+  fitContent: vi.fn(),
+  remove: vi.fn(),
+  resize: vi.fn(),
+  setData: vi.fn(),
+  setMarkers: vi.fn(),
+}));
 
 vi.mock("lightweight-charts", () => ({
   CandlestickSeries: "CandlestickSeries",
-  createChart: vi.fn(() => ({
-    addSeries: vi.fn(() => ({ setData })),
-    applyOptions: vi.fn(),
-    remove,
-    resize,
-    timeScale: vi.fn(() => ({ fitContent })),
-  })),
-  createSeriesMarkers: vi.fn(() => ({ setMarkers })),
+  createChart: chartMocks.createChart,
+  createSeriesMarkers: vi.fn(() => ({ setMarkers: chartMocks.setMarkers })),
 }));
+
+const mockedCreateChart = vi.mocked(createChart);
+
+function mockChartApi() {
+  chartMocks.createChart.mockReturnValue({
+    addSeries: vi.fn(() => ({ setData: chartMocks.setData })),
+    applyOptions: vi.fn(),
+    remove: chartMocks.remove,
+    resize: chartMocks.resize,
+    timeScale: vi.fn(() => ({ fitContent: chartMocks.fitContent })),
+  });
+}
 
 describe("TradingViewChart", () => {
   let observedTarget: Element | null = null;
+  let originalGetBoundingClientRect: typeof Element.prototype.getBoundingClientRect;
 
   beforeEach(() => {
     setActivePinia(createPinia());
     observedTarget = null;
-    resize.mockClear();
-    remove.mockClear();
-    setData.mockClear();
-    setMarkers.mockClear();
-    fitContent.mockClear();
+    originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+    vi.clearAllMocks();
+    chartMocks.createChart.mockReset();
+    mockChartApi();
 
     window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
       callback(0);
@@ -55,9 +65,16 @@ describe("TradingViewChart", () => {
     globalThis.ResizeObserver = ResizeObserverTestDouble as typeof ResizeObserver;
   });
 
-  it("observes the stable chart root instead of the chart library canvas host", () => {
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+  });
+
+  it("observes the layout parent instead of the chart root or canvas host", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+
     const wrapper = mount(TradingViewChart, {
-      attachTo: document.body,
+      attachTo: host,
       props: {
         data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
         emptyTitle: "No candles",
@@ -67,9 +84,69 @@ describe("TradingViewChart", () => {
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(root);
+    expect(observedTarget).toBe(root.parentElement);
+    expect(observedTarget).not.toBe(root);
     expect(observedTarget).not.toBe(canvasHost);
 
     wrapper.unmount();
+    host.remove();
+  });
+
+  it("clamps chart height to the remaining chart panel space", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: 800 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1200, height: 1200 });
+      }
+      if (this instanceof Element && this !== panel && this.querySelector(".trading-chart")) {
+        return rect({ top: 180, width: 1200, height: 1200 });
+      }
+      if (this instanceof Element && this.classList.contains("trading-chart")) {
+        return rect({ top: 180, width: 1200, height: 1200 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mount(TradingViewChart, {
+      attachTo: host,
+      props: {
+        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+        emptyTitle: "No candles",
+      },
+    });
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1200,
+        height: 720,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
   });
 });
+
+function rect({ top, width, height }: { top: number; width: number; height: number }) {
+  return {
+    x: 0,
+    y: top,
+    top,
+    left: 0,
+    right: width,
+    bottom: top + height,
+    width,
+    height,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
