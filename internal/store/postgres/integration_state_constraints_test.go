@@ -243,6 +243,8 @@ func TestIntegrationTaskCommandsRejectInvalidStatusTransitions(t *testing.T) {
 	}
 	if _, err := store.SetSyncEnabled(ctx, dataFailedID, true); !errors.Is(err, data.ErrInvalidState) {
 		t.Fatalf("set sync on failed task error = %v, want invalid state", err)
+	} else if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeDataSyncCommandInvalidState {
+		t.Fatalf("set sync on failed task domain code = %q, %t; want %q, true", code, ok, data.ErrorCodeDataSyncCommandInvalidState)
 	}
 	row := readIntegrationSyncTask(t, ctx, store, dataFailedID)
 	if row.status != data.TaskStatusFailed {

@@ -93,7 +93,7 @@ func (repository *fakeRepository) RetryDataSyncTask(
 	for index := range repository.tasks {
 		if repository.tasks[index].ID == id {
 			if repository.tasks[index].Status != data.TaskStatusFailed {
-				return data.DataSyncTask{}, data.ErrInvalidState
+				return data.DataSyncTask{}, data.DataSyncRetryRequiresFailedError()
 			}
 			repository.tasks[index].SyncEnabled = true
 			repository.tasks[index].Status = data.TaskStatusPending
@@ -557,9 +557,18 @@ func (repository *fakeRepository) updateTask(
 ) (data.DataSyncTask, error) {
 	for index := range repository.tasks {
 		if repository.tasks[index].ID == id {
+			if !dataSyncTaskCommandAllowed(repository.tasks[index].Status) {
+				return data.DataSyncTask{}, data.DataSyncCommandInvalidStateError()
+			}
 			update(&repository.tasks[index])
 			return repository.tasks[index], nil
 		}
 	}
 	return data.DataSyncTask{}, data.ErrNotFound
+}
+
+func dataSyncTaskCommandAllowed(status data.TaskStatus) bool {
+	return status == data.TaskStatusPending ||
+		status == data.TaskStatusRunning ||
+		status == data.TaskStatusPaused
 }

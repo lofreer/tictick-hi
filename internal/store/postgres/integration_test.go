@@ -402,6 +402,9 @@ func TestIntegrationRetryDataSyncTaskRejectsRunningTask(t *testing.T) {
 	if !errors.Is(err, data.ErrInvalidState) {
 		t.Fatalf("retry running task error = %v, want invalid state", err)
 	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeDataSyncRetryRequiresFailed {
+		t.Fatalf("retry running task domain code = %q, %t; want %q, true", code, ok, data.ErrorCodeDataSyncRetryRequiresFailed)
+	}
 	row := readIntegrationSyncTask(t, ctx, store, id)
 	if row.status != data.TaskStatusRunning || !row.lockedBy.Valid || row.lockedBy.String != "active-worker" {
 		t.Fatalf("retry should not mutate running task lease: %#v", row)

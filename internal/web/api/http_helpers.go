@@ -110,6 +110,16 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "not found")
 		return
 	}
+	if code, ok := data.DomainErrorCode(err); ok {
+		switch code {
+		case data.ErrorCodeDataSyncRetryRequiresFailed:
+			writeAPIError(w, http.StatusConflict, apiErrorDataSyncRetryRequiresFailed, err.Error())
+			return
+		case data.ErrorCodeDataSyncCommandInvalidState:
+			writeAPIError(w, http.StatusConflict, apiErrorDataSyncCommandInvalidState, err.Error())
+			return
+		}
+	}
 	if errors.Is(err, data.ErrInvalidState) {
 		writeAPIError(w, http.StatusConflict, apiErrorInvalidState, err.Error())
 		return

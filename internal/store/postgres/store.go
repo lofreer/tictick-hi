@@ -113,7 +113,7 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 			if exists, existsErr := store.dataSyncTaskExists(ctx, id); existsErr != nil {
 				return data.DataSyncTask{}, existsErr
 			} else if exists {
-				return data.DataSyncTask{}, fmt.Errorf("%w: data sync task must be failed before retry", data.ErrInvalidState)
+				return data.DataSyncTask{}, data.DataSyncRetryRequiresFailedError()
 			}
 			return data.DataSyncTask{}, data.ErrNotFound
 		}
@@ -273,7 +273,7 @@ func (store *Store) updateTaskFlag(
 			if exists, existsErr := store.dataSyncTaskExists(ctx, id); existsErr != nil {
 				return data.DataSyncTask{}, existsErr
 			} else if exists {
-				return data.DataSyncTask{}, fmt.Errorf("%w: data sync task status cannot be changed by this command", data.ErrInvalidState)
+				return data.DataSyncTask{}, data.DataSyncCommandInvalidStateError()
 			}
 			return data.DataSyncTask{}, data.ErrNotFound
 		}

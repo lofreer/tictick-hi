@@ -177,7 +177,8 @@ func TestAPIStructuredErrorResponses(t *testing.T) {
 		t.Fatalf("conflict status = %d body = %s", conflictRecorder.Code, conflictRecorder.Body.String())
 	}
 	conflictResponse := decodeAPIError(t, conflictRecorder)
-	if conflictResponse.Code != "invalid_state" || conflictResponse.Message != data.ErrInvalidState.Error() {
+	if conflictResponse.Code != "data_sync_retry_requires_failed" ||
+		conflictResponse.Message != "data sync task must be failed before retry" {
 		t.Fatalf("unexpected conflict response: %#v", conflictResponse)
 	}
 }
@@ -334,11 +335,30 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	if invalidRetryRecorder.Code != http.StatusConflict {
 		t.Fatalf("invalid retry status = %d body = %s", invalidRetryRecorder.Code, invalidRetryRecorder.Body.String())
 	}
+	invalidRetryResponse := decodeAPIError(t, invalidRetryRecorder)
+	if invalidRetryResponse.Code != "data_sync_retry_requires_failed" {
+		t.Fatalf("unexpected invalid retry response: %#v", invalidRetryResponse)
+	}
 
 	repository.tasks[0].Status = data.TaskStatusFailed
 	repository.tasks[0].SyncEnabled = false
 	repository.tasks[0].RealtimeEnabled = false
 	repository.tasks[0].LastError = "invalid symbol"
+
+	invalidCommandRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/sync/start",
+		"",
+	)
+	if invalidCommandRecorder.Code != http.StatusConflict {
+		t.Fatalf("invalid command status = %d body = %s", invalidCommandRecorder.Code, invalidCommandRecorder.Body.String())
+	}
+	invalidCommandResponse := decodeAPIError(t, invalidCommandRecorder)
+	if invalidCommandResponse.Code != "data_sync_command_invalid_state" {
+		t.Fatalf("unexpected invalid command response: %#v", invalidCommandResponse)
+	}
 
 	retryPath := "/api/data/tasks/" + created.ID + "/retry"
 	retryRecorder := serveAuthenticated(server, cookie, http.MethodPost, retryPath, "")
