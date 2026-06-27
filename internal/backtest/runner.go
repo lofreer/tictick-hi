@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/core"
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/decimal"
 	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
@@ -115,40 +115,40 @@ func (runner *Runner) execute(
 	candles []data.Candle,
 	intents []strategy.Intent,
 ) ([]data.BacktestOrder, map[string]any, error) {
-	initialBalance, err := strconv.ParseFloat(task.InitialBalance, 64)
+	initialBalance, err := decimal.Parse(task.InitialBalance)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse initial balance: %w", err)
 	}
 
 	cash := initialBalance
-	position := 0.0
+	position := decimal.Zero()
 	var orders []data.BacktestOrder
 	for _, intent := range intents {
-		price, err := strconv.ParseFloat(intent.Price, 64)
+		price, err := decimal.Parse(intent.Price)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse intent price: %w", err)
 		}
-		quantity, err := strconv.ParseFloat(intent.Quantity, 64)
+		quantity, err := decimal.Parse(intent.Quantity)
 		if err != nil {
 			return nil, nil, fmt.Errorf("parse intent quantity: %w", err)
 		}
-		if quantity <= 0 || price <= 0 {
+		if !quantity.Positive() || !price.Positive() {
 			continue
 		}
 
 		switch intent.Side {
 		case "buy":
-			cash -= price * quantity
-			position += quantity
+			cash = cash.Sub(price.Mul(quantity))
+			position = position.Add(quantity)
 		case "sell":
-			if position <= 0 {
+			if !position.Positive() {
 				continue
 			}
-			if quantity > position {
+			if quantity.GreaterThan(position) {
 				quantity = position
 			}
-			cash += price * quantity
-			position -= quantity
+			cash = cash.Add(price.Mul(quantity))
+			position = position.Sub(quantity)
 		default:
 			continue
 		}
@@ -163,36 +163,32 @@ func (runner *Runner) execute(
 			IntentID:   intent.ID,
 			Side:       intent.Side,
 			Price:      intent.Price,
-			Quantity:   strconv.FormatFloat(quantity, 'f', -1, 64),
+			Quantity:   quantity.String(),
 			Status:     "filled",
 			OccurredAt: intent.OccurredAt,
 		})
 	}
 
-	finalEquity := cash + position*lastClose(candles)
-	returnPct := 0.0
-	if initialBalance > 0 {
-		returnPct = (finalEquity - initialBalance) / initialBalance * 100
+	finalEquity := cash.Add(position.Mul(lastClose(candles)))
+	returnPct := decimal.Zero()
+	if initialBalance.Positive() {
+		returnPct = finalEquity.Sub(initialBalance).Quo(initialBalance).Mul(decimal.NewInt(100))
 	}
 	return orders, map[string]any{
-		"initialBalance": formatNumber(initialBalance),
-		"finalEquity":    formatNumber(finalEquity),
-		"returnPct":      formatNumber(returnPct),
+		"initialBalance": initialBalance.Format(4),
+		"finalEquity":    finalEquity.Format(4),
+		"returnPct":      returnPct.Format(4),
 		"totalOrders":    len(orders),
 	}, nil
 }
 
-func lastClose(candles []data.Candle) float64 {
+func lastClose(candles []data.Candle) decimal.Decimal {
 	if len(candles) == 0 {
-		return 0
+		return decimal.Zero()
 	}
-	price, err := strconv.ParseFloat(candles[len(candles)-1].Close, 64)
+	price, err := decimal.Parse(candles[len(candles)-1].Close)
 	if err != nil {
-		return 0
+		return decimal.Zero()
 	}
 	return price
-}
-
-func formatNumber(value float64) string {
-	return strconv.FormatFloat(value, 'f', 4, 64)
 }
