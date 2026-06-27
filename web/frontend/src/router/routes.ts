@@ -1,19 +1,19 @@
 import type { RouteRecordRaw } from "vue-router";
 
-import AppShell from "@/components/layout/AppShell.vue";
-import BacktestDetailPage from "@/pages/BacktestDetailPage.vue";
-import BacktestNewPage from "@/pages/BacktestNewPage.vue";
-import BacktestsPage from "@/pages/BacktestsPage.vue";
-import LoginPage from "@/pages/LoginPage.vue";
-import OverviewPage from "@/pages/OverviewPage.vue";
-import ResearchPage from "@/pages/ResearchPage.vue";
-import SystemExchangeAccountsPage from "@/pages/SystemExchangeAccountsPage.vue";
-import SystemHealthPage from "@/pages/SystemHealthPage.vue";
-import SystemNotificationsPage from "@/pages/SystemNotificationsPage.vue";
-import SystemOperatorsPage from "@/pages/SystemOperatorsPage.vue";
-import TradingDetailPage from "@/pages/TradingDetailPage.vue";
-import TradingNewPage from "@/pages/TradingNewPage.vue";
-import TradingPage from "@/pages/TradingPage.vue";
+const AppShell = () => import("@/components/layout/AppShell.vue");
+const LoginPage = () => import("@/pages/LoginPage.vue");
+const OverviewPage = () => import("@/pages/OverviewPage.vue");
+const ResearchPage = () => import("@/pages/ResearchPage.vue");
+const BacktestsPage = () => import("@/pages/BacktestsPage.vue");
+const BacktestNewPage = () => import("@/pages/BacktestNewPage.vue");
+const BacktestDetailPage = () => import("@/pages/BacktestDetailPage.vue");
+const TradingPage = () => import("@/pages/TradingPage.vue");
+const TradingNewPage = () => import("@/pages/TradingNewPage.vue");
+const TradingDetailPage = () => import("@/pages/TradingDetailPage.vue");
+const SystemNotificationsPage = () => import("@/pages/SystemNotificationsPage.vue");
+const SystemExchangeAccountsPage = () => import("@/pages/SystemExchangeAccountsPage.vue");
+const SystemOperatorsPage = () => import("@/pages/SystemOperatorsPage.vue");
+const SystemHealthPage = () => import("@/pages/SystemHealthPage.vue");
 
 export const routes: RouteRecordRaw[] = [
   {

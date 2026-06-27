@@ -12,6 +12,13 @@ function flattenPaths() {
   });
 }
 
+function flattenComponentRoutes() {
+  return routes.flatMap((route) => [
+    route,
+    ...(route.children ?? []),
+  ]).filter((route) => "component" in route);
+}
+
 describe("routes", () => {
   it("defines the planned console routes", () => {
     expect(flattenPaths()).toEqual(
@@ -32,5 +39,10 @@ describe("routes", () => {
       ]),
     );
   });
-});
 
+  it("lazy loads route components to keep the entry chunk small", () => {
+    for (const route of flattenComponentRoutes()) {
+      expect(typeof route.component).toBe("function");
+    }
+  });
+});

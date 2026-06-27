@@ -44,7 +44,7 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；webhook provider 使用真实 HTTP POST 且支持上下文取消，notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；真实邮件/Telegram/飞书 provider、通道更新/删除、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览仍薄、缺系统性桌面/移动/主题视觉回归，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、审计、完整 session 管理和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实邮件/Telegram/飞书 provider 和生产级登录安全作为后续风险审计保留 |
@@ -1419,7 +1419,7 @@ Definition of Done：
 | 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通 | 风控、PnL 可信度、真实邮件/Telegram/飞书 provider、统一状态机和实盘隔离不足 |
 | 实盘安全 | demo | 凭据 AES-GCM、本地 live 任务创建护栏和 live execute 禁用已验证 | testnet/sandbox executor、订单先落库再提交、幂等 retry、KMS/轮换未完成 |
 | 通知 | demo | outbox、local/webhook-demo/webhook provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实邮件/Telegram/飞书 provider、模板、限流、审计和通道管理不足 |
-| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试 | 主 chunk 过大、概览仍薄、缺系统性桌面/移动/主题视觉回归 |
+| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告 | 概览仍薄、缺系统性桌面/移动/主题视觉回归 |
 | 概览页 | scaffold | 有 scaffold 状态和基础健康入口 | 不是真实业务概览，缺关键指标、告警、链路摘要和操作入口 |
 | 系统管理 / 运维健康 | demo | 操作台账号启停、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、审计日志、生产监控和会话管理 |
 | 质量门禁 | demo | 通用门禁、stage8 smoke、data sync/backtest/trading/notify SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、视觉回归和安全审计纳入硬门禁 |
@@ -1444,12 +1444,50 @@ Definition of Done：
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
 - worker claim 的共享字段和过期谓词已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选选择仍未抽取为完整统一状态机。
 - 回测撮合、paper position PnL、真实邮件/Telegram/飞书 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
-- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+- Vite 主入口 chunk 过大已由路由级 code split 关闭；前端仍缺系统性桌面 / 移动 / 主题视觉回归。
 
 阶段 8 当前结论：
 
 - 整体全链路 smoke gate 达到 `demo` 证据增强。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
+### 阶段 8 前端基础设施 code split 补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- Stage 8 readiness 重审计将前端基础设施列为 `scaffold`，其中一个明确 blocker 是 Vite 构建主 chunk 超过 500 kB。
+- 页面组件全部静态 import 到 `routes.ts`，研究、回测、交易和系统管理页面一起进入入口 bundle。
+
+修复范围：
+
+- `routes.ts` 中 AppShell 和所有页面组件改为动态 import，实现路由级 lazy loading。
+- `routes.test.ts` 新增断言：所有带 component 的 route 都必须保持 lazy component 函数，防止后续回退到静态页面 import。
+- 不新增业务页面，不调整路由语义，不把前端基础设施升级为 usable。
+
+验证：
+
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+
+构建证据：
+
+- 生产入口 JS 从此前约 `1,219.02 kB` 拆分为 `index-DYiXLYv6.js 437.44 kB`。
+- 研究页、回测详情、交易详情、系统管理页面均生成独立 lazy chunks。
+- 本轮 `pnpm run build` 未再出现 Vite `Some chunks are larger than 500 kB` 警告。
+
+失败：
+
+- 无硬失败。
+
+剩余风险：
+
+- 前端基础设施仍为 `scaffold`；概览页薄、缺系统性桌面 / 移动 / 主题视觉回归，不能因 code split 声明 usable。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
