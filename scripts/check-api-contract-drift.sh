@@ -5,4 +5,4 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-go test ./internal/web/api -run 'TestFrontendAPI' -count=1
+go test ./internal/web/api -run 'Test(FrontendAPI|APIContractValidatesWithExternalOpenAPIValidator)' -count=1
