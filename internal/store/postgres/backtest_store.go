@@ -220,6 +220,9 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 	}
 	defer tx.Rollback(ctx)
 
+	if _, err := tx.Exec(ctx, `DELETE FROM backtest_orders WHERE backtest_id = $1`, result.TaskID); err != nil {
+		return fmt.Errorf("delete backtest orders: %w", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM strategy_intents
 		 WHERE task_id = $1
@@ -254,9 +257,6 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `DELETE FROM backtest_orders WHERE backtest_id = $1`, result.TaskID); err != nil {
-		return fmt.Errorf("delete backtest orders: %w", err)
-	}
 	for _, order := range result.Orders {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO backtest_orders (

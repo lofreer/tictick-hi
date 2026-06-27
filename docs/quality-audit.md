@@ -1,6 +1,6 @@
 # Quality Audit
 
-审计日期：2026-06-27
+审计日期：2026-06-28
 
 当前结论：
 
@@ -32,7 +32,7 @@ done            用户确认关闭
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK、集成测试和 Stage 8 smoke 已验证；仍缺外键、完整状态机约束、数据迁移/回滚策略 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，集成测试和 Stage 8 smoke 已验证；仍缺完整状态机约束、数据迁移/回滚策略和部分多态任务参照约束 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
@@ -1407,7 +1407,7 @@ Definition of Done：
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
-| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，并由 PostgreSQL 集成测试覆盖非法值拒绝 | 外键、完整跨表一致性约束、完整状态机约束、数据迁移/回滚策略不足 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，并由 PostgreSQL 集成测试覆盖非法值与 orphan 写入拒绝 | 完整状态机约束、`strategy_intents` 多态 task 参照、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验和 retry API 可测 | request/response mapping、错误分类、审计日志和一致错误模型不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流有 route/smoke 覆盖 | 限流内存态、无会话列表/撤销、无密码策略/RBAC/审计 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
@@ -1538,7 +1538,61 @@ Definition of Done：
 
 剩余风险：
 
-- PostgreSQL migrations 仍为 `scaffold`；外键、跨表一致性、完整状态流转约束、数据修复迁移和 rollback 策略仍未关闭。
+- PostgreSQL migrations 仍为 `scaffold`；核心事实表 FK 已补，但 `strategy_intents` 多态 task 参照、完整状态流转约束、数据修复迁移和 rollback 策略仍未关闭。
+
+### 阶段 8 PostgreSQL referential constraints 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- `0011_domain_constraints.sql` 只约束了状态、类型、数值和时间范围，仍允许下游事实表直接写入不存在的 task、intent、order 或 notification 引用。
+- Stage 8 readiness 重审计中的 PostgreSQL migrations 仍不能因为有 CHECK 就升级；真实可用前至少要阻止 orphan 交易事实和通知事实。
+
+修复范围：
+
+- 新增 `0012_referential_constraints.sql`，为 trading tasks、strategy intents、orders、notifications 增加必要 composite unique key，以支持同 task 参照校验。
+- 为 orders / executions / positions 增加到 trading_tasks 的 FK，并让 task_type 参与校验。
+- 为 orders / executions / notifications / notification_outbox / backtest_orders 增加到 strategy_intents 的同 task FK。
+- 为 executions 增加到 orders 的同 task FK；为 notification_outbox 增加到 notifications 的同 task FK。
+- `SaveBacktestResult` 改为先删除旧 backtest orders，再删除旧 backtest intents，避免新增 FK 后重跑结果保存时违反引用顺序。
+- 约束相关 integration tests 拆分到 `integration_constraints_test.go`，避免 `integration_test.go` 超过 700 行硬上限。
+- 不引入触发器，不在本轮强行解决 `strategy_intents` 同时服务 backtest / paper / live 的多态 task FK。
+
+验证：
+
+- `go test ./internal/store/postgres`
+- Docker network PostgreSQL 集成测试：`go test ./internal/store/postgres -run Integration -count=1 -v`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/stage8-smoke.sh`
+- 当前 compose 数据库已记录 `schema_migrations.version = '0012_referential_constraints.sql'`
+
+本轮 smoke 证据：
+
+- symbol `S81782576597USDT`
+- data task `dst_9ab919b74de8a05d94023de5`
+- backtest `bt_c8c2209e0cfa660ac26f0b1b`
+- paper execute `tt_7ce89f624091ca213a3bb7db`
+- paper notify `tt_e661d7e225b05bf72579499a`
+- notification channel `stage8-smoke-1782576597`
+
+过程发现：
+
+- 初版约束测试直接放入 `integration_test.go` 后，`scripts/quality-gate.sh` 失败：该文件达到 948 行，超过 700 行硬上限。
+- 已通过拆分 `integration_constraints_test.go` 修复，拆分后 `integration_test.go` 为 554 行、`integration_constraints_test.go` 为 403 行。
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- PostgreSQL migrations 仍为 `scaffold`；`strategy_intents` 的多态 task 归属、完整状态机约束、数据修复迁移、rollback 策略和生产数据备份/恢复验证仍未关闭。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
