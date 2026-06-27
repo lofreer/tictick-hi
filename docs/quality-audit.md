@@ -36,7 +36,7 @@ done            用户确认关闭
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
-| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
@@ -186,7 +186,8 @@ scripts/quality-gate.sh
 - 回测 runner 和交易 runner 已改为通过 CandleProvider 结果取 K 线。
 - PostgreSQL 集成测试已覆盖从 `market_candles` 聚合 `1m -> 5m`、基础缺口 metadata、native gap 查询和无时间范围时默认返回最新窗口。
 - 查询 limit 已收敛到 `DefaultCandleLimit=1000`、`MaxCandleLimit=5000`；API 超过上限返回 `400`，store 直接调用时 clamp 到最大上限而不是静默降回默认值。
-- 仍缺较大时间范围性能边界、分页/游标和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
+- `/api/candles` 已校验 interval、`from <= to`，并按闭区间语义限制 `from/to` 最大跨度为 `(MaxCandleLimit - 1) * interval`；倒置或超大时间范围返回 `400`。
+- 仍缺大范围性能压测、分页/游标和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
 
 关闭条件：
 
@@ -445,6 +446,39 @@ scripts/quality-gate.sh
 后续风险：
 
 - 这不是完整 cursor pagination；阶段 1 仍需要明确大范围时间查询和翻页协议。
+
+### 阶段 1 Candle 查询时间范围边界补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- `/api/candles` 之前只解析 `from/to`，没有拒绝倒置区间，也没有限制可表达的时间跨度。
+- 这会让一个已受 `limit` 限制的请求仍能表达超大历史区间，查询语义和性能边界不清。
+
+修复范围：
+
+- `internal/data` 新增 `ValidateCandleQueryRange`，作为 Candle 查询输入边界。
+- API parse 阶段校验 interval、`from <= to`。
+- 当 `from/to` 同时存在时，按闭区间语义限制最大跨度为 `(MaxCandleLimit - 1) * IntervalDuration(interval)`；超过边界返回 `400`。
+- 单端 `from` 或 `to` 查询仍允许，由 SQL `LIMIT` 约束返回窗口。
+
+验证：
+
+- `go test ./internal/data ./internal/web/api`
+- `TestValidateCandleQueryRange` 覆盖无边界、单端边界、相同边界、最大合法跨度、倒置、超大跨度和无效 interval。
+- `TestCandlesRouteRejectsInvertedRange` 覆盖倒置区间 API 返回 `400`。
+- `TestCandlesRouteRejectsOversizedRange` 覆盖超大区间 API 返回 `400`。
+- `TestCandlesRouteRejectsUnsupportedInterval` 覆盖不支持 interval API 返回 `400`。
+
+失败：
+
+- 无硬失败。
+
+后续风险：
+
+- 这仍不是完整 cursor pagination；大范围历史查询需要后续明确游标协议和性能压测。
+- 高周期从 `1m` 聚合时仍受基础 K 线窗口限制，聚合缓存或分页读取仍未完成。
 
 ### 阶段 1/3/4 闭合 K 线信号补充
 

@@ -151,5 +151,8 @@ func parseCandleQuery(r *http.Request) (data.CandleQuery, error) {
 	}
 	query.From = from
 	query.To = to
+	if err := data.ValidateCandleQueryRange(query); err != nil {
+		return data.CandleQuery{}, err
+	}
 	return query, nil
 }

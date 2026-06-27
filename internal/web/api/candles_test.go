@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -57,4 +58,61 @@ func TestCandlesRouteRejectsOversizedLimit(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
+}
+
+func TestCandlesRouteRejectsInvertedRange(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		candlesPath("1m", "2026-01-02T00:00:00Z", "2026-01-01T00:00:00Z"),
+		"",
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCandlesRouteRejectsOversizedRange(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		candlesPath("1m", "2026-01-01T00:00:00Z", "2026-01-04T12:00:00Z"),
+		"",
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCandlesRouteRejectsUnsupportedInterval(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=tick",
+		"",
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func candlesPath(interval string, from string, to string) string {
+	return fmt.Sprintf(
+		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=%s&from=%s&to=%s",
+		url.QueryEscape(interval),
+		url.QueryEscape(from),
+		url.QueryEscape(to),
+	)
 }
