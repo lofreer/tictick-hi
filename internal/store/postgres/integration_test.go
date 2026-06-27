@@ -99,6 +99,75 @@ func TestIntegrationCandleProviderAggregatesAndReportsGaps(t *testing.T) {
 	}
 }
 
+func TestIntegrationListNativeCandlesUsesLatestWindowWithoutRange(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	symbol := integrationSymbol("LW")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	start := time.Date(2026, 6, 27, 1, 0, 0, 0, time.UTC)
+	for index := 0; index < 10; index++ {
+		insertIntegrationCandle(t, ctx, store, data.Candle{
+			Exchange:  "binance",
+			Symbol:    symbol,
+			Interval:  "1m",
+			OpenTime:  start.Add(time.Duration(index) * time.Minute),
+			CloseTime: start.Add(time.Duration(index+1) * time.Minute),
+			Open:      fmt.Sprintf("%d", index),
+			High:      fmt.Sprintf("%d", index+1),
+			Low:       fmt.Sprintf("%d", index),
+			Close:     fmt.Sprintf("%d", index),
+			Volume:    "1",
+			IsClosed:  true,
+		})
+	}
+
+	latest, err := store.ListNativeCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		Limit:    3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOpenTimes(t, latest, start.Add(7*time.Minute), start.Add(8*time.Minute), start.Add(9*time.Minute))
+
+	from := start.Add(2 * time.Minute)
+	inRange, err := store.ListNativeCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		From:     &from,
+		Limit:    3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOpenTimes(t, inRange, start.Add(2*time.Minute), start.Add(3*time.Minute), start.Add(4*time.Minute))
+
+	aggregated, err := store.GetCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "5m",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(aggregated.Candles) != 1 ||
+		!aggregated.Candles[0].OpenTime.Equal(start.Add(5*time.Minute)) ||
+		aggregated.Candles[0].Volume != "5" {
+		t.Fatalf("expected latest 5m aggregation, got %#v", aggregated.Candles)
+	}
+}
+
 func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -285,6 +354,19 @@ func insertIntegrationSyncTask(
 		lockedBy,
 	); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func assertOpenTimes(t *testing.T, candles []data.Candle, expected ...time.Time) {
+	t.Helper()
+
+	if len(candles) != len(expected) {
+		t.Fatalf("candles = %d, want %d: %#v", len(candles), len(expected), candles)
+	}
+	for index, expectedTime := range expected {
+		if !candles[index].OpenTime.Equal(expectedTime) {
+			t.Fatalf("candle %d open time = %s, want %s; candles=%#v", index, candles[index].OpenTime, expectedTime, candles)
+		}
 	}
 }
 

@@ -130,6 +130,17 @@ func (store *Store) ListNativeCandles(ctx context.Context, query data.CandleQuer
 		limit = 1000
 	}
 
+	if query.From == nil && query.To == nil {
+		return store.listLatestNativeCandles(ctx, query, limit)
+	}
+	return store.listNativeCandlesInRange(ctx, query, limit)
+}
+
+func (store *Store) listNativeCandlesInRange(
+	ctx context.Context,
+	query data.CandleQuery,
+	limit int,
+) ([]data.Candle, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT exchange, symbol, interval, open_time, close_time,
 		       open::text, high::text, low::text, close::text, volume::text, is_closed
@@ -145,6 +156,36 @@ func (store *Store) ListNativeCandles(ctx context.Context, query data.CandleQuer
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list candles: %w", err)
+	}
+	defer rows.Close()
+
+	return pgx.CollectRows(rows, scanCandle)
+}
+
+func (store *Store) listLatestNativeCandles(
+	ctx context.Context,
+	query data.CandleQuery,
+	limit int,
+) ([]data.Candle, error) {
+	rows, err := store.pool.Query(ctx, `
+		SELECT exchange, symbol, interval, open_time, close_time,
+		       open, high, low, close, volume, is_closed
+		  FROM (
+			SELECT exchange, symbol, interval, open_time, close_time,
+			       open::text AS open, high::text AS high, low::text AS low,
+			       close::text AS close, volume::text AS volume, is_closed
+			  FROM market_candles
+			 WHERE exchange = $1
+			   AND symbol = $2
+			   AND interval = $3
+			 ORDER BY open_time DESC
+			 LIMIT $4
+		  ) latest
+		 ORDER BY open_time ASC`,
+		query.Exchange, query.Symbol, query.Interval, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list latest candles: %w", err)
 	}
 	defer rows.Close()
 

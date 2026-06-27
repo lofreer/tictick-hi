@@ -36,7 +36,7 @@ done            用户确认关闭
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
-| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，并有 PostgreSQL 集成测试覆盖基础聚合与缺口；仍缺大范围性能边界和闭合信号硬化 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，PostgreSQL 集成测试覆盖基础聚合、缺口和默认最新窗口查询；仍缺大范围性能压测、分页/游标和闭合信号硬化 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
@@ -184,8 +184,8 @@ scripts/quality-gate.sh
 - `1m` 返回 native；`5m / 15m / 1h / 4h / 1d` 可从 `1m` 聚合。
 - 同周期 native 不健康时会尝试回退到 `1m` 聚合；无法回退时保留 native + gap 状态。
 - 回测 runner 和交易 runner 已改为通过 CandleProvider 结果取 K 线。
-- PostgreSQL 集成测试已覆盖从 `market_candles` 聚合 `1m -> 5m`、基础缺口 metadata 和 native gap 查询。
-- 仍缺较大时间范围性能边界、更多异常数据边界和闭合周期信号的后续硬化。
+- PostgreSQL 集成测试已覆盖从 `market_candles` 聚合 `1m -> 5m`、基础缺口 metadata、native gap 查询和无时间范围时默认返回最新窗口。
+- 仍缺较大时间范围性能边界、分页/游标、更多异常数据边界和闭合周期信号的后续硬化。
 
 关闭条件：
 
@@ -470,6 +470,8 @@ scripts/quality-gate.sh
 
 - `TestIntegrationCandleProviderAggregatesAndReportsGaps` 使用真实 PostgreSQL `market_candles` 表，验证 `Store.GetCandles` 经 CandleProvider 从 `1m` 聚合出 `5m`，返回 `source=aggregated`、`baseInterval=1m`，并报告底层 `1m` 缺口。
 - 同一测试验证 `1m` native 查询从 PostgreSQL 行扫描后返回 `source=native`、`health=gap` 和缺口数量。
+- `TestIntegrationListNativeCandlesUsesLatestWindowWithoutRange` 验证无 `from/to` 的研究页默认查询返回最新 N 根 K 线并按时间升序输出；带 `from` 的查询仍从区间起点升序返回。
+- 同一测试验证 `5m` 聚合在无时间范围时使用最新 `1m` 窗口，避免研究页默认图表展示数据库最早一段历史。
 - `TestIntegrationDataSyncRetryReleasesAndReclaimsTask` 使用真实 `data_sync_tasks` 表，验证 `RecordDataSyncRetry` 会清理 `locked_by` / `locked_until` / `heartbeat_at`、保留 sync / realtime 期望，并能被 `ClaimDataSyncTask` 再次领取。
 - `TestIntegrationDataSyncPermanentFailureStopsTask` 验证 `MarkDataSyncFailed` 会进入 `failed`、关闭 `sync_enabled` / `realtime_enabled`、清理 lease，并不再满足 claim 条件。
 
@@ -479,12 +481,12 @@ scripts/quality-gate.sh
 
 结果：
 
-- 3 个 PostgreSQL 集成测试全部通过。
+- 4 个 PostgreSQL 集成测试全部通过。
 - 普通 `go test ./internal/store/postgres` 在未设置 `TICTICK_TEST_DATABASE_URL` 时通过，集成测试默认跳过，避免误连非测试数据库。
 
 剩余风险：
 
-- 集成测试覆盖基础聚合、缺口和同步 retry 状态机，不代表大范围 K 线查询性能已达 usable。
+- 集成测试覆盖基础聚合、缺口、默认最新窗口和同步 retry 状态机，不代表大范围 K 线查询性能已达 usable。
 - 仍缺容器级 SIGTERM 后数据库断言和真实交易所网络稳定性证明。
 
 ### 阶段 2 Definition of Done：策略沉淀

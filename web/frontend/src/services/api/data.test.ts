@@ -76,4 +76,36 @@ describe("data api", () => {
       gaps: [{ missingCandles: 2 }],
     });
   });
+
+  it("keeps data sync attempt count", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify([
+            {
+              id: "dst_1",
+              exchange: "binance",
+              symbol: "BTCUSDT",
+              interval: "1m",
+              realtimeEnabled: true,
+              syncEnabled: true,
+              status: "running",
+              lastError: "temporary EOF",
+              attemptCount: 3,
+            },
+          ]),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    await expect(dataApi.listTasks()).resolves.toMatchObject([
+      {
+        id: "dst_1",
+        attemptCount: 3,
+        lastError: "temporary EOF",
+      },
+    ]);
+  });
 });

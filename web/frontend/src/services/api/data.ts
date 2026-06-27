@@ -22,6 +22,7 @@ type DataSyncTaskResponse = {
   syncEnabled: boolean;
   status: TaskStatus;
   lastError?: string;
+  attemptCount?: number;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -115,6 +116,7 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     syncEnabled: response.syncEnabled,
     status: response.status,
     lastError: response.lastError,
+    attemptCount: response.attemptCount,
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   };
