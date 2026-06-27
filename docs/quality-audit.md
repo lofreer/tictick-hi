@@ -32,7 +32,7 @@ done            用户确认关闭
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke；仍缺完整状态流转约束、数据迁移/回滚策略和全量历史数据验证 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；登录和系统管理写操作已有基础操作审计日志；仍缺完整 request / response schema、更细错误分类和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
@@ -1704,7 +1704,7 @@ Definition of Done：
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
-| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整状态流转约束、全量历史数据验证、数据迁移/回滚策略不足 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、状态流转 trigger、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整统一状态机、全量历史数据验证、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；已知 API 路径的方法错误返回 405 和 `Allow` header | 完整 request/response schema、全量错误分类、OpenAPI 契约和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
@@ -1994,6 +1994,40 @@ Definition of Done：
 剩余风险：
 
 - PostgreSQL migrations 仍为 `scaffold`；本轮只把 worker lease 历史修补和部分历史不变量审计纳入可重复脚本，未关闭完整状态流转、全量历史数据验证、数据迁移 rollback 策略和生产备份/恢复验证。
+
+### 阶段 8 PostgreSQL task status transition guard 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- `data_sync_tasks`、`backtest_tasks` 和 `trading_tasks` 已有状态枚举 CHECK、worker lease CHECK 和终态 `finished_at` CHECK，但数据库仍允许直接把任务从不合理状态跳到另一状态。
+- 用户命令路径也可能绕过业务语义，例如对 failed data sync 任务直接 start sync，或对 failed trading task 直接 start，导致任务被非 retry / 非创建路径重开。
+
+修复范围：
+
+- 新增 `0021_task_status_transition_guards.sql`。
+- 为 `data_sync_tasks` 增加 `data_sync_tasks_status_transition_guard`：允许 pending/running/paused 的运行态切换，允许 running 进入 succeeded/failed，允许 failed 仅通过 retry 语义回到 pending，禁止 pending 直达 succeeded/failed 和 succeeded/cancelled 重开。
+- 为 `backtest_tasks` 增加 `backtest_tasks_status_transition_guard`：允许 pending -> running、running -> pending/succeeded/failed，禁止 failed/succeeded/cancelled 重开。
+- 为 `trading_tasks` 增加 `trading_tasks_status_transition_guard`：允许 pending -> running/paused、running -> paused/failed、paused -> running，禁止 failed/succeeded/cancelled 重开。
+- `SetSyncEnabled` / `SetRealtimeEnabled` 只允许操作 pending/running/paused 的 data sync 任务；failed 任务必须走 `RetryDataSyncTask`。
+- `SetTradingTaskStatus` 只允许 pending/running/paused 范围内的 start/pause/stop 转换；非法状态转换返回 `ErrInvalidState`，API 会映射为 `409 invalid_state`。
+- `scripts/stage8-migration-audit.sh` 新增三张任务表状态流转 trigger 启用校验。
+- 集成测试修正旧夹具：非 running 任务不再插入 active lease，terminal 任务插入时必须携带 `finished_at`。
+
+验证：
+
+- `TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@127.0.0.1:55432/tictick_hi?sslmode=disable' go test ./internal/store/postgres -run 'TestIntegration(TaskTerminalStatusesRequireFinishedAt|WorkerLeaseConstraintsAreValidated|FailureTransitionsSetFinishedAt|TaskStatusTransitionGuards|TaskCommandsRejectInvalidStatusTransitions|RetryDataSyncTaskRestoresFailedTask|RetryDataSyncTaskRejectsRunningTask)' -count=1`
+- 本轮通用门禁见最终回复。
+
+失败：
+
+- 首次带本地临时 Postgres 的目标集成测试失败：旧测试夹具仍插入 `failed + locked_by`，违反已 validated 的 `data_sync_tasks_lease_consistency_check`。已修正为只有 running 夹具携带 active lease。
+- 第二次目标集成测试失败：旧测试夹具插入 failed 任务时缺少 `finished_at`，违反已有 `data_sync_tasks_terminal_finished_at_check`。已修正 terminal 夹具必须携带 `finished_at`。
+
+剩余风险：
+
+- PostgreSQL migrations 仍为 `scaffold`；本轮只约束三张核心任务表的当前业务状态流转。完整统一状态机、notification outbox / notifications 更细状态流转、全量历史数据验证、数据迁移 rollback 策略和生产备份/恢复验证仍未关闭。
 
 ### 阶段 8 PostgreSQL strategy intent parent constraints 补充
 

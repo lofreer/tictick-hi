@@ -75,6 +75,27 @@ SQL
   fi
 }
 
+assert_trigger_enabled() {
+  local table="$1"
+  local trigger="$2"
+  local enabled
+  enabled="$(psql_exec -At -v table="$table" -v trigger="$trigger" <<'SQL' | tr -d '[:space:]'
+SELECT EXISTS (
+  SELECT 1
+    FROM pg_trigger trigger
+    JOIN pg_class relation ON relation.oid = trigger.tgrelid
+   WHERE relation.relname = :'table'
+     AND trigger.tgname = :'trigger'
+     AND NOT trigger.tgisinternal
+     AND trigger.tgenabled <> 'D'
+);
+SQL
+)"
+  if [ "$enabled" != "t" ]; then
+    fail "$table trigger $trigger is not enabled"
+  fi
+}
+
 require_env POSTGRES_USER
 require_env POSTGRES_DB
 
@@ -86,6 +107,10 @@ assert_constraint_validated "data_sync_tasks_lease_consistency_check"
 assert_constraint_validated "backtest_tasks_lease_consistency_check"
 assert_constraint_validated "trading_tasks_lease_consistency_check"
 assert_constraint_validated "notification_outbox_lease_consistency_check"
+
+assert_trigger_enabled "data_sync_tasks" "data_sync_tasks_status_transition_guard"
+assert_trigger_enabled "backtest_tasks" "backtest_tasks_status_transition_guard"
+assert_trigger_enabled "trading_tasks" "trading_tasks_status_transition_guard"
 
 assert_zero "data_sync terminal rows without finished_at" \
   "SELECT count(*) FROM data_sync_tasks WHERE status IN ('succeeded', 'failed', 'cancelled') AND finished_at IS NULL"

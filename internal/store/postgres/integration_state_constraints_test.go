@@ -134,6 +134,145 @@ func TestIntegrationFailureTransitionsSetFinishedAt(t *testing.T) {
 	assertFinishedAtExists(ctx, t, store, "trading_tasks", tradingTaskID)
 }
 
+func TestIntegrationTaskStatusTransitionGuards(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	dataPendingID := "dst_bad_transition_" + suffix
+	dataFailedID := "dst_retry_transition_" + suffix
+	backtestFailedID := "bt_bad_transition_" + suffix
+	tradingFailedID := "tt_bad_transition_" + suffix
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id IN ($1, $2)`, dataPendingID, dataFailedID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM backtest_tasks WHERE id = $1`, backtestFailedID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, tradingFailedID)
+	})
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (id, exchange, symbol, interval, status)
+		VALUES ($1, 'binance', $2, '1m', 'pending')`,
+		dataPendingID,
+		"ITBADTRANSITION"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.pool.Exec(ctx, `UPDATE data_sync_tasks SET status = 'succeeded' WHERE id = $1`, dataPendingID)
+	assertTransitionRejected(t, err, "data_sync_tasks_status_transition_check")
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (
+			id, exchange, symbol, interval, sync_enabled, realtime_enabled,
+			status, finished_at
+		)
+		VALUES ($1, 'binance', $2, '1m', false, false, 'failed', now())`,
+		dataFailedID,
+		"ITRETRYTRANSITION"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET status = 'pending',
+		       finished_at = NULL
+		 WHERE id = $1`,
+		dataFailedID,
+	); err != nil {
+		t.Fatalf("failed data sync task should be retryable: %v", err)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO backtest_tasks (
+			id, name, exchange, symbol, interval, strategy_id,
+			initial_balance, trigger_mode, status, finished_at
+		)
+		VALUES ($1, 'bad transition', 'binance', $2, '1m',
+		        'ema-cross', 10000, 'closed_candle', 'failed', now())`,
+		backtestFailedID,
+		"ITBADBTTRANSITION"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.pool.Exec(ctx, `UPDATE backtest_tasks SET status = 'pending' WHERE id = $1`, backtestFailedID)
+	assertTransitionRejected(t, err, "backtest_tasks_status_transition_check")
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO trading_tasks (
+			id, name, type, exchange, account_id, symbol, interval,
+			strategy_id, status, finished_at
+		)
+		VALUES ($1, 'bad transition', 'paper', 'binance', 'paper',
+		        $2, '1m', 'ema-cross', 'failed', now())`,
+		tradingFailedID,
+		"ITBADTTTRANSITION"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.pool.Exec(ctx, `UPDATE trading_tasks SET status = 'running' WHERE id = $1`, tradingFailedID)
+	assertTransitionRejected(t, err, "trading_tasks_status_transition_check")
+}
+
+func TestIntegrationTaskCommandsRejectInvalidStatusTransitions(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	dataFailedID := "dst_command_transition_" + suffix
+	tradingFailedID := "tt_command_transition_" + suffix
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, dataFailedID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, tradingFailedID)
+	})
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (
+			id, exchange, symbol, interval, sync_enabled, realtime_enabled,
+			status, finished_at
+		)
+		VALUES ($1, 'binance', $2, '1m', false, false, 'failed', now())`,
+		dataFailedID,
+		"ITDSTCOMMAND"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetSyncEnabled(ctx, dataFailedID, true); !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("set sync on failed task error = %v, want invalid state", err)
+	}
+	row := readIntegrationSyncTask(t, ctx, store, dataFailedID)
+	if row.status != data.TaskStatusFailed {
+		t.Fatalf("failed data sync task status changed to %s", row.status)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO trading_tasks (
+			id, name, type, exchange, account_id, symbol, interval,
+			strategy_id, status, finished_at
+		)
+		VALUES ($1, 'bad command', 'paper', 'binance', 'paper',
+		        $2, '1m', 'ema-cross', 'failed', now())`,
+		tradingFailedID,
+		"ITTT_COMMAND"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetTradingTaskStatus(ctx, tradingFailedID, data.TaskStatusRunning); !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("start failed trading task error = %v, want invalid state", err)
+	}
+	var tradingStatus data.TaskStatus
+	if err := store.pool.QueryRow(ctx, `SELECT status FROM trading_tasks WHERE id = $1`, tradingFailedID).Scan(&tradingStatus); err != nil {
+		t.Fatal(err)
+	}
+	if tradingStatus != data.TaskStatusFailed {
+		t.Fatalf("failed trading task status changed to %s", tradingStatus)
+	}
+}
+
 func insertRunningIntegrationTradingTask(
 	t *testing.T,
 	ctx context.Context,
@@ -155,6 +294,16 @@ func insertRunningIntegrationTradingTask(
 		now.Add(time.Minute),
 	); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func assertTransitionRejected(t *testing.T, err error, constraint string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected %s violation", constraint)
+	}
+	if !strings.Contains(err.Error(), constraint) {
+		t.Fatalf("error = %v, want constraint %s", err, constraint)
 	}
 }
 

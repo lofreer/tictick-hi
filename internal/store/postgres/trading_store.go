@@ -102,6 +102,11 @@ func (store *Store) SetTradingTaskStatus(
 		       finished_at = CASE WHEN $2 IN ($4, $5, $6) THEN now() ELSE finished_at END,
 		       updated_at = now()
 		 WHERE id = $1
+		   AND (
+		     status = $2
+		     OR ($2 = $3 AND status IN ($4, $7))
+		     OR ($2 = $4 AND status IN ($3, $7))
+		   )
 		RETURNING `+tradingTaskColumns, clearLeaseCaseAssignments(tradingTaskLease, "$2 IN ($4, $5, $6)")),
 		id,
 		status,
@@ -109,16 +114,34 @@ func (store *Store) SetTradingTaskStatus(
 		data.TaskStatusPaused,
 		data.TaskStatusFailed,
 		data.TaskStatusCancelled,
+		data.TaskStatusPending,
 	)
 
 	task, err := scanTradingTaskRow(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
+			if exists, existsErr := store.tradingTaskExists(ctx, id); existsErr != nil {
+				return data.TradingTask{}, existsErr
+			} else if exists {
+				return data.TradingTask{}, fmt.Errorf("%w: trading task status cannot be changed by this command", data.ErrInvalidState)
+			}
 			return data.TradingTask{}, data.ErrNotFound
 		}
 		return data.TradingTask{}, fmt.Errorf("set trading task status: %w", err)
 	}
 	return task, nil
+}
+
+func (store *Store) tradingTaskExists(ctx context.Context, id string) (bool, error) {
+	var exists bool
+	if err := store.pool.QueryRow(
+		ctx,
+		`SELECT EXISTS (SELECT 1 FROM trading_tasks WHERE id = $1)`,
+		id,
+	).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check trading task exists: %w", err)
+	}
+	return exists, nil
 }
 
 func (store *Store) ListTradingIntents(ctx context.Context, taskID string) ([]data.StrategyIntent, error) {

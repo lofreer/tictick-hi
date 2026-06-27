@@ -2,10 +2,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
@@ -195,9 +198,7 @@ func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected %s violation", testCase.constraint)
 			}
-			if !strings.Contains(err.Error(), testCase.constraint) {
-				t.Fatalf("error = %v, want constraint %s", err, testCase.constraint)
-			}
+			assertDatabaseConstraintError(t, err, testCase.constraint)
 		})
 	}
 }
@@ -474,9 +475,7 @@ func TestIntegrationDatabaseReferentialConstraintsRejectOrphans(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected %s violation", testCase.constraint)
 			}
-			if !strings.Contains(err.Error(), testCase.constraint) {
-				t.Fatalf("error = %v, want constraint %s", err, testCase.constraint)
-			}
+			assertDatabaseConstraintError(t, err, testCase.constraint)
 		})
 	}
 }
@@ -574,9 +573,7 @@ func TestIntegrationStrategyIntentParentDeleteIsRestricted(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected %s violation", testCase.constraint)
 			}
-			if !strings.Contains(err.Error(), testCase.constraint) {
-				t.Fatalf("error = %v, want constraint %s", err, testCase.constraint)
-			}
+			assertDatabaseConstraintError(t, err, testCase.constraint)
 		})
 	}
 
@@ -670,4 +667,16 @@ func seedIntegrationTradingGraph(
 	})
 
 	return taskID, intentID, orderID, notificationID
+}
+
+func assertDatabaseConstraintError(t *testing.T, err error, constraint string) {
+	t.Helper()
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.ConstraintName == constraint {
+		return
+	}
+	if strings.Contains(err.Error(), constraint) {
+		return
+	}
+	t.Fatalf("error = %v, want constraint %s", err, constraint)
 }

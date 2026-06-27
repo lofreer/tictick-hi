@@ -483,19 +483,41 @@ func insertIntegrationSyncTask(
 ) {
 	t.Helper()
 
+	var (
+		leaseLockedBy  any
+		leaseUntil     any
+		leaseHeartbeat any
+		leaseStartedAt any
+		finishedAt     any
+	)
+	if status == data.TaskStatusRunning && lockedBy != "" {
+		now := time.Now().UTC()
+		leaseLockedBy = lockedBy
+		leaseUntil = now.Add(time.Minute)
+		leaseHeartbeat = now
+		leaseStartedAt = now
+	}
+	if status == data.TaskStatusSucceeded || status == data.TaskStatusFailed || status == data.TaskStatusCancelled {
+		finishedAt = time.Now().UTC()
+	}
+
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO data_sync_tasks (
 			id, exchange, symbol, interval, sync_enabled, realtime_enabled, status,
-			locked_by, locked_until, heartbeat_at, started_at, created_at, updated_at
+			locked_by, locked_until, heartbeat_at, started_at, finished_at, created_at, updated_at
 		)
-		VALUES ($1, 'binance', $2, '1m', $3, $4, $5, $6, now() + interval '1 minute',
-		        now(), now(), '2000-01-01T00:00:00Z'::timestamptz, now())`,
+		VALUES ($1, 'binance', $2, '1m', $3, $4, $5, $6, $7, $8, $9,
+		        $10, '2000-01-01T00:00:00Z'::timestamptz, now())`,
 		id,
 		symbol,
 		syncEnabled,
 		realtimeEnabled,
 		status,
-		lockedBy,
+		leaseLockedBy,
+		leaseUntil,
+		leaseHeartbeat,
+		leaseStartedAt,
+		finishedAt,
 	); err != nil {
 		t.Fatal(err)
 	}

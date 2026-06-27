@@ -250,17 +250,31 @@ func (store *Store) updateTaskFlag(
 		       finished_at = CASE WHEN $2::boolean THEN finished_at ELSE now() END,
 		       updated_at = now()
 		 WHERE id = $1
+		   AND (
+		     status = $3
+		     OR ($3 IN ($4, $5, $6) AND status IN ($4, $5, $6))
+		   )
 		RETURNING id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
 		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
 		column,
 		clearLeaseCaseAssignments(dataSyncTaskLease, "NOT $2::boolean")),
-		id, enabled, status,
+		id,
+		enabled,
+		status,
+		data.TaskStatusPending,
+		data.TaskStatusRunning,
+		data.TaskStatusPaused,
 	)
 
 	task, err := scanDataSyncTaskRow(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
+			if exists, existsErr := store.dataSyncTaskExists(ctx, id); existsErr != nil {
+				return data.DataSyncTask{}, existsErr
+			} else if exists {
+				return data.DataSyncTask{}, fmt.Errorf("%w: data sync task status cannot be changed by this command", data.ErrInvalidState)
+			}
 			return data.DataSyncTask{}, data.ErrNotFound
 		}
 		return data.DataSyncTask{}, fmt.Errorf("update data sync task: %w", err)
