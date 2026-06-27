@@ -33,7 +33,6 @@ const themeStore = useThemeStore();
 const containerRef = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
-let observer: ResizeObserver | null = null;
 
 onMounted(() => {
   if (!containerRef.value) return;
@@ -53,13 +52,10 @@ onMounted(() => {
     wickDownColor: appColors.danger,
   });
 
-  observer = new ResizeObserver(() => chart?.timeScale().fitContent());
-  observer.observe(containerRef.value);
   syncData();
 });
 
 onBeforeUnmount(() => {
-  observer?.disconnect();
   chart?.remove();
 });
 

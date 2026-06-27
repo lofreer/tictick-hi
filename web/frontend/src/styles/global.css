@@ -176,7 +176,8 @@ a {
 }
 
 .chart-panel {
-  min-height: calc(100vh - 180px);
+  height: clamp(560px, calc(100vh - 180px), 820px);
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -245,7 +246,8 @@ a {
   }
 
   .chart-panel {
-    min-height: 560px;
+    height: 560px;
+    min-height: 0;
   }
 }
 
@@ -263,4 +265,3 @@ a {
     font-size: 22px;
   }
 }
-

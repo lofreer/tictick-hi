@@ -233,7 +233,8 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 <style scoped>
 .trading-detail-chart {
-  min-height: calc(100vh - 180px);
+  height: clamp(560px, calc(100vh - 180px), 820px);
+  min-height: 0;
 }
 
 .trading-detail-section {

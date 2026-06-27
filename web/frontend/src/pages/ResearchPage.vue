@@ -257,7 +257,7 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-chart-panel :deep(.trading-chart) {
   flex: 1 1 auto;
   min-height: 0;
-  height: auto;
+  height: 100%;
 }
 
 .research-chart-panel :deep(.trading-chart__canvas) {

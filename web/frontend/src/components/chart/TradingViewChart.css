@@ -1,13 +1,20 @@
 .trading-chart {
   position: relative;
-  min-height: inherit;
-  height: 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: var(--tt-chart-height, 100%);
+  overflow: hidden;
+  contain: size layout paint;
   background: var(--tt-chart-bg);
 }
 
 .trading-chart__canvas {
-  min-height: inherit;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .trading-chart__empty {
@@ -17,4 +24,3 @@
   place-items: center;
   pointer-events: none;
 }
-
