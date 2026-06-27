@@ -69,7 +69,7 @@ describe("TradingViewChart", () => {
     Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 
-  it("observes the layout parent instead of the chart root or canvas host", () => {
+  it("observes the canvas host instead of layout ancestors", () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -84,21 +84,69 @@ describe("TradingViewChart", () => {
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(root.parentElement);
+    expect(observedTarget).toBe(canvasHost);
     expect(observedTarget).not.toBe(root);
-    expect(observedTarget).not.toBe(canvasHost);
+    expect(observedTarget).not.toBe(root.parentElement);
 
     wrapper.unmount();
     host.remove();
   });
 
-  it("clamps chart height to the remaining chart panel space", () => {
+  it("uses the stable canvas host size instead of inflated ancestor heights", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
     host.className = "research-chart-body";
     panel.append(host);
     document.body.append(panel);
+
+    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 760 });
+
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: 760 });
+      }
+      if (this === host) {
+        return rect({ top: 180, width: 1200, height: 3200 });
+      }
+      if (this instanceof Element && this.classList.contains("trading-chart")) {
+        return rect({ top: 180, width: 1200, height: 3200 });
+      }
+      if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
+        return rect({ top: 180, width: 1200, height: 680 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mount(TradingViewChart, {
+      attachTo: host,
+      props: {
+        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+        emptyTitle: "No candles",
+      },
+    });
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1200,
+        height: 680,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
+  it("clamps oversized canvas height to the remaining chart panel space", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 800 });
 
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
       if (this === panel) {
@@ -107,10 +155,10 @@ describe("TradingViewChart", () => {
       if (this === host) {
         return rect({ top: 180, width: 1200, height: 1200 });
       }
-      if (this instanceof Element && this !== panel && this.querySelector(".trading-chart")) {
+      if (this instanceof Element && this.classList.contains("trading-chart")) {
         return rect({ top: 180, width: 1200, height: 1200 });
       }
-      if (this instanceof Element && this.classList.contains("trading-chart")) {
+      if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
         return rect({ top: 180, width: 1200, height: 1200 });
       }
       return originalGetBoundingClientRect.call(this);
