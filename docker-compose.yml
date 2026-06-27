@@ -1,0 +1,101 @@
+name: tictick-hi
+
+x-hi-app: &hi-app
+  build:
+    context: .
+  image: tictick-hi:local
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}?sslmode=disable
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    <<: *hi-app
+    command: ["migrate"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *hi-app
+    command: ["api"]
+    environment:
+      <<: *app-environment
+      HTTP_ADDR: 0.0.0.0:8080
+      WEB_FRONTEND_DIST: /app/web/frontend/dist
+      AUTH_SESSION_TTL: ${AUTH_SESSION_TTL:-12h}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      BOOTSTRAP_OPERATOR_USERNAME: ${BOOTSTRAP_OPERATOR_USERNAME:?set BOOTSTRAP_OPERATOR_USERNAME in .env}
+      BOOTSTRAP_OPERATOR_PASSWORD: ${BOOTSTRAP_OPERATOR_PASSWORD:?set BOOTSTRAP_OPERATOR_PASSWORD in .env}
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/readyz >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  sync:
+    <<: *hi-app
+    command: ["sync"]
+    environment:
+      <<: *app-environment
+      SYNC_POLL_INTERVAL: ${SYNC_POLL_INTERVAL:-10s}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  backtest:
+    <<: *hi-app
+    command: ["backtest"]
+    environment:
+      <<: *app-environment
+      BACKTEST_POLL_INTERVAL: ${BACKTEST_POLL_INTERVAL:-10s}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  trading:
+    <<: *hi-app
+    command: ["trading"]
+    environment:
+      <<: *app-environment
+      TRADING_POLL_INTERVAL: ${TRADING_POLL_INTERVAL:-10s}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

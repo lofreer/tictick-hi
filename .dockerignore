@@ -1,0 +1,15 @@
+.git
+.DS_Store
+.env
+*.log
+
+node_modules
+dist
+coverage
+.vite
+*.tsbuildinfo
+
+web/frontend/node_modules
+web/frontend/dist
+web/frontend/coverage
+web/frontend/.vite
