@@ -31,6 +31,7 @@ run_audit() {
 
 run_check "file size" "$ROOT_DIR/scripts/check-file-size.sh"
 run_check "trading float64" "$ROOT_DIR/scripts/check-trading-floats.sh"
+run_check "strategy boundary" "$ROOT_DIR/scripts/check-strategy-boundary.sh"
 run_check "stage 0 scaffold markers" "$ROOT_DIR/scripts/check-scaffold-markers.sh"
 run_audit "future risk markers" "$ROOT_DIR/scripts/check-future-risk-markers.sh"
 
