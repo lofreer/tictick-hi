@@ -90,6 +90,27 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
+  it("observes the fixed chart panel when one is available", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    const wrapper = mountChart(host);
+    const root = wrapper.get(".trading-chart").element;
+    const canvasHost = wrapper.get(".trading-chart__canvas").element;
+
+    expect(observedTarget).toBe(panel);
+    expect(observedTarget).not.toBe(host);
+    expect(observedTarget).not.toBe(root);
+    expect(observedTarget).not.toBe(canvasHost);
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
   it("uses the parent chart viewport size without reading inflated chart children", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
@@ -250,6 +271,8 @@ describe("TradingViewChart", () => {
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1000, 580);
+    expect(wrapper.get<HTMLElement>(".trading-chart").element.style.height).toBe("580px");
+    expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("580px");
 
     wrapper.unmount();
     host.remove();
@@ -319,7 +342,7 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
-  it("leaves root and canvas sizing under CSS control", () => {
+  it("pins root and canvas to explicit stable host pixels", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
     document.body.append(host);
@@ -329,10 +352,10 @@ describe("TradingViewChart", () => {
     const root = wrapper.get<HTMLElement>(".trading-chart").element;
     const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
 
-    expect(root.style.width).toBe("");
-    expect(root.style.height).toBe("");
-    expect(canvasHost.style.width).toBe("");
-    expect(canvasHost.style.height).toBe("");
+    expect(root.style.width).toBe("1000px");
+    expect(root.style.height).toBe("620px");
+    expect(canvasHost.style.width).toBe("1000px");
+    expect(canvasHost.style.height).toBe("620px");
 
     wrapper.unmount();
     host.remove();
