@@ -47,6 +47,13 @@ type leaseClaimUpdate struct {
 	returningColumns string
 }
 
+type leaseTransitionUpdate struct {
+	resource         leaseResource
+	assignments      []string
+	where            string
+	returningColumns string
+}
+
 func clearLeaseAssignments(resource leaseResource) string {
 	assignments := []string{
 		"locked_by = NULL",
@@ -171,6 +178,27 @@ func releaseLease(ctx context.Context, exec leaseExec, resource leaseResource, i
 		resource.keyColumn,
 	), id)
 	return err
+}
+
+func leaseTransitionUpdateSQL(update leaseTransitionUpdate) string {
+	assignments := make([]string, 0, len(update.assignments)+2)
+	assignments = append(assignments, update.assignments...)
+	assignments = append(assignments, clearLeaseAssignments(update.resource))
+	assignments = append(assignments, "updated_at = now()")
+
+	returning := ""
+	if strings.TrimSpace(update.returningColumns) != "" {
+		returning = "\n\t\t\tRETURNING " + update.returningColumns
+	}
+	return fmt.Sprintf(`
+			UPDATE %s
+			   SET %s
+			 WHERE %s%s`,
+		update.resource.table,
+		strings.Join(assignments, ",\n			       "),
+		update.where,
+		returning,
+	)
 }
 
 func heartbeatLease(

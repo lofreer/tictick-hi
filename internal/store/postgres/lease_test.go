@@ -390,6 +390,85 @@ func TestHeartbeatLeaseRejectsResourcesWithoutHeartbeat(t *testing.T) {
 	}
 }
 
+func TestLeaseTransitionUpdateSQLClearsTaskLeaseFields(t *testing.T) {
+	sql := leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: backtestTaskLease,
+		assignments: []string{
+			"status = $2",
+			"last_error = $3",
+			"finished_at = now()",
+		},
+		where: "id = $1",
+	})
+
+	for _, expected := range []string{
+		"UPDATE backtest_tasks",
+		"status = $2",
+		"last_error = $3",
+		"finished_at = now()",
+		"locked_by = NULL",
+		"locked_until = NULL",
+		"heartbeat_at = NULL",
+		"updated_at = now()",
+		"WHERE id = $1",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("lease transition sql %q missing %q", sql, expected)
+		}
+	}
+}
+
+func TestLeaseTransitionUpdateSQLOmitsHeartbeatForNotificationOutbox(t *testing.T) {
+	sql := leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: notificationOutboxLease,
+		assignments: []string{
+			"status = 'delivered'",
+			"delivered_at = $2",
+			"last_error = NULL",
+		},
+		where:            "id = $1",
+		returningColumns: "notification_id, attempt_count",
+	})
+
+	for _, expected := range []string{
+		"UPDATE notification_outbox",
+		"status = 'delivered'",
+		"delivered_at = $2",
+		"last_error = NULL",
+		"locked_by = NULL",
+		"locked_until = NULL",
+		"updated_at = now()",
+		"WHERE id = $1",
+		"RETURNING notification_id, attempt_count",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("lease transition sql %q missing %q", sql, expected)
+		}
+	}
+	if strings.Contains(sql, "heartbeat_at") {
+		t.Fatalf("notification transition should not reference heartbeat_at: %q", sql)
+	}
+}
+
+func TestLeaseTransitionUpdateSQLPreservesGuardedWhere(t *testing.T) {
+	sql := leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: backtestTaskLease,
+		assignments: []string{
+			"status = $2",
+		},
+		where: "id = $1\n\t\t\t   AND status = $3",
+	})
+
+	for _, expected := range []string{
+		"WHERE id = $1",
+		"AND status = $3",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("lease transition sql %q missing %q", sql, expected)
+		}
+	}
+}
+
 type captureLeaseExec struct {
 	sql  string
 	args []any

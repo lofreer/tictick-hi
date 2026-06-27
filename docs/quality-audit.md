@@ -209,6 +209,7 @@ scripts/quality-gate.sh
 - 数据同步 stop sync / stop realtime 和交易 pause 会清理 `locked_by`、`locked_until`、`heartbeat_at`，Stage 8 smoke 通过真实 API + PostgreSQL 断言覆盖。
 - data sync、backtest、trading、notification outbox 的 release / fail / pause 清锁 SQL 已收敛到 `internal/store/postgres/lease.go` 共享 helper。
 - data sync、backtest、trading、notification outbox 的 claim id 查询、claim 状态更新、claim 过期条件和 claim 锁字段写入已收敛到 `internal/store/postgres/lease.go` 共享 helper。
+- data sync、backtest、trading、notification outbox 的非 claim 状态更新清锁 SQL 已开始收敛到 `internal/store/postgres/lease.go` 共享 helper。
 - data sync、backtest、trading 的 PostgreSQL heartbeat SQL 已收敛到 `internal/store/postgres/lease.go` 共享 helper，notification outbox 因无 `heartbeat_at` 字段会被 helper 拒绝 heartbeat。
 - data sync、backtest、trading、notification runner 在父上下文取消时会释放当前 active lease，不再把 shutdown 误记为任务失败；backtest 会从 `running` 复位为 `pending`，避免清锁后无法再次 claim。
 - data sync / backtest / trading / notify 容器级 SIGTERM 已由 `scripts/stage8-sigterm-smoke.sh` 通过真实 Docker Compose stop、受控阻塞点和 PostgreSQL 锁字段断言覆盖。
@@ -1541,6 +1542,12 @@ Definition of Done：
 - data sync、backtest、trading、notification outbox 的 claim 更新路径复用 `claimLeaseRow`；领域候选条件、排序、返回字段、扫描函数和 notification 主表同步更新保持原语义。
 - 单元测试覆盖 claim update SQL 的状态 / lease / attempt / returning 字段、先 select 再 update 的调用顺序，以及没有候选行时不得执行 update。
 
+本轮非 claim 转移收敛：
+
+- `internal/store/postgres/lease.go` 新增 `leaseTransitionUpdateSQL`，集中生成“状态/结果字段更新 + 清理 lease 字段 + `updated_at`”的 transition update SQL。
+- data sync 保存结果 / 永久失败 / 临时重试、backtest 成功 / 失败 / shutdown release、trading 失败、notification delivered / failed outbox 更新复用 `leaseTransitionUpdateSQL`；领域特有字段、返回字段和 notification 主表同步更新保持原语义。
+- 单元测试覆盖 task 表 transition 必须清理 `heartbeat_at`、notification outbox transition 不引用 `heartbeat_at`、`RETURNING` 和带状态守卫的 `WHERE` 必须保留。
+
 已收敛的 worker 取消释放 lease 路径：
 
 - `internal/workerlease` 新增 shutdown 判定和不继承父取消的 release context，避免用已取消的请求上下文做收尾写库。
@@ -1621,7 +1628,7 @@ Definition of Done：
 - Stage 8 当前已建立可重复全链路 smoke gate，并完成 usable readiness 重审计；重审计显示多个核心模块仍为 `demo` 或 `scaffold`，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
-- worker claim id 查询、claim 状态更新、共享字段、过期谓词和 PostgreSQL heartbeat 刷新已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选条件、排序和非 claim 状态切换仍未抽取为完整统一状态机。
+- worker claim id 查询、claim 状态更新、部分非 claim 状态更新、共享字段、过期谓词和 PostgreSQL heartbeat 刷新已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选条件、排序、数据库状态机约束和部分业务状态切换仍未抽取为完整统一状态机。
 - 回测撮合、paper position PnL、真实通知 provider 生产启用边界、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 主入口 chunk 过大已由路由级 code split 关闭；前端仍缺系统性桌面 / 移动 / 主题视觉回归。
 

@@ -267,15 +267,16 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 		}
 	}
 
-	if _, err := tx.Exec(ctx, fmt.Sprintf(`
-		UPDATE backtest_tasks
-		   SET status = $2,
-		       result_summary = $3::jsonb,
-		       %s,
-		       finished_at = now(),
-		       last_error = NULL,
-		       updated_at = now()
-		 WHERE id = $1`, clearLeaseAssignments(backtestTaskLease)),
+	if _, err := tx.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: backtestTaskLease,
+		assignments: []string{
+			"status = $2",
+			"result_summary = $3::jsonb",
+			"finished_at = now()",
+			"last_error = NULL",
+		},
+		where: "id = $1",
+	}),
 		result.TaskID,
 		data.TaskStatusSucceeded,
 		summaryJSON,
@@ -290,14 +291,15 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 }
 
 func (store *Store) MarkBacktestFailed(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
-		UPDATE backtest_tasks
-		   SET status = $2,
-		       %s,
-		       last_error = $3,
-		       finished_at = now(),
-		       updated_at = now()
-		 WHERE id = $1`, clearLeaseAssignments(backtestTaskLease)),
+	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: backtestTaskLease,
+		assignments: []string{
+			"status = $2",
+			"last_error = $3",
+			"finished_at = now()",
+		},
+		where: "id = $1",
+	}),
 		taskID,
 		data.TaskStatusFailed,
 		taskErr.Error(),
@@ -309,15 +311,13 @@ func (store *Store) MarkBacktestFailed(ctx context.Context, taskID string, taskE
 }
 
 func (store *Store) ReleaseBacktestTask(ctx context.Context, taskID string) error {
-	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
-		UPDATE backtest_tasks
-		   SET status = $2,
-		       %s,
-		       updated_at = now()
-		 WHERE id = $1
-		   AND status = $3`,
-		clearLeaseAssignments(backtestTaskLease),
-	),
+	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: backtestTaskLease,
+		assignments: []string{
+			"status = $2",
+		},
+		where: "id = $1\n\t\t\t   AND status = $3",
+	}),
 		taskID,
 		data.TaskStatusPending,
 		data.TaskStatusRunning,

@@ -220,13 +220,14 @@ func (store *Store) SaveTradingRunResult(ctx context.Context, result data.Tradin
 }
 
 func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
-		UPDATE trading_tasks
-		   SET status = $2,
-		       %s,
-		       last_error = $3,
-		       updated_at = now()
-		 WHERE id = $1`, clearLeaseAssignments(tradingTaskLease)),
+	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: tradingTaskLease,
+		assignments: []string{
+			"status = $2",
+			"last_error = $3",
+		},
+		where: "id = $1",
+	}),
 		taskID,
 		data.TaskStatusFailed,
 		taskErr.Error(),

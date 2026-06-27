@@ -229,15 +229,16 @@ func (store *Store) MarkNotificationDelivered(ctx context.Context, deliveryID st
 
 	var notificationID string
 	var attemptCount int
-	err = tx.QueryRow(ctx, fmt.Sprintf(`
-		UPDATE notification_outbox
-		   SET status = 'delivered',
-		       delivered_at = $2,
-		       last_error = NULL,
-		       %s,
-		       updated_at = now()
-		 WHERE id = $1
-		RETURNING notification_id, attempt_count`, clearLeaseAssignments(notificationOutboxLease)),
+	err = tx.QueryRow(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: notificationOutboxLease,
+		assignments: []string{
+			"status = 'delivered'",
+			"delivered_at = $2",
+			"last_error = NULL",
+		},
+		where:            "id = $1",
+		returningColumns: "notification_id, attempt_count",
+	}),
 		deliveryID,
 		deliveredAt,
 	).Scan(&notificationID, &attemptCount)
@@ -288,15 +289,16 @@ func (store *Store) MarkNotificationFailed(
 
 	var notificationID string
 	var attemptCount int
-	err = tx.QueryRow(ctx, fmt.Sprintf(`
-		UPDATE notification_outbox
-		   SET status = $2,
-		       next_attempt_at = $3,
-		       last_error = $4,
-		       %s,
-		       updated_at = now()
-		 WHERE id = $1
-		RETURNING notification_id, attempt_count`, clearLeaseAssignments(notificationOutboxLease)),
+	err = tx.QueryRow(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: notificationOutboxLease,
+		assignments: []string{
+			"status = $2",
+			"next_attempt_at = $3",
+			"last_error = $4",
+		},
+		where:            "id = $1",
+		returningColumns: "notification_id, attempt_count",
+	}),
 		deliveryID,
 		status,
 		nextAttempt,

@@ -130,26 +130,27 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 		}
 	}
 
-	if _, err := tx.Exec(ctx, fmt.Sprintf(`
-		UPDATE data_sync_tasks
-		   SET last_synced_open_time = COALESCE($2, last_synced_open_time),
-		       status = CASE
-		         WHEN realtime_enabled THEN $3
-		         WHEN $4::boolean THEN $5
-		         ELSE $6
-		       END,
-		       sync_enabled = CASE
-		         WHEN $4::boolean AND NOT realtime_enabled THEN false
-		         ELSE sync_enabled
-		       END,
-		       %s,
-		       finished_at = CASE
-		         WHEN $4::boolean AND NOT realtime_enabled THEN now()
-		         ELSE finished_at
-		       END,
-		       last_error = NULL,
-		       updated_at = now()
-		 WHERE id = $1`, clearLeaseAssignments(dataSyncTaskLease)),
+	if _, err := tx.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: dataSyncTaskLease,
+		assignments: []string{
+			"last_synced_open_time = COALESCE($2, last_synced_open_time)",
+			`status = CASE
+			         WHEN realtime_enabled THEN $3
+			         WHEN $4::boolean THEN $5
+			         ELSE $6
+			       END`,
+			`sync_enabled = CASE
+			         WHEN $4::boolean AND NOT realtime_enabled THEN false
+			         ELSE sync_enabled
+			       END`,
+			`finished_at = CASE
+			         WHEN $4::boolean AND NOT realtime_enabled THEN now()
+			         ELSE finished_at
+			       END`,
+			"last_error = NULL",
+		},
+		where: "id = $1",
+	}),
 		result.TaskID,
 		result.LastOpenTime,
 		data.TaskStatusRunning,
@@ -167,15 +168,16 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 }
 
 func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
-		UPDATE data_sync_tasks
-		   SET status = $2,
-		       sync_enabled = false,
-		       realtime_enabled = false,
-		       %s,
-		       last_error = $3,
-		       updated_at = now()
-		 WHERE id = $1`, clearLeaseAssignments(dataSyncTaskLease)),
+	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: dataSyncTaskLease,
+		assignments: []string{
+			"status = $2",
+			"sync_enabled = false",
+			"realtime_enabled = false",
+			"last_error = $3",
+		},
+		where: "id = $1",
+	}),
 		taskID,
 		data.TaskStatusFailed,
 		normalizeTaskError(taskErr),
@@ -187,16 +189,17 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 }
 
 func (store *Store) RecordDataSyncRetry(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
-		UPDATE data_sync_tasks
-		   SET status = CASE
-		         WHEN realtime_enabled THEN $2
-		         ELSE $3
-		       END,
-		       %s,
-		       last_error = $4,
-		       updated_at = now()
-		 WHERE id = $1`, clearLeaseAssignments(dataSyncTaskLease)),
+	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: dataSyncTaskLease,
+		assignments: []string{
+			`status = CASE
+			         WHEN realtime_enabled THEN $2
+			         ELSE $3
+			       END`,
+			"last_error = $4",
+		},
+		where: "id = $1",
+	}),
 		taskID,
 		data.TaskStatusRunning,
 		data.TaskStatusPending,
