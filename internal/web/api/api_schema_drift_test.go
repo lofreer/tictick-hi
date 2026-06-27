@@ -21,14 +21,14 @@ type tsField struct {
 }
 
 func TestFrontendAPIRequestTypesMatchContractSchemas(t *testing.T) {
-	types := parseTSTypesFile(t, filepath.Join(repoRoot(t), "web", "frontend", "src", "types", "app.ts"))
+	types := parseTSTypesFile(t, generatedAPITypesPath(t))
 	schemas := apiContractDocument().Components.Schemas
 
 	for _, item := range []struct {
 		tsType     string
 		schemaName string
 	}{
-		{"LoginCredentials", "LoginRequest"},
+		{"LoginRequest", "LoginRequest"},
 		{"CreateDataSyncTask", "CreateDataSyncTask"},
 		{"CreateBacktestTask", "CreateBacktestTask"},
 		{"CreateTradingTask", "CreateTradingTask"},
@@ -42,7 +42,7 @@ func TestFrontendAPIRequestTypesMatchContractSchemas(t *testing.T) {
 }
 
 func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
-	types := parseTSTypesFile(t, filepath.Join(repoRoot(t), "web", "frontend", "src", "types", "app.ts"))
+	types := parseTSTypesFile(t, generatedAPITypesPath(t))
 	schemas := apiContractDocument().Components.Schemas
 
 	for _, item := range []struct {
@@ -77,12 +77,33 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 }
 
 func TestFrontendAPIAdapterResponseFieldsExistInContract(t *testing.T) {
-	types := parseTSTypesFile(t, filepath.Join(repoRoot(t), "web", "frontend", "src", "services", "api", "data.ts"))
+	types := parseTSTypesFile(t, generatedAPITypesPath(t))
 	schemas := apiContractDocument().Components.Schemas
 
-	assertTSFieldsEqualSchema(t, types["DataSyncTaskResponse"], "DataSyncTask", schemas["DataSyncTask"])
-	assertTSFieldsEqualSchema(t, types["CandleResultResponse"], "CandleResult", schemas["CandleResult"])
-	assertTSFieldsExistInSchema(t, types["CandleResponse"], "Candle", schemas["Candle"])
+	assertTSFieldsEqualSchema(t, types["DataSyncTask"], "DataSyncTask", schemas["DataSyncTask"])
+	assertTSFieldsEqualSchema(t, types["CandleResult"], "CandleResult", schemas["CandleResult"])
+	assertTSFieldsExistInSchema(t, types["Candle"], "Candle", schemas["Candle"])
+}
+
+func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join(repoRoot(t), "web", "frontend", "src", "types", "app.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`from "@/types/api.generated"`,
+		"export type DataSyncTask = APIDataSyncTask;",
+		"export type CreateDataSyncTask = APICreateDataSyncTask;",
+		"export type BacktestTask = APIBacktestTask;",
+		"export type TradingTask = Omit<APITradingTask",
+		"export type Notification = APINotification;",
+		"export type SystemHealth = APISystemHealth;",
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("app.ts does not reference generated API type %q", expected)
+		}
+	}
 }
 
 func TestFrontendAPICandleQueryMatchesContractParameters(t *testing.T) {

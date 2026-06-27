@@ -1,13 +1,9 @@
 import { apiClient } from "@/services/api/client";
-import type { StrategyDefinition, StrategyParamSpec } from "@/types/app";
-
-type StrategyDefinitionResponse = Omit<StrategyDefinition, "params"> & {
-  params?: StrategyParamResponse[];
-};
-
-type StrategyParamResponse = Omit<StrategyParamSpec, "options"> & {
-  options?: StrategyParamSpec["options"];
-};
+import type {
+  StrategyDefinition as StrategyDefinitionResponse,
+  StrategyParamSpec as StrategyParamResponse,
+} from "@/types/api.generated";
+import type { StrategyDefinition, StrategyParamSpec, StrategyParamValue } from "@/types/app";
 
 export const strategiesApi = {
   async listStrategies() {
@@ -37,13 +33,28 @@ function normalizeParam(response: StrategyParamResponse): StrategyParamSpec {
   return {
     key: response.key,
     label: response.label,
-    type: response.type,
+    type: normalizeParamType(response.type),
     required: response.required,
-    default: response.default,
+    default: normalizeParamValue(response.default),
     min: response.min,
     max: response.max,
     step: response.step,
     options: response.options ?? [],
     description: response.description,
   };
+}
+
+function normalizeParamType(value: string): StrategyParamSpec["type"] {
+  if (value === "number" || value === "select" || value === "text" || value === "boolean") {
+    return value;
+  }
+  return "text";
+}
+
+function normalizeParamValue(value: unknown): StrategyParamValue | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  return undefined;
 }

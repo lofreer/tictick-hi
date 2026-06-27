@@ -1,50 +1,15 @@
 import { apiClient } from "@/services/api/client";
 import type {
-  CandleCoverage,
-  CandleGap,
-  CandleHealth,
+  Candle as CandleResponse,
+  CandleResult as CandleResultResponse,
+  DataSyncTask as DataSyncTaskResponse,
+} from "@/types/api.generated";
+import type {
   CandleResult,
-  CandleSource,
   ChartCandle,
   CreateDataSyncTask,
   DataSyncTask,
-  TaskStatus,
 } from "@/types/app";
-
-type DataSyncTaskResponse = {
-  id: string;
-  exchange: string;
-  symbol: string;
-  interval: string;
-  startTime?: string;
-  endTime?: string;
-  latestSyncedAt?: string;
-  realtimeEnabled: boolean;
-  syncEnabled: boolean;
-  status: TaskStatus;
-  lastError?: string;
-  attemptCount?: number;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type CandleResponse = {
-  openTime: string;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-};
-
-type CandleResultResponse = {
-  candles?: CandleResponse[];
-  source?: CandleSource;
-  requestedInterval?: string;
-  baseInterval?: string;
-  health?: CandleHealth;
-  gaps?: CandleGap[];
-  coverage?: CandleCoverage;
-};
 
 export type CandleQuery = {
   exchange: string;

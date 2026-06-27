@@ -15,16 +15,13 @@ describe("DataSyncTaskTable", () => {
       global: { plugins: [i18n] },
       props: {
         tasks: [
-          {
+          dataSyncTask({
             id: "sync_1",
             exchange: "binance",
             symbol: "BTCUSDT",
             interval: "1m",
-            realtimeEnabled: false,
-            syncEnabled: true,
-            status: "failed",
             lastError: longError,
-          } satisfies DataSyncTask,
+          }),
         ],
       },
     });
@@ -40,16 +37,14 @@ describe("DataSyncTaskTable", () => {
   });
 
   it("emits retry for failed tasks", async () => {
-    const failedTask: DataSyncTask = {
+    const failedTask = dataSyncTask({
       id: "sync_1",
       exchange: "binance",
       symbol: "BTCUSDT",
       interval: "1m",
-      realtimeEnabled: false,
       syncEnabled: false,
-      status: "failed",
       lastError: "invalid symbol",
-    };
+    });
     const wrapper = mount(DataSyncTaskTable, {
       global: { plugins: [i18n] },
       props: {
@@ -63,3 +58,19 @@ describe("DataSyncTaskTable", () => {
     expect(wrapper.find('button[title="同步"]').exists()).toBe(false);
   });
 });
+
+function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
+  return {
+    id: "sync_1",
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    interval: "1m",
+    realtimeEnabled: false,
+    syncEnabled: true,
+    status: "failed",
+    attemptCount: 1,
+    createdAt: "2026-06-28T00:00:00Z",
+    updatedAt: "2026-06-28T00:00:00Z",
+    ...overrides,
+  };
+}
