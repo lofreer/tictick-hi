@@ -337,6 +337,13 @@ func (store *Store) MarkNotificationFailed(
 	return nil
 }
 
+func (store *Store) ReleaseNotificationDelivery(ctx context.Context, deliveryID string) error {
+	if err := releaseLease(ctx, store.pool, notificationOutboxLease, deliveryID); err != nil {
+		return fmt.Errorf("release notification delivery: %w", err)
+	}
+	return nil
+}
+
 func notificationByID(ctx context.Context, tx pgx.Tx, id string) (data.Notification, error) {
 	row := tx.QueryRow(ctx, `
 		SELECT id, task_id, COALESCE(intent_id, ''), channel, provider, target,

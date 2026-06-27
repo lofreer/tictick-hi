@@ -55,12 +55,15 @@ func (runner *Runner) Run(ctx context.Context) error {
 
 	for {
 		if err := runner.RunOnce(ctx); err != nil {
+			if workerlease.IsShutdown(ctx, err) {
+				return nil
+			}
 			return err
 		}
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		case <-ticker.C:
 		}
 	}
@@ -76,6 +79,14 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 	}
 
 	if err := runner.runTaskWithHeartbeat(ctx, task); err != nil {
+		if workerlease.IsShutdown(ctx, err) {
+			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
+			defer cancel()
+			if releaseErr := runner.repository.ReleaseBacktestTask(releaseCtx, task.ID); releaseErr != nil {
+				return fmt.Errorf("release backtest task on shutdown: %w", releaseErr)
+			}
+			return nil
+		}
 		slog.Error("backtest task failed", "task_id", task.ID, "error", err)
 		if markErr := runner.repository.MarkBacktestFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark backtest failed: %w", markErr)

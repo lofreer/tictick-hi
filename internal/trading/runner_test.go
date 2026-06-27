@@ -104,14 +104,36 @@ func TestRunnerRunOnceRejectsLiveExecute(t *testing.T) {
 	}
 }
 
+func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
+	repository.cancelOnGetCandles = cancel
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !repository.released {
+		t.Fatal("expected lease to be released on shutdown")
+	}
+	if repository.failed {
+		t.Fatal("shutdown should not mark trading task failed")
+	}
+	if repository.saved {
+		t.Fatal("shutdown should not save trading result")
+	}
+}
+
 type fakeTradingRepository struct {
-	task       data.TradingTask
-	candles    []data.Candle
-	result     data.TradingRunResult
-	claimed    bool
-	saved      bool
-	failed     bool
-	heartbeats int
+	task               data.TradingTask
+	candles            []data.Candle
+	result             data.TradingRunResult
+	claimed            bool
+	saved              bool
+	failed             bool
+	released           bool
+	heartbeats         int
+	cancelOnGetCandles func()
 }
 
 func newFakeTradingRepository(policy map[string]any) *fakeTradingRepository {
@@ -169,10 +191,20 @@ func (repository *fakeTradingRepository) MarkTradingTaskFailed(context.Context, 
 	return nil
 }
 
+func (repository *fakeTradingRepository) ReleaseTradingTask(context.Context, string) error {
+	repository.released = true
+	return nil
+}
+
 func (repository *fakeTradingRepository) GetCandles(
-	context.Context,
-	data.CandleQuery,
+	ctx context.Context,
+	_ data.CandleQuery,
 ) (data.CandleResult, error) {
+	if repository.cancelOnGetCandles != nil {
+		repository.cancelOnGetCandles()
+		<-ctx.Done()
+		return data.CandleResult{}, ctx.Err()
+	}
 	return data.CandleResult{
 		Candles:           append([]data.Candle(nil), repository.candles...),
 		Source:            data.CandleSourceNative,

@@ -241,11 +241,42 @@ func TestRunnerDoesNotSaveAfterHeartbeatLeaseLoss(t *testing.T) {
 	}
 }
 
+func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed: true,
+	}
+	fetcher := &cancelingMarketClient{cancel: cancel}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !repository.released {
+		t.Fatal("expected lease to be released on shutdown")
+	}
+	if repository.failed != nil {
+		t.Fatalf("shutdown should not mark task failed: %v", repository.failed)
+	}
+	if repository.saved.TaskID != "" {
+		t.Fatalf("shutdown should not save result: %#v", repository.saved)
+	}
+}
+
 type fakeSyncRepository struct {
 	task                 data.DataSyncTask
 	claimed              bool
 	saved                data.DataSyncResult
 	failed               error
+	released             bool
 	heartbeats           int
 	heartbeatSignals     chan<- struct{}
 	heartbeatErrAfter    int
@@ -306,6 +337,11 @@ func (repository *fakeSyncRepository) MarkDataSyncFailed(
 	return nil
 }
 
+func (repository *fakeSyncRepository) ReleaseDataSyncTask(context.Context, string) error {
+	repository.released = true
+	return nil
+}
+
 type fakeMarketClient struct {
 	candles []data.Candle
 	err     error
@@ -362,4 +398,17 @@ func (client *leaseLossMarketClient) FetchCandles(
 ) ([]data.Candle, error) {
 	<-client.leaseLost
 	return client.candles, nil
+}
+
+type cancelingMarketClient struct {
+	cancel func()
+}
+
+func (client *cancelingMarketClient) FetchCandles(
+	ctx context.Context,
+	_ exchange.CandleRequest,
+) ([]data.Candle, error) {
+	client.cancel()
+	<-ctx.Done()
+	return nil, ctx.Err()
 }

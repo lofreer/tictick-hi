@@ -246,3 +246,10 @@ func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, ta
 	}
 	return nil
 }
+
+func (store *Store) ReleaseTradingTask(ctx context.Context, taskID string) error {
+	if err := releaseLease(ctx, store.pool, tradingTaskLease, taskID); err != nil {
+		return fmt.Errorf("release trading task: %w", err)
+	}
+	return nil
+}

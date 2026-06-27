@@ -201,6 +201,13 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 	return nil
 }
 
+func (store *Store) ReleaseDataSyncTask(ctx context.Context, taskID string) error {
+	if err := releaseLease(ctx, store.pool, dataSyncTaskLease, taskID); err != nil {
+		return fmt.Errorf("release data sync task: %w", err)
+	}
+	return nil
+}
+
 func normalizeTaskError(taskErr error) string {
 	message := strings.Join(strings.Fields(taskErr.Error()), " ")
 	const maxRunes = 500

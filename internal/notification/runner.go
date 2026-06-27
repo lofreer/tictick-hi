@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/workerlease"
 )
 
 type Runner struct {
@@ -56,6 +57,9 @@ func (runner *Runner) Run(ctx context.Context) error {
 		for {
 			processed, err := runner.runOne(ctx)
 			if err != nil {
+				if workerlease.IsShutdown(ctx, err) {
+					return nil
+				}
 				return err
 			}
 			if !processed {
@@ -65,7 +69,7 @@ func (runner *Runner) Run(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		case <-ticker.C:
 		}
 	}
@@ -90,6 +94,14 @@ func (runner *Runner) runOne(ctx context.Context) (bool, error) {
 	}
 
 	if err := runner.deliver(ctx, delivery); err != nil {
+		if workerlease.IsShutdown(ctx, err) {
+			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
+			defer cancel()
+			if releaseErr := runner.repository.ReleaseNotificationDelivery(releaseCtx, delivery.ID); releaseErr != nil {
+				return true, fmt.Errorf("release notification delivery on shutdown: %w", releaseErr)
+			}
+			return true, nil
+		}
 		slog.Error("notification delivery failed", "delivery_id", delivery.ID, "error", err)
 		nextAttemptAt := runner.nextAttemptAt(delivery)
 		if markErr := runner.repository.MarkNotificationFailed(ctx, delivery.ID, err, nextAttemptAt); markErr != nil {

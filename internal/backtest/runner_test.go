@@ -131,15 +131,52 @@ func TestRunnerRunOnceUsesOneMinuteExecutionForMinuteReplay(t *testing.T) {
 	}
 }
 
+func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repository := &fakeBacktestRepository{
+		task: data.BacktestTask{
+			ID:             "bt_1",
+			Name:           "EMA",
+			Exchange:       "binance",
+			Symbol:         "BTCUSDT",
+			Interval:       "1m",
+			StartTime:      &start,
+			EndTime:        ptrTime(start.Add(10 * time.Minute)),
+			StrategyID:     "ema-cross",
+			StrategyParams: map[string]any{"fastPeriod": 2, "slowPeriod": 3, "orderSize": 0.1, "signalMode": "order"},
+			InitialBalance: "1000",
+			Status:         data.TaskStatusRunning,
+		},
+		cancelOnGetCandles: cancel,
+	}
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !repository.released {
+		t.Fatal("expected lease to be released on shutdown")
+	}
+	if repository.failed {
+		t.Fatal("shutdown should not mark backtest failed")
+	}
+	if repository.saved {
+		t.Fatal("shutdown should not save backtest result")
+	}
+}
+
 type fakeBacktestRepository struct {
-	task       data.BacktestTask
-	candles    []data.Candle
-	query      data.CandleQuery
-	result     data.BacktestResult
-	claimed    bool
-	saved      bool
-	failed     bool
-	heartbeats int
+	task               data.BacktestTask
+	candles            []data.Candle
+	query              data.CandleQuery
+	result             data.BacktestResult
+	claimed            bool
+	saved              bool
+	failed             bool
+	released           bool
+	heartbeats         int
+	cancelOnGetCandles func()
 }
 
 func (repository *fakeBacktestRepository) ClaimBacktestTask(
@@ -178,11 +215,21 @@ func (repository *fakeBacktestRepository) MarkBacktestFailed(context.Context, st
 	return nil
 }
 
+func (repository *fakeBacktestRepository) ReleaseBacktestTask(context.Context, string) error {
+	repository.released = true
+	return nil
+}
+
 func (repository *fakeBacktestRepository) GetCandles(
-	_ context.Context,
+	ctx context.Context,
 	query data.CandleQuery,
 ) (data.CandleResult, error) {
 	repository.query = query
+	if repository.cancelOnGetCandles != nil {
+		repository.cancelOnGetCandles()
+		<-ctx.Done()
+		return data.CandleResult{}, ctx.Err()
+	}
 	return data.CandleResult{
 		Candles:           append([]data.Candle(nil), repository.candles...),
 		Source:            data.CandleSourceNative,

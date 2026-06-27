@@ -78,3 +78,27 @@ func TestRunWithHeartbeatCancelsWorkOnHeartbeatError(t *testing.T) {
 		t.Fatalf("error = %v, want %v", err, heartbeatErr)
 	}
 }
+
+func TestIsShutdownRequiresParentContextCancellation(t *testing.T) {
+	if IsShutdown(context.Background(), context.Canceled) {
+		t.Fatal("context.Canceled from work should not be treated as shutdown unless parent context is canceled")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if !IsShutdown(ctx, context.Canceled) {
+		t.Fatal("expected canceled parent context to be treated as shutdown")
+	}
+}
+
+func TestReleaseContextIgnoresParentCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	releaseCtx, releaseCancel := ReleaseContext(ctx)
+	defer releaseCancel()
+
+	if err := releaseCtx.Err(); err != nil {
+		t.Fatalf("release context should not inherit parent cancellation: %v", err)
+	}
+}

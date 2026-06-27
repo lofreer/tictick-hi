@@ -427,6 +427,7 @@ type SyncRepository interface {
 	HeartbeatDataSyncTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveDataSyncResult(ctx context.Context, result DataSyncResult) error
 	MarkDataSyncFailed(ctx context.Context, taskID string, err error) error
+	ReleaseDataSyncTask(ctx context.Context, taskID string) error
 }
 
 type BacktestRepository interface {
@@ -434,6 +435,7 @@ type BacktestRepository interface {
 	HeartbeatBacktestTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveBacktestResult(ctx context.Context, result BacktestResult) error
 	MarkBacktestFailed(ctx context.Context, taskID string, err error) error
+	ReleaseBacktestTask(ctx context.Context, taskID string) error
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 }
 
@@ -442,6 +444,7 @@ type TradingRepository interface {
 	HeartbeatTradingTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveTradingRunResult(ctx context.Context, result TradingRunResult) error
 	MarkTradingTaskFailed(ctx context.Context, taskID string, err error) error
+	ReleaseTradingTask(ctx context.Context, taskID string) error
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 }
 
@@ -449,6 +452,7 @@ type NotificationRepository interface {
 	ClaimNotificationDelivery(ctx context.Context, workerID string, leaseTTL time.Duration) (NotificationDelivery, bool, error)
 	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time) error
 	MarkNotificationFailed(ctx context.Context, deliveryID string, err error, nextAttemptAt *time.Time) error
+	ReleaseNotificationDelivery(ctx context.Context, deliveryID string) error
 }
 
 type DataSyncResult struct {

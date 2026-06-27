@@ -317,6 +317,26 @@ func (store *Store) MarkBacktestFailed(ctx context.Context, taskID string, taskE
 	return nil
 }
 
+func (store *Store) ReleaseBacktestTask(ctx context.Context, taskID string) error {
+	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
+		UPDATE backtest_tasks
+		   SET status = $2,
+		       %s,
+		       updated_at = now()
+		 WHERE id = $1
+		   AND status = $3`,
+		clearLeaseAssignments(backtestTaskLease),
+	),
+		taskID,
+		data.TaskStatusPending,
+		data.TaskStatusRunning,
+	)
+	if err != nil {
+		return fmt.Errorf("release backtest task: %w", err)
+	}
+	return nil
+}
+
 func scanBacktestTask(row pgx.CollectableRow) (data.BacktestTask, error) {
 	return scanBacktestTaskRow(row)
 }

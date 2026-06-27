@@ -9,6 +9,19 @@ import (
 type HeartbeatFunc func(context.Context) error
 type WorkFunc func(context.Context) error
 
+const releaseTimeout = 5 * time.Second
+
+func IsShutdown(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() == nil {
+		return false
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func ReleaseContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
+}
+
 func RunWithHeartbeat(
 	ctx context.Context,
 	interval time.Duration,

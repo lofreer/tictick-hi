@@ -100,11 +100,44 @@ func TestRunnerDrainsAvailableDeliveriesBeforeSleeping(t *testing.T) {
 	runner := NewRunner(repository, DemoProviders(), Config{WorkerID: "test", PollInterval: time.Hour})
 
 	err := runner.Run(ctx)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run error = %v, want context canceled", err)
+	if err != nil {
+		t.Fatalf("Run error = %v", err)
 	}
 	if repository.deliveredCount != 2 {
 		t.Fatalf("deliveredCount = %d, want 2", repository.deliveredCount)
+	}
+}
+
+func TestRunnerReleasesDeliveryOnShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	repository := &fakeNotificationRepository{
+		delivery: data.NotificationDelivery{
+			ID:             "no_1",
+			NotificationID: "nt_1",
+			Provider:       "canceling",
+			Target:         "default",
+			AttemptCount:   1,
+			MaxAttempts:    3,
+		},
+		claimed: true,
+	}
+	runner := NewRunner(
+		repository,
+		ProviderRegistry{providers: map[string]Provider{"canceling": cancelingProvider{cancel: cancel}}},
+		Config{WorkerID: "test"},
+	)
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !repository.released {
+		t.Fatal("expected delivery lease to be released on shutdown")
+	}
+	if repository.failedErr != nil {
+		t.Fatalf("shutdown should not mark notification failed: %v", repository.failedErr)
+	}
+	if repository.deliveredAt != nil {
+		t.Fatalf("shutdown should not mark notification delivered: %v", repository.deliveredAt)
 	}
 }
 
@@ -117,6 +150,7 @@ type fakeNotificationRepository struct {
 	deliveredCount int
 	failedErr      error
 	nextAttemptAt  *time.Time
+	released       bool
 }
 
 func (repository *fakeNotificationRepository) ClaimNotificationDelivery(
@@ -161,4 +195,19 @@ func (repository *fakeNotificationRepository) MarkNotificationFailed(
 	repository.failedErr = err
 	repository.nextAttemptAt = nextAttemptAt
 	return nil
+}
+
+func (repository *fakeNotificationRepository) ReleaseNotificationDelivery(context.Context, string) error {
+	repository.released = true
+	return nil
+}
+
+type cancelingProvider struct {
+	cancel func()
+}
+
+func (provider cancelingProvider) Deliver(ctx context.Context, _ data.NotificationDelivery) error {
+	provider.cancel()
+	<-ctx.Done()
+	return ctx.Err()
 }
