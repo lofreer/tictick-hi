@@ -88,7 +88,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       form.interval !== "" &&
       selectedStrategy.value !== undefined &&
       taskFieldsValid() &&
-      selectedStrategy.value.params.every((param) => isFilled(param, paramValues.value[param.key])),
+      selectedStrategy.value.params.every((param) => isStrategyParamValueValid(param, paramValues.value[param.key])),
   );
 
   const supportedIntervals = computed(() => {
@@ -256,15 +256,34 @@ function normalizeDefaultValue(param: StrategyParamSpec): StrategyParamValue {
   return "";
 }
 
-function isFilled(param: StrategyParamSpec, value: StrategyParamValue | undefined) {
-  if (!param.required) {
+export function isStrategyParamValueValid(param: StrategyParamSpec, value: StrategyParamValue | undefined) {
+  const empty = value === undefined || value === null || value === "";
+  if (empty && !param.required) {
     return true;
   }
+  if (empty) {
+    return false;
+  }
   if (param.type === "number") {
-    return typeof value === "number" && Number.isFinite(value);
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return false;
+    }
+    if (param.min !== undefined && value < param.min) {
+      return false;
+    }
+    if (param.max !== undefined && value > param.max) {
+      return false;
+    }
+    return true;
   }
   if (param.type === "boolean") {
     return typeof value === "boolean";
+  }
+  if (param.type === "select") {
+    if (typeof value !== "string" || value.length === 0) {
+      return false;
+    }
+    return param.options.length === 0 || param.options.some((option) => option.value === value);
   }
   return typeof value === "string" && value.length > 0;
 }
