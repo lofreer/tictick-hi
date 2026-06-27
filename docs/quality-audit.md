@@ -396,6 +396,47 @@ scripts/quality-gate.sh
 
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
+### 阶段 1 数据同步临时错误收敛补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- 研究页同步任务曾展示 Binance K 线请求 `EOF` 类错误，错误摘要可读性不足，临时网络失败会直接进入失败展示。
+
+修复范围：
+
+- Binance / OKX K 线 adapter 将 transport、超时、HTTP 429、HTTP 5xx 归类为临时错误。
+- Binance 多 endpoint fallback 保留，所有 endpoint 都是临时失败时返回脱敏的 temporary unavailable 摘要，不包含完整 query URL。
+- 数据同步 runner 对临时 market data 错误做短重试，默认 2 次，延迟默认 250ms，并支持 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 配置。
+- 临时错误重试后仍失败时记录 `last_error`，但对仍启用的 sync / realtime 任务回到 `pending` 等待下一轮领取，不把临时错误长期固定为 `failed`。
+- 数据同步失败错误文本在落库前做空白规范化和 500 rune 截断。
+- 研究页最近错误列强化单行截断、title 和 tooltip 换行，避免长错误撑爆表格。
+
+验证：
+
+- `go test ./...`
+- `go vet ./...`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `git diff --check`
+- `scripts/quality-gate.sh`
+- `docker compose up -d --build api sync`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- 本地 API `/api/data/tasks` 返回同步任务 `status=running`、`latestSyncedAt=2026-06-27T05:19:00Z`、无 `lastError`。
+- PostgreSQL 查询显示任务 `status=running`、`last_synced_open_time=2026-06-27 05:19:00+00`、`last_error=''`。
+- Headless Chrome 打开 `/research`，同步任务表显示 `最新同步时间=2026-06-27T05:20:00Z`、`实时=运行中`、`同步=运行中`、`最近错误=-`，无 console / page error。
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- 数据同步 worker 仍没有统一 lease 包和运行中 heartbeat loop，本补充不把数据同步升级为 usable。
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
 ### 阶段 2 Definition of Done：策略沉淀
 
 目标等级：demo

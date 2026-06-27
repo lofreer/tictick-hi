@@ -39,3 +39,49 @@ func TestFetchCandles(t *testing.T) {
 		t.Fatalf("unexpected candles: %#v", candles)
 	}
 }
+
+func TestFetchCandlesMarksServiceUnavailableTemporary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !exchange.IsTemporaryError(err) {
+		t.Fatalf("error is not temporary: %v", err)
+	}
+}
+
+func TestFetchCandlesDoesNotMarkBadRequestTemporary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if exchange.IsTemporaryError(err) {
+		t.Fatalf("bad request should not be temporary: %v", err)
+	}
+}

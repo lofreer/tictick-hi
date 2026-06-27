@@ -49,14 +49,22 @@ func (client *MarketClient) FetchCandles(
 	request exchange.CandleRequest,
 ) ([]data.Candle, error) {
 	var errors []string
+	allTemporary := true
 	for _, baseURL := range client.baseURLs {
 		candles, err := client.fetchCandlesFrom(ctx, baseURL, request)
 		if err == nil {
 			return candles, nil
 		}
+		if !isTemporaryEndpointError(err) {
+			allTemporary = false
+		}
 		errors = append(errors, endpointError(baseURL, err))
 	}
-	return nil, fmt.Errorf("binance klines unavailable: %s", strings.Join(errors, "; "))
+	message := strings.Join(errors, "; ")
+	if allTemporary {
+		return nil, exchange.NewTemporaryError("binance klines temporary unavailable: "+message, nil)
+	}
+	return nil, fmt.Errorf("binance klines unavailable: %s", message)
 }
 
 func (client *MarketClient) fetchCandlesFrom(
@@ -88,7 +96,7 @@ func (client *MarketClient) fetchCandlesFrom(
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("status %s", response.Status)
+		return nil, statusError{code: response.StatusCode, status: response.Status}
 	}
 
 	var rows []binanceKline
@@ -133,6 +141,24 @@ func endpointError(baseURL string, err error) string {
 		return fmt.Sprintf("%s: %s %v", host, urlErr.Op, urlErr.Err)
 	}
 	return fmt.Sprintf("%s: %v", host, err)
+}
+
+type statusError struct {
+	code   int
+	status string
+}
+
+func (err statusError) Error() string {
+	return "status " + err.status
+}
+
+func isTemporaryEndpointError(err error) bool {
+	var statusErr statusError
+	if errors.As(err, &statusErr) {
+		return statusErr.code == http.StatusTooManyRequests || statusErr.code >= 500
+	}
+	var urlErr *url.Error
+	return errors.As(err, &urlErr) || errors.Is(err, context.DeadlineExceeded)
 }
 
 type binanceKline []json.RawMessage

@@ -150,6 +150,8 @@ func runSync(ctx context.Context, args []string) error {
 			"SYNC_DEFAULT_LOOKBACK",
 			500*time.Minute,
 		),
+		FetchRetries: intEnv("SYNC_FETCH_RETRIES", 2),
+		RetryDelay:   durationEnv("SYNC_RETRY_DELAY", 250*time.Millisecond),
 	})
 
 	if *once {

@@ -90,3 +90,55 @@ func TestEndpointErrorHidesQueryURL(t *testing.T) {
 		t.Fatalf("summary misses host or reason: %s", summary)
 	}
 }
+
+func TestFetchCandlesMarksTransportFailuresTemporary(t *testing.T) {
+	primary := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	primary.Close()
+	secondary := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	secondary.Close()
+
+	client := NewMarketClientWithBaseURLs(
+		[]string{primary.URL, secondary.URL},
+		primary.Client(),
+	)
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
+		Limit:    1,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !exchange.IsTemporaryError(err) {
+		t.Fatalf("error is not temporary: %v", err)
+	}
+	if strings.Contains(err.Error(), "/api/v3/klines") || strings.Contains(err.Error(), "symbol=BTCUSDT") {
+		t.Fatalf("error leaks request URL: %v", err)
+	}
+}
+
+func TestFetchCandlesDoesNotMarkBadRequestTemporary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
+		Limit:    1,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if exchange.IsTemporaryError(err) {
+		t.Fatalf("bad request should not be temporary: %v", err)
+	}
+}

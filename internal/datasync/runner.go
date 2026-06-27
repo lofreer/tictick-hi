@@ -24,6 +24,8 @@ type Config struct {
 	BatchLimit      int
 	OverlapCandles  int
 	DefaultLookback time.Duration
+	FetchRetries    int
+	RetryDelay      time.Duration
 }
 
 func NewRunner(repository data.SyncRepository, registry exchange.Registry, config Config) *Runner {
@@ -41,6 +43,12 @@ func NewRunner(repository data.SyncRepository, registry exchange.Registry, confi
 	}
 	if config.DefaultLookback <= 0 {
 		config.DefaultLookback = 500 * time.Minute
+	}
+	if config.FetchRetries <= 0 {
+		config.FetchRetries = 2
+	}
+	if config.RetryDelay <= 0 {
+		config.RetryDelay = 250 * time.Millisecond
 	}
 	if config.WorkerID == "" {
 		config.WorkerID = "sync-worker"
@@ -108,7 +116,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		})
 	}
 
-	candles, err := client.FetchCandles(ctx, exchange.CandleRequest{
+	candles, err := runner.fetchCandles(ctx, client, exchange.CandleRequest{
 		Exchange: task.Exchange,
 		Symbol:   task.Symbol,
 		Interval: task.Interval,
@@ -127,6 +135,50 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		LastOpenTime: lastOpenTime,
 		Completed:    runner.isCompleted(task, duration, candles, window.to),
 	})
+}
+
+func (runner *Runner) fetchCandles(
+	ctx context.Context,
+	client exchange.MarketDataClient,
+	request exchange.CandleRequest,
+) ([]data.Candle, error) {
+	attempts := runner.config.FetchRetries + 1
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		candles, err := client.FetchCandles(ctx, request)
+		if err == nil {
+			return candles, nil
+		}
+		lastErr = err
+		if !exchange.IsTemporaryError(err) || attempt == attempts {
+			return nil, err
+		}
+
+		slog.Warn(
+			"temporary market data fetch failed; retrying",
+			"exchange", request.Exchange,
+			"symbol", request.Symbol,
+			"interval", request.Interval,
+			"attempt", attempt,
+			"max_attempts", attempts,
+			"error", err,
+		)
+		if err := waitForRetry(ctx, runner.config.RetryDelay*time.Duration(attempt)); err != nil {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 type syncWindow struct {

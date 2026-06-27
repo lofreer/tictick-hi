@@ -65,6 +65,8 @@ services:
       <<: *app-environment
       BINANCE_BASE_URLS: ${BINANCE_BASE_URLS:-https://api.binance.com,https://data-api.binance.vision}
       SYNC_POLL_INTERVAL: ${SYNC_POLL_INTERVAL:-10s}
+      SYNC_FETCH_RETRIES: ${SYNC_FETCH_RETRIES:-2}
+      SYNC_RETRY_DELAY: ${SYNC_RETRY_DELAY:-250ms}
     depends_on:
       postgres:
         condition: service_healthy

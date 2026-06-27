@@ -109,8 +109,34 @@ function lastErrorCell(row: DataSyncTask) {
     NTooltip,
     { trigger: "hover", width: 420 },
     {
-      trigger: () => h("span", { class: "task-error-text" }, summary),
-      default: () => row.lastError,
+      trigger: () =>
+        h(
+          "span",
+          {
+            class: "task-error-text",
+            title: row.lastError,
+            style: {
+              display: "block",
+              maxWidth: "260px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            },
+          },
+          summary,
+        ),
+      default: () =>
+        h(
+          "span",
+          {
+            style: {
+              display: "block",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            },
+          },
+          row.lastError,
+        ),
     },
   );
 }

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/exchange"
 )
 
 func (store *Store) ClaimDataSyncTask(
@@ -146,9 +148,13 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 }
 
 func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskErr error) error {
+	retryable := exchange.IsTemporaryError(taskErr)
 	_, err := store.pool.Exec(ctx, `
 		UPDATE data_sync_tasks
-		   SET status = $2,
+		   SET status = CASE
+		         WHEN $4::boolean AND (sync_enabled OR realtime_enabled) THEN $5
+		         ELSE $2
+		       END,
 		       locked_by = NULL,
 		       locked_until = NULL,
 		       heartbeat_at = NULL,
@@ -157,12 +163,24 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 		 WHERE id = $1`,
 		taskID,
 		data.TaskStatusFailed,
-		taskErr.Error(),
+		normalizeTaskError(taskErr),
+		retryable,
+		data.TaskStatusPending,
 	)
 	if err != nil {
 		return fmt.Errorf("mark data sync failed: %w", err)
 	}
 	return nil
+}
+
+func normalizeTaskError(taskErr error) string {
+	message := strings.Join(strings.Fields(taskErr.Error()), " ")
+	const maxRunes = 500
+	runes := []rune(message)
+	if len(runes) <= maxRunes {
+		return message
+	}
+	return string(runes[:maxRunes-3]) + "..."
 }
 
 func intervalLiteral(duration time.Duration) string {
