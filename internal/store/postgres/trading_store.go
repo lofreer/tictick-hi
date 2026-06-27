@@ -98,6 +98,9 @@ func (store *Store) SetTradingTaskStatus(
 	row := store.pool.QueryRow(ctx, `
 		UPDATE trading_tasks
 		   SET status = $2,
+		       locked_by = CASE WHEN $2 IN ($4, $5, $6) THEN NULL ELSE locked_by END,
+		       locked_until = CASE WHEN $2 IN ($4, $5, $6) THEN NULL ELSE locked_until END,
+		       heartbeat_at = CASE WHEN $2 IN ($4, $5, $6) THEN NULL ELSE heartbeat_at END,
 		       started_at = CASE WHEN $2 = $3 THEN COALESCE(started_at, now()) ELSE started_at END,
 		       finished_at = CASE WHEN $2 IN ($4, $5, $6) THEN now() ELSE finished_at END,
 		       updated_at = now()
@@ -230,6 +233,7 @@ func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, ta
 		   SET status = $2,
 		       locked_by = NULL,
 		       locked_until = NULL,
+		       heartbeat_at = NULL,
 		       last_error = $3,
 		       updated_at = now()
 		 WHERE id = $1`,

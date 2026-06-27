@@ -386,6 +386,7 @@ func releaseTradingTask(ctx context.Context, tx pgx.Tx, taskID string) error {
 		UPDATE trading_tasks
 		   SET locked_by = NULL,
 		       locked_until = NULL,
+		       heartbeat_at = NULL,
 		       updated_at = now()
 		 WHERE id = $1`,
 		taskID,

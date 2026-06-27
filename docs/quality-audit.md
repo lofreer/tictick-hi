@@ -35,13 +35,13 @@ done            用户确认关闭
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
-| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；仍缺统一 lease 包和优雅停止状态机 |
+| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；用户 stop sync / realtime 会释放 active lease；仍缺完整统一 lease 状态机和容器退出收尾证明 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
 | Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、统一 worker lease 和实盘安全边界 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause 会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo provider、失败重试和系统页 retry；真实第三方 provider、通道更新/删除、统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
@@ -202,6 +202,7 @@ scripts/quality-gate.sh
 - claim 时写入 `heartbeat_at`。
 - 数据同步、回测、交易 worker 均通过 `internal/workerlease.RunWithHeartbeat` 运行同一套 heartbeat loop。
 - heartbeat 丢失后，数据同步 worker 会在保存 K 线前重新确认 lease，避免继续写入已失去租约的结果。
+- 数据同步 stop sync / stop realtime 和交易 pause 会清理 `locked_by`、`locked_until`、`heartbeat_at`，Stage 8 smoke 通过真实 API + PostgreSQL 断言覆盖。
 - 各 worker 的 claim / heartbeat / release / fail / pause 仍分散在各自 store 方法中。
 - 停止状态机不完整。
 - 容器退出时没有证明任务能收尾。
@@ -991,6 +992,7 @@ Definition of Done：
 - 登录 API 成功并设置 session / CSRF cookie；后续写请求带 `X-CSRF-Token`。
 - `GET /api/strategies` 能观察到 `ema-cross` 策略 registry。
 - 通过 API 创建专用数据同步任务，并向 `market_candles` 写入专用 `1m` K 线事实数据。
+- 通过 API 创建被强制置为 active lease 的 sync / realtime / paper 任务，调用 stop / pause 后 PostgreSQL 断言 `status=paused` 且 `locked_by`、`locked_until`、`heartbeat_at` 均为空。
 - `GET /api/candles?interval=5m` 返回 `source=aggregated`、`health=ok`、`baseInterval=1m`，证明研究页和 CandleProvider 可用同一数据源。
 - 通过 API 创建 `webhook-demo` 通知通道。
 - 通过 API 创建回测任务，`hi backtest --once` 执行后任务进入 `succeeded`，并能读取 strategy intents 和 backtest orders。
@@ -1000,12 +1002,12 @@ Definition of Done：
 
 本轮 smoke 证据：
 
-- symbol：`S81782552325USDT`
-- data task：`dst_bbc88fcdf5422552b94dd179`
-- backtest：`bt_afa61b51bcc3afebdd225d98`
-- paper execute：`tt_28c5f6788e4df4971b36bfd3`
-- paper notify：`tt_4f3913641ee258906ae89442`
-- notification channel：`stage8-smoke-1782552325`
+- symbol：`S81782554308USDT`
+- data task：`dst_4b223127d7379607a93fe834`
+- backtest：`bt_54dff086f95188e7552a0bdd`
+- paper execute：`tt_655415ad7609542401ef6cad`
+- paper notify：`tt_3e8f49c87cc7143ed50a657f`
+- notification channel：`stage8-smoke-1782554308`
 
 前端 DOM smoke：
 
@@ -1042,6 +1044,12 @@ Definition of Done：
 - data sync、backtest、trading runner 已复用同一 helper，不再各自复制 heartbeat loop。
 - `internal/workerlease` 单元测试覆盖初始 heartbeat、运行中刷新和 heartbeat 失败取消任务。
 
+已修正的用户停止释放 lease 问题：
+
+- `SetSyncEnabled(false)` / `SetRealtimeEnabled(false)` 进入 `paused` 时清理 `locked_by`、`locked_until`、`heartbeat_at` 并写入 `finished_at`。
+- `SetTradingTaskStatus(paused|failed|cancelled)` 清理 active lease；trading runner 正常释放和 failed 路径也会清理 `heartbeat_at`。
+- Stage 8 smoke 使用真实 API 创建任务、直接模拟 active lease、再调用 stop / pause API，并用 PostgreSQL 断言锁字段为空。
+
 失败：
 
 - 无当前硬失败。
@@ -1050,7 +1058,7 @@ Definition of Done：
 
 - Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
-- worker 仍未抽取包含 claim / release / fail / pause 的完整统一 lease 状态机，容器退出和停止状态机仍未完整证明。
+- worker 仍未抽取包含 claim / release / fail / pause 的完整统一 lease 状态机，容器退出和优雅停止收尾仍未完整证明。
 - 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 

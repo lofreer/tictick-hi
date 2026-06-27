@@ -13,6 +13,7 @@ fi
 BASE_URL="${BASE_URL:-http://127.0.0.1:${HTTP_PORT:-8080}}"
 STAMP="${STAGE8_SMOKE_STAMP:-$(date +%s)}"
 SYMBOL="S8${STAMP}USDT"
+LOCK_SYMBOL="S8LOCK${STAMP}USDT"
 CHANNEL="stage8-smoke-${STAMP}"
 START_TIME="2026-01-01T00:00:00Z"
 END_TIME="2026-01-01T02:00:00Z"
@@ -116,10 +117,65 @@ pause_existing_stage8_tasks() {
        SET status = 'paused',
            locked_by = NULL,
            locked_until = NULL,
+           heartbeat_at = NULL,
            updated_at = now()
      WHERE name LIKE 'stage8-smoke-%'
        AND status = 'running';
   " >/dev/null
+}
+
+assert_task_unlocked() {
+  local table="$1"
+  local id="$2"
+  local expected_status="$3"
+  case "$table" in
+    data_sync_tasks|trading_tasks) ;;
+    *) fail "unsupported lock assertion table $table" ;;
+  esac
+  local count
+  count="$(psql_exec -At -v id="$id" -v expected_status="$expected_status" <<SQL | tr -d '[:space:]'
+SELECT count(*)
+  FROM $table
+ WHERE id = :'id'
+   AND status = :'expected_status'
+   AND locked_by IS NULL
+   AND locked_until IS NULL
+   AND heartbeat_at IS NULL;
+SQL
+)"
+  if [ "$count" != "1" ]; then
+    fail "expected $table $id to be $expected_status and unlocked"
+  fi
+}
+
+force_data_sync_lock() {
+  local id="$1"
+  local sync_enabled="$2"
+  local realtime_enabled="$3"
+  psql_exec -v id="$id" -v sync_enabled="$sync_enabled" -v realtime_enabled="$realtime_enabled" <<'SQL' >/dev/null
+UPDATE data_sync_tasks
+   SET status = 'running',
+       sync_enabled = :'sync_enabled'::boolean,
+       realtime_enabled = :'realtime_enabled'::boolean,
+       locked_by = 'stage8-lock-test',
+       locked_until = now() + INTERVAL '5 minutes',
+       heartbeat_at = now(),
+       updated_at = now()
+ WHERE id = :'id';
+SQL
+}
+
+force_trading_lock() {
+  local id="$1"
+  psql_exec -v id="$id" <<'SQL' >/dev/null
+UPDATE trading_tasks
+   SET status = 'running',
+       locked_by = 'stage8-lock-test',
+       locked_until = now() + INTERVAL '5 minutes',
+       heartbeat_at = now(),
+       updated_at = now()
+ WHERE id = :'id';
+SQL
 }
 
 seed_candles() {
@@ -284,6 +340,31 @@ if (!strategies.some((item) => item.id === "ema-cross")) {
   process.exit(1);
 }
 NODE
+
+log "worker lease release on user stop"
+api_post "/api/data/tasks" \
+  "{\"exchange\":\"binance\",\"symbol\":\"$LOCK_SYMBOL\",\"interval\":\"1m\",\"startTime\":\"$START_TIME\",\"endTime\":\"$END_TIME\"}" \
+  201
+SYNC_LOCK_TASK_ID="$(json_get "$BODY_FILE" id)"
+force_data_sync_lock "$SYNC_LOCK_TASK_ID" true false
+api_post "/api/data/tasks/$SYNC_LOCK_TASK_ID/sync/stop" "{}"
+assert_task_unlocked data_sync_tasks "$SYNC_LOCK_TASK_ID" paused
+
+api_post "/api/data/tasks" \
+  "{\"exchange\":\"binance\",\"symbol\":\"$LOCK_SYMBOL\",\"interval\":\"1m\",\"startTime\":\"$START_TIME\",\"endTime\":\"$END_TIME\"}" \
+  201
+REALTIME_LOCK_TASK_ID="$(json_get "$BODY_FILE" id)"
+force_data_sync_lock "$REALTIME_LOCK_TASK_ID" false true
+api_post "/api/data/tasks/$REALTIME_LOCK_TASK_ID/realtime/stop" "{}"
+assert_task_unlocked data_sync_tasks "$REALTIME_LOCK_TASK_ID" paused
+
+api_post "/api/trading/tasks" \
+  "{\"name\":\"stage8-smoke-lock-release-$STAMP\",\"type\":\"paper\",\"exchange\":\"binance\",\"accountId\":\"paper-stage8\",\"symbol\":\"$LOCK_SYMBOL\",\"interval\":\"5m\",\"strategyId\":\"ema-cross\",\"strategyParams\":{\"fastPeriod\":2,\"slowPeriod\":5,\"orderSize\":0.1,\"signalMode\":\"order\"},\"intentPolicy\":{\"orderIntent\":\"execute\",\"notificationChannel\":\"default\"}}" \
+  201
+TRADING_LOCK_TASK_ID="$(json_get "$BODY_FILE" id)"
+force_trading_lock "$TRADING_LOCK_TASK_ID"
+api_post "/api/trading/tasks/$TRADING_LOCK_TASK_ID/pause" "{}"
+assert_task_unlocked trading_tasks "$TRADING_LOCK_TASK_ID" paused
 
 log "research task and candles"
 api_post "/api/data/tasks" \
