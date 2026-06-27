@@ -163,17 +163,19 @@ func (store *Store) ClaimNotificationDelivery(
 	defer tx.Rollback(ctx)
 
 	var id string
-	err = tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		SELECT id
 		  FROM notification_outbox
 		 WHERE (
 		       (status IN ('pending', 'retry_scheduled') AND next_attempt_at <= now())
 		       OR status = 'running'
 		   )
-		   AND (locked_until IS NULL OR locked_until < now())
+		   AND %s
 		 ORDER BY next_attempt_at ASC, created_at ASC
 		 LIMIT 1
-		 FOR UPDATE SKIP LOCKED`).Scan(&id)
+		 FOR UPDATE SKIP LOCKED`,
+		claimableLeasePredicate(),
+	)).Scan(&id)
 	if err == pgx.ErrNoRows {
 		return data.NotificationDelivery{}, false, nil
 	}
@@ -181,19 +183,22 @@ func (store *Store) ClaimNotificationDelivery(
 		return data.NotificationDelivery{}, false, fmt.Errorf("select notification outbox: %w", err)
 	}
 
-	row := tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE notification_outbox
 		   SET status = 'running',
-		       locked_by = $2,
-		       locked_until = now() + $3::interval,
-		       attempt_count = attempt_count + 1,
-		       last_attempt_at = now(),
-		       updated_at = now()
+		       %s
 		 WHERE id = $1
 		RETURNING id, notification_id, task_id, COALESCE(intent_id, ''), channel,
 		          provider, target, title, body, status, attempt_count, max_attempts,
 		          next_attempt_at, last_attempt_at, COALESCE(last_error, ''),
 		          created_at, updated_at`,
+		claimLeaseAssignments(
+			notificationOutboxLease,
+			"$2",
+			"$3",
+			"last_attempt_at = now()",
+		),
+	),
 		id, workerID, intervalLiteral(leaseTTL),
 	)
 	delivery, err := scanNotificationDelivery(row)

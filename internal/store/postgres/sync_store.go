@@ -25,15 +25,17 @@ func (store *Store) ClaimDataSyncTask(
 	defer tx.Rollback(ctx)
 
 	var id string
-	err = tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		SELECT id
 		  FROM data_sync_tasks
 		 WHERE (sync_enabled = true OR realtime_enabled = true)
 		   AND status <> $1
-		   AND (locked_until IS NULL OR locked_until < now())
+		   AND %s
 		 ORDER BY realtime_enabled DESC, created_at ASC
 		 LIMIT 1
 		 FOR UPDATE SKIP LOCKED`,
+		claimableLeasePredicate(),
+	),
 		data.TaskStatusCancelled,
 	).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -43,19 +45,21 @@ func (store *Store) ClaimDataSyncTask(
 		return data.DataSyncTask{}, false, fmt.Errorf("select data sync task: %w", err)
 	}
 
-	row := tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE data_sync_tasks
 		   SET status = $2,
-		       locked_by = $3,
-		       locked_until = now() + $4::interval,
-		       heartbeat_at = now(),
-		       started_at = COALESCE(started_at, now()),
-		       attempt_count = attempt_count + 1,
-		       updated_at = now()
+		       %s
 		 WHERE id = $1
 		RETURNING id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
 		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		claimLeaseAssignments(
+			dataSyncTaskLease,
+			"$3",
+			"$4",
+			"started_at = COALESCE(started_at, now())",
+		),
+	),
 		id, data.TaskStatusRunning, workerID, intervalLiteral(leaseTTL),
 	)
 	task, err := scanDataSyncTaskRow(row)

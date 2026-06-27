@@ -136,14 +136,16 @@ func (store *Store) ClaimBacktestTask(
 	defer tx.Rollback(ctx)
 
 	var id string
-	err = tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		SELECT id
 		  FROM backtest_tasks
 		 WHERE status = $1
-		   AND (locked_until IS NULL OR locked_until < now())
+		   AND %s
 		 ORDER BY created_at ASC
 		 LIMIT 1
 		 FOR UPDATE SKIP LOCKED`,
+		claimableLeasePredicate(),
+	),
 		data.TaskStatusPending,
 	).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -153,17 +155,19 @@ func (store *Store) ClaimBacktestTask(
 		return data.BacktestTask{}, false, fmt.Errorf("select backtest task: %w", err)
 	}
 
-	row := tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE backtest_tasks
 		   SET status = $2,
-		       locked_by = $3,
-		       locked_until = now() + $4::interval,
-		       heartbeat_at = now(),
-		       started_at = COALESCE(started_at, now()),
-		       attempt_count = attempt_count + 1,
-		       updated_at = now()
+		       %s
 		 WHERE id = $1
 		RETURNING `+backtestTaskColumns,
+		claimLeaseAssignments(
+			backtestTaskLease,
+			"$3",
+			"$4",
+			"started_at = COALESCE(started_at, now())",
+		),
+	),
 		id, data.TaskStatusRunning, workerID, intervalLiteral(leaseTTL),
 	)
 	task, err := scanBacktestTaskRow(row)

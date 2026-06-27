@@ -154,14 +154,16 @@ func (store *Store) ClaimTradingTask(
 	defer tx.Rollback(ctx)
 
 	var id string
-	err = tx.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		SELECT id
 		  FROM trading_tasks
 		 WHERE status = $1
-		   AND (locked_until IS NULL OR locked_until < now())
+		   AND %s
 		 ORDER BY updated_at ASC, created_at ASC
 		 LIMIT 1
 		 FOR UPDATE SKIP LOCKED`,
+		claimableLeasePredicate(),
+	),
 		data.TaskStatusRunning,
 	).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -171,16 +173,18 @@ func (store *Store) ClaimTradingTask(
 		return data.TradingTask{}, false, fmt.Errorf("select trading task: %w", err)
 	}
 
-	row := tx.QueryRow(ctx, `
+	row := tx.QueryRow(ctx, fmt.Sprintf(`
 		UPDATE trading_tasks
-		   SET locked_by = $2,
-		       locked_until = now() + $3::interval,
-		       heartbeat_at = now(),
-		       started_at = COALESCE(started_at, now()),
-		       attempt_count = attempt_count + 1,
-		       updated_at = now()
+		   SET %s
 		 WHERE id = $1
 		RETURNING `+tradingTaskColumns,
+		claimLeaseAssignments(
+			tradingTaskLease,
+			"$2",
+			"$3",
+			"started_at = COALESCE(started_at, now())",
+		),
+	),
 		id, workerID, intervalLiteral(leaseTTL),
 	)
 	task, err := scanTradingTaskRow(row)

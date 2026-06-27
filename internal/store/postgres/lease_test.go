@@ -44,3 +44,57 @@ func TestClearLeaseCaseAssignmentsKeepsLeaseWhenConditionIsFalse(t *testing.T) {
 		}
 	}
 }
+
+func TestClaimableLeasePredicateSelectsUnlockedOrExpiredRows(t *testing.T) {
+	predicate := claimableLeasePredicate()
+
+	if predicate != "(locked_until IS NULL OR locked_until < now())" {
+		t.Fatalf("unexpected predicate %q", predicate)
+	}
+}
+
+func TestClaimLeaseAssignmentsIncludesHeartbeatAndExtraFieldsForTaskTables(t *testing.T) {
+	assignments := claimLeaseAssignments(
+		backtestTaskLease,
+		"$3",
+		"$4",
+		"started_at = COALESCE(started_at, now())",
+	)
+
+	for _, expected := range []string{
+		"locked_by = $3",
+		"locked_until = now() + $4::interval",
+		"heartbeat_at = now()",
+		"started_at = COALESCE(started_at, now())",
+		"attempt_count = attempt_count + 1",
+		"updated_at = now()",
+	} {
+		if !strings.Contains(assignments, expected) {
+			t.Fatalf("assignments %q missing %q", assignments, expected)
+		}
+	}
+}
+
+func TestClaimLeaseAssignmentsOmitsHeartbeatForNotificationOutbox(t *testing.T) {
+	assignments := claimLeaseAssignments(
+		notificationOutboxLease,
+		"$2",
+		"$3",
+		"last_attempt_at = now()",
+	)
+
+	for _, expected := range []string{
+		"locked_by = $2",
+		"locked_until = now() + $3::interval",
+		"last_attempt_at = now()",
+		"attempt_count = attempt_count + 1",
+		"updated_at = now()",
+	} {
+		if !strings.Contains(assignments, expected) {
+			t.Fatalf("assignments %q missing %q", assignments, expected)
+		}
+	}
+	if strings.Contains(assignments, "heartbeat_at") {
+		t.Fatalf("notification outbox should not reference heartbeat_at: %q", assignments)
+	}
+}

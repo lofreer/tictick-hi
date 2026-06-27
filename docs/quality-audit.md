@@ -204,7 +204,8 @@ scripts/quality-gate.sh
 - heartbeat 丢失后，数据同步 worker 会在保存 K 线前重新确认 lease，避免继续写入已失去租约的结果。
 - 数据同步 stop sync / stop realtime 和交易 pause 会清理 `locked_by`、`locked_until`、`heartbeat_at`，Stage 8 smoke 通过真实 API + PostgreSQL 断言覆盖。
 - data sync、backtest、trading、notification outbox 的 release / fail / pause 清锁 SQL 已收敛到 `internal/store/postgres/lease.go` 共享 helper。
-- claim 查询仍分散在各自 store 方法中。
+- data sync、backtest、trading、notification outbox 的 claim 过期条件和 claim 锁字段写入已收敛到 `internal/store/postgres/lease.go` 共享 helper。
+- claim 的领域筛选、排序和状态切换仍分散在各自 store 方法中，还不是完整统一状态机。
 - 停止状态机不完整。
 - 容器退出时没有证明任务能收尾。
 
@@ -1011,12 +1012,12 @@ Definition of Done：
 
 本轮 smoke 证据：
 
-- symbol：`S81782555425USDT`
-- data task：`dst_fcd1e1e8fcf7d8132b8a53b7`
-- backtest：`bt_3aeb69737bef3fabcdcd340b`
-- paper execute：`tt_049765870e174155e7fcf320`
-- paper notify：`tt_cc1e1a80f83345b6ec195028`
-- notification channel：`stage8-smoke-1782555425`
+- symbol：`S81782557155USDT`
+- data task：`dst_0f7d7bf1e35c502ba6c6a1f8`
+- backtest：`bt_7c2f129a2b17cbf51b115dca`
+- paper execute：`tt_f1a4cbca28ffd570d98e112e`
+- paper notify：`tt_7fd489334394bb05eb0bdd99`
+- notification channel：`stage8-smoke-1782557155`
 
 前端 DOM smoke：
 
@@ -1068,6 +1069,13 @@ Definition of Done：
 - Stage 8 smoke 额外断言 backtest succeeded 后 task lease 释放、notification delivered 后 outbox lock 释放。
 - 单元测试覆盖 task 表必须清理 `heartbeat_at`、notification outbox 不引用不存在的 `heartbeat_at`、条件清锁保留非终态 lease。
 
+已收敛的 worker lease claim 共享字段：
+
+- `internal/store/postgres/lease.go` 新增 `claimableLeasePredicate`，集中表达 `locked_until IS NULL OR locked_until < now()` 可 claim 条件。
+- `internal/store/postgres/lease.go` 新增 `claimLeaseAssignments`，集中写入 `locked_by`、`locked_until`、可选 `heartbeat_at`、额外 claim 字段、`attempt_count` 和 `updated_at`。
+- data sync、backtest、trading、notification outbox 的 claim 更新复用共享 helper；各自的领域候选条件、排序、公平性和返回字段保持不变。
+- 单元测试覆盖 task 表 claim 必须写入 `heartbeat_at`、notification outbox claim 不引用不存在的 `heartbeat_at`、额外字段和过期谓词。
+
 已收敛的交易所 K 线错误边界：
 
 - `internal/exchange` 提供共享 HTTP status / transport error 分类和 endpoint 错误摘要，避免 adapter 泄露完整请求路径和 query 参数。
@@ -1084,7 +1092,7 @@ Definition of Done：
 - Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
-- worker claim 查询仍未抽取为完整统一状态机，容器退出和优雅停止收尾仍未完整证明。
+- worker claim 的共享字段和过期谓词已收敛，但领域候选选择仍未抽取为完整统一状态机，容器退出和优雅停止收尾仍未完整证明。
 - 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
