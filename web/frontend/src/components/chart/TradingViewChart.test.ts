@@ -255,14 +255,42 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
+  it("ignores inflated direct panel client height when css height is fixed", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    panel.style.height = "760px";
+    document.body.append(panel);
+    setClientSize(panel, { width: 900, height: 5000 });
+
+    const wrapper = mountChart(panel);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 900,
+        height: 760,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
   it("resizes only to changed viewport dimensions", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
     const host = document.createElement("div");
     host.className = "research-chart-body";
-    document.body.append(host);
+    panel.append(host);
+    document.body.append(panel);
+    setClientSize(panel, { width: 1000, height: 700 });
     setClientSize(host, { width: 1000, height: 620 });
 
     let size = { width: 1000, height: 620 };
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 80, width: 1000, height: 700 });
+      }
       if (this === host) {
         return rect({ top: 100, width: size.width, height: size.height });
       }
@@ -285,7 +313,7 @@ describe("TradingViewChart", () => {
     expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("");
 
     wrapper.unmount();
-    host.remove();
+    panel.remove();
   });
 
   it("does not chase chart-driven host height growth beyond the panel boundary", () => {
@@ -419,9 +447,13 @@ describe("TradingViewChart", () => {
   });
 
   it("leaves root and canvas sizing to the fixed viewport css", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
     const host = document.createElement("div");
     host.className = "research-chart-body";
-    document.body.append(host);
+    panel.append(host);
+    document.body.append(panel);
+    setClientSize(panel, { width: 1000, height: 700 });
     setClientSize(host, { width: 1000, height: 620 });
 
     const wrapper = mountChart(host);
@@ -441,7 +473,7 @@ describe("TradingViewChart", () => {
     expect(canvasHost.style.height).toBe("");
 
     wrapper.unmount();
-    host.remove();
+    panel.remove();
   });
 });
 

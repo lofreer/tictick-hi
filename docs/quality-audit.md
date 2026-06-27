@@ -644,6 +644,48 @@ scripts/quality-gate.sh
 
 - 本地 headless Chrome 仍未复现用户侧持续增长；本轮通过删除 observer/bounds height 输入来关闭主要反馈入口，但仍需用户在真实可见浏览器中确认。
 
+### 阶段 1 研究页 K 线高度稳定性八次加固
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户侧继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 本地 headless Chrome 在当前构建仍未复现持续增长，但旧高度读取契约仍允许 `.chart-panel` 直接宿主场景信任被污染的 `clientHeight`，无固定面板场景也仍可能用宿主高度作为图表高度输入。
+
+修复范围：
+
+- `TradingViewChart` 高度读取改为：存在 `.chart-panel` 时只以面板可用高度作为硬上限，chart viewport 的 `clientHeight` 只允许缩小最终高度，不能放大最终高度。
+- `.chart-panel` 高度读取使用 client / computed / bounds 的最小正值，避免任一测量来源被图表内部 DOM 污染后把高度放大。
+- 图表直接挂在 `.chart-panel` 时也走固定面板边界，不再因为 `panel === host` 回退到宿主 `clientHeight`。
+- 无 `.chart-panel` 的非生产挂载场景只使用固定 fallback 高度，不再从 host bounds 追随增长。
+- 研究页图表面板从 flex 列布局收敛为固定两行 grid：工具栏 `auto`，图表槽 `minmax(0, 1fr)`，图表 body 明确占满固定槽位。
+- 图表根节点和 canvas 宿主继续不写 inline 宽高，由固定 CSS viewport 承载尺寸，避免反向参与父级布局。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/components/chart/TradingViewChart.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `docker compose build api`
+- `docker compose up -d --no-deps api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- Headless Chrome 桌面 `1440x900` 登录并打开 `/research`，80 次采样 first/last 均为 `documentHeight=1238`、`panel=680`、`chartBody=603`、`chart=603`、`tv=603`，`uniqueDocs=[1238]`、`uniqueChart=[603]`、`grew=false`，无 runtime/log error。
+- Headless Chrome 移动 `390x844` 登录并打开 `/research`，80 次采样 first/last 均为 `documentHeight=1256`、`panel=624`、`chartBody=457`、`chart=457`、`tv=457`，`uniqueDocs=[1256]`、`uniqueChart=[457]`、`grew=false`，无 runtime/log error。
+- `go test ./...`
+- `go vet ./...`
+- `git diff --check`
+- `scripts/quality-gate.sh`
+
+失败：
+
+- 无硬失败。
+
+剩余风险：
+
+- 本轮仍未在用户的可见 Chrome 会话里复现原始无限增长，只能通过源码约束、自动化污染输入测试和本地 headless Chrome 采样关闭已知反馈入口。
+
 ### 阶段 1 Candle 查询 limit 边界补充
 
 执行时间：2026-06-27
