@@ -36,12 +36,12 @@ done            用户确认关闭
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
-| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，PostgreSQL 集成测试覆盖基础聚合、缺口和默认最新窗口查询；仍缺大范围性能压测、分页/游标和闭合信号硬化 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
-| 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause 和 runner 上下文取消会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
+| 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause 和 runner 上下文取消会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实第三方 provider、通道更新/删除、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
@@ -185,7 +185,7 @@ scripts/quality-gate.sh
 - 同周期 native 不健康时会尝试回退到 `1m` 聚合；无法回退时保留 native + gap 状态。
 - 回测 runner 和交易 runner 已改为通过 CandleProvider 结果取 K 线。
 - PostgreSQL 集成测试已覆盖从 `market_candles` 聚合 `1m -> 5m`、基础缺口 metadata、native gap 查询和无时间范围时默认返回最新窗口。
-- 仍缺较大时间范围性能边界、分页/游标、更多异常数据边界和闭合周期信号的后续硬化。
+- 仍缺较大时间范围性能边界、分页/游标和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
 
 关闭条件：
 
@@ -412,6 +412,37 @@ scripts/quality-gate.sh
 警告：
 
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
+### 阶段 1/3/4 闭合 K 线信号补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- 计划要求“未闭合的聚合 K 线可以用于图表展示，但不能被当成闭合周期信号”。
+- 回测 runner 和交易 runner 之前直接把 `CandleProvider` 返回的全部 K 线交给策略，未闭合的最后一根 K 线可能触发 order / notification intent。
+
+修复范围：
+
+- 新增 `data.ClosedCandles` 作为 runner 侧共享过滤边界。
+- 回测 runner 在 `strategy.GenerateIntents` 前只传入 `IsClosed=true` 的 K 线。
+- 交易 runner 在 `strategy.GenerateIntents` 前只传入 `IsClosed=true` 的 K 线。
+- 回测结果摘要新增 `inputCandleCount`、`strategyCandleCount`、`droppedOpenCandleCount`，用于审计策略实际使用的 K 线数量。
+
+验证：
+
+- `go test ./internal/data ./internal/backtest ./internal/trading`
+- `TestClosedCandlesFiltersOpenCandles` 覆盖共享过滤函数。
+- `TestRunnerRunOnceIgnoresUnclosedCandleSignals` 覆盖回测：未闭合最后一根 K 线即使会产生突破信号，也不会生成 intent / order，并记录 dropped count。
+- `TestRunnerRunOnceIgnoresUnclosedCandleSignals` 覆盖交易：未闭合最后一根 K 线不会生成 intent / order / execution。
+
+失败：
+
+- 无硬失败。
+
+后续风险：
+
+- 这只是闭合信号基础防护，不提升回测撮合可信度，不代表交易风控或实盘安全边界完成。
 
 ### 阶段 1 数据同步临时错误收敛补充
 

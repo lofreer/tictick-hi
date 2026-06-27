@@ -86,6 +86,37 @@ func TestRunnerRunOncePersistsStrategyNotificationIntent(t *testing.T) {
 	}
 }
 
+func TestRunnerRunOnceIgnoresUnclosedCandleSignals(t *testing.T) {
+	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
+	repository.task.Name = "Paper Breakout"
+	repository.task.Interval = "5m"
+	repository.task.StrategyID = "breakout-range"
+	repository.task.StrategyParams = map[string]any{
+		"lookback":          5,
+		"breakoutBufferPct": 0,
+		"orderSize":         0.1,
+		"signalMode":        "order",
+		"side":              "both",
+	}
+	repository.candles = runnerTestCandles([]string{"10", "10", "10", "10", "10", "12"})
+	repository.candles[len(repository.candles)-1].IsClosed = false
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if !repository.saved {
+		t.Fatal("expected empty trading run result to be saved")
+	}
+	if len(repository.result.Intents) != 0 {
+		t.Fatalf("unclosed candle should not create intents: %#v", repository.result.Intents)
+	}
+	if len(repository.result.Orders) != 0 || len(repository.result.Executions) != 0 {
+		t.Fatalf("unclosed candle should not create orders or executions: %#v %#v", repository.result.Orders, repository.result.Executions)
+	}
+}
+
 func TestRunnerRunOnceRejectsLiveExecute(t *testing.T) {
 	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
 	repository.task.Type = "live"

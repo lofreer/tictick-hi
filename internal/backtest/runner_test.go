@@ -131,6 +131,46 @@ func TestRunnerRunOnceUsesOneMinuteExecutionForMinuteReplay(t *testing.T) {
 	}
 }
 
+func TestRunnerRunOnceIgnoresUnclosedCandleSignals(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := runnerTestCandles([]string{"10", "10", "10", "10", "10", "12"})
+	candles[len(candles)-1].IsClosed = false
+	repository := &fakeBacktestRepository{
+		task: data.BacktestTask{
+			ID:             "bt_1",
+			Name:           "Breakout",
+			Exchange:       "binance",
+			Symbol:         "BTCUSDT",
+			Interval:       "5m",
+			StartTime:      &start,
+			EndTime:        ptrTime(start.Add(30 * time.Minute)),
+			StrategyID:     "breakout-range",
+			StrategyParams: map[string]any{"lookback": 5, "breakoutBufferPct": 0, "orderSize": 0.1, "signalMode": "order", "side": "both"},
+			InitialBalance: "1000",
+			TriggerMode:    "closed_candle",
+			Status:         data.TaskStatusPending,
+		},
+		candles: candles,
+	}
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(repository.result.Intents) != 0 {
+		t.Fatalf("unclosed candle should not create intents: %#v", repository.result.Intents)
+	}
+	if len(repository.result.Orders) != 0 {
+		t.Fatalf("unclosed candle should not create orders: %#v", repository.result.Orders)
+	}
+	if repository.result.ResultSummary["inputCandleCount"] != 6 ||
+		repository.result.ResultSummary["strategyCandleCount"] != 5 ||
+		repository.result.ResultSummary["droppedOpenCandleCount"] != 1 {
+		t.Fatalf("unexpected candle count summary: %#v", repository.result.ResultSummary)
+	}
+}
+
 func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

@@ -136,7 +136,7 @@ func (runner *Runner) runTask(ctx context.Context, task data.TradingTask) error 
 	if err != nil {
 		return err
 	}
-	candles := candleResult.Candles
+	candles := data.ClosedCandles(candleResult.Candles)
 	intents, err := strategy.GenerateIntents(ctx, definition, candles, task.StrategyParams)
 	if err != nil {
 		return err

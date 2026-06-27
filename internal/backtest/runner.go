@@ -135,7 +135,7 @@ func (runner *Runner) runTask(ctx context.Context, task data.BacktestTask) error
 	if err != nil {
 		return err
 	}
-	candles := candleResult.Candles
+	candles := data.ClosedCandles(candleResult.Candles)
 
 	intents, err := strategy.GenerateIntents(ctx, definition, candles, task.StrategyParams)
 	if err != nil {
@@ -156,6 +156,9 @@ func (runner *Runner) runTask(ctx context.Context, task data.BacktestTask) error
 	summary["baseInterval"] = candleResult.BaseInterval
 	summary["candleSource"] = string(candleResult.Source)
 	summary["candleHealth"] = string(candleResult.Health)
+	summary["inputCandleCount"] = len(candleResult.Candles)
+	summary["strategyCandleCount"] = len(candles)
+	summary["droppedOpenCandleCount"] = len(candleResult.Candles) - len(candles)
 	return runner.repository.SaveBacktestResult(ctx, data.BacktestResult{
 		TaskID:        task.ID,
 		Intents:       backtestIntents,
