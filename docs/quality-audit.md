@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，lightweight-charts 内部容器已用 `contain: strict` 和固定 100% 边界隔离，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
@@ -447,6 +447,44 @@ scripts/quality-gate.sh
 - `go vet ./...`
 - `scripts/quality-gate.sh`
 - `git diff --check`
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+
+### 阶段 1 研究页 K 线高度稳定性三次加固
+
+执行时间：2026-06-27
+
+触发问题：
+
+- 用户侧继续反馈 K 线图表界面会无限拉高，直到页面崩掉。
+- 前两轮 JS 尺寸 clamp 已覆盖常见反馈路径，但 CSS 仍需要彻底阻断 lightweight-charts 内部 DOM 参与父容器固有尺寸计算。
+
+修复范围：
+
+- `.trading-chart` 和 `.trading-chart__canvas` 改为明确 `width: 100%`、`height: 100%`、`max-width/max-height: 100%`，不再依赖 `auto` 尺寸解算。
+- 图表根、canvas 宿主和 `.tv-lightweight-charts` 内部容器统一使用 `contain: strict`，防止内部 canvas / pane DOM 把外层容器撑高。
+- `.tv-lightweight-charts` 改为 absolute + `inset: 0`，固定在 canvas 宿主内，避免内部普通流高度反向影响宿主。
+- 新增单测覆盖无 `.chart-panel` 边界时宿主高度被图表内部污染到 `5000px/8000px` 的场景，验证最多 resize 到 viewport，且不会继续追涨。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- Headless Chrome `1365x768` 登录并打开 `/research`，24 次、12 秒采样 first/last 均为 `body=1118`、`panel=560`、`chartBody=483`、`chart=483`、`tv=483`，`grew=false`，`contain=strict`。
 
 失败：
 

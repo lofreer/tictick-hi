@@ -286,6 +286,39 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
+  it("caps chart-driven host growth to the viewport without a panel boundary", () => {
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    document.body.append(host);
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 });
+
+    let hostHeight = 620;
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === host) {
+        return rect({ top: 100, width: 1000, height: hostHeight });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mountChart(host);
+    chartMocks.resize.mockClear();
+
+    hostHeight = 5000;
+    resizeCallback?.([], {} as ResizeObserver);
+
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 768);
+
+    hostHeight = 8000;
+    resizeCallback?.([], {} as ResizeObserver);
+
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+    host.remove();
+  });
+
   it("leaves root and canvas sizing under CSS control", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
