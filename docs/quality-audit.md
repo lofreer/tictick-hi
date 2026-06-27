@@ -35,7 +35,7 @@ done            用户确认关闭
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
-| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整 claim 状态机和容器级 SIGTERM smoke |
+| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
@@ -426,6 +426,8 @@ scripts/quality-gate.sh
 - Binance 多 endpoint fallback 保留，所有 endpoint 都是临时失败时返回脱敏的 temporary unavailable 摘要，不包含完整 query URL。
 - 数据同步 runner 对临时 market data 错误做短重试，默认 2 次，延迟默认 250ms，并支持 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 配置。
 - 临时错误重试后仍失败时记录 `last_error`，但对仍启用的 sync / realtime 任务回到 `pending` 等待下一轮领取，不把临时错误长期固定为 `failed`。
+- 本轮追加收敛：临时 market data 错误不再走 `MarkDataSyncFailed`，runner 改走 `RecordDataSyncRetry`，释放当前 lease 并保留 sync / realtime 期望；realtime 任务保持 `running`，一次性同步任务回到 `pending`。
+- 本轮追加收敛：永久数据同步失败会进入 `failed` 并关闭 `sync_enabled` / `realtime_enabled`，同时 claim 只选择 `pending` / `running` 任务，避免旧的 failed+enabled 行被 worker 反复领取。
 - 数据同步失败错误文本在落库前做空白规范化和 500 rune 截断。
 - 研究页最近错误列强化单行截断、title 和 tooltip 换行，避免长错误撑爆表格。
 
@@ -443,6 +445,8 @@ scripts/quality-gate.sh
 - 本地 API `/api/data/tasks` 返回同步任务 `status=running`、`latestSyncedAt=2026-06-27T05:19:00Z`、无 `lastError`。
 - PostgreSQL 查询显示任务 `status=running`、`last_synced_open_time=2026-06-27 05:19:00+00`、`last_error=''`。
 - Headless Chrome 打开 `/research`，同步任务表显示 `最新同步时间=2026-06-27T05:20:00Z`、`实时=运行中`、`同步=运行中`、`最近错误=-`，无 console / page error。
+- 本轮追加目标验证：`go test ./internal/datasync ./internal/store/postgres ./internal/web/api` 覆盖临时错误耗尽重试后记录 retry 且不标 failed，永久错误仍走 failed。
+- 本轮追加前端验证：`cd web/frontend && pnpm run typecheck` 确认 `DataSyncTask.attemptCount` 类型可被前端接收。
 
 失败：
 

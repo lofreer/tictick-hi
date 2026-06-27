@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/lofreer/tictick-hi/internal/data"
-	"github.com/lofreer/tictick-hi/internal/exchange"
 )
 
 func (store *Store) ClaimDataSyncTask(
@@ -29,14 +28,15 @@ func (store *Store) ClaimDataSyncTask(
 		SELECT id
 		  FROM data_sync_tasks
 		 WHERE (sync_enabled = true OR realtime_enabled = true)
-		   AND status <> $1
+		   AND status IN ($1, $2)
 		   AND %s
 		 ORDER BY realtime_enabled DESC, created_at ASC
 		 LIMIT 1
 		 FOR UPDATE SKIP LOCKED`,
 		claimableLeasePredicate(),
 	),
-		data.TaskStatusCancelled,
+		data.TaskStatusPending,
+		data.TaskStatusRunning,
 	).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return data.DataSyncTask{}, false, nil
@@ -178,13 +178,11 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 }
 
 func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskErr error) error {
-	retryable := exchange.IsTemporaryError(taskErr)
 	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
 		UPDATE data_sync_tasks
-		   SET status = CASE
-		         WHEN $4::boolean AND (sync_enabled OR realtime_enabled) THEN $5
-		         ELSE $2
-		       END,
+		   SET status = $2,
+		       sync_enabled = false,
+		       realtime_enabled = false,
 		       %s,
 		       last_error = $3,
 		       updated_at = now()
@@ -192,11 +190,31 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 		taskID,
 		data.TaskStatusFailed,
 		normalizeTaskError(taskErr),
-		retryable,
-		data.TaskStatusPending,
 	)
 	if err != nil {
 		return fmt.Errorf("mark data sync failed: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) RecordDataSyncRetry(ctx context.Context, taskID string, taskErr error) error {
+	_, err := store.pool.Exec(ctx, fmt.Sprintf(`
+		UPDATE data_sync_tasks
+		   SET status = CASE
+		         WHEN realtime_enabled THEN $2
+		         ELSE $3
+		       END,
+		       %s,
+		       last_error = $4,
+		       updated_at = now()
+		 WHERE id = $1`, clearLeaseAssignments(dataSyncTaskLease)),
+		taskID,
+		data.TaskStatusRunning,
+		data.TaskStatusPending,
+		normalizeTaskError(taskErr),
+	)
+	if err != nil {
+		return fmt.Errorf("record data sync retry: %w", err)
 	}
 	return nil
 }

@@ -24,6 +24,7 @@ export type DataSyncTask = {
   syncEnabled: boolean;
   status: TaskStatus;
   lastError?: string;
+  attemptCount?: number;
   createdAt?: string;
   updatedAt?: string;
 };

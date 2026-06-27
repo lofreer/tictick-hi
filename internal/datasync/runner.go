@@ -108,6 +108,13 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			return nil
 		}
+		if exchange.IsTemporaryError(err) {
+			slog.Warn("data sync task will retry after temporary market data error", "task_id", task.ID, "error", err)
+			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, err); retryErr != nil {
+				return fmt.Errorf("record data sync retry: %w", retryErr)
+			}
+			return nil
+		}
 		slog.Error("data sync task failed", "task_id", task.ID, "error", err)
 		if markErr := runner.repository.MarkDataSyncFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark data sync failed: %w", markErr)

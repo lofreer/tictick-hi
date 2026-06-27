@@ -125,6 +125,37 @@ func TestRunnerRetriesTemporaryFetchError(t *testing.T) {
 	}
 }
 
+func TestRunnerRecordsTemporaryFetchErrorForRetry(t *testing.T) {
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{
+		err: exchange.NewTemporaryError("temporary EOF", nil),
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10, FetchRetries: 1, RetryDelay: time.Nanosecond})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fetcher.calls != 2 {
+		t.Fatalf("fetch calls = %d, want 2", fetcher.calls)
+	}
+	if repository.retry == nil {
+		t.Fatal("expected retry to be recorded")
+	}
+	if repository.failed != nil {
+		t.Fatalf("temporary error should not mark task failed: %v", repository.failed)
+	}
+}
+
 func TestRunnerDoesNotRetryPermanentFetchError(t *testing.T) {
 	repository := &fakeSyncRepository{
 		task: data.DataSyncTask{
@@ -276,6 +307,7 @@ type fakeSyncRepository struct {
 	claimed              bool
 	saved                data.DataSyncResult
 	failed               error
+	retry                error
 	released             bool
 	heartbeats           int
 	heartbeatSignals     chan<- struct{}
@@ -334,6 +366,15 @@ func (repository *fakeSyncRepository) MarkDataSyncFailed(
 	err error,
 ) error {
 	repository.failed = err
+	return nil
+}
+
+func (repository *fakeSyncRepository) RecordDataSyncRetry(
+	_ context.Context,
+	_ string,
+	err error,
+) error {
+	repository.retry = err
 	return nil
 }
 
