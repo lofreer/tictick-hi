@@ -28,6 +28,9 @@ func DefaultProviders() ProviderRegistry {
 	return ProviderRegistry{providers: map[string]Provider{
 		"local":        provider,
 		"webhook-demo": provider,
+		"email":        NewEmailProvider(nil),
+		"feishu":       NewFeishuProvider(nil),
+		"telegram":     NewTelegramProvider(nil),
 		"webhook":      NewWebhookProvider(nil),
 	}}
 }

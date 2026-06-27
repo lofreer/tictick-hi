@@ -49,7 +49,7 @@
 
 - 第一版具体支持哪些 K 线周期。
 - TradingView 开源图表库的具体接入包和授权边界。
-- 真实邮件、Telegram、飞书 provider 的凭据模型和生产启用边界。
+- 真实邮件、Telegram、飞书 provider 已采用 env-reference 凭据模型；生产启用边界仍需继续确认。
 
 ## 1. 产品定位
 
@@ -676,14 +676,18 @@ i18n：vue-i18n
 - 通知记录。
 - 通知失败原因。
 
-通知通道第一版启用范围待确认。
+通知通道第一版采用 env-reference 凭据模型：通道 `target` 只能保存非敏感路由配置和环境变量名，真实 token / webhook secret / SMTP password 从 notify worker 环境变量读取。
 
-阶段 5 demo 只启用安全的本地通知投递：
+阶段 5 demo 已启用：
 
 - `local`：只在本地 outbox 中记录投递成功，不访问外部网络。
 - `webhook-demo`：webhook-like 演示 provider，只记录目标和模拟投递结果，不访问真实 webhook。
+- `webhook`：向 `target` 指定的 HTTP / HTTPS URL 发送 JSON payload。
+- `telegram`：`telegram://send?chat_id=<chat-id>&token_env=TELEGRAM_BOT_TOKEN`。
+- `feishu`：`feishu://webhook?url_env=FEISHU_WEBHOOK_URL`。
+- `email`：`smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=SMTP_USERNAME&password_env=SMTP_PASSWORD`。
 
-真实邮件、Telegram、飞书 provider 必须等凭据、脱敏、重试和审计边界确认后再接入。
+真实邮件、Telegram、飞书 provider 已接入基础发送路径；生产级模板、限流、回执、密钥轮换、审计签名和通道更新 / 删除仍未完成。
 
 ### 12.2 交易所账号管理
 
@@ -1939,7 +1943,7 @@ go vet ./...
 1. 第一版前端暴露哪些 K 线周期选项。
 2. 数据同步实时方式：WebSocket、轮询，还是交易所差异化。
 3. TradingView 开源图表具体采用哪个包。
-4. 第一版通知通道：邮件、Telegram、飞书是否都要做。
+4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider；生产启用、模板、限流和外部回执边界仍需确认。
 5. 生产级交易所账号密钥来源、轮换和历史账号迁移策略。
 6. 实盘任务创建确认文案、风险默认值和是否需要二次输入确认。
 7. 回测第一版是否需要手续费和滑点配置。

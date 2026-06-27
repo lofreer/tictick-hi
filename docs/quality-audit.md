@@ -41,13 +41,13 @@ done            用户确认关闭
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，lightweight-charts 内部容器已用 `contain: strict`、固定 100% 边界、显式 root/canvas 像素尺寸和固定 `.chart-panel` ResizeObserver 隔离，并由 headless 页面连续采样验证不再增高；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
-| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；webhook provider 使用真实 HTTP POST 且支持上下文取消，notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；真实邮件/Telegram/飞书 provider、通道更新/删除、完整统一 worker lease 仍未完成 |
+| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览仍薄、缺系统性桌面/移动/主题视觉回归，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
-| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实邮件/Telegram/飞书 provider 和生产级登录安全作为后续风险审计保留 |
+| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
 
@@ -1101,7 +1101,7 @@ scripts/quality-gate.sh
 
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 - 当前 position 的 `realizedPnl` 仍为占位级 `0`，阶段 4 只保证 position 从 execution 可重复计算，不声明 PnL 可信。
-- Notification provider/outbox/retry 已进入阶段 5 demo，真实第三方 provider 仍未接入。
+- Notification provider/outbox/retry 已进入阶段 5 demo，真实第三方 provider 基础发送路径已在后续阶段 8 阻断项补充中接入。
 
 后续风险审计：
 
@@ -1172,8 +1172,8 @@ Definition of Done：
 
 警告：
 
-- 真实邮件、Telegram、飞书 provider 未接入；阶段 5 仍只声明 demo。
-- 通知通道只有创建和读取，没有更新、删除、启停编辑和凭据脱敏模型。
+- 真实邮件、Telegram、飞书 provider 已在后续阶段 8 阻断项补充中接入基础发送路径；阶段 5 仍只声明 demo。
+- 通知通道只有创建和读取，没有更新、删除、启停编辑；凭据采用 env-reference 模型但还不是生产级密钥治理。
 - `hi notify` 已有 outbox claim/lock，但仍未抽取全系统统一 worker lease 包。
 - 通知 provider 未实现生产级限流、熔断、模板、审计签名或外部回执。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
@@ -1183,6 +1183,44 @@ Definition of Done：
 - 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
 - live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
 - 登录会话仍缺持久化限流、会话审计、密码策略和生产级设备上下文。
+
+### 阶段 8 通知真实 provider 基础发送路径补充
+
+执行时间：2026-06-28
+
+目标等级：demo 增量。
+
+范围内：
+
+- `hi notify` provider registry 新增 `email`、`telegram`、`feishu`。
+- Telegram provider 使用 `telegram://send?chat_id=<chat-id>&token_env=TELEGRAM_BOT_TOKEN`，bot token 只从环境变量读取，请求 `sendMessage` JSON payload。
+- 飞书 provider 使用 `feishu://webhook?url_env=FEISHU_WEBHOOK_URL`，webhook URL 只从环境变量读取，请求文本消息 JSON payload。
+- Email provider 使用 `smtp://host:port?from=...&to=...&username_env=SMTP_USERNAME&password_env=SMTP_PASSWORD`，SMTP password 只从环境变量读取，支持 opportunistic / required / disabled STARTTLS。
+- Docker Compose notify service 和 `.env.example` 暴露常用 provider secret 环境变量。
+- 系统通知通道创建 API 和前端 provider 下拉允许 `email`、`telegram`、`feishu`。
+- provider 错误会脱敏 token / webhook URL / SMTP password，避免写入 notification error 时泄露密钥。
+
+范围外：
+
+- 真实第三方账号联网验收、生产级模板系统、限流 / 熔断、外部回执、密钥轮换、通道更新 / 删除、凭据加密迁移、审计签名。
+
+验证：
+
+- `go test ./internal/notification ./internal/web/api`
+- `go test ./internal/notification ./internal/web/api ./internal/store/postgres`
+- `pnpm --dir web/frontend exec vitest run src/services/api/system.test.ts`
+- Docker Compose mock 飞书 provider smoke：临时 mock 容器加入 `tictick-hi_default` 网络，seed `feishu://webhook?url_env=FEISHU_SMOKE_WEBHOOK` notification outbox，运行 `hi notify --once` 后 mock 收到 1 次 `/feishu` POST，payload 为文本消息；`notification_outbox` 状态为 `delivered|1|t|`，`notifications` 状态为 `sent|1|t|`。本轮证据：`taskID=tt_provider_smoke_1782584148459`、`notificationID=nt_provider_smoke_1782584148459`、`outboxID=no_provider_smoke_1782584148459`。
+
+失败：
+
+- 首轮 `go test ./internal/notification ./internal/web/api` 失败：测试替身 `captureMailSender` 使用值传递但 `Send` 为指针接收器。
+- 已修正为指针传递，重跑通过。
+- 首轮 Compose mock 飞书 smoke 使用宿主机 `host.docker.internal` 时未收到请求；诊断确认 `hi notify --once` 已 claim outbox，但 HTTP POST 因容器到宿主 mock server 超时进入 `retry_scheduled`，错误中 webhook URL 已脱敏。已改为同 Docker 网络内 mock 容器后重跑通过。
+
+剩余风险：
+
+- 本补充只证明 provider 构造 payload、读取 env secret、错误脱敏和 API / 前端 provider 名称可用；未使用真实 Telegram / 飞书 / SMTP 账号做外部联网验收。
+- 通知模块仍为 `demo`，不能声明 usable 或 production-safe。
 
 阶段 5 结论：
 
@@ -1384,7 +1422,7 @@ Definition of Done：
 - 真实实盘 production 下单。
 - 企业级 SSO / RBAC / 审计。
 - Kubernetes / 多实例生产编排。
-- 真实第三方通知 provider。
+- 真实第三方通知 provider 生产启用边界。
 
 ### 阶段 8 当前验收快照：全链路 smoke gate
 
@@ -1543,9 +1581,9 @@ Definition of Done：
 | 研究页 | demo | 数据源 metadata、列表在上图表在下、图表高度稳定、失败任务 retry 已覆盖 | 交易对硬编码、图表工具薄、缺时间范围/指标/缺口修复工作流 |
 | 策略 registry / runtime | demo | schema 驱动参数、intent 输出和策略边界门禁已覆盖 | 缺策略沙箱、版本迁移、权限隔离和真实策略库 |
 | 回测 | demo | CandleProvider、closed/minute replay、intent/order/result、买卖点展示和容器 SIGTERM release 已走通 | 撮合、费用/滑点曲线、指标体系和结果可信度不足 |
-| 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通 | 风控、PnL 可信度、真实邮件/Telegram/飞书 provider、统一状态机和实盘隔离不足 |
+| 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通；通知 intent 可进入 email / Telegram / 飞书 provider 基础发送路径 | 风控、PnL 可信度、通知 provider 生产启用边界、统一状态机和实盘隔离不足 |
 | 实盘安全 | demo | 凭据 AES-GCM、本地 live 任务创建护栏和 live execute 禁用已验证 | testnet/sandbox executor、订单先落库再提交、幂等 retry、KMS/轮换未完成 |
-| 通知 | demo | outbox、local/webhook-demo/webhook provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实邮件/Telegram/飞书 provider、模板、限流、审计和通道管理不足 |
+| 通知 | demo | outbox、local/webhook-demo/webhook/email/Telegram/飞书 provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实第三方账号联网验收、模板、限流、审计和通道管理不足 |
 | 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告 | 概览仍薄、缺系统性桌面/移动/主题视觉回归 |
 | 概览页 | scaffold | 有 scaffold 状态和基础健康入口 | 不是真实业务概览，缺关键指标、告警、链路摘要和操作入口 |
 | 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员 session 管理、基础操作审计页、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、不可篡改审计和生产监控 |
@@ -1570,7 +1608,7 @@ Definition of Done：
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
 - worker claim 的共享字段和过期谓词已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选选择仍未抽取为完整统一状态机。
-- 回测撮合、paper position PnL、真实邮件/Telegram/飞书 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
+- 回测撮合、paper position PnL、真实通知 provider 生产启用边界、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 主入口 chunk 过大已由路由级 code split 关闭；前端仍缺系统性桌面 / 移动 / 主题视觉回归。
 
 阶段 8 当前结论：
@@ -1798,7 +1836,7 @@ Definition of Done：
 延后：
 
 - 实盘真实下单。
-- 通知真实第三方 provider。
+- 通知真实第三方 provider 生产启用边界。
 - 概览页深度指标。
 - 聚合 K 线持久化缓存。
 - tick / trade 级数据。

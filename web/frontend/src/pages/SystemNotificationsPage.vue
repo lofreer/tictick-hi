@@ -142,6 +142,9 @@ const retryingId = ref("");
 const form = reactive({ name: "", provider: "local", target: "default", enabled: true });
 const providerOptions: SelectOption[] = [
   { label: "local", value: "local" },
+  { label: "email", value: "email" },
+  { label: "telegram", value: "telegram" },
+  { label: "feishu", value: "feishu" },
   { label: "webhook", value: "webhook" },
   { label: "webhook-demo", value: "webhook-demo" },
 ];

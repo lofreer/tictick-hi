@@ -142,6 +142,37 @@ func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
 	}
 }
 
+func TestIntegrationNotificationProviderConstraintsAllowExternalProviders(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	providers := map[string]string{
+		"email":    "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=SMTP_USERNAME&password_env=SMTP_PASSWORD",
+		"telegram": "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_BOT_TOKEN",
+		"feishu":   "feishu://webhook?url_env=FEISHU_WEBHOOK_URL",
+	}
+	for provider, target := range providers {
+		id := "nc_" + provider + "_" + suffix
+		if _, err := store.pool.Exec(ctx, `
+			INSERT INTO notification_channels (id, name, provider, target)
+			VALUES ($1, $2, $3, $4)`,
+			id,
+			provider+"-"+suffix,
+			provider,
+			target,
+		); err != nil {
+			t.Fatalf("insert %s notification channel: %v", provider, err)
+		}
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM notification_channels WHERE name LIKE $1`, "%"+suffix)
+	})
+}
+
 func TestIntegrationDatabaseReferentialConstraintsRejectOrphans(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

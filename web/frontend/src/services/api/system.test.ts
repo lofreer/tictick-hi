@@ -12,9 +12,9 @@ describe("system api", () => {
       new Response(
         JSON.stringify({
           id: "nc_1",
-          name: "Ops",
-          provider: "webhook",
-          target: "https://example.invalid/ops",
+          name: "Telegram Ops",
+          provider: "telegram",
+          target: "telegram://send?chat_id=ops&token_env=TELEGRAM_BOT_TOKEN",
           enabled: true,
           createdAt: "2026-01-01T00:00:00Z",
           updatedAt: "2026-01-01T00:00:00Z",
@@ -25,9 +25,9 @@ describe("system api", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const channel = await systemApi.createNotificationChannel({
-      name: "Ops",
-      provider: "webhook",
-      target: "https://example.invalid/ops",
+      name: "Telegram Ops",
+      provider: "telegram",
+      target: "telegram://send?chat_id=ops&token_env=TELEGRAM_BOT_TOKEN",
       enabled: true,
     });
 
@@ -36,7 +36,7 @@ describe("system api", () => {
       "/api/system/notifications/channels",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining("\"provider\":\"webhook\""),
+        body: expect.stringContaining("\"provider\":\"telegram\""),
       }),
     );
   });
