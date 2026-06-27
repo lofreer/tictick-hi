@@ -52,7 +52,6 @@ onMounted(() => {
 
   const initialSize = readHostSize() ?? fallbackSize;
   lastSize = initialSize;
-  applyContainerSize(initialSize);
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
     width: initialSize.width,
@@ -160,18 +159,15 @@ function resizeChart() {
   if (nextSize.width === lastSize.width && nextSize.height === lastSize.height) return;
 
   lastSize = nextSize;
-  applyContainerSize(nextSize);
   chart.resize(nextSize.width, nextSize.height);
 }
 
 function readHostSize() {
-  if (!rootRef.value) return null;
-
   const host = readLayoutHost();
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
-  const width = Math.floor(readObservedWidth(host) ?? readClientWidth(host) ?? bounds.width);
+  const width = Math.floor(readClientWidth(host) ?? readObservedWidth(host) ?? bounds.width);
   const height = readStableHostHeight(host, bounds);
   if (width <= 0 || height <= 0) return null;
 
@@ -179,20 +175,10 @@ function readHostSize() {
 }
 
 function readStableHostHeight(host: HTMLElement, hostBounds: DOMRect) {
-  const panel = host.closest<HTMLElement>(".chart-panel");
-  if (!panel) {
-    return clampRenderedHeight(readObservedHeight(host) ?? readClientHeight(host) ?? Math.floor(hostBounds.height));
-  }
-
-  const panelBounds = panel.getBoundingClientRect();
-  const panelHeight = readPixelHeight(panel) ?? readClientHeight(panel) ?? readObservedHeight(panel) ?? Math.floor(panelBounds.height);
-  const offsetTop = host === panel ? 0 : Math.max(0, Math.floor(hostBounds.top - panelBounds.top));
-  const availableHeight = Math.floor(panelHeight - offsetTop);
-  if (availableHeight <= 0) {
-    return clampRenderedHeight(panelHeight);
-  }
-
-  return clampRenderedHeight(availableHeight);
+  const rawHeight = readClientHeight(host) ?? readObservedHeight(host) ?? readPixelHeight(host) ?? Math.floor(hostBounds.height);
+  const panelCap = readPanelAvailableHeight(host);
+  const cappedHeight = panelCap ? Math.min(rawHeight, panelCap) : rawHeight;
+  return clampRenderedHeight(cappedHeight);
 }
 
 function clampRenderedHeight(height: number) {
@@ -213,6 +199,17 @@ function readPixelHeight(element: HTMLElement) {
   const value = Number.parseFloat(window.getComputedStyle(element).height);
   if (!Number.isFinite(value) || value <= 0) return null;
   return value;
+}
+
+function readPanelAvailableHeight(host: HTMLElement) {
+  const panel = host.closest<HTMLElement>(".chart-panel");
+  if (!panel || panel === host) return null;
+
+  const panelBounds = panel.getBoundingClientRect();
+  const panelHeight = readClientHeight(panel) ?? readPixelHeight(panel) ?? readObservedHeight(panel) ?? Math.floor(panelBounds.height);
+  const offsetTop = Math.max(0, Math.floor(host.offsetTop || host.getBoundingClientRect().top - panelBounds.top));
+  const availableHeight = panelHeight - offsetTop;
+  return availableHeight > 0 ? availableHeight : null;
 }
 
 function readObservedWidth(element: HTMLElement) {
@@ -236,8 +233,7 @@ function readObserverContentSize(entry: ResizeObserverEntry) {
 }
 
 function readResizeHost() {
-  const host = readLayoutHost();
-  return host?.closest<HTMLElement>(".chart-panel") ?? host;
+  return readLayoutHost();
 }
 
 function readLayoutHost() {
@@ -245,18 +241,5 @@ function readLayoutHost() {
   if (!root) return null;
   const parent = root.parentElement;
   return parent?.closest<HTMLElement>(".research-chart-body, .chart-panel") ?? parent ?? root;
-}
-
-function applyContainerSize(size: { width: number; height: number }) {
-  const width = `${size.width}px`;
-  const height = `${size.height}px`;
-  if (rootRef.value) {
-    rootRef.value.style.width = width;
-    rootRef.value.style.height = height;
-  }
-  if (containerRef.value) {
-    containerRef.value.style.width = width;
-    containerRef.value.style.height = height;
-  }
 }
 </script>

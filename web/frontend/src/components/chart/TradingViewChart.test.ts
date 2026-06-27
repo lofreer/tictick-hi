@@ -90,7 +90,7 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
-  it("observes the fixed chart panel when one is available", () => {
+  it("observes the chart viewport inside a fixed panel", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
@@ -102,8 +102,8 @@ describe("TradingViewChart", () => {
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(panel);
-    expect(observedTarget).not.toBe(host);
+    expect(observedTarget).toBe(host);
+    expect(observedTarget).not.toBe(panel);
     expect(observedTarget).not.toBe(root);
     expect(observedTarget).not.toBe(canvasHost);
 
@@ -184,7 +184,7 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
-  it("uses the chart panel boundary instead of mutable host height", () => {
+  it("prefers the chart viewport client size over inflated layout bounds", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
@@ -213,15 +213,16 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: 1180,
-        height: 680,
+        height: 640,
       }),
     );
     chartMocks.resize.mockClear();
 
     setClientSize(host, { width: 1180, height: 5000 });
-    resizeCallback?.([resizeEntry(panel, { width: 1200, height: 760 })], {} as ResizeObserver);
+    resizeCallback?.([resizeEntry(host, { width: 1180, height: 5000 })], {} as ResizeObserver);
 
-    expect(chartMocks.resize).not.toHaveBeenCalled();
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 680);
 
     wrapper.unmount();
     panel.remove();
@@ -277,8 +278,8 @@ describe("TradingViewChart", () => {
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1000, 580);
-    expect(wrapper.get<HTMLElement>(".trading-chart").element.style.height).toBe("580px");
-    expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("580px");
+    expect(wrapper.get<HTMLElement>(".trading-chart").element.style.height).toBe("");
+    expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("");
 
     wrapper.unmount();
     host.remove();
@@ -315,7 +316,7 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
-  it("uses the observed panel content box when chart internals inflate layout bounds", () => {
+  it("uses the observed chart viewport content box when chart internals inflate layout bounds", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
@@ -338,7 +339,7 @@ describe("TradingViewChart", () => {
     chartMocks.resize.mockClear();
 
     inflated = true;
-    resizeCallback?.([resizeEntry(panel, { width: 1200, height: 760 })], {} as ResizeObserver);
+    resizeCallback?.([resizeEntry(host, { width: 1180, height: 680 })], {} as ResizeObserver);
 
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
@@ -370,11 +371,11 @@ describe("TradingViewChart", () => {
     chartMocks.resize.mockClear();
 
     inflated = true;
-    resizeCallback?.([resizeEntry(panel, { width: 1200, height: 5200 })], {} as ResizeObserver);
+    resizeCallback?.([resizeEntry(host, { width: 1180, height: 5200 })], {} as ResizeObserver);
 
     expect(chartMocks.resize).not.toHaveBeenCalled();
-    expect(wrapper.get<HTMLElement>(".trading-chart").element.style.height).toBe("680px");
-    expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("680px");
+    expect(wrapper.get<HTMLElement>(".trading-chart").element.style.height).toBe("");
+    expect(wrapper.get<HTMLElement>(".trading-chart__canvas").element.style.height).toBe("");
 
     wrapper.unmount();
     panel.remove();
@@ -413,7 +414,7 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
-  it("pins root and canvas to explicit stable host pixels", () => {
+  it("leaves root and canvas sizing to the fixed viewport css", () => {
     const host = document.createElement("div");
     host.className = "research-chart-body";
     document.body.append(host);
@@ -423,10 +424,17 @@ describe("TradingViewChart", () => {
     const root = wrapper.get<HTMLElement>(".trading-chart").element;
     const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
 
-    expect(root.style.width).toBe("1000px");
-    expect(root.style.height).toBe("620px");
-    expect(canvasHost.style.width).toBe("1000px");
-    expect(canvasHost.style.height).toBe("620px");
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1000,
+        height: 620,
+      }),
+    );
+    expect(root.style.width).toBe("");
+    expect(root.style.height).toBe("");
+    expect(canvasHost.style.width).toBe("");
+    expect(canvasHost.style.height).toBe("");
 
     wrapper.unmount();
     host.remove();
