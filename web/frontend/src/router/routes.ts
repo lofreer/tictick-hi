@@ -5,7 +5,7 @@ import BacktestDetailPage from "@/pages/BacktestDetailPage.vue";
 import BacktestNewPage from "@/pages/BacktestNewPage.vue";
 import BacktestsPage from "@/pages/BacktestsPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
-import PageStub from "@/pages/PageStub.vue";
+import OverviewPage from "@/pages/OverviewPage.vue";
 import ResearchPage from "@/pages/ResearchPage.vue";
 import SystemExchangeAccountsPage from "@/pages/SystemExchangeAccountsPage.vue";
 import SystemHealthPage from "@/pages/SystemHealthPage.vue";
@@ -31,8 +31,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: "overview",
         name: "overview",
-        component: PageStub,
-        props: { titleKey: "page.overview.title", subtitleKey: "page.overview.subtitle" },
+        component: OverviewPage,
       },
       {
         path: "research",
