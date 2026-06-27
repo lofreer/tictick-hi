@@ -8,6 +8,7 @@ import (
 
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/exchange"
+	"github.com/lofreer/tictick-hi/internal/workerlease"
 )
 
 type Runner struct {
@@ -105,52 +106,21 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 }
 
 func (runner *Runner) syncTaskWithHeartbeat(ctx context.Context, task data.DataSyncTask) (err error) {
-	runCtx, cancel := context.WithCancel(ctx)
-	heartbeatErrors := make(chan error, 1)
-	done := make(chan struct{})
-
-	if err := runner.repository.HeartbeatDataSyncTask(runCtx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
-		cancel()
-		return err
-	}
-
-	go func() {
-		defer close(done)
-		ticker := time.NewTicker(runner.config.HeartbeatInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-runCtx.Done():
-				return
-			case <-ticker.C:
-				if err := runner.repository.HeartbeatDataSyncTask(
-					runCtx,
-					task.ID,
-					runner.config.WorkerID,
-					runner.config.LeaseTTL,
-				); err != nil {
-					select {
-					case heartbeatErrors <- err:
-					default:
-					}
-					cancel()
-					return
-				}
-			}
-		}
-	}()
-
-	err = runner.syncTask(runCtx, task)
-	cancel()
-	<-done
-	select {
-	case heartbeatErr := <-heartbeatErrors:
-		if err == nil {
-			err = heartbeatErr
-		}
-	default:
-	}
-	return err
+	return workerlease.RunWithHeartbeat(
+		ctx,
+		runner.config.HeartbeatInterval,
+		func(heartbeatCtx context.Context) error {
+			return runner.repository.HeartbeatDataSyncTask(
+				heartbeatCtx,
+				task.ID,
+				runner.config.WorkerID,
+				runner.config.LeaseTTL,
+			)
+		},
+		func(runCtx context.Context) error {
+			return runner.syncTask(runCtx, task)
+		},
+	)
 }
 
 func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) error {

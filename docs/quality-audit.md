@@ -200,7 +200,7 @@ scripts/quality-gate.sh
 现状问题：
 
 - claim 时写入 `heartbeat_at`。
-- 数据同步、回测、交易 worker 均已有运行中 heartbeat loop。
+- 数据同步、回测、交易 worker 均通过 `internal/workerlease.RunWithHeartbeat` 运行同一套 heartbeat loop。
 - heartbeat 丢失后，数据同步 worker 会在保存 K 线前重新确认 lease，避免继续写入已失去租约的结果。
 - 各 worker 的 claim / heartbeat / release / fail / pause 仍分散在各自 store 方法中。
 - 停止状态机不完整。
@@ -1000,12 +1000,12 @@ Definition of Done：
 
 本轮 smoke 证据：
 
-- symbol：`S81782551849USDT`
-- data task：`dst_873ff4127532e51b7fc40bf3`
-- backtest：`bt_434feee48092c5089337dc31`
-- paper execute：`tt_13c31f53c55c74f4b71f6b4b`
-- paper notify：`tt_3cec51cbe6f15205c3973a16`
-- notification channel：`stage8-smoke-1782551849`
+- symbol：`S81782552325USDT`
+- data task：`dst_bbc88fcdf5422552b94dd179`
+- backtest：`bt_afa61b51bcc3afebdd225d98`
+- paper execute：`tt_28c5f6788e4df4971b36bfd3`
+- paper notify：`tt_4f3913641ee258906ae89442`
+- notification channel：`stage8-smoke-1782552325`
 
 前端 DOM smoke：
 
@@ -1036,6 +1036,12 @@ Definition of Done：
 - 单元测试覆盖长 fetch 期间 heartbeat 刷新，以及 heartbeat lease lost 后不保存 K 线结果。
 - 登录后 `/api/system/health` 返回 `sync-worker` 健康摘要：`pending=0 running=5 locked=0 stale=0`。
 
+已收敛的 worker heartbeat 实现：
+
+- 新增 `internal/workerlease.RunWithHeartbeat`，统一执行初始 heartbeat、周期性 heartbeat、heartbeat 失败后取消任务上下文和错误传播。
+- data sync、backtest、trading runner 已复用同一 helper，不再各自复制 heartbeat loop。
+- `internal/workerlease` 单元测试覆盖初始 heartbeat、运行中刷新和 heartbeat 失败取消任务。
+
 失败：
 
 - 无当前硬失败。
@@ -1044,7 +1050,7 @@ Definition of Done：
 
 - Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
-- worker 仍未抽取全系统统一 lease 状态机，容器退出和停止状态机仍未完整证明。
+- worker 仍未抽取包含 claim / release / fail / pause 的完整统一 lease 状态机，容器退出和停止状态机仍未完整证明。
 - 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
