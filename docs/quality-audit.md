@@ -44,8 +44,8 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览仍薄、缺系统性桌面/移动/主题视觉回归，整体业务体验仍需继续打磨 |
-| 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；仍缺系统性桌面/移动/主题视觉回归，整体业务体验仍需继续打磨 |
+| 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
@@ -1684,8 +1684,8 @@ Definition of Done：
 | 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通；通知 intent 可进入 email / Telegram / 飞书 provider 基础发送路径 | 风控、PnL 可信度、通知 provider 生产启用边界、统一状态机和实盘隔离不足 |
 | 实盘安全 | demo | 凭据 AES-GCM、本地 live 任务创建护栏和 live execute 禁用已验证 | testnet/sandbox executor、订单先落库再提交、幂等 retry、KMS/轮换未完成 |
 | 通知 | demo | outbox、local/webhook-demo/webhook/email/Telegram/飞书 provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实第三方账号联网验收、模板、限流、审计和通道管理不足 |
-| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告 | 概览仍薄、缺系统性桌面/移动/主题视觉回归 |
-| 概览页 | scaffold | 有 scaffold 状态和基础健康入口 | 不是真实业务概览，缺关键指标、告警、链路摘要和操作入口 |
+| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告；概览页已接入真实 API 聚合 | 缺系统性桌面/移动/主题视觉回归 |
+| 概览页 | demo | 从现有 API 聚合系统健康、data sync、backtest、trading 和 notification，展示关键计数、异常提醒、worker 状态和最近活动；`useOverviewWorkspace` 单测覆盖聚合契约 | 缺时间窗口筛选、趋势图、关键操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员 session 管理、基础操作审计页、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 通用门禁、stage8 smoke、data sync/backtest/trading/notify SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、视觉回归和安全审计纳入硬门禁 |
 
@@ -1752,7 +1752,48 @@ Definition of Done：
 
 剩余风险：
 
-- 前端基础设施仍为 `scaffold`；概览页薄、缺系统性桌面 / 移动 / 主题视觉回归，不能因 code split 声明 usable。
+- 前端基础设施仍为 `scaffold`；缺系统性桌面 / 移动 / 主题视觉回归，不能因 code split 声明 usable。
+
+### 阶段 8 概览页真实聚合补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- Stage 8 readiness 重审计将概览页列为 `scaffold`，因为页面只有 scaffold 状态和基础健康入口，不是真实业务概览。
+- 概览页无法回答当前同步、回测、交易、通知和 worker 健康的整体状态。
+
+修复范围：
+
+- `OverviewPage.vue` 改为真实聚合视图，从现有 API 加载系统健康、数据同步任务、回测任务、交易任务和系统通知记录。
+- 新增 `useOverviewWorkspace`，集中生成关键计数、异常提醒、worker health 摘要和最近活动列表，避免在页面模板中堆业务计算。
+- 概览页继续显示整体 `scaffold` 等级，不把局部改进冒充整体可用。
+- 不新增后端汇总接口，不改变数据库 schema，不展示通知 target、交易所 API key 或 secret。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/composables/useOverviewWorkspace.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- 新增 `useOverviewWorkspace.test.ts` 覆盖五类 API 聚合、summary card、alert、recent activity 和加载失败状态。
+- Headless Chrome 桌面 `1440x900` 登录并打开 `/overview`，渲染 5 个真实指标卡：数据同步、回测任务、交易任务、通知、后台服务；渲染系统健康、异常提醒、最近活动 3 个面板，无页面错误。
+- Headless Chrome 移动 `390x844` 登录并打开 `/overview`，`documentWidth=390` 等于视口宽度，渲染 5 个指标卡和 3 个面板，无横向溢出。
+
+阶段结论：
+
+- 概览页从 `scaffold` 升级为 `demo`。
+- 项目整体仍为 `scaffold`，不能称为 usable 或 production-safe。
+
+剩余风险：
+
+- 概览页仍缺时间窗口筛选、趋势图、关键操作入口、视觉回归和生产级监控语义。
 
 ### 阶段 8 PostgreSQL domain constraints 补充
 
