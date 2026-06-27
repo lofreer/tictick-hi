@@ -322,26 +322,36 @@ if [ "$(json_get "$BODY_FILE" length)" -le 0 ]; then
   fail "expected backtest intents"
 fi
 
-log "paper trading execute"
+log "paper trading claim fairness"
 api_post "/api/trading/tasks" \
   "{\"name\":\"stage8-smoke-paper-execute-$STAMP\",\"type\":\"paper\",\"exchange\":\"binance\",\"accountId\":\"paper-stage8\",\"symbol\":\"$SYMBOL\",\"interval\":\"5m\",\"strategyId\":\"ema-cross\",\"strategyParams\":{\"fastPeriod\":2,\"slowPeriod\":5,\"orderSize\":0.1,\"signalMode\":\"order\"},\"intentPolicy\":{\"orderIntent\":\"execute\",\"notificationChannel\":\"$CHANNEL\"}}" \
   201
 EXECUTE_TASK_ID="$(json_get "$BODY_FILE" id)"
 api_post "/api/trading/tasks/$EXECUTE_TASK_ID/start" "{}"
-wait_for_trading_outputs "$EXECUTE_TASK_ID" execute
-api_get "/api/trading/tasks/$EXECUTE_TASK_ID/positions"
-if [ "$(json_get "$BODY_FILE" length)" -le 0 ]; then
-  fail "expected paper positions"
-fi
-api_post "/api/trading/tasks/$EXECUTE_TASK_ID/pause" "{}"
 
-log "paper trading notification"
 api_post "/api/trading/tasks" \
   "{\"name\":\"stage8-smoke-paper-notify-$STAMP\",\"type\":\"paper\",\"exchange\":\"binance\",\"accountId\":\"paper-stage8\",\"symbol\":\"$SYMBOL\",\"interval\":\"5m\",\"strategyId\":\"ema-cross\",\"strategyParams\":{\"fastPeriod\":2,\"slowPeriod\":5,\"orderSize\":0.1,\"signalMode\":\"notification\"},\"intentPolicy\":{\"orderIntent\":\"notify\",\"notificationChannel\":\"$CHANNEL\"}}" \
   201
 NOTIFY_TASK_ID="$(json_get "$BODY_FILE" id)"
 api_post "/api/trading/tasks/$NOTIFY_TASK_ID/start" "{}"
+
+wait_for_trading_outputs "$EXECUTE_TASK_ID" execute
 wait_for_trading_outputs "$NOTIFY_TASK_ID" notify
+
+api_get "/api/trading/tasks/$EXECUTE_TASK_ID"
+if [ "$(json_get "$BODY_FILE" attemptCount)" -le 0 ]; then
+  fail "expected paper execute task to be claimed at least once"
+fi
+api_get "/api/trading/tasks/$NOTIFY_TASK_ID"
+if [ "$(json_get "$BODY_FILE" attemptCount)" -le 0 ]; then
+  fail "expected paper notification task to be claimed at least once"
+fi
+
+api_get "/api/trading/tasks/$EXECUTE_TASK_ID/positions"
+if [ "$(json_get "$BODY_FILE" length)" -le 0 ]; then
+  fail "expected paper positions"
+fi
+api_post "/api/trading/tasks/$EXECUTE_TASK_ID/pause" "{}"
 api_post "/api/trading/tasks/$NOTIFY_TASK_ID/pause" "{}"
 wait_for_notifications_sent "$NOTIFY_TASK_ID"
 

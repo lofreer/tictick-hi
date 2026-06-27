@@ -158,7 +158,7 @@ func (store *Store) ClaimTradingTask(
 		  FROM trading_tasks
 		 WHERE status = $1
 		   AND (locked_until IS NULL OR locked_until < now())
-		 ORDER BY created_at ASC
+		 ORDER BY updated_at ASC, created_at ASC
 		 LIMIT 1
 		 FOR UPDATE SKIP LOCKED`,
 		data.TaskStatusRunning,

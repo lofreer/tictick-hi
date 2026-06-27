@@ -41,7 +41,7 @@ done            用户确认关闭
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、统一 worker lease 和实盘安全边界 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo provider、失败重试和系统页 retry；真实第三方 provider、通道更新/删除、统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
@@ -992,18 +992,18 @@ Definition of Done：
 - `GET /api/candles?interval=5m` 返回 `source=aggregated`、`health=ok`、`baseInterval=1m`，证明研究页和 CandleProvider 可用同一数据源。
 - 通过 API 创建 `webhook-demo` 通知通道。
 - 通过 API 创建回测任务，`hi backtest --once` 执行后任务进入 `succeeded`，并能读取 strategy intents 和 backtest orders。
-- 通过 API 创建 paper execute 交易任务，`hi trading --once` 执行后能读取 paper orders、executions、positions；验证后脚本立即 pause 该任务，避免继续占用 trading claim 队列。
-- 通过 API 创建 paper notification 交易任务，`hi trading --once` 生成 notification records，`hi notify --once` 投递后所有通知进入 `sent`。
+- 通过 API 同时启动 paper execute 和 paper notification 两个 `running` 交易任务；`hi trading --once` 多次执行后两个任务都被 claim，并分别产生 paper orders / executions / positions 和 notification records。
+- `hi notify --once` 投递后所有通知进入 `sent`。
 - `GET /api/system/health` 能观察 `sync-worker`、`backtest-worker`、`trading-worker`、`notify-worker`。
 
 本轮 smoke 证据：
 
-- symbol：`S81782549588USDT`
-- data task：`dst_9e135e943f10227318e3a777`
-- backtest：`bt_fdd2e012fe2b539b9e8bfabc`
-- paper execute：`tt_aaaa7de9e1a2f303d90a770e`
-- paper notify：`tt_c83e8ebd5ec045feaf0849b6`
-- notification channel：`stage8-smoke-1782549588`
+- symbol：`S81782551411USDT`
+- data task：`dst_e3fe1587580b1c4c8ed0cdf0`
+- backtest：`bt_16ae375dced6c70f19089253`
+- paper execute：`tt_ec9513767c8d03f3685a245f`，`attempt_count=2`
+- paper notify：`tt_efb20dfd0763fdab0691e4c8`，`attempt_count=1`
+- notification channel：`stage8-smoke-1782551411`
 
 前端 DOM smoke：
 
@@ -1019,10 +1019,12 @@ Definition of Done：
 - `.trading-chart` 脱离普通文档流并铺满固定宿主，避免 lightweight-charts 内部 DOM 高度反向撑开页面。
 - headless Chrome 本地采样 `/research` 6 秒：`panel=560`、`chart=437`、`canvas=437`、`tv=434` 全程稳定，`documentElement.scrollHeight=1134` 未增长。
 
-已修正的 smoke 设计问题：
+已修正的 trading claim 公平性问题：
 
-- 早期 Stage 8 smoke 中，paper execute 任务验证后仍保持 `running`，会按创建时间反复被 trading worker claim，阻塞后续 paper notification 任务。
-- 新 smoke 在验证 paper execute 输出后立即 pause 任务，再创建 notification 任务，避免同一 claim 队列被旧 running 任务长期占用。
+- 早期 trading claim 只按 `created_at ASC` 选择 `running` 任务，paper execute 任务保存结果释放锁后仍会继续排在队首，后续 paper notification 任务可能长期无法被 claim。
+- `ClaimTradingTask` 改为 `ORDER BY updated_at ASC, created_at ASC`；`SaveTradingRunResult` 释放锁时会更新 `updated_at=now()`，让刚处理过的 task 回到队尾。
+- 新增 migration `0010_trading_claim_fairness.sql` 为 `running` task claim 建立 `(status, updated_at, created_at)` 索引。
+- Stage 8 smoke 不再用“先 pause execute 再创建 notification”规避问题，而是同时启动两个 `running` paper 任务并验证二者都被处理。
 
 失败：
 
