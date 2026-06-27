@@ -33,14 +33,14 @@ done            用户确认关闭
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，但还缺完整 smoke gate |
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
-| API server | scaffold | 保留后加强 | 已按领域拆分，仍缺统一 request / response mapping 和更强错误边界 |
+| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | scaffold | 返工加强 | 有 cookie session，但 CSRF、防暴力破解、会话审计不足 |
-| 数据同步 worker | scaffold | 返工加强 | 有 claim 和 upsert，但没有真正 heartbeat loop、优雅停止状态机 |
-| CandleProvider | scaffold | 重点返工 | 有 native + 1m 聚合雏形，但没有健康判断、缺口检测、来源标记 |
+| 数据同步 worker | scaffold | 返工加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，但没有真正 heartbeat loop、优雅停止状态机 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
 | Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
-| 研究页 | scaffold | 保留后打磨 | 图表和同步表有骨架，但交易对硬编码、图表研究能力很薄 |
-| 回测 | scaffold | 返工 | 交易事实已移出 `float64`，但费用、滑点、触发语义仍不可信 |
-| 交易 runner | scaffold | 返工 / 延后 live | paper/live executor 未真正分离，live 只是本地 pending 订单 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
+| 回测 | scaffold | 返工 | 已经通过 CandleProvider 取 K 线，交易事实已移出 `float64`，但费用、滑点、触发语义仍不可信 |
+| 交易 runner | scaffold | 返工 / 延后 live | 已经通过 CandleProvider 取 K 线，paper/live executor 未真正分离，live 只是本地 pending 订单 |
 | 实盘安全 | below-scaffold | 延后 | 密钥字段名叫 encrypted，实际是 digest，不是真加密也不能解密 |
 | 通知 | scaffold | 返工 | 有通知记录雏形，但 provider/outbox/retry 不完整 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，业务体验仍粗糙 |
@@ -175,12 +175,14 @@ scripts/quality-gate.sh
 
 ### P0：CandleProvider 必须独立成核心服务
 
-现状问题：
+阶段 1 状态：
 
-- `ListCandles` 在 store 中直接做 native 查询和聚合。
-- 只要同周期查到任意数据就返回，不判断缺口。
-- 聚合结果没有返回 `native / aggregated` 来源。
-- 图表、回测、交易虽然调用 `ListCandles`，但接口语义不够强。
+- 已建立 `internal/data.CandleProvider`。
+- `/api/candles` 返回 `candles`、`source`、`requestedInterval`、`baseInterval`、`health`、`gaps`。
+- `1m` 返回 native；`5m / 15m / 1h / 4h / 1d` 可从 `1m` 聚合。
+- 同周期 native 不健康时会尝试回退到 `1m` 聚合；无法回退时保留 native + gap 状态。
+- 回测 runner 和交易 runner 已改为通过 CandleProvider 结果取 K 线。
+- 仍缺 PostgreSQL 集成测试、较大时间范围性能边界、闭合周期信号的后续硬化。
 
 关闭条件：
 
@@ -252,6 +254,108 @@ scripts/quality-gate.sh
 - validation 独立。
 - request / response mapping 独立。
 - 单文件低于工程约束建议值。
+
+### 阶段 1 Definition of Done：研究核心
+
+目标等级：demo
+
+范围内：
+
+- 建立后端 CandleProvider 或等价查询服务，作为 `/api/candles`、回测 runner、交易 runner 的统一 K 线查询入口。
+- `1m` 请求返回 native K 线，并返回数据来源、基础周期、健康状态。
+- `5m / 15m / 1h / 4h / 1d` 请求在没有健康同周期 native K 线时，从 `1m` 聚合。
+- 查询结果返回 `source: native / aggregated / none`、`baseInterval`、`health: ok / gap / insufficient`、缺口列表。
+- 后端缺口检测基于 UTC open_time 和周期长度，不依赖前端或浏览器时区。
+- 研究页布局调整为数据同步任务列表在上、K 线图表在下。
+- 研究页展示当前数据源、数据来源、基础周期、数据健康和缺口摘要。
+
+范围外：
+
+- worker lease 统一状态机。
+- 数据同步长任务运行中的 heartbeat loop。
+- 聚合 K 线持久化缓存。
+- 回测详情买卖点叠加。
+- 策略指标叠加。
+- 实盘下单、通知 provider、账号安全加固。
+
+用户可见行为：
+
+- 研究页顶部是同步任务列表，点击“查看图表”后下方图表加载该数据源。
+- 图表下方或工具区能看到当前 K 线来自 native 还是 aggregated。
+- 数据不足或存在缺口时，研究页明确展示健康状态，不把空图表伪装成正常。
+- 创建、同步、实时、删除同步任务的既有交互不回退。
+
+后端验收：
+
+- `/api/candles` 返回带 metadata 的结果对象，不再只返回裸 K 线数组。
+- CandleProvider 单元测试覆盖 native、aggregated、gap、insufficient。
+- API route 测试覆盖 `/api/candles` metadata。
+- 回测 runner 和交易 runner 通过统一 CandleProvider 结果取 K 线。
+
+前端验收：
+
+- 前端 API client 能解析新的 candles result。
+- 研究页显示 source、base interval、health、gap count。
+- 研究页布局在桌面和移动宽度下均为列表在上、图表在下。
+- `pnpm run typecheck`、`pnpm run test`、`pnpm run build` 通过。
+
+数据验收：
+
+- 不引入新的 migration。
+- 不改变 `market_candles` 作为原始事实表的语义。
+- 聚合结果不持久化为事实数据。
+
+安全验收：
+
+- 不把阶段 1 说成 usable。
+- 实盘密钥和 live executor 风险继续保留为后续阶段风险。
+
+测试验收：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+
+### 阶段 1 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `docker compose up --build -d`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- 登录后请求 `/api/candles?exchange=binance&symbol=BTCUSDT&interval=5m&limit=3` 返回 `source=aggregated`、`baseInterval=1m`、`health=ok`。
+- Playwright headless Chrome 桌面宽度验证：同步任务列表 y=169，图表 y=315，图表高 680，metadata 显示 `K 线来源: 内部聚合 / 数据健康: 正常 / 基础周期: 1m`。
+- Playwright headless Chrome 移动宽度验证：同步任务列表 y=251，图表 y=418，图表高 624，metadata 显示同上。
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+- 系统截图工具受 macOS 权限限制，最终视觉验证使用 headless Chrome screenshot 和 bounding box 断言完成。
+
+后续风险审计：
+
+- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
+- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- worker lease 仍没有运行中 heartbeat loop 和完整停止状态机。
+
+阶段 1 结论：
+
+- 研究核心达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
 ## 4. 第一条可推进切片
 
