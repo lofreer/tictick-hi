@@ -1,5 +1,14 @@
 import { apiClient } from "@/services/api/client";
-import type { ChartCandle, CreateDataSyncTask, DataSyncTask, TaskStatus } from "@/types/app";
+import type {
+  CandleGap,
+  CandleHealth,
+  CandleResult,
+  CandleSource,
+  ChartCandle,
+  CreateDataSyncTask,
+  DataSyncTask,
+  TaskStatus,
+} from "@/types/app";
 
 type DataSyncTaskResponse = {
   id: string;
@@ -23,6 +32,15 @@ type CandleResponse = {
   high: string;
   low: string;
   close: string;
+};
+
+type CandleResultResponse = {
+  candles?: CandleResponse[];
+  source?: CandleSource;
+  requestedInterval?: string;
+  baseInterval?: string;
+  health?: CandleHealth;
+  gaps?: CandleGap[];
 };
 
 export type CandleQuery = {
@@ -61,7 +79,7 @@ export const dataApi = {
     return normalizeTask(response);
   },
 
-  async listCandles(query: CandleQuery) {
+  async getCandles(query: CandleQuery): Promise<CandleResult> {
     const params = new URLSearchParams({
       exchange: query.exchange,
       symbol: query.symbol,
@@ -74,8 +92,13 @@ export const dataApi = {
     if (query.to) {
       params.set("to", query.to);
     }
-    const response = await apiClient.get<CandleResponse[]>(`/candles?${params.toString()}`);
-    return response.map(toChartCandle).filter((item): item is ChartCandle => item !== null);
+    const response = await apiClient.get<CandleResultResponse>(`/candles?${params.toString()}`);
+    return normalizeCandleResult(response, query.interval);
+  },
+
+  async listCandles(query: CandleQuery) {
+    const result = await dataApi.getCandles(query);
+    return result.candles;
   },
 };
 
@@ -114,5 +137,20 @@ function toChartCandle(response: CandleResponse): ChartCandle | null {
     high,
     low,
     close,
+  };
+}
+
+function normalizeCandleResult(response: CandleResultResponse, requestedInterval: string): CandleResult {
+  const candles = (response.candles ?? [])
+    .map(toChartCandle)
+    .filter((item): item is ChartCandle => item !== null);
+
+  return {
+    candles,
+    source: response.source ?? "none",
+    requestedInterval: response.requestedInterval ?? requestedInterval,
+    baseInterval: response.baseInterval,
+    health: response.health ?? (candles.length > 0 ? "ok" : "insufficient"),
+    gaps: response.gaps ?? [],
   };
 }

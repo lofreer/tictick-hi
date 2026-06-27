@@ -43,9 +43,25 @@
             <NSelect v-model:value="symbol" class="research-select" :options="symbolOptions" />
             <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
           </div>
-          <NText depth="3">
-            {{ t("research.source") }}: {{ exchange }} / {{ symbol }} / {{ interval }}
-          </NText>
+          <div class="research-context">
+            <NText depth="3">
+              {{ t("research.currentDataSource") }}: {{ exchange }} / {{ symbol }} / {{ interval }}
+            </NText>
+            <div v-if="candleResult" class="research-meta">
+              <NTag :bordered="false" size="small" :type="sourceTagType">
+                {{ t("research.candleSource") }}: {{ sourceLabel }}
+              </NTag>
+              <NTag :bordered="false" size="small" :type="healthTagType">
+                {{ t("research.dataHealth") }}: {{ healthLabel }}
+              </NTag>
+              <NTag :bordered="false" size="small">
+                {{ t("research.baseInterval") }}: {{ baseIntervalText }}
+              </NTag>
+              <NTag v-if="candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
+                {{ gapCountLabel }}
+              </NTag>
+            </div>
+          </div>
         </div>
         <ErrorState
           v-if="candlesError"
@@ -108,7 +124,9 @@ import {
   NModal,
   NSelect,
   NSpace,
+  NTag,
   NText,
+  type TagProps,
   type SelectOption,
 } from "naive-ui";
 import { computed } from "vue";
@@ -124,6 +142,7 @@ import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 const { t } = useI18n();
 const {
   canCreateTask,
+  candleResult,
   candles,
   candlesError,
   candlesLoading,
@@ -166,6 +185,21 @@ const intervalOptions = computed<SelectOption[]>(() => [
   { label: "4h", value: "4h" },
   { label: "1d", value: "1d" },
 ]);
+
+const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
+const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));
+const baseIntervalText = computed(() => candleResult.value?.baseInterval ?? "-");
+const gapCountLabel = computed(() => t("research.gapCount", { count: candleResult.value?.gaps.length ?? 0 }));
+const sourceTagType = computed<TagProps["type"]>(() => {
+  if (candleResult.value?.source === "native") return "success";
+  if (candleResult.value?.source === "aggregated") return "info";
+  return "default";
+});
+const healthTagType = computed<TagProps["type"]>(() => {
+  if (candleResult.value?.health === "ok") return "success";
+  if (candleResult.value?.health === "gap") return "warning";
+  return "default";
+});
 </script>
 
 <style scoped>
@@ -190,7 +224,10 @@ const intervalOptions = computed<SelectOption[]>(() => [
 }
 
 .research-chart-panel {
-  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  height: clamp(560px, calc(100vh - 220px), 760px);
+  min-height: 0;
 }
 
 .research-toolbar {
@@ -200,6 +237,31 @@ const intervalOptions = computed<SelectOption[]>(() => [
   gap: 12px;
   padding: 12px;
   border-bottom: 1px solid var(--tt-line);
+}
+
+.research-context {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.research-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.research-chart-panel :deep(.trading-chart) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.research-chart-panel :deep(.trading-chart__canvas) {
+  min-height: 0;
 }
 
 .research-select {
@@ -218,6 +280,14 @@ const intervalOptions = computed<SelectOption[]>(() => [
   .research-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .research-context {
+    align-items: flex-start;
+  }
+
+  .research-meta {
+    justify-content: flex-start;
   }
 }
 </style>

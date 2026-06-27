@@ -5,6 +5,7 @@
     :row-key="rowKey"
     :bordered="false"
     :single-line="false"
+    :scroll-x="1020"
     size="small"
   />
 </template>
@@ -67,7 +68,6 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.actions"),
     key: "actions",
-    fixed: "right",
     width: 232,
     render: (row) =>
       h(NSpace, { size: 4, wrap: false }, () => [

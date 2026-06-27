@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 
 import { dataApi } from "@/services/api/data";
-import type { ChartCandle, CreateDataSyncTask, DataSyncTask } from "@/types/app";
+import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncTask } from "@/types/app";
 
 type ResearchForm = {
   exchange: string;
@@ -26,6 +26,7 @@ export function useResearchWorkspace() {
   const interval = ref(readQuery(route.query.interval, "1m"));
   const tasks = ref<DataSyncTask[]>([]);
   const candles = ref<ChartCandle[]>([]);
+  const candleResult = ref<CandleResult | null>(null);
   const tasksLoading = ref(false);
   const candlesLoading = ref(false);
   const createLoading = ref(false);
@@ -75,13 +76,16 @@ export function useResearchWorkspace() {
     candlesLoading.value = true;
     candlesError.value = "";
     try {
-      candles.value = await dataApi.listCandles({
+      const result = await dataApi.getCandles({
         exchange: exchange.value,
         symbol: symbol.value,
         interval: interval.value,
       });
+      candleResult.value = result;
+      candles.value = result.candles;
     } catch (error) {
       candles.value = [];
+      candleResult.value = null;
       candlesError.value = errorMessage(error, t("research.candlesLoadFailed"));
     } finally {
       candlesLoading.value = false;
@@ -170,6 +174,7 @@ export function useResearchWorkspace() {
 
   return {
     canCreateTask,
+    candleResult,
     candles,
     candlesError,
     candlesLoading,

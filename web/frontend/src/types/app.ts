@@ -36,6 +36,25 @@ export type ChartCandle = {
   close: number;
 };
 
+export type CandleSource = "native" | "aggregated" | "none";
+
+export type CandleHealth = "ok" | "gap" | "insufficient";
+
+export type CandleGap = {
+  from: string;
+  to: string;
+  missingCandles: number;
+};
+
+export type CandleResult = {
+  candles: ChartCandle[];
+  source: CandleSource;
+  requestedInterval: string;
+  baseInterval?: string;
+  health: CandleHealth;
+  gaps: CandleGap[];
+};
+
 export type CreateDataSyncTask = {
   exchange: string;
   symbol: string;
