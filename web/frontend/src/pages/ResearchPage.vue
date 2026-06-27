@@ -60,6 +60,9 @@
               <NTag v-if="candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
+              <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
+                {{ coverageLabel }}
+              </NTag>
             </div>
           </div>
         </div>
@@ -192,6 +195,13 @@ const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));
 const baseIntervalText = computed(() => candleResult.value?.baseInterval ?? "-");
 const gapCountLabel = computed(() => t("research.gapCount", { count: candleResult.value?.gaps.length ?? 0 }));
+const coverageLimited = computed(() => candleResult.value?.coverage.limitedByBaseWindow ?? false);
+const coverageLabel = computed(() =>
+  t("research.coverageLimited", {
+    requested: candleResult.value?.coverage.requestedLimit ?? 0,
+    returned: candleResult.value?.coverage.returnedCandles ?? 0,
+  }),
+);
 const sourceTagType = computed<TagProps["type"]>(() => {
   if (candleResult.value?.source === "native") return "success";
   if (candleResult.value?.source === "aggregated") return "info";

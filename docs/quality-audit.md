@@ -36,7 +36,7 @@ done            用户确认关闭
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
-| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
@@ -187,6 +187,7 @@ scripts/quality-gate.sh
 - PostgreSQL 集成测试已覆盖从 `market_candles` 聚合 `1m -> 5m`、基础缺口 metadata、native gap 查询和无时间范围时默认返回最新窗口。
 - 查询 limit 已收敛到 `DefaultCandleLimit=1000`、`MaxCandleLimit=5000`；API 超过上限返回 `400`，store 直接调用时 clamp 到最大上限而不是静默降回默认值。
 - `/api/candles` 已校验 interval、`from <= to`，并按闭区间语义限制 `from/to` 最大跨度为 `(MaxCandleLimit - 1) * interval`；倒置或超大时间范围返回 `400`。
+- CandleProvider 返回 `coverage` 元数据；高周期从 `1m` 聚合且基础窗口被 `MaxCandleLimit` 截断时，`limitedByBaseWindow=true`，研究页显示窗口受限，避免静默冒充完整窗口。
 - 仍缺大范围性能压测、分页/游标和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
 
 关闭条件：
@@ -479,6 +480,39 @@ scripts/quality-gate.sh
 
 - 这仍不是完整 cursor pagination；大范围历史查询需要后续明确游标协议和性能压测。
 - 高周期从 `1m` 聚合时仍受基础 K 线窗口限制，聚合缓存或分页读取仍未完成。
+
+### 阶段 1 Candle 聚合窗口覆盖补充
+
+执行时间：2026-06-27
+
+触发问题：
+
+- 高周期 K 线从 `1m` fallback 聚合时，请求 `limit=1000` 的 `1h` 实际需要 60000 根 `1m` 基础 K 线。
+- 现有基础查询上限为 `MaxCandleLimit=5000`，Provider 会只聚合有限基础窗口，但响应里没有说明窗口被截断，研究页可能把少量聚合 K 线误看成完整健康窗口。
+
+修复范围：
+
+- `CandleResult` 新增 `coverage` 元数据，包含 requested / returned 数量、required / actual base window 和 `limitedByBaseWindow`。
+- CandleProvider 在聚合 fallback 时记录基础窗口需求和实际返回基础 K 数。
+- 当基础窗口被 `MaxCandleLimit` 截断且返回聚合数量不足请求 limit 时，结果 `health=insufficient`。
+- 研究页元信息显示窗口受限标签，前端 API wrapper 保留 coverage。
+
+验证：
+
+- `go test ./internal/data`
+- `pnpm run test -- data`
+- `TestCandleProviderReportsLimitedAggregationCoverage` 覆盖 `1h limit=1000` 需要 60000 根基础 K 线但只能读取 5000 根时的 coverage 和 health。
+- `data api` metadata 测试覆盖前端 wrapper 不丢失 coverage。
+- 本地 API smoke：`/api/candles?exchange=binance&symbol=BTCUSDT&interval=1h&limit=1000` 返回 `health=insufficient`、`coverage.requiredBaseCandles=60000`、`coverage.baseLimit=5000`、`coverage.limitedByBaseWindow=true`。
+
+失败：
+
+- 无硬失败。
+
+后续风险：
+
+- 这仍不是 cursor pagination；它只让受限窗口可观察，尚未解决长区间完整读取。
+- 回测和交易 runner 会收到 `health=insufficient`，但它们是否应拒绝执行不足窗口仍需要独立策略。
 
 ### 阶段 1/3/4 闭合 K 线信号补充
 

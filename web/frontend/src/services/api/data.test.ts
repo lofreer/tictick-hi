@@ -56,6 +56,14 @@ describe("data api", () => {
             baseInterval: "1m",
             health: "gap",
             gaps: [{ from: "2026-01-01T00:01:00Z", to: "2026-01-01T00:03:00Z", missingCandles: 2 }],
+            coverage: {
+              requestedLimit: 1000,
+              returnedCandles: 0,
+              requiredBaseCandles: 5000,
+              baseLimit: 5000,
+              returnedBaseCandles: 2000,
+              limitedByBaseWindow: true,
+            },
           }),
           { status: 200 },
         ),
@@ -74,6 +82,14 @@ describe("data api", () => {
       baseInterval: "1m",
       health: "gap",
       gaps: [{ missingCandles: 2 }],
+      coverage: {
+        requestedLimit: 1000,
+        returnedCandles: 0,
+        requiredBaseCandles: 5000,
+        baseLimit: 5000,
+        returnedBaseCandles: 2000,
+        limitedByBaseWindow: true,
+      },
     });
   });
 

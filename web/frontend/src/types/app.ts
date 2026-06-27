@@ -57,6 +57,15 @@ export type CandleGap = {
   missingCandles: number;
 };
 
+export type CandleCoverage = {
+  requestedLimit: number;
+  returnedCandles: number;
+  requiredBaseCandles?: number;
+  baseLimit?: number;
+  returnedBaseCandles?: number;
+  limitedByBaseWindow: boolean;
+};
+
 export type CandleResult = {
   candles: ChartCandle[];
   source: CandleSource;
@@ -64,6 +73,7 @@ export type CandleResult = {
   baseInterval?: string;
   health: CandleHealth;
   gaps: CandleGap[];
+  coverage: CandleCoverage;
 };
 
 export type CreateDataSyncTask = {

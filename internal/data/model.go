@@ -370,13 +370,23 @@ type CandleGap struct {
 	MissingCandles int       `json:"missingCandles"`
 }
 
+type CandleCoverage struct {
+	RequestedLimit      int  `json:"requestedLimit"`
+	ReturnedCandles     int  `json:"returnedCandles"`
+	RequiredBaseCandles int  `json:"requiredBaseCandles,omitempty"`
+	BaseLimit           int  `json:"baseLimit,omitempty"`
+	ReturnedBaseCandles int  `json:"returnedBaseCandles,omitempty"`
+	LimitedByBaseWindow bool `json:"limitedByBaseWindow"`
+}
+
 type CandleResult struct {
-	Candles           []Candle     `json:"candles"`
-	Source            CandleSource `json:"source"`
-	RequestedInterval string       `json:"requestedInterval"`
-	BaseInterval      string       `json:"baseInterval,omitempty"`
-	Health            CandleHealth `json:"health"`
-	Gaps              []CandleGap  `json:"gaps,omitempty"`
+	Candles           []Candle       `json:"candles"`
+	Source            CandleSource   `json:"source"`
+	RequestedInterval string         `json:"requestedInterval"`
+	BaseInterval      string         `json:"baseInterval,omitempty"`
+	Health            CandleHealth   `json:"health"`
+	Gaps              []CandleGap    `json:"gaps,omitempty"`
+	Coverage          CandleCoverage `json:"coverage"`
 }
 
 type NativeCandleStore interface {

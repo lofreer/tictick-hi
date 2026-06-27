@@ -198,6 +198,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.dataHealth.insufficient": "数据不足",
     "research.baseInterval": "基础周期",
     "research.gapCount": "缺口 {count} 处",
+    "research.coverageLimited": "窗口受限 {returned}/{requested}",
     "research.chartEmpty": "选择数据源后加载 K 线图表。",
     "research.syncTasks": "数据同步任务",
     "research.createTask": "创建同步任务",

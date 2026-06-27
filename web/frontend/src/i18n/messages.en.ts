@@ -198,6 +198,7 @@ export const enUSMessages: Record<string, string> = {
     "research.dataHealth.insufficient": "Insufficient",
     "research.baseInterval": "Base interval",
     "research.gapCount": "{count} gaps",
+    "research.coverageLimited": "Window {returned}/{requested}",
     "research.chartEmpty": "Select a data source to load the K-line chart.",
     "research.syncTasks": "Data sync tasks",
     "research.createTask": "Create sync task",

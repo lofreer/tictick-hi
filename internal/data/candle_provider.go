@@ -31,7 +31,8 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 
 	baseQuery := query
 	baseQuery.Interval = baseCandleInterval
-	baseQuery.Limit = baseLimitForAggregation(query.Interval, query.Limit)
+	baseWindow := baseWindowForAggregation(query.Interval, query.Limit)
+	baseQuery.Limit = baseWindow.Limit
 	baseCandles, err := provider.store.ListNativeCandles(ctx, baseQuery)
 	if err != nil {
 		return CandleResult{}, err
@@ -50,6 +51,13 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	}
 
 	result := candleResult(query, aggregated, CandleSourceAggregated, baseCandleInterval, baseGaps)
+	result.Coverage.RequiredBaseCandles = baseWindow.Required
+	result.Coverage.BaseLimit = baseWindow.Limit
+	result.Coverage.ReturnedBaseCandles = len(baseCandles)
+	result.Coverage.LimitedByBaseWindow = baseWindow.Limited
+	if baseWindow.Limited && len(aggregated) < result.Coverage.RequestedLimit {
+		result.Health = CandleHealthInsufficient
+	}
 	if len(baseCandles) == 0 {
 		if len(nativeCandles) > 0 {
 			return candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps), nil
@@ -107,6 +115,10 @@ func candleResult(
 		BaseInterval:      baseInterval,
 		Health:            candleHealth(candles, gaps),
 		Gaps:              gaps,
+		Coverage: CandleCoverage{
+			RequestedLimit:  NormalizeCandleLimit(query.Limit),
+			ReturnedCandles: len(candles),
+		},
 	}
 	if len(candles) == 0 {
 		result.Source = CandleSourceNone
@@ -125,21 +137,25 @@ func candleHealth(candles []Candle, gaps []CandleGap) CandleHealth {
 	return CandleHealthOK
 }
 
-func baseLimitForAggregation(interval string, limit int) int {
+type aggregationBaseWindow struct {
+	Required int
+	Limit    int
+	Limited  bool
+}
+
+func baseWindowForAggregation(interval string, limit int) aggregationBaseWindow {
 	duration, err := IntervalDuration(interval)
 	if err != nil {
-		return limit
+		return aggregationBaseWindow{Required: limit, Limit: limit}
 	}
 	ratio := int(duration / time.Minute)
 	if ratio < 1 {
 		ratio = 1
 	}
-	if limit <= 0 {
-		limit = DefaultCandleLimit
+	requestedLimit := NormalizeCandleLimit(limit)
+	required := requestedLimit * ratio
+	if required > MaxCandleLimit {
+		return aggregationBaseWindow{Required: required, Limit: MaxCandleLimit, Limited: true}
 	}
-	baseLimit := limit * ratio
-	if baseLimit > MaxCandleLimit {
-		return MaxCandleLimit
-	}
-	return baseLimit
+	return aggregationBaseWindow{Required: required, Limit: required}
 }

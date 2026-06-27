@@ -1,5 +1,6 @@
 import { apiClient } from "@/services/api/client";
 import type {
+  CandleCoverage,
   CandleGap,
   CandleHealth,
   CandleResult,
@@ -42,6 +43,7 @@ type CandleResultResponse = {
   baseInterval?: string;
   health?: CandleHealth;
   gaps?: CandleGap[];
+  coverage?: CandleCoverage;
 };
 
 export type CandleQuery = {
@@ -154,5 +156,10 @@ function normalizeCandleResult(response: CandleResultResponse, requestedInterval
     baseInterval: response.baseInterval,
     health: response.health ?? (candles.length > 0 ? "ok" : "insufficient"),
     gaps: response.gaps ?? [],
+    coverage: response.coverage ?? {
+      requestedLimit: 1000,
+      returnedCandles: candles.length,
+      limitedByBaseWindow: false,
+    },
   };
 }
