@@ -2,6 +2,30 @@
 
 Local full-stack runbook for the trading workspace.
 
+## Delivery Discipline
+
+Current project status:
+
+```text
+scaffold
+```
+
+This project must not be described as demo-ready, usable, production-safe, or complete until the corresponding audit items are closed.
+
+Required reading before any implementation work:
+
+- [AI delivery protocol](docs/ai-delivery-protocol.md)
+- [Quality audit](docs/quality-audit.md)
+- [Implementation plan](docs/implementation-plan.md)
+
+Lightweight quality gate:
+
+```bash
+scripts/quality-gate.sh
+```
+
+The quality gate blocks current-stage engineering regressions. It can also print non-blocking audit findings for later-stage scaffold debt; those findings still keep the overall project at `scaffold`.
+
 ## Local Docker
 
 Create local environment values:

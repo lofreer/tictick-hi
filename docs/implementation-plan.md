@@ -6,6 +6,13 @@
 
 本文档只记录已经确认的产品理解、前端交互、核心模块、实现边界和分阶段验收。后续实现如果发现边界不清，先更新本文档，再写代码。
 
+所有实现工作必须先遵守：
+
+- `docs/ai-delivery-protocol.md`
+- `docs/quality-audit.md`
+
+在质量审计明确关闭前，当前项目只能称为 `scaffold`，不能称为 demo、usable、production-safe 或完成。
+
 当前已经确认：
 
 - `tictick-hi` 是多交易所、多账号交易系统。
