@@ -93,6 +93,29 @@ describe("TradingViewChart", () => {
     host.remove();
   });
 
+  it("observes the chart panel instead of the research chart body", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const body = document.createElement("div");
+    body.className = "research-chart-body";
+    panel.append(body);
+    document.body.append(panel);
+
+    const wrapper = mount(TradingViewChart, {
+      attachTo: body,
+      props: {
+        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+        emptyTitle: "No candles",
+      },
+    });
+
+    expect(observedTarget).toBe(panel);
+    expect(observedTarget).not.toBe(body);
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
   it("uses the stable chart host size instead of inflated chart library heights", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
@@ -178,6 +201,46 @@ describe("TradingViewChart", () => {
       expect.objectContaining({
         width: 1200,
         height: 720,
+      }),
+    );
+
+    wrapper.unmount();
+    panel.remove();
+  });
+
+  it("uses remaining chart panel space when the chart body reports no height", () => {
+    const panel = document.createElement("section");
+    panel.className = "chart-panel";
+    const host = document.createElement("div");
+    host.className = "research-chart-body";
+    panel.append(host);
+    document.body.append(panel);
+
+    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 760 });
+
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === panel) {
+        return rect({ top: 100, width: 1200, height: 760 });
+      }
+      if (this === host) {
+        return rect({ top: 220, width: 1200, height: 0 });
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    const wrapper = mount(TradingViewChart, {
+      attachTo: host,
+      props: {
+        data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+        emptyTitle: "No candles",
+      },
+    });
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1200,
+        height: 640,
       }),
     );
 

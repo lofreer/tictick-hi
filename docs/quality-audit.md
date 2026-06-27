@@ -375,22 +375,29 @@ scripts/quality-gate.sh
 
 - `TradingViewChart` 不再使用图表库内部 `autoSize`。
 - 图表改为按容器实际 `getBoundingClientRect()` 尺寸显式初始化和 resize。
+- resize 观察目标从可能受图表子节点影响的 chart body 收敛到固定 `.chart-panel`。
+- 图表高度由 `.research-chart-body` 的宽度和 `.chart-panel` 剩余高度共同推导；当 body 高度为 0 或被子节点撑大时，回退到 panel 剩余高度。
+- 图表 canvas 在 `createChart` 和 `resize` 前写入显式像素宽高，避免 lightweight-charts 内部 DOM 反向改变宿主测量结果。
 - resize 通过 `requestAnimationFrame` 合并，并在尺寸未变化时跳过。
 - 组件卸载时断开 `ResizeObserver`、窗口 resize 事件和待执行 animation frame。
 - 研究页图表区域新增固定 flex body，工具栏之外的剩余空间才是 K 线图表高度来源。
+- `.trading-chart` 明确使用 `height: 100%`，不再以 `auto` 高度参与布局反馈。
 
 验证：
 
 - `cd web/frontend && pnpm run typecheck`
-- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run test -- TradingViewChart`
 - `cd web/frontend && pnpm run build`
+- `cd web/frontend && pnpm run test`
+- `go test ./...`
+- `go vet ./...`
 - `git diff --check`
 - `scripts/quality-gate.sh`
 - `docker compose up -d --build api`
 - `curl -fsS http://127.0.0.1:8080/readyz`
-- Headless Chrome 桌面 `2048x1024` 打开 `/research`，30 次采样 `scrollHeight=1099`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=683`，无增长。
-- Headless Chrome 桌面 `2048x1024` 打开 `/research?exchange=binance&symbol=BTCUSDT&interval=5m`，30 次采样 `scrollHeight=1099`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=683`，无增长。
-- Headless Chrome 移动 `390x844` 打开 `/research`，30 次采样 `scrollHeight=1058`、`panelHeight=624`、`bodyHeight=457`、`chartHeight=457`、`canvasHeight=457`，无增长。
+- Headless Chrome 桌面 `2048x1024` 打开 `/research`，30 次采样 `scrollHeight=2026`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=681`、`tvHeight=680`，无增长。
+- Headless Chrome 桌面 `2048x1024` 打开 `/research?exchange=binance&symbol=BTCUSDT&interval=5m`，30 次采样 `scrollHeight=2026`、`panelHeight=760`、`bodyHeight=683`、`chartHeight=683`、`canvasHeight=681`、`tvHeight=680`，无增长。
+- Headless Chrome 移动 `390x844` 打开 `/research`，30 次采样 `scrollHeight=1984`、`panelHeight=624`、`bodyHeight=457`、`chartHeight=457`、`canvasHeight=455`、`tvHeight=454`，无增长。
 - 浏览器采样未捕获 `ResizeObserver`、JS exception 或 console error。
 
 失败：
@@ -1021,9 +1028,11 @@ Definition of Done：
 
 前端图表回归修复：
 
-- K 线图表 resize 不再观察和读取图表库挂载节点或图表组件自身高度，改为读取 `.research-chart-body` / `.chart-panel` 稳定宿主尺寸。
-- `.trading-chart` 脱离普通文档流并铺满固定宿主，避免 lightweight-charts 内部 DOM 高度反向撑开页面。
-- headless Chrome 本地采样 `/research` 6 秒：`panel=560`、`chart=437`、`canvas=437`、`tv=434` 全程稳定，`documentElement.scrollHeight=1134` 未增长。
+- K 线图表 resize 不再观察和读取图表库挂载节点或图表组件自身高度，观察目标收敛为固定 `.chart-panel`。
+- 图表尺寸由 `.research-chart-body` 宽度和 `.chart-panel` 剩余高度计算；body 高度为 0 或被子节点撑大时，使用 panel 剩余高度，避免反馈循环。
+- `.trading-chart` 脱离普通文档流并明确 `height: 100%` 铺满固定宿主，避免 lightweight-charts 内部 DOM 高度反向撑开页面。
+- headless Chrome 本地采样 `/research` 桌面 `2048x1024`：`scrollHeight=2026`、`panel=760`、`chart=683`、`canvas=681`、`tv=680` 全程稳定。
+- headless Chrome 本地采样 `/research` 移动 `390x844`：`scrollHeight=1984`、`panel=624`、`chart=457`、`canvas=455`、`tv=454` 全程稳定。
 
 已修正的 trading claim 公平性问题：
 
