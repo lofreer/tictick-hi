@@ -19,10 +19,11 @@ type Runner struct {
 }
 
 type Config struct {
-	WorkerID     string
-	LeaseTTL     time.Duration
-	PollInterval time.Duration
-	CandleLimit  int
+	WorkerID          string
+	LeaseTTL          time.Duration
+	HeartbeatInterval time.Duration
+	PollInterval      time.Duration
+	CandleLimit       int
 }
 
 func NewRunner(repository data.BacktestRepository, strategies strategy.Repository, config Config) *Runner {
@@ -31,6 +32,12 @@ func NewRunner(repository data.BacktestRepository, strategies strategy.Repositor
 	}
 	if config.LeaseTTL <= 0 {
 		config.LeaseTTL = 30 * time.Second
+	}
+	if config.HeartbeatInterval <= 0 {
+		config.HeartbeatInterval = config.LeaseTTL / 3
+	}
+	if config.HeartbeatInterval <= 0 {
+		config.HeartbeatInterval = 10 * time.Second
 	}
 	if config.PollInterval <= 0 {
 		config.PollInterval = 10 * time.Second
@@ -67,7 +74,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		return nil
 	}
 
-	if err := runner.runTask(ctx, task); err != nil {
+	if err := runner.runTaskWithHeartbeat(ctx, task); err != nil {
 		slog.Error("backtest task failed", "task_id", task.ID, "error", err)
 		if markErr := runner.repository.MarkBacktestFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark backtest failed: %w", markErr)
@@ -76,16 +83,70 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 	return nil
 }
 
+func (runner *Runner) runTaskWithHeartbeat(ctx context.Context, task data.BacktestTask) (err error) {
+	runCtx, cancel := context.WithCancel(ctx)
+	heartbeatErrors := make(chan error, 1)
+	done := make(chan struct{})
+
+	if err := runner.repository.HeartbeatBacktestTask(runCtx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
+		cancel()
+		return err
+	}
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(runner.config.HeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				if err := runner.repository.HeartbeatBacktestTask(
+					runCtx,
+					task.ID,
+					runner.config.WorkerID,
+					runner.config.LeaseTTL,
+				); err != nil {
+					select {
+					case heartbeatErrors <- err:
+					default:
+					}
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	err = runner.runTask(runCtx, task)
+	cancel()
+	<-done
+	select {
+	case heartbeatErr := <-heartbeatErrors:
+		if err == nil {
+			err = heartbeatErr
+		}
+	default:
+	}
+	return err
+}
+
 func (runner *Runner) runTask(ctx context.Context, task data.BacktestTask) error {
 	definition, err := runner.strategies.GetStrategy(ctx, task.StrategyID)
 	if err != nil {
 		return err
 	}
 
+	triggerMode := backtestTriggerMode(task)
+	executionInterval := task.Interval
+	if triggerMode == "minute_replay" {
+		executionInterval = "1m"
+	}
 	candleResult, err := runner.repository.GetCandles(ctx, data.CandleQuery{
 		Exchange: task.Exchange,
 		Symbol:   task.Symbol,
-		Interval: task.Interval,
+		Interval: executionInterval,
 		From:     task.StartTime,
 		To:       task.EndTime,
 		Limit:    runner.config.CandleLimit,
@@ -100,21 +161,80 @@ func (runner *Runner) runTask(ctx context.Context, task data.BacktestTask) error
 		return err
 	}
 
-	orders, summary, err := runner.execute(task, candles, intents)
+	backtestIntents, intentIDs, err := runner.resultIntents(task, intents)
 	if err != nil {
 		return err
 	}
+	orders, summary, err := runner.execute(task, candles, intents, intentIDs)
+	if err != nil {
+		return err
+	}
+	summary["triggerMode"] = triggerMode
+	summary["executionInterval"] = executionInterval
+	summary["requestedInterval"] = candleResult.RequestedInterval
+	summary["baseInterval"] = candleResult.BaseInterval
+	summary["candleSource"] = string(candleResult.Source)
+	summary["candleHealth"] = string(candleResult.Health)
 	return runner.repository.SaveBacktestResult(ctx, data.BacktestResult{
 		TaskID:        task.ID,
+		Intents:       backtestIntents,
 		Orders:        orders,
 		ResultSummary: summary,
 	})
+}
+
+func (runner *Runner) resultIntents(
+	task data.BacktestTask,
+	intents []strategy.Intent,
+) ([]data.StrategyIntent, map[string]string, error) {
+	now := time.Now().UTC()
+	result := make([]data.StrategyIntent, 0, len(intents))
+	intentIDs := make(map[string]string, len(intents))
+	for _, intent := range intents {
+		intentID, err := core.NewPrefixedID("si")
+		if err != nil {
+			return nil, nil, err
+		}
+		intentIDs[intent.ID] = intentID
+		result = append(result, data.StrategyIntent{
+			ID:             intentID,
+			TaskID:         task.ID,
+			TaskType:       "backtest",
+			StrategyID:     task.StrategyID,
+			IntentType:     intent.Type,
+			IdempotencyKey: task.ID + ":" + intent.ID,
+			Payload:        intentPayload(task, intent),
+			Policy:         "simulate",
+			Status:         "accepted",
+			CreatedAt:      now,
+		})
+	}
+	return result, intentIDs, nil
+}
+
+func intentPayload(task data.BacktestTask, intent strategy.Intent) map[string]any {
+	payload := map[string]any{}
+	for key, value := range intent.Payload {
+		payload[key] = value
+	}
+	payload["taskId"] = task.ID
+	payload["taskType"] = "backtest"
+	payload["triggerMode"] = backtestTriggerMode(task)
+	return payload
+}
+
+func backtestTriggerMode(task data.BacktestTask) string {
+	if task.TriggerMode == "" {
+		return "closed_candle"
+	}
+	return task.TriggerMode
 }
 
 func (runner *Runner) execute(
 	task data.BacktestTask,
 	candles []data.Candle,
 	intents []strategy.Intent,
+	intentIDs map[string]string,
 ) ([]data.BacktestOrder, map[string]any, error) {
 	initialBalance, err := decimal.Parse(task.InitialBalance)
 	if err != nil {
@@ -164,7 +284,7 @@ func (runner *Runner) execute(
 		orders = append(orders, data.BacktestOrder{
 			ID:         orderID,
 			BacktestID: task.ID,
-			IntentID:   intent.ID,
+			IntentID:   intentIDs[intent.ID],
 			Side:       intent.Side,
 			Price:      intent.Price,
 			Quantity:   quantity.String(),

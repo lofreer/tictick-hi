@@ -94,6 +94,7 @@ type BacktestOrder struct {
 
 type BacktestResult struct {
 	TaskID        string
+	Intents       []StrategyIntent
 	Orders        []BacktestOrder
 	ResultSummary map[string]any
 }
@@ -324,6 +325,7 @@ type Repository interface {
 	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
 	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
 	GetBacktestTask(ctx context.Context, id string) (BacktestTask, error)
+	ListBacktestIntents(ctx context.Context, backtestID string) ([]StrategyIntent, error)
 	ListBacktestOrders(ctx context.Context, backtestID string) ([]BacktestOrder, error)
 	ListTradingTasks(ctx context.Context) ([]TradingTask, error)
 	CreateTradingTask(ctx context.Context, task CreateTradingTask) (TradingTask, error)
@@ -353,6 +355,7 @@ type SyncRepository interface {
 
 type BacktestRepository interface {
 	ClaimBacktestTask(ctx context.Context, workerID string, leaseTTL time.Duration) (BacktestTask, bool, error)
+	HeartbeatBacktestTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveBacktestResult(ctx context.Context, result BacktestResult) error
 	MarkBacktestFailed(ctx context.Context, taskID string, err error) error
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)

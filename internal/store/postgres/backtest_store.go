@@ -108,6 +108,22 @@ func (store *Store) ListBacktestOrders(ctx context.Context, backtestID string) (
 	return pgx.CollectRows(rows, scanBacktestOrder)
 }
 
+func (store *Store) ListBacktestIntents(ctx context.Context, backtestID string) ([]data.StrategyIntent, error) {
+	rows, err := store.pool.Query(ctx, `
+		SELECT id, task_id, task_type, strategy_id, intent_type, idempotency_key,
+		       payload::text, policy, status, created_at
+		  FROM strategy_intents
+		 WHERE task_id = $1
+		   AND task_type = 'backtest'
+		 ORDER BY created_at ASC`, backtestID)
+	if err != nil {
+		return nil, fmt.Errorf("list backtest intents: %w", err)
+	}
+	defer rows.Close()
+
+	return pgx.CollectRows(rows, scanStrategyIntent)
+}
+
 func (store *Store) ClaimBacktestTask(
 	ctx context.Context,
 	workerID string,
@@ -160,6 +176,34 @@ func (store *Store) ClaimBacktestTask(
 	return task, true, nil
 }
 
+func (store *Store) HeartbeatBacktestTask(
+	ctx context.Context,
+	taskID string,
+	workerID string,
+	leaseTTL time.Duration,
+) error {
+	commandTag, err := store.pool.Exec(ctx, `
+		UPDATE backtest_tasks
+		   SET heartbeat_at = now(),
+		       locked_until = now() + $3::interval,
+		       updated_at = now()
+		 WHERE id = $1
+		   AND locked_by = $2
+		   AND status = $4`,
+		taskID,
+		workerID,
+		intervalLiteral(leaseTTL),
+		data.TaskStatusRunning,
+	)
+	if err != nil {
+		return fmt.Errorf("heartbeat backtest task: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("heartbeat backtest task: lease lost for %s", taskID)
+	}
+	return nil
+}
+
 func (store *Store) SaveBacktestResult(ctx context.Context, result data.BacktestResult) error {
 	summaryJSON, err := jsonText(result.ResultSummary)
 	if err != nil {
@@ -171,6 +215,40 @@ func (store *Store) SaveBacktestResult(ctx context.Context, result data.Backtest
 		return fmt.Errorf("begin save backtest result: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM strategy_intents
+		 WHERE task_id = $1
+		   AND task_type = 'backtest'`, result.TaskID); err != nil {
+		return fmt.Errorf("delete backtest intents: %w", err)
+	}
+	for _, intent := range result.Intents {
+		payloadJSON, err := jsonText(intent.Payload)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO strategy_intents (
+				id, task_id, task_type, strategy_id, intent_type, idempotency_key,
+				payload, policy, status, created_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+			ON CONFLICT (task_id, idempotency_key)
+			DO UPDATE SET payload = EXCLUDED.payload, policy = EXCLUDED.policy, status = EXCLUDED.status`,
+			intent.ID,
+			result.TaskID,
+			intent.TaskType,
+			intent.StrategyID,
+			intent.IntentType,
+			intent.IdempotencyKey,
+			payloadJSON,
+			intent.Policy,
+			intent.Status,
+			intent.CreatedAt,
+		); err != nil {
+			return fmt.Errorf("upsert backtest intent: %w", err)
+		}
+	}
 
 	if _, err := tx.Exec(ctx, `DELETE FROM backtest_orders WHERE backtest_id = $1`, result.TaskID); err != nil {
 		return fmt.Errorf("delete backtest orders: %w", err)

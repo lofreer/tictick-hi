@@ -42,18 +42,104 @@ func TestRunnerRunOnceSavesOrders(t *testing.T) {
 	if len(repository.result.Orders) == 0 {
 		t.Fatal("expected at least one saved order")
 	}
+	if len(repository.result.Intents) == 0 {
+		t.Fatal("expected at least one saved intent")
+	}
+	intentIDs := map[string]bool{}
+	for _, intent := range repository.result.Intents {
+		intentIDs[intent.ID] = true
+	}
+	if !intentIDs[repository.result.Orders[0].IntentID] {
+		t.Fatalf("order intent id %s not found in saved intents: %#v", repository.result.Orders[0].IntentID, repository.result.Intents)
+	}
+	if repository.heartbeats == 0 {
+		t.Fatal("expected heartbeat to be refreshed")
+	}
 	if repository.result.ResultSummary["totalOrders"] == nil {
 		t.Fatalf("missing total orders summary: %#v", repository.result.ResultSummary)
 	}
 }
 
+func TestRunnerRunOnceStoresNotificationIntentsWithoutOrders(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repository := &fakeBacktestRepository{
+		task: data.BacktestTask{
+			ID:             "bt_1",
+			Name:           "EMA",
+			Exchange:       "binance",
+			Symbol:         "BTCUSDT",
+			Interval:       "1m",
+			StartTime:      &start,
+			EndTime:        ptrTime(start.Add(10 * time.Minute)),
+			StrategyID:     "ema-cross",
+			StrategyParams: map[string]any{"fastPeriod": 2, "slowPeriod": 3, "orderSize": 0.1, "signalMode": "notification"},
+			InitialBalance: "1000",
+			Status:         data.TaskStatusPending,
+		},
+		candles: runnerTestCandles([]string{"10", "9", "8", "11", "12", "10", "8"}),
+	}
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(repository.result.Intents) == 0 {
+		t.Fatal("expected notification intent to be saved")
+	}
+	if repository.result.Intents[0].IntentType != strategy.IntentTypeNotification {
+		t.Fatalf("intent type = %s", repository.result.Intents[0].IntentType)
+	}
+	if len(repository.result.Orders) != 0 {
+		t.Fatalf("notification intent should not create orders: %#v", repository.result.Orders)
+	}
+}
+
+func TestRunnerRunOnceUsesOneMinuteExecutionForMinuteReplay(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repository := &fakeBacktestRepository{
+		task: data.BacktestTask{
+			ID:             "bt_1",
+			Name:           "EMA",
+			Exchange:       "binance",
+			Symbol:         "BTCUSDT",
+			Interval:       "5m",
+			StartTime:      &start,
+			EndTime:        ptrTime(start.Add(10 * time.Minute)),
+			StrategyID:     "ema-cross",
+			StrategyParams: map[string]any{"fastPeriod": 2, "slowPeriod": 3, "orderSize": 0.1, "signalMode": "order"},
+			InitialBalance: "1000",
+			TriggerMode:    "minute_replay",
+			Status:         data.TaskStatusPending,
+		},
+		candles: runnerTestCandles([]string{"10", "9", "8", "11", "12", "10", "8"}),
+	}
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if repository.query.Interval != "1m" {
+		t.Fatalf("query interval = %s", repository.query.Interval)
+	}
+	if repository.result.ResultSummary["executionInterval"] != "1m" {
+		t.Fatalf("summary = %#v", repository.result.ResultSummary)
+	}
+	if repository.result.ResultSummary["triggerMode"] != "minute_replay" {
+		t.Fatalf("summary = %#v", repository.result.ResultSummary)
+	}
+}
+
 type fakeBacktestRepository struct {
-	task    data.BacktestTask
-	candles []data.Candle
-	result  data.BacktestResult
-	claimed bool
-	saved   bool
-	failed  bool
+	task       data.BacktestTask
+	candles    []data.Candle
+	query      data.CandleQuery
+	result     data.BacktestResult
+	claimed    bool
+	saved      bool
+	failed     bool
+	heartbeats int
 }
 
 func (repository *fakeBacktestRepository) ClaimBacktestTask(
@@ -66,6 +152,16 @@ func (repository *fakeBacktestRepository) ClaimBacktestTask(
 	}
 	repository.claimed = true
 	return repository.task, true, nil
+}
+
+func (repository *fakeBacktestRepository) HeartbeatBacktestTask(
+	context.Context,
+	string,
+	string,
+	time.Duration,
+) error {
+	repository.heartbeats++
+	return nil
 }
 
 func (repository *fakeBacktestRepository) SaveBacktestResult(
@@ -83,14 +179,15 @@ func (repository *fakeBacktestRepository) MarkBacktestFailed(context.Context, st
 }
 
 func (repository *fakeBacktestRepository) GetCandles(
-	context.Context,
-	data.CandleQuery,
+	_ context.Context,
+	query data.CandleQuery,
 ) (data.CandleResult, error) {
+	repository.query = query
 	return data.CandleResult{
 		Candles:           append([]data.Candle(nil), repository.candles...),
 		Source:            data.CandleSourceNative,
-		RequestedInterval: "1m",
-		BaseInterval:      "1m",
+		RequestedInterval: query.Interval,
+		BaseInterval:      query.Interval,
 		Health:            data.CandleHealthOK,
 	}, nil
 }

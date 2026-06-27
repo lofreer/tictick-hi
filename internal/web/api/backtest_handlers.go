@@ -21,6 +21,10 @@ func (server *Server) handleBacktests(w http.ResponseWriter, r *http.Request) {
 		server.listBacktestOrders(w, r, parts[2])
 		return
 	}
+	if len(parts) == 4 && parts[3] == "intents" && r.Method == http.MethodGet {
+		server.listBacktestIntents(w, r, parts[2])
+		return
+	}
 	writeError(w, http.StatusNotFound, "backtest route not found")
 }
 
@@ -86,4 +90,17 @@ func (server *Server) listBacktestOrders(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	writeJSON(w, http.StatusOK, orders)
+}
+
+func (server *Server) listBacktestIntents(w http.ResponseWriter, r *http.Request, id string) {
+	if _, err := server.repository.GetBacktestTask(r.Context(), id); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	intents, err := server.repository.ListBacktestIntents(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, intents)
 }
