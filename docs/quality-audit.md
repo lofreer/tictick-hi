@@ -31,11 +31,11 @@ done            用户确认关闭
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
-| Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
+| Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
-| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、容器级 SIGTERM smoke、外部网络限流和真实恢复压测 |
+| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
@@ -47,7 +47,7 @@ done            用户确认关闭
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、审计、完整 session 管理和生产监控 |
-| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查和 Stage 8 smoke gate 已通过；live executor/testnet、统一 worker lease、真实 provider 和生产级登录安全作为后续风险审计保留 |
+| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实 provider 和生产级登录安全作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
 
@@ -210,9 +210,10 @@ scripts/quality-gate.sh
 - data sync、backtest、trading、notification outbox 的 release / fail / pause 清锁 SQL 已收敛到 `internal/store/postgres/lease.go` 共享 helper。
 - data sync、backtest、trading、notification outbox 的 claim 过期条件和 claim 锁字段写入已收敛到 `internal/store/postgres/lease.go` 共享 helper。
 - data sync、backtest、trading、notification runner 在父上下文取消时会释放当前 active lease，不再把 shutdown 误记为任务失败；backtest 会从 `running` 复位为 `pending`，避免清锁后无法再次 claim。
+- data sync 容器级 SIGTERM 已由 `scripts/stage8-sigterm-smoke.sh` 通过真实 Docker Compose stop、慢速 market mock 和 PostgreSQL 锁字段断言覆盖。
 - claim 的领域筛选、排序和状态切换仍分散在各自 store 方法中，还不是完整统一状态机。
 - 停止状态机不完整。
-- 容器级 SIGTERM smoke 尚未证明任务能收尾。
+- backtest / trading / notify 的容器级长任务 SIGTERM 独立 smoke 尚未补齐。
 
 关闭条件：
 
@@ -691,7 +692,7 @@ scripts/quality-gate.sh
 剩余风险：
 
 - 集成测试覆盖基础聚合、缺口、默认最新窗口和同步 retry 状态机，不代表大范围 K 线查询性能已达 usable。
-- 仍缺容器级 SIGTERM 后数据库断言和真实交易所网络稳定性证明。
+- data sync 容器级 SIGTERM 后数据库断言已由 Stage 8 专用 smoke 覆盖；仍缺真实交易所网络稳定性证明。
 
 ### 阶段 2 Definition of Done：策略沉淀
 
@@ -1226,10 +1227,12 @@ Definition of Done：
 新增验收入口：
 
 - `scripts/stage8-smoke.sh`
+- `scripts/stage8-sigterm-smoke.sh`
 
 通过：
 
 - `scripts/stage8-smoke.sh`
+- `scripts/stage8-sigterm-smoke.sh`
 - `go test ./...`
 - `go vet ./...`
 - `scripts/quality-gate.sh`
@@ -1255,12 +1258,12 @@ Definition of Done：
 
 本轮 smoke 证据：
 
-- symbol：`S81782558204USDT`
-- data task：`dst_9cb68c4565588802c954e287`
-- backtest：`bt_b85822a7a5ec1f6e0cf8764e`
-- paper execute：`tt_b0dc4463cf489d480a00027a`
-- paper notify：`tt_b4f1e26746e22d2d74997b10`
-- notification channel：`stage8-smoke-1782558204`
+- symbol：`S81782569632USDT`
+- data task：`dst_10de8a5a26636ff4cd01ed8d`
+- backtest：`bt_5a21f8fb069e0f1d4a46fc29`
+- paper execute：`tt_ffc971168092dcdcf7a6efef`
+- paper notify：`tt_43e0e29944fa21918f635232`
+- notification channel：`stage8-smoke-1782569632`
 
 前端 DOM smoke：
 
@@ -1327,6 +1330,14 @@ Definition of Done：
 - backtest shutdown release 会把仍处于 `running` 的任务复位为 `pending`，否则 backtest claim 只选 `pending` 会导致任务卡死。
 - 单元测试覆盖 sync/backtest/trading/notification 的 shutdown release、不保存部分结果、不误标失败；同时覆盖普通 `context.Canceled` 业务错误不会被误判为进程 shutdown。
 
+已补充的数据同步容器 SIGTERM 收尾证据：
+
+- 新增 `scripts/stage8-sigterm-smoke.sh`，通过临时 Docker Compose override 注入 `sigterm-market` 慢速 Binance-compatible mock，不依赖真实交易所网络。
+- 脚本创建专用 `S8TERM...` realtime 数据同步任务，只清理同命名空间的历史 smoke 任务，不暂停普通用户同步任务。
+- sync 容器使用 `SYNC_WORKER_ID=stage8-sigterm-...`、1s heartbeat 和 mock `BINANCE_BASE_URLS`，脚本等待 PostgreSQL 显示任务已被 claim、`locked_until` 有效、`heartbeat_at` 存在，同时 mock `/api/v3/klines` 请求保持 pending。
+- 通过 `docker compose stop -t 10 sync` 发送容器级 SIGTERM 后，脚本断言该任务仍为 `running` / `realtime_enabled=true`，且 `locked_by`、`locked_until`、`heartbeat_at` 已全部清空、`last_error` 为空、`attempt_count > 0`。
+- 本轮 smoke 证据：symbol `S8TERM1782569613USDT`、data task `dst_740fe1dab983a022a855d747`、worker `stage8-sigterm-1782569613`。
+
 已收敛的交易所 K 线错误边界：
 
 - `internal/exchange` 提供共享 HTTP status / transport error 分类和 endpoint 错误摘要，避免 adapter 泄露完整请求路径和 query 参数。
@@ -1352,11 +1363,11 @@ Definition of Done：
 | --- | --- | --- | --- |
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
-| Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
+| Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行 | 表约束、外键、状态约束、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验和 retry API 可测 | request/response mapping、错误分类、审计日志和一致错误模型不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流有 route/smoke 覆盖 | 限流内存态、无会话列表/撤销、无密码策略/RBAC/审计 |
-| 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry 和 Stage 8 smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流、容器 SIGTERM 收尾和完整状态机 |
+| 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
 | CandleProvider | demo | native/aggregated/gap/coverage metadata、runner 健康门禁和集成测试已覆盖 | 大范围分页/游标、性能压测、异常数据修复策略不足 |
 | Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码和 URL 脱敏有测试 | 无全局限流器、真实网络压测、代理/地域策略和完整业务码审计 |
 | 研究页 | demo | 数据源 metadata、列表在上图表在下、图表高度稳定、失败任务 retry 已覆盖 | 交易对硬编码、图表工具薄、缺时间范围/指标/缺口修复工作流 |
@@ -1368,15 +1379,16 @@ Definition of Done：
 | 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试 | 主 chunk 过大、概览仍薄、缺系统性桌面/移动/主题视觉回归 |
 | 概览页 | scaffold | 有 scaffold 状态和基础健康入口 | 不是真实业务概览，缺关键指标、告警、链路摘要和操作入口 |
 | 系统管理 / 运维健康 | demo | 操作台账号启停、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、审计日志、生产监控和会话管理 |
-| 质量门禁 | demo | 通用门禁、stage8 smoke、scaffold 声明检查可重复运行 | 尚未把容器 SIGTERM、真实网络压测、视觉回归和安全审计纳入硬门禁 |
+| 质量门禁 | demo | 通用门禁、stage8 smoke、data sync SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、视觉回归和安全审计纳入硬门禁；data sync SIGTERM smoke 尚未覆盖 backtest/trading/notify 长任务容器停机 |
 
 重审计结论：
 
 - Stage 8 全链路 smoke gate 已建立，但多个核心模块仍只到 `demo` 或 `scaffold`。
 - 当前没有足够证据把项目整体升级为 `usable`。
 - 下一步必须优先关闭能支撑真实工作的 blocker，而不是继续铺新页面或新 provider 空壳。
-- 本轮重审计验证通过：`go test ./...`、`go vet ./...`、`scripts/quality-gate.sh`、`cd web/frontend && pnpm run typecheck`、`cd web/frontend && pnpm run test`、`cd web/frontend && pnpm run build`、`scripts/stage8-smoke.sh`、`git diff --check`。
-- 本轮重审计 smoke 证据：symbol `S81782568133USDT`、data task `dst_e866391895c833fd694f3d37`、backtest `bt_078634116195c53168127f71`、paper execute `tt_ed7a36c29ca6be05c4694239`、paper notify `tt_47909dd6cb408be0d610a035`、notification channel `stage8-smoke-1782568133`。
+- 本轮重审计验证通过：`go test ./...`、`go vet ./...`、`scripts/quality-gate.sh`、`cd web/frontend && pnpm run typecheck`、`cd web/frontend && pnpm run test`、`cd web/frontend && pnpm run build`、`scripts/stage8-sigterm-smoke.sh`、`scripts/stage8-smoke.sh`、`git diff --check`。
+- 本轮重审计 smoke 证据：symbol `S81782569632USDT`、data task `dst_10de8a5a26636ff4cd01ed8d`、backtest `bt_5a21f8fb069e0f1d4a46fc29`、paper execute `tt_ffc971168092dcdcf7a6efef`、paper notify `tt_43e0e29944fa21918f635232`、notification channel `stage8-smoke-1782569632`。
+- 本轮 data sync SIGTERM smoke 证据：symbol `S8TERM1782569613USDT`、data task `dst_740fe1dab983a022a855d747`、worker `stage8-sigterm-1782569613`。
 
 失败：
 
@@ -1387,7 +1399,7 @@ Definition of Done：
 - Stage 8 当前已建立可重复全链路 smoke gate，并完成 usable readiness 重审计；重审计显示多个核心模块仍为 `demo` 或 `scaffold`，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
-- worker claim 的共享字段和过期谓词已收敛，runner 级 shutdown release 已有单元证明，但领域候选选择仍未抽取为完整统一状态机，容器级 SIGTERM 数据库断言仍未补齐。
+- worker claim 的共享字段和过期谓词已收敛，runner 级 shutdown release 已有单元证明，data sync 容器 SIGTERM 数据库断言已补齐；但领域候选选择仍未抽取为完整统一状态机，backtest/trading/notify 长任务容器 SIGTERM 仍缺独立 smoke。
 - 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
