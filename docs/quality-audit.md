@@ -1013,6 +1013,12 @@ Definition of Done：
 - `/system/notifications` 显示 `stage8-smoke-1782549588` 和 `sent` 状态。
 - 浏览器 DOM smoke 未捕获 console error 或 page error。
 
+前端图表回归修复：
+
+- K 线图表 resize 不再观察和读取图表库挂载节点或图表组件自身高度，改为读取 `.research-chart-body` / `.chart-panel` 稳定宿主尺寸。
+- `.trading-chart` 脱离普通文档流并铺满固定宿主，避免 lightweight-charts 内部 DOM 高度反向撑开页面。
+- headless Chrome 本地采样 `/research` 6 秒：`panel=560`、`chart=437`、`canvas=437`、`tv=434` 全程稳定，`documentElement.scrollHeight=1134` 未增长。
+
 已修正的 smoke 设计问题：
 
 - 早期 Stage 8 smoke 中，paper execute 任务验证后仍保持 `running`，会按创建时间反复被 trading worker claim，阻塞后续 paper notification 任务。

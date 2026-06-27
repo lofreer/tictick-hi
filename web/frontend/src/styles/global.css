@@ -176,6 +176,7 @@ a {
 }
 
 .chart-panel {
+  position: relative;
   height: clamp(560px, calc(100vh - 180px), 820px);
   min-height: 0;
   overflow: hidden;

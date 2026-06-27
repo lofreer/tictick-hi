@@ -69,8 +69,9 @@ describe("TradingViewChart", () => {
     Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 
-  it("observes the stable chart host instead of the chart library mount node", () => {
+  it("observes the stable chart host instead of the chart component or library mount node", () => {
     const host = document.createElement("div");
+    host.className = "chart-panel";
     document.body.append(host);
 
     const wrapper = mount(TradingViewChart, {
@@ -84,9 +85,9 @@ describe("TradingViewChart", () => {
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(root);
+    expect(observedTarget).toBe(host);
+    expect(observedTarget).not.toBe(root);
     expect(observedTarget).not.toBe(canvasHost);
-    expect(observedTarget).not.toBe(root.parentElement);
 
     wrapper.unmount();
     host.remove();
@@ -107,10 +108,10 @@ describe("TradingViewChart", () => {
         return rect({ top: 100, width: 1200, height: 760 });
       }
       if (this === host) {
-        return rect({ top: 180, width: 1200, height: 3200 });
+        return rect({ top: 180, width: 1200, height: 680 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart")) {
-        return rect({ top: 180, width: 1200, height: 680 });
+        return rect({ top: 180, width: 1200, height: 3200 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
         return rect({ top: 180, width: 1200, height: 3200 });
