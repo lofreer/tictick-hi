@@ -1,0 +1,155 @@
+package api
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/lofreer/tictick-hi/internal/data"
+)
+
+func (server *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
+	parts := pathParts(r.URL.Path)
+	if len(parts) != 3 || parts[0] != "api" || parts[1] != "auth" {
+		writeError(w, http.StatusNotFound, "auth route not found")
+		return
+	}
+
+	switch {
+	case parts[2] == "login" && r.Method == http.MethodPost:
+		server.handleLogin(w, r)
+	case parts[2] == "me" && r.Method == http.MethodGet:
+		server.handleCurrentOperator(w, r)
+	case parts[2] == "logout" && r.Method == http.MethodPost:
+		server.handleLogout(w, r)
+	default:
+		writeError(w, http.StatusNotFound, "auth route not found")
+	}
+}
+
+func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var request data.LoginRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if request.Username == "" || request.Password == "" {
+		writeError(w, http.StatusBadRequest, "username and password are required")
+		return
+	}
+
+	operator, err := server.repository.AuthenticateOperator(
+		r.Context(),
+		request.Username,
+		request.Password,
+	)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+
+	token, tokenHash, err := newSessionToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	expiresAt := time.Now().UTC().Add(server.sessionTTL)
+	err = server.repository.CreateOperatorSession(r.Context(), data.OperatorSession{
+		OperatorID: operator.ID,
+		TokenHash:  tokenHash,
+		ExpiresAt:  expiresAt,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	server.setSessionCookie(w, token, expiresAt)
+	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) handleCurrentOperator(w http.ResponseWriter, r *http.Request) {
+	operator, _, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	_, tokenHash, err := server.currentOperator(r)
+	if err == nil {
+		if err := server.repository.DeleteOperatorSession(r.Context(), tokenHash); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	server.clearSessionCookie(w)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (server *Server) authenticateRequest(w http.ResponseWriter, r *http.Request) (data.Operator, bool) {
+	operator, _, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return data.Operator{}, false
+	}
+	return operator, true
+}
+
+func (server *Server) currentOperator(r *http.Request) (data.Operator, string, error) {
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil || cookie.Value == "" {
+		return data.Operator{}, "", data.ErrUnauthorized
+	}
+	tokenHash := sessionTokenHash(cookie.Value)
+	operator, err := server.repository.GetOperatorBySession(r.Context(), tokenHash, time.Now().UTC())
+	if err != nil {
+		return data.Operator{}, "", err
+	}
+	return operator, tokenHash, nil
+}
+
+func (server *Server) setSessionCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		Expires:  expiresAt,
+		MaxAge:   int(server.sessionTTL.Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   server.cookieSecure,
+	})
+}
+
+func (server *Server) clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   server.cookieSecure,
+	})
+}
+
+func newSessionToken() (string, string, error) {
+	var bytes [32]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return "", "", fmt.Errorf("generate session token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(bytes[:])
+	return token, sessionTokenHash(token), nil
+}
+
+func sessionTokenHash(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(digest[:])
+}
