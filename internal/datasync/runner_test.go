@@ -2,6 +2,7 @@ package datasync
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -50,6 +51,9 @@ func TestRunnerSyncsClaimedTask(t *testing.T) {
 	}
 	if repository.saved.LastOpenTime == nil || !repository.saved.Completed {
 		t.Fatalf("unexpected result: %#v", repository.saved)
+	}
+	if repository.heartbeats == 0 {
+		t.Fatal("expected heartbeat to be refreshed")
 	}
 }
 
@@ -147,11 +151,106 @@ func TestRunnerDoesNotRetryPermanentFetchError(t *testing.T) {
 	}
 }
 
+func TestRunnerRefreshesHeartbeatWhileFetching(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 10, 0, 0, time.UTC)
+	heartbeats := make(chan struct{}, 4)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:          true,
+		heartbeatSignals: heartbeats,
+	}
+	fetcher := &blockingMarketClient{
+		heartbeats: heartbeats,
+		candles: []data.Candle{{
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+			OpenTime: now.Add(-time.Minute),
+			Open:     "1",
+			High:     "2",
+			Low:      "1",
+			Close:    "2",
+			Volume:   "10",
+			IsClosed: true,
+		}},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10, LeaseTTL: time.Second, HeartbeatInterval: time.Millisecond})
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.heartbeats < 3 {
+		t.Fatalf("heartbeats = %d, want at least 3", repository.heartbeats)
+	}
+	if len(repository.saved.Candles) != 1 {
+		t.Fatalf("saved candles = %d, want 1", len(repository.saved.Candles))
+	}
+}
+
+func TestRunnerDoesNotSaveAfterHeartbeatLeaseLoss(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 10, 0, 0, time.UTC)
+	leaseLost := make(chan struct{}, 1)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:              true,
+		heartbeatErrAfter:    1,
+		heartbeatError:       errors.New("lease lost"),
+		heartbeatErrorSignal: leaseLost,
+	}
+	fetcher := &leaseLossMarketClient{
+		leaseLost: leaseLost,
+		candles: []data.Candle{{
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+			OpenTime: now.Add(-time.Minute),
+			Open:     "1",
+			High:     "2",
+			Low:      "1",
+			Close:    "2",
+			Volume:   "10",
+			IsClosed: true,
+		}},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10, LeaseTTL: time.Second, HeartbeatInterval: time.Millisecond})
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.saved.TaskID != "" {
+		t.Fatalf("result should not be saved after lease loss: %#v", repository.saved)
+	}
+	if repository.failed == nil {
+		t.Fatal("expected lease loss to be recorded as failure")
+	}
+}
+
 type fakeSyncRepository struct {
-	task    data.DataSyncTask
-	claimed bool
-	saved   data.DataSyncResult
-	failed  error
+	task                 data.DataSyncTask
+	claimed              bool
+	saved                data.DataSyncResult
+	failed               error
+	heartbeats           int
+	heartbeatSignals     chan<- struct{}
+	heartbeatErrAfter    int
+	heartbeatError       error
+	heartbeatErrorSignal chan<- struct{}
 }
 
 func (repository *fakeSyncRepository) ClaimDataSyncTask(
@@ -160,6 +259,34 @@ func (repository *fakeSyncRepository) ClaimDataSyncTask(
 	time.Duration,
 ) (data.DataSyncTask, bool, error) {
 	return repository.task, repository.claimed, nil
+}
+
+func (repository *fakeSyncRepository) HeartbeatDataSyncTask(
+	context.Context,
+	string,
+	string,
+	time.Duration,
+) error {
+	repository.heartbeats++
+	if repository.heartbeatSignals != nil {
+		select {
+		case repository.heartbeatSignals <- struct{}{}:
+		default:
+		}
+	}
+	if repository.heartbeatErrAfter > 0 && repository.heartbeats > repository.heartbeatErrAfter {
+		if repository.heartbeatErrorSignal != nil {
+			select {
+			case repository.heartbeatErrorSignal <- struct{}{}:
+			default:
+			}
+		}
+		if repository.heartbeatError != nil {
+			return repository.heartbeatError
+		}
+		return errors.New("heartbeat failed")
+	}
+	return nil
 }
 
 func (repository *fakeSyncRepository) SaveDataSyncResult(
@@ -202,5 +329,37 @@ func (client *fakeMarketClient) FetchCandles(
 	if client.err != nil {
 		return nil, client.err
 	}
+	return client.candles, nil
+}
+
+type blockingMarketClient struct {
+	heartbeats <-chan struct{}
+	candles    []data.Candle
+}
+
+func (client *blockingMarketClient) FetchCandles(
+	ctx context.Context,
+	_ exchange.CandleRequest,
+) ([]data.Candle, error) {
+	for index := 0; index < 2; index++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-client.heartbeats:
+		}
+	}
+	return client.candles, nil
+}
+
+type leaseLossMarketClient struct {
+	leaseLost <-chan struct{}
+	candles   []data.Candle
+}
+
+func (client *leaseLossMarketClient) FetchCandles(
+	context.Context,
+	exchange.CandleRequest,
+) ([]data.Candle, error) {
+	<-client.leaseLost
 	return client.candles, nil
 }

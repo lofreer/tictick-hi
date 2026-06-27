@@ -176,8 +176,12 @@ func runSync(ctx context.Context, args []string) error {
 		"binance": binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil),
 		"okx":     okx.NewMarketClient(nil),
 	}), datasync.Config{
-		WorkerID:       envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
-		LeaseTTL:       durationEnv("SYNC_LEASE_TTL", 30*time.Second),
+		WorkerID: envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
+		LeaseTTL: durationEnv("SYNC_LEASE_TTL", 30*time.Second),
+		HeartbeatInterval: durationEnv(
+			"SYNC_HEARTBEAT_INTERVAL",
+			durationEnv("SYNC_LEASE_TTL", 30*time.Second)/3,
+		),
 		PollInterval:   durationEnv("SYNC_POLL_INTERVAL", 10*time.Second),
 		BatchLimit:     intEnv("SYNC_BATCH_LIMIT", 500),
 		OverlapCandles: intEnv("SYNC_OVERLAP_CANDLES", 2),

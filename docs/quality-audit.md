@@ -35,7 +35,7 @@ done            用户确认关闭
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
-| 数据同步 worker | scaffold | 返工加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，health 已暴露 task count / heartbeat / locked_until；但没有真正 heartbeat loop、优雅停止状态机 |
+| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；仍缺统一 lease 包和优雅停止状态机 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，仍缺 PostgreSQL 集成测试、性能边界和闭合信号硬化 |
 | Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
@@ -200,7 +200,9 @@ scripts/quality-gate.sh
 现状问题：
 
 - claim 时写入 `heartbeat_at`。
-- 运行过程中没有周期性 heartbeat。
+- 数据同步、回测、交易 worker 均已有运行中 heartbeat loop。
+- heartbeat 丢失后，数据同步 worker 会在保存 K 线前重新确认 lease，避免继续写入已失去租约的结果。
+- 各 worker 的 claim / heartbeat / release / fail / pause 仍分散在各自 store 方法中。
 - 停止状态机不完整。
 - 容器退出时没有证明任务能收尾。
 
@@ -998,12 +1000,12 @@ Definition of Done：
 
 本轮 smoke 证据：
 
-- symbol：`S81782551411USDT`
-- data task：`dst_e3fe1587580b1c4c8ed0cdf0`
-- backtest：`bt_16ae375dced6c70f19089253`
-- paper execute：`tt_ec9513767c8d03f3685a245f`，`attempt_count=2`
-- paper notify：`tt_efb20dfd0763fdab0691e4c8`，`attempt_count=1`
-- notification channel：`stage8-smoke-1782551411`
+- symbol：`S81782551849USDT`
+- data task：`dst_873ff4127532e51b7fc40bf3`
+- backtest：`bt_434feee48092c5089337dc31`
+- paper execute：`tt_13c31f53c55c74f4b71f6b4b`
+- paper notify：`tt_3cec51cbe6f15205c3973a16`
+- notification channel：`stage8-smoke-1782551849`
 
 前端 DOM smoke：
 
@@ -1026,6 +1028,14 @@ Definition of Done：
 - 新增 migration `0010_trading_claim_fairness.sql` 为 `running` task claim 建立 `(status, updated_at, created_at)` 索引。
 - Stage 8 smoke 不再用“先 pause execute 再创建 notification”规避问题，而是同时启动两个 `running` paper 任务并验证二者都被处理。
 
+已修正的数据同步 heartbeat 问题：
+
+- `SyncRepository` 增加 `HeartbeatDataSyncTask`，PostgreSQL 实现按 `task_id + locked_by + running` 条件刷新 `heartbeat_at` 和 `locked_until`。
+- `hi sync` 增加 `SYNC_HEARTBEAT_INTERVAL` 配置，默认随 `SYNC_LEASE_TTL / 3`，compose 和 `.env.example` 已暴露入口。
+- data sync runner 在 fetch / retry / save 期间运行 heartbeat loop；保存 K 线结果前会再次 heartbeat，lease 丢失时不写入结果。
+- 单元测试覆盖长 fetch 期间 heartbeat 刷新，以及 heartbeat lease lost 后不保存 K 线结果。
+- 登录后 `/api/system/health` 返回 `sync-worker` 健康摘要：`pending=0 running=5 locked=0 stale=0`。
+
 失败：
 
 - 无当前硬失败。
@@ -1034,7 +1044,7 @@ Definition of Done：
 
 - Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
-- worker 仍未抽取全系统统一 lease 状态机，数据同步 worker 仍缺运行中 heartbeat loop 和优雅停止状态机。
+- worker 仍未抽取全系统统一 lease 状态机，容器退出和停止状态机仍未完整证明。
 - 回测撮合、paper position PnL、真实通知 provider、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 

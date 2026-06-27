@@ -18,19 +18,26 @@ type Runner struct {
 }
 
 type Config struct {
-	WorkerID        string
-	LeaseTTL        time.Duration
-	PollInterval    time.Duration
-	BatchLimit      int
-	OverlapCandles  int
-	DefaultLookback time.Duration
-	FetchRetries    int
-	RetryDelay      time.Duration
+	WorkerID          string
+	LeaseTTL          time.Duration
+	HeartbeatInterval time.Duration
+	PollInterval      time.Duration
+	BatchLimit        int
+	OverlapCandles    int
+	DefaultLookback   time.Duration
+	FetchRetries      int
+	RetryDelay        time.Duration
 }
 
 func NewRunner(repository data.SyncRepository, registry exchange.Registry, config Config) *Runner {
 	if config.LeaseTTL <= 0 {
 		config.LeaseTTL = 30 * time.Second
+	}
+	if config.HeartbeatInterval <= 0 {
+		config.HeartbeatInterval = config.LeaseTTL / 3
+	}
+	if config.HeartbeatInterval <= 0 {
+		config.HeartbeatInterval = 10 * time.Second
 	}
 	if config.PollInterval <= 0 {
 		config.PollInterval = 10 * time.Second
@@ -88,13 +95,62 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		return nil
 	}
 
-	if err := runner.syncTask(ctx, task); err != nil {
+	if err := runner.syncTaskWithHeartbeat(ctx, task); err != nil {
 		slog.Error("data sync task failed", "task_id", task.ID, "error", err)
 		if markErr := runner.repository.MarkDataSyncFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark data sync failed: %w", markErr)
 		}
 	}
 	return nil
+}
+
+func (runner *Runner) syncTaskWithHeartbeat(ctx context.Context, task data.DataSyncTask) (err error) {
+	runCtx, cancel := context.WithCancel(ctx)
+	heartbeatErrors := make(chan error, 1)
+	done := make(chan struct{})
+
+	if err := runner.repository.HeartbeatDataSyncTask(runCtx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
+		cancel()
+		return err
+	}
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(runner.config.HeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				if err := runner.repository.HeartbeatDataSyncTask(
+					runCtx,
+					task.ID,
+					runner.config.WorkerID,
+					runner.config.LeaseTTL,
+				); err != nil {
+					select {
+					case heartbeatErrors <- err:
+					default:
+					}
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	err = runner.syncTask(runCtx, task)
+	cancel()
+	<-done
+	select {
+	case heartbeatErr := <-heartbeatErrors:
+		if err == nil {
+			err = heartbeatErr
+		}
+	default:
+	}
+	return err
 }
 
 func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) error {
@@ -129,6 +185,9 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	}
 
 	lastOpenTime := latestOpenTime(candles)
+	if err := runner.repository.HeartbeatDataSyncTask(ctx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
+		return err
+	}
 	return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       task.ID,
 		Candles:      candles,

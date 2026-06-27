@@ -68,6 +68,34 @@ func (store *Store) ClaimDataSyncTask(
 	return task, true, nil
 }
 
+func (store *Store) HeartbeatDataSyncTask(
+	ctx context.Context,
+	taskID string,
+	workerID string,
+	leaseTTL time.Duration,
+) error {
+	commandTag, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET heartbeat_at = now(),
+		       locked_until = now() + $3::interval,
+		       updated_at = now()
+		 WHERE id = $1
+		   AND locked_by = $2
+		   AND status = $4`,
+		taskID,
+		workerID,
+		intervalLiteral(leaseTTL),
+		data.TaskStatusRunning,
+	)
+	if err != nil {
+		return fmt.Errorf("heartbeat data sync task: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("heartbeat data sync task: lease lost for %s", taskID)
+	}
+	return nil
+}
+
 func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSyncResult) error {
 	tx, err := store.pool.Begin(ctx)
 	if err != nil {
