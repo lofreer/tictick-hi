@@ -31,14 +31,14 @@ done            用户确认关闭
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
-| Docker Compose | demo | 保留 | 运行形态对，但还缺完整 smoke gate |
+| Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | 表基本有了，约束、外键、状态约束不足 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
-| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
+| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、容器级 SIGTERM smoke、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause 和 runner 上下文取消会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
@@ -47,7 +47,7 @@ done            用户确认关闭
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，整体业务体验仍需继续打磨 |
 | 概览页 | scaffold | 保留后加强 | 有 scaffold 状态面板和基础健康信息，不是完整概览 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、审计、完整 session 管理和生产监控 |
-| 质量门禁 | scaffold | 保留后加强 | 阶段 0 硬门禁和策略边界检查已通过，live executor/testnet、统一 worker lease 和生产级登录安全作为后续风险审计保留 |
+| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、整体 scaffold 声明检查和 Stage 8 smoke gate 已通过；live executor/testnet、统一 worker lease、真实 provider 和生产级登录安全作为后续风险审计保留 |
 
 ## 3. 必须先修的问题
 
@@ -1346,13 +1346,45 @@ Definition of Done：
 - 本轮完整验证通过：`go test ./...`、`go vet ./...`、`scripts/quality-gate.sh`、`cd web/frontend && pnpm run typecheck`、`cd web/frontend && pnpm run test`、`cd web/frontend && pnpm run build`、`scripts/stage8-smoke.sh`、`git diff --check`。
 - 本轮 stage8 smoke 证据：symbol `S81782567804USDT`、data task `dst_6b653f85c1c419c924bfeafd`、backtest `bt_9b646cb1533bd879b44b2acf`、paper execute `tt_37a4340193eb71bd62a8d242`、paper notify `tt_e4bb9739cf5a05237761f9ef`、notification channel `stage8-smoke-1782567804`。
 
+阶段 8 usable readiness 重审计：
+
+| 模块 | 重审计等级 | 可用证据 | usable 阻断项 |
+| --- | --- | --- | --- |
+| 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
+| Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
+| Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行 | 表约束、外键、状态约束、数据迁移/回滚策略不足 |
+| API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验和 retry API 可测 | request/response mapping、错误分类、审计日志和一致错误模型不足 |
+| 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流有 route/smoke 覆盖 | 限流内存态、无会话列表/撤销、无密码策略/RBAC/审计 |
+| 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry 和 Stage 8 smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流、容器 SIGTERM 收尾和完整状态机 |
+| CandleProvider | demo | native/aggregated/gap/coverage metadata、runner 健康门禁和集成测试已覆盖 | 大范围分页/游标、性能压测、异常数据修复策略不足 |
+| Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码和 URL 脱敏有测试 | 无全局限流器、真实网络压测、代理/地域策略和完整业务码审计 |
+| 研究页 | demo | 数据源 metadata、列表在上图表在下、图表高度稳定、失败任务 retry 已覆盖 | 交易对硬编码、图表工具薄、缺时间范围/指标/缺口修复工作流 |
+| 策略 registry / runtime | demo | schema 驱动参数、intent 输出和策略边界门禁已覆盖 | 缺策略沙箱、版本迁移、权限隔离和真实策略库 |
+| 回测 | demo | CandleProvider、closed/minute replay、intent/order/result 和买卖点展示已走通 | 撮合、费用/滑点曲线、指标体系和结果可信度不足 |
+| 交易 runner | demo | paper execute/notification、position/order/execution/outbox 和 claim 公平性已走通 | 风控、PnL 可信度、真实通知 provider、统一状态机和实盘隔离不足 |
+| 实盘安全 | demo | 凭据 AES-GCM、本地 live 任务创建护栏和 live execute 禁用已验证 | testnet/sandbox executor、订单先落库再提交、幂等 retry、KMS/轮换未完成 |
+| 通知 | demo | outbox、local/webhook-demo provider、失败重试和系统页 retry 已覆盖 | 真实邮件/Telegram/飞书 provider、模板、限流、审计和通道管理不足 |
+| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试 | 主 chunk 过大、概览仍薄、缺系统性桌面/移动/主题视觉回归 |
+| 概览页 | scaffold | 有 scaffold 状态和基础健康入口 | 不是真实业务概览，缺关键指标、告警、链路摘要和操作入口 |
+| 系统管理 / 运维健康 | demo | 操作台账号启停、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、审计日志、生产监控和会话管理 |
+| 质量门禁 | demo | 通用门禁、stage8 smoke、scaffold 声明检查可重复运行 | 尚未把容器 SIGTERM、真实网络压测、视觉回归和安全审计纳入硬门禁 |
+
+重审计结论：
+
+- Stage 8 全链路 smoke gate 已建立，但多个核心模块仍只到 `demo` 或 `scaffold`。
+- 当前没有足够证据把项目整体升级为 `usable`。
+- 下一步必须优先关闭能支撑真实工作的 blocker，而不是继续铺新页面或新 provider 空壳。
+- 本轮重审计验证通过：`go test ./...`、`go vet ./...`、`scripts/quality-gate.sh`、`cd web/frontend && pnpm run typecheck`、`cd web/frontend && pnpm run test`、`cd web/frontend && pnpm run build`、`scripts/stage8-smoke.sh`、`git diff --check`。
+- 本轮重审计 smoke 证据：symbol `S81782568133USDT`、data task `dst_e866391895c833fd694f3d37`、backtest `bt_078634116195c53168127f71`、paper execute `tt_ed7a36c29ca6be05c4694239`、paper notify `tt_47909dd6cb408be0d610a035`、notification channel `stage8-smoke-1782568133`。
+
 失败：
 
 - 无当前硬失败。
 
 警告：
 
-- Stage 8 当前只建立了可重复全链路 smoke gate；还没有完成所有模块等级重审计，不能把整体升级为 `usable`。
+- Stage 8 当前已建立可重复全链路 smoke gate，并完成 usable readiness 重审计；重审计显示多个核心模块仍为 `demo` 或 `scaffold`，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
 - worker claim 的共享字段和过期谓词已收敛，runner 级 shutdown release 已有单元证明，但领域候选选择仍未抽取为完整统一状态机，容器级 SIGTERM 数据库断言仍未补齐。
