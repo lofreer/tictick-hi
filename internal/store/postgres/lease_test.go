@@ -168,6 +168,144 @@ func TestClaimLeaseAssignmentsOmitsHeartbeatForNotificationOutbox(t *testing.T) 
 	}
 }
 
+func TestClaimLeaseUpdateSQLSetsStatusAndLeaseFields(t *testing.T) {
+	sql := claimLeaseUpdateSQL(leaseClaimUpdate{
+		resource:         backtestTaskLease,
+		statusAssignment: "status = $2",
+		workerArg:        "$3",
+		ttlArg:           "$4",
+		extraAssignments: []string{
+			"started_at = COALESCE(started_at, now())",
+		},
+		returningColumns: "id, status",
+	})
+
+	for _, expected := range []string{
+		"UPDATE backtest_tasks",
+		"SET status = $2",
+		"locked_by = $3",
+		"locked_until = now() + $4::interval",
+		"heartbeat_at = now()",
+		"started_at = COALESCE(started_at, now())",
+		"attempt_count = attempt_count + 1",
+		"updated_at = now()",
+		"WHERE id = $1",
+		"RETURNING id, status",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Fatalf("claim update sql %q missing %q", sql, expected)
+		}
+	}
+}
+
+func TestClaimLeaseRowSelectsCandidateThenUpdatesClaimedLease(t *testing.T) {
+	queryer := &sequenceLeaseQueryer{
+		rows: []captureLeaseRow{
+			{id: "bt_1"},
+			{},
+		},
+	}
+
+	row, ok, err := claimLeaseRow(
+		context.Background(),
+		queryer,
+		leaseClaimQuery{
+			resource: backtestTaskLease,
+			where:    "status = $1",
+			orderBy:  "created_at ASC",
+			args:     []any{"pending"},
+		},
+		leaseClaimUpdate{
+			resource:         backtestTaskLease,
+			statusAssignment: "status = $2",
+			workerArg:        "$3",
+			ttlArg:           "$4",
+			extraAssignments: []string{
+				"started_at = COALESCE(started_at, now())",
+			},
+			returningColumns: "id, status",
+		},
+		"running",
+		"worker-1",
+		"30.000000 seconds",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected lease claim")
+	}
+	if row == nil {
+		t.Fatal("expected claimed row")
+	}
+	if len(queryer.queries) != 2 {
+		t.Fatalf("queries = %#v", queryer.queries)
+	}
+	if !strings.Contains(queryer.queries[0], "SELECT id") ||
+		!strings.Contains(queryer.queries[0], "FOR UPDATE SKIP LOCKED") {
+		t.Fatalf("first query should select candidate lease: %q", queryer.queries[0])
+	}
+	if !strings.Contains(queryer.queries[1], "UPDATE backtest_tasks") ||
+		!strings.Contains(queryer.queries[1], "SET status = $2") {
+		t.Fatalf("second query should update claimed lease: %q", queryer.queries[1])
+	}
+	expectedArgs := [][]any{
+		{"pending"},
+		{"bt_1", "running", "worker-1", "30.000000 seconds"},
+	}
+	for index, expected := range expectedArgs {
+		if len(queryer.args[index]) != len(expected) {
+			t.Fatalf("query %d args = %#v", index, queryer.args[index])
+		}
+		for argIndex, expectedArg := range expected {
+			if queryer.args[index][argIndex] != expectedArg {
+				t.Fatalf("query %d arg %d = %#v, want %#v", index, argIndex, queryer.args[index][argIndex], expectedArg)
+			}
+		}
+	}
+}
+
+func TestClaimLeaseRowDoesNotUpdateWithoutCandidate(t *testing.T) {
+	queryer := &sequenceLeaseQueryer{
+		rows: []captureLeaseRow{
+			{err: pgx.ErrNoRows},
+		},
+	}
+
+	row, ok, err := claimLeaseRow(
+		context.Background(),
+		queryer,
+		leaseClaimQuery{
+			resource: dataSyncTaskLease,
+			where:    "status = $1",
+			orderBy:  "created_at ASC",
+			args:     []any{"pending"},
+		},
+		leaseClaimUpdate{
+			resource:         dataSyncTaskLease,
+			statusAssignment: "status = $2",
+			workerArg:        "$3",
+			ttlArg:           "$4",
+			returningColumns: "id, status",
+		},
+		"running",
+		"worker-1",
+		"30.000000 seconds",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("expected no claim")
+	}
+	if row != nil {
+		t.Fatalf("row = %#v, want nil", row)
+	}
+	if len(queryer.queries) != 1 {
+		t.Fatalf("expected only candidate query, got %#v", queryer.queries)
+	}
+}
+
 func TestHeartbeatLeaseUpdatesTaskLeaseFields(t *testing.T) {
 	exec := &captureLeaseExec{tag: pgconn.NewCommandTag("UPDATE 1")}
 
@@ -276,6 +414,23 @@ func (queryer *captureLeaseQueryer) QueryRow(_ context.Context, sql string, args
 	queryer.sql = sql
 	queryer.args = args
 	return captureLeaseRow{id: queryer.id, err: queryer.err}
+}
+
+type sequenceLeaseQueryer struct {
+	queries []string
+	args    [][]any
+	rows    []captureLeaseRow
+}
+
+func (queryer *sequenceLeaseQueryer) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	queryer.queries = append(queryer.queries, sql)
+	queryer.args = append(queryer.args, args)
+	if len(queryer.rows) == 0 {
+		return captureLeaseRow{err: pgx.ErrNoRows}
+	}
+	row := queryer.rows[0]
+	queryer.rows = queryer.rows[1:]
+	return row
 }
 
 type captureLeaseRow struct {

@@ -208,11 +208,11 @@ scripts/quality-gate.sh
 - heartbeat 丢失后，数据同步 worker 会在保存 K 线前重新确认 lease，避免继续写入已失去租约的结果。
 - 数据同步 stop sync / stop realtime 和交易 pause 会清理 `locked_by`、`locked_until`、`heartbeat_at`，Stage 8 smoke 通过真实 API + PostgreSQL 断言覆盖。
 - data sync、backtest、trading、notification outbox 的 release / fail / pause 清锁 SQL 已收敛到 `internal/store/postgres/lease.go` 共享 helper。
-- data sync、backtest、trading、notification outbox 的 claim id 查询、claim 过期条件和 claim 锁字段写入已收敛到 `internal/store/postgres/lease.go` 共享 helper。
+- data sync、backtest、trading、notification outbox 的 claim id 查询、claim 状态更新、claim 过期条件和 claim 锁字段写入已收敛到 `internal/store/postgres/lease.go` 共享 helper。
 - data sync、backtest、trading 的 PostgreSQL heartbeat SQL 已收敛到 `internal/store/postgres/lease.go` 共享 helper，notification outbox 因无 `heartbeat_at` 字段会被 helper 拒绝 heartbeat。
 - data sync、backtest、trading、notification runner 在父上下文取消时会释放当前 active lease，不再把 shutdown 误记为任务失败；backtest 会从 `running` 复位为 `pending`，避免清锁后无法再次 claim。
 - data sync / backtest / trading / notify 容器级 SIGTERM 已由 `scripts/stage8-sigterm-smoke.sh` 通过真实 Docker Compose stop、受控阻塞点和 PostgreSQL 锁字段断言覆盖。
-- claim 的领域候选条件、排序和状态切换仍分散在各自 store 方法中，还不是完整统一状态机。
+- claim 的领域候选条件、排序和非 claim 状态切换仍分散在各自 store 方法中，还不是完整统一状态机。
 - 停止状态机不完整。
 - shutdown 判定已收敛为父 context 取消后任何 work error 都走 release，避免外部库返回非标准取消错误时误记失败或遗留锁。
 
@@ -1535,6 +1535,12 @@ Definition of Done：
 - `internal/store/postgres/lease.go` 新增 `heartbeatLease`，data sync、backtest、trading 的 PostgreSQL heartbeat 刷新复用同一 helper；notification outbox 没有 `heartbeat_at` 字段，helper 会拒绝 heartbeat。
 - 单元测试覆盖 claim SQL 的资源表 / 候选条件 / 过期谓词 / 排序、heartbeat SQL 字段、无行影响时报告 lease lost，以及 notification outbox 不允许 heartbeat。
 
+本轮继续收敛：
+
+- `internal/store/postgres/lease.go` 新增 `claimLeaseUpdateSQL` / `claimLeaseRow`，集中执行“选中候选 id 后更新状态、写入 lease 字段、递增 attempt、返回领域行”的 claim 状态更新路径。
+- data sync、backtest、trading、notification outbox 的 claim 更新路径复用 `claimLeaseRow`；领域候选条件、排序、返回字段、扫描函数和 notification 主表同步更新保持原语义。
+- 单元测试覆盖 claim update SQL 的状态 / lease / attempt / returning 字段、先 select 再 update 的调用顺序，以及没有候选行时不得执行 update。
+
 已收敛的 worker 取消释放 lease 路径：
 
 - `internal/workerlease` 新增 shutdown 判定和不继承父取消的 release context，避免用已取消的请求上下文做收尾写库。
@@ -1615,7 +1621,7 @@ Definition of Done：
 - Stage 8 当前已建立可重复全链路 smoke gate，并完成 usable readiness 重审计；重审计显示多个核心模块仍为 `demo` 或 `scaffold`，不能把整体升级为 `usable`。
 - 全链路 smoke 使用确定性 seed K 线，不依赖真实交易所网络；它证明内部链路，不证明 Binance / OKX 外部稳定性。
 - 交易所 adapter 仍缺全局限流器、代理 / 地域网络策略、更多 OKX / Binance 业务错误码审计和真实网络压测。
-- worker claim id 查询、共享字段、过期谓词和 PostgreSQL heartbeat 刷新已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选条件、排序和状态切换仍未抽取为完整统一状态机。
+- worker claim id 查询、claim 状态更新、共享字段、过期谓词和 PostgreSQL heartbeat 刷新已收敛，runner 级 shutdown release 已有单元证明，data sync / backtest / trading / notify 容器 SIGTERM 数据库断言已补齐；但领域候选条件、排序和非 claim 状态切换仍未抽取为完整统一状态机。
 - 回测撮合、paper position PnL、真实通知 provider 生产启用边界、实盘 testnet/sandbox 和生产级会话/RBAC/审计仍是后续风险。
 - Vite 主入口 chunk 过大已由路由级 code split 关闭；前端仍缺系统性桌面 / 移动 / 主题视觉回归。
 

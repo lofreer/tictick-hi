@@ -152,35 +152,35 @@ func (store *Store) ClaimTradingTask(
 	}
 	defer tx.Rollback(ctx)
 
-	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
-		resource: tradingTaskLease,
-		where:    "status = $1",
-		orderBy:  "updated_at ASC, created_at ASC",
-		args: []any{
-			data.TaskStatusRunning,
+	row, ok, err := claimLeaseRow(
+		ctx,
+		tx,
+		leaseClaimQuery{
+			resource: tradingTaskLease,
+			where:    "status = $1",
+			orderBy:  "updated_at ASC, created_at ASC",
+			args: []any{
+				data.TaskStatusRunning,
+			},
 		},
-	})
+		leaseClaimUpdate{
+			resource:  tradingTaskLease,
+			workerArg: "$2",
+			ttlArg:    "$3",
+			extraAssignments: []string{
+				"started_at = COALESCE(started_at, now())",
+			},
+			returningColumns: tradingTaskColumns,
+		},
+		workerID,
+		intervalLiteral(leaseTTL),
+	)
 	if err != nil {
-		return data.TradingTask{}, false, fmt.Errorf("select trading task: %w", err)
+		return data.TradingTask{}, false, fmt.Errorf("claim trading task: %w", err)
 	}
 	if !ok {
 		return data.TradingTask{}, false, nil
 	}
-
-	row := tx.QueryRow(ctx, fmt.Sprintf(`
-		UPDATE trading_tasks
-		   SET %s
-		 WHERE id = $1
-		RETURNING `+tradingTaskColumns,
-		claimLeaseAssignments(
-			tradingTaskLease,
-			"$2",
-			"$3",
-			"started_at = COALESCE(started_at, now())",
-		),
-	),
-		id, workerID, intervalLiteral(leaseTTL),
-	)
 	task, err := scanTradingTaskRow(row)
 	if err != nil {
 		return data.TradingTask{}, false, fmt.Errorf("update claimed trading task: %w", err)

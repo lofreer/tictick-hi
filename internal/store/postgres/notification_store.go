@@ -162,39 +162,39 @@ func (store *Store) ClaimNotificationDelivery(
 	}
 	defer tx.Rollback(ctx)
 
-	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
-		resource: notificationOutboxLease,
-		where: `(
-			       (status IN ('pending', 'retry_scheduled') AND next_attempt_at <= now())
-			       OR status = 'running'
-			   )`,
-		orderBy: "next_attempt_at ASC, created_at ASC",
-	})
+	row, ok, err := claimLeaseRow(
+		ctx,
+		tx,
+		leaseClaimQuery{
+			resource: notificationOutboxLease,
+			where: `(
+				       (status IN ('pending', 'retry_scheduled') AND next_attempt_at <= now())
+				       OR status = 'running'
+				   )`,
+			orderBy: "next_attempt_at ASC, created_at ASC",
+		},
+		leaseClaimUpdate{
+			resource:         notificationOutboxLease,
+			statusAssignment: "status = 'running'",
+			workerArg:        "$2",
+			ttlArg:           "$3",
+			extraAssignments: []string{
+				"last_attempt_at = now()",
+			},
+			returningColumns: `id, notification_id, task_id, COALESCE(intent_id, ''), channel,
+		          provider, target, title, body, status, attempt_count, max_attempts,
+		          next_attempt_at, last_attempt_at, COALESCE(last_error, ''),
+		          created_at, updated_at`,
+		},
+		workerID,
+		intervalLiteral(leaseTTL),
+	)
 	if err != nil {
-		return data.NotificationDelivery{}, false, fmt.Errorf("select notification outbox: %w", err)
+		return data.NotificationDelivery{}, false, fmt.Errorf("claim notification delivery: %w", err)
 	}
 	if !ok {
 		return data.NotificationDelivery{}, false, nil
 	}
-
-	row := tx.QueryRow(ctx, fmt.Sprintf(`
-		UPDATE notification_outbox
-		   SET status = 'running',
-		       %s
-		 WHERE id = $1
-		RETURNING id, notification_id, task_id, COALESCE(intent_id, ''), channel,
-		          provider, target, title, body, status, attempt_count, max_attempts,
-		          next_attempt_at, last_attempt_at, COALESCE(last_error, ''),
-		          created_at, updated_at`,
-		claimLeaseAssignments(
-			notificationOutboxLease,
-			"$2",
-			"$3",
-			"last_attempt_at = now()",
-		),
-	),
-		id, workerID, intervalLiteral(leaseTTL),
-	)
 	delivery, err := scanNotificationDelivery(row)
 	if err != nil {
 		return data.NotificationDelivery{}, false, fmt.Errorf("update notification outbox claim: %w", err)

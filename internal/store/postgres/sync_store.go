@@ -20,40 +20,41 @@ func (store *Store) ClaimDataSyncTask(
 	}
 	defer tx.Rollback(ctx)
 
-	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
-		resource: dataSyncTaskLease,
-		where: `(sync_enabled = true OR realtime_enabled = true)
-			   AND status IN ($1, $2)`,
-		orderBy: "realtime_enabled DESC, created_at ASC",
-		args: []any{
-			data.TaskStatusPending,
-			data.TaskStatusRunning,
+	row, ok, err := claimLeaseRow(
+		ctx,
+		tx,
+		leaseClaimQuery{
+			resource: dataSyncTaskLease,
+			where: `(sync_enabled = true OR realtime_enabled = true)
+				   AND status IN ($1, $2)`,
+			orderBy: "realtime_enabled DESC, created_at ASC",
+			args: []any{
+				data.TaskStatusPending,
+				data.TaskStatusRunning,
+			},
 		},
-	})
+		leaseClaimUpdate{
+			resource:         dataSyncTaskLease,
+			statusAssignment: "status = $2",
+			workerArg:        "$3",
+			ttlArg:           "$4",
+			extraAssignments: []string{
+				"started_at = COALESCE(started_at, now())",
+			},
+			returningColumns: `id, exchange, symbol, interval, start_time, end_time,
+		          sync_enabled, realtime_enabled, status, last_synced_open_time,
+		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		},
+		data.TaskStatusRunning,
+		workerID,
+		intervalLiteral(leaseTTL),
+	)
 	if err != nil {
-		return data.DataSyncTask{}, false, fmt.Errorf("select data sync task: %w", err)
+		return data.DataSyncTask{}, false, fmt.Errorf("claim data sync task: %w", err)
 	}
 	if !ok {
 		return data.DataSyncTask{}, false, nil
 	}
-
-	row := tx.QueryRow(ctx, fmt.Sprintf(`
-		UPDATE data_sync_tasks
-		   SET status = $2,
-		       %s
-		 WHERE id = $1
-		RETURNING id, exchange, symbol, interval, start_time, end_time,
-		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
-		claimLeaseAssignments(
-			dataSyncTaskLease,
-			"$3",
-			"$4",
-			"started_at = COALESCE(started_at, now())",
-		),
-	),
-		id, data.TaskStatusRunning, workerID, intervalLiteral(leaseTTL),
-	)
 	task, err := scanDataSyncTaskRow(row)
 	if err != nil {
 		return data.DataSyncTask{}, false, fmt.Errorf("update claimed task: %w", err)

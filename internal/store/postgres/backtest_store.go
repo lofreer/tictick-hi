@@ -134,36 +134,37 @@ func (store *Store) ClaimBacktestTask(
 	}
 	defer tx.Rollback(ctx)
 
-	id, ok, err := claimLeaseID(ctx, tx, leaseClaimQuery{
-		resource: backtestTaskLease,
-		where:    "status = $1",
-		orderBy:  "created_at ASC",
-		args: []any{
-			data.TaskStatusPending,
+	row, ok, err := claimLeaseRow(
+		ctx,
+		tx,
+		leaseClaimQuery{
+			resource: backtestTaskLease,
+			where:    "status = $1",
+			orderBy:  "created_at ASC",
+			args: []any{
+				data.TaskStatusPending,
+			},
 		},
-	})
+		leaseClaimUpdate{
+			resource:         backtestTaskLease,
+			statusAssignment: "status = $2",
+			workerArg:        "$3",
+			ttlArg:           "$4",
+			extraAssignments: []string{
+				"started_at = COALESCE(started_at, now())",
+			},
+			returningColumns: backtestTaskColumns,
+		},
+		data.TaskStatusRunning,
+		workerID,
+		intervalLiteral(leaseTTL),
+	)
 	if err != nil {
-		return data.BacktestTask{}, false, fmt.Errorf("select backtest task: %w", err)
+		return data.BacktestTask{}, false, fmt.Errorf("claim backtest task: %w", err)
 	}
 	if !ok {
 		return data.BacktestTask{}, false, nil
 	}
-
-	row := tx.QueryRow(ctx, fmt.Sprintf(`
-		UPDATE backtest_tasks
-		   SET status = $2,
-		       %s
-		 WHERE id = $1
-		RETURNING `+backtestTaskColumns,
-		claimLeaseAssignments(
-			backtestTaskLease,
-			"$3",
-			"$4",
-			"started_at = COALESCE(started_at, now())",
-		),
-	),
-		id, data.TaskStatusRunning, workerID, intervalLiteral(leaseTTL),
-	)
 	task, err := scanBacktestTaskRow(row)
 	if err != nil {
 		return data.BacktestTask{}, false, fmt.Errorf("update claimed backtest task: %w", err)

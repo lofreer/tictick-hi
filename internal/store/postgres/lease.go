@@ -38,6 +38,15 @@ type leaseClaimQuery struct {
 	args     []any
 }
 
+type leaseClaimUpdate struct {
+	resource         leaseResource
+	statusAssignment string
+	workerArg        string
+	ttlArg           string
+	extraAssignments []string
+	returningColumns string
+}
+
 func clearLeaseAssignments(resource leaseResource) string {
 	assignments := []string{
 		"locked_by = NULL",
@@ -93,6 +102,45 @@ func claimLeaseID(ctx context.Context, queryer leaseQueryer, query leaseClaimQue
 		return "", false, err
 	}
 	return id, true, nil
+}
+
+func claimLeaseUpdateSQL(update leaseClaimUpdate) string {
+	assignments := claimLeaseAssignments(
+		update.resource,
+		update.workerArg,
+		update.ttlArg,
+		update.extraAssignments...,
+	)
+	if update.statusAssignment != "" {
+		assignments = update.statusAssignment + ",\n		       " + assignments
+	}
+	return fmt.Sprintf(`
+			UPDATE %s
+			   SET %s
+			 WHERE %s = $1
+			RETURNING %s`,
+		update.resource.table,
+		assignments,
+		update.resource.keyColumn,
+		update.returningColumns,
+	)
+}
+
+func claimLeaseRow(
+	ctx context.Context,
+	queryer leaseQueryer,
+	query leaseClaimQuery,
+	update leaseClaimUpdate,
+	updateArgs ...any,
+) (pgx.Row, bool, error) {
+	id, ok, err := claimLeaseID(ctx, queryer, query)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	args := make([]any, 0, len(updateArgs)+1)
+	args = append(args, id)
+	args = append(args, updateArgs...)
+	return queryer.QueryRow(ctx, claimLeaseUpdateSQL(update), args...), true, nil
 }
 
 func claimLeaseAssignments(resource leaseResource, workerArg string, ttlArg string, extraAssignments ...string) string {
