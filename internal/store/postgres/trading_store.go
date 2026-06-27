@@ -14,7 +14,8 @@ import (
 
 const tradingTaskColumns = `
 	id, name, type, exchange, account_id, symbol, interval, strategy_id,
-	strategy_params::text, intent_policy::text, status, started_at,
+	strategy_params::text, intent_policy::text, status,
+	COALESCE(locked_by, ''), locked_until, heartbeat_at, started_at,
 	finished_at, COALESCE(last_error, ''), attempt_count, created_at, updated_at`
 
 func (store *Store) ListTradingTasks(ctx context.Context) ([]data.TradingTask, error) {
@@ -121,50 +122,23 @@ func (store *Store) SetTradingTaskStatus(
 }
 
 func (store *Store) ListTradingIntents(ctx context.Context, taskID string) ([]data.StrategyIntent, error) {
-	rows, err := store.pool.Query(ctx, `
-		SELECT id, task_id, task_type, strategy_id, intent_type, idempotency_key,
-		       payload::text, policy, status, created_at
-		  FROM strategy_intents
-		 WHERE task_id = $1
-		 ORDER BY created_at DESC`, taskID)
-	if err != nil {
-		return nil, fmt.Errorf("list trading intents: %w", err)
-	}
-	defer rows.Close()
-
-	return pgx.CollectRows(rows, scanStrategyIntent)
+	return store.listTradingIntents(ctx, taskID)
 }
 
 func (store *Store) ListTradingOrders(ctx context.Context, taskID string) ([]data.Order, error) {
-	rows, err := store.pool.Query(ctx, `
-		SELECT id, task_id, task_type, COALESCE(intent_id, ''), idempotency_key,
-		       exchange, account_id, symbol, side, order_type, price::text, quantity::text,
-		       status, COALESCE(exchange_order_id, ''), exchange_response_summary::text,
-		       COALESCE(last_error, ''), created_at, updated_at
-		  FROM orders
-		 WHERE task_id = $1
-		 ORDER BY created_at DESC`, taskID)
-	if err != nil {
-		return nil, fmt.Errorf("list trading orders: %w", err)
-	}
-	defer rows.Close()
+	return store.listTradingOrders(ctx, taskID)
+}
 
-	return pgx.CollectRows(rows, scanOrder)
+func (store *Store) ListTradingExecutions(ctx context.Context, taskID string) ([]data.Execution, error) {
+	return store.listTradingExecutions(ctx, taskID)
+}
+
+func (store *Store) ListTradingPositions(ctx context.Context, taskID string) ([]data.Position, error) {
+	return store.listTradingPositions(ctx, taskID)
 }
 
 func (store *Store) ListTradingNotifications(ctx context.Context, taskID string) ([]data.Notification, error) {
-	rows, err := store.pool.Query(ctx, `
-		SELECT id, COALESCE(intent_id, ''), channel, title, body, status,
-		       COALESCE(error, ''), created_at, sent_at
-		  FROM notifications
-		 WHERE task_id = $1
-		 ORDER BY created_at DESC`, taskID)
-	if err != nil {
-		return nil, fmt.Errorf("list trading notifications: %w", err)
-	}
-	defer rows.Close()
-
-	return pgx.CollectRows(rows, scanNotification)
+	return store.listTradingNotifications(ctx, taskID)
 }
 
 func (store *Store) ClaimTradingTask(
@@ -218,124 +192,36 @@ func (store *Store) ClaimTradingTask(
 	return task, true, nil
 }
 
-func (store *Store) SaveTradingRunResult(ctx context.Context, result data.TradingRunResult) error {
-	tx, err := store.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin save trading run result: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	for _, intent := range result.Intents {
-		payloadJSON, err := jsonText(intent.Payload)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO strategy_intents (
-				id, task_id, task_type, strategy_id, intent_type, idempotency_key,
-				payload, policy, status, created_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
-			ON CONFLICT (task_id, idempotency_key)
-			DO UPDATE SET payload = EXCLUDED.payload, policy = EXCLUDED.policy, status = EXCLUDED.status`,
-			intent.ID,
-			result.TaskID,
-			intent.TaskType,
-			intent.StrategyID,
-			intent.IntentType,
-			intent.IdempotencyKey,
-			payloadJSON,
-			intent.Policy,
-			intent.Status,
-			intent.CreatedAt,
-		); err != nil {
-			return fmt.Errorf("upsert strategy intent: %w", err)
-		}
-	}
-
-	for _, order := range result.Orders {
-		summaryJSON, err := jsonText(order.ExchangeResponseSummary)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO orders (
-				id, task_id, task_type, intent_id, idempotency_key, exchange,
-				account_id, symbol, side, order_type, price, quantity, status,
-				exchange_order_id, exchange_response_summary, last_error, created_at, updated_at
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-			        $11::numeric, $12::numeric, $13, NULLIF($14, ''),
-			        $15::jsonb, NULLIF($16, ''), $17, $18)
-			ON CONFLICT (task_id, idempotency_key)
-			DO UPDATE SET status = EXCLUDED.status,
-			              exchange_response_summary = EXCLUDED.exchange_response_summary,
-			              last_error = EXCLUDED.last_error,
-			              updated_at = EXCLUDED.updated_at`,
-			order.ID,
-			result.TaskID,
-			order.TaskType,
-			order.IntentID,
-			order.IdempotencyKey,
-			order.Exchange,
-			order.AccountID,
-			order.Symbol,
-			order.Side,
-			order.OrderType,
-			order.Price,
-			order.Quantity,
-			order.Status,
-			order.ExchangeOrderID,
-			summaryJSON,
-			order.LastError,
-			order.CreatedAt,
-			order.UpdatedAt,
-		); err != nil {
-			return fmt.Errorf("upsert order: %w", err)
-		}
-	}
-
-	for _, notification := range result.Notifications {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO notifications (
-				id, task_id, intent_id, channel, title, body, status, error, created_at, sent_at
-			)
-			SELECT $1, $2, NULLIF($3, ''), $4, $5, $6, $7, NULLIF($8, ''), $9, $10
-			 WHERE NOT EXISTS (
-			       SELECT 1 FROM notifications
-			        WHERE task_id = $2 AND intent_id = NULLIF($3, '') AND channel = $4
-			 )`,
-			notification.ID,
-			result.TaskID,
-			notification.IntentID,
-			notification.Channel,
-			notification.Title,
-			notification.Body,
-			notification.Status,
-			notification.Error,
-			notification.CreatedAt,
-			notification.SentAt,
-		); err != nil {
-			return fmt.Errorf("insert notification: %w", err)
-		}
-	}
-
-	if _, err := tx.Exec(ctx, `
+func (store *Store) HeartbeatTradingTask(
+	ctx context.Context,
+	taskID string,
+	workerID string,
+	leaseTTL time.Duration,
+) error {
+	tag, err := store.pool.Exec(ctx, `
 		UPDATE trading_tasks
-		   SET locked_by = NULL,
-		       locked_until = NULL,
-		       heartbeat_at = NULL,
+		   SET heartbeat_at = now(),
+		       locked_until = now() + $3::interval,
 		       updated_at = now()
-		 WHERE id = $1`,
-		result.TaskID,
-	); err != nil {
-		return fmt.Errorf("release trading task: %w", err)
+		 WHERE id = $1
+		   AND locked_by = $2
+		   AND status = $4`,
+		taskID,
+		workerID,
+		intervalLiteral(leaseTTL),
+		data.TaskStatusRunning,
+	)
+	if err != nil {
+		return fmt.Errorf("heartbeat trading task: %w", err)
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit trading run result: %w", err)
+	if tag.RowsAffected() == 0 {
+		return data.ErrNotFound
 	}
 	return nil
+}
+
+func (store *Store) SaveTradingRunResult(ctx context.Context, result data.TradingRunResult) error {
+	return store.saveTradingRunResult(ctx, result)
 }
 
 func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, taskErr error) error {
@@ -344,7 +230,6 @@ func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, ta
 		   SET status = $2,
 		       locked_by = NULL,
 		       locked_until = NULL,
-		       heartbeat_at = NULL,
 		       last_error = $3,
 		       updated_at = now()
 		 WHERE id = $1`,
@@ -356,130 +241,4 @@ func (store *Store) MarkTradingTaskFailed(ctx context.Context, taskID string, ta
 		return fmt.Errorf("mark trading task failed: %w", err)
 	}
 	return nil
-}
-
-func scanTradingTask(row pgx.CollectableRow) (data.TradingTask, error) {
-	return scanTradingTaskRow(row)
-}
-
-func scanTradingTaskRow(row rowScanner) (data.TradingTask, error) {
-	var (
-		task               data.TradingTask
-		strategyParamsJSON string
-		intentPolicyJSON   string
-	)
-	err := row.Scan(
-		&task.ID,
-		&task.Name,
-		&task.Type,
-		&task.Exchange,
-		&task.AccountID,
-		&task.Symbol,
-		&task.Interval,
-		&task.StrategyID,
-		&strategyParamsJSON,
-		&intentPolicyJSON,
-		&task.Status,
-		&task.StartedAt,
-		&task.FinishedAt,
-		&task.LastError,
-		&task.AttemptCount,
-		&task.CreatedAt,
-		&task.UpdatedAt,
-	)
-	if err != nil {
-		return data.TradingTask{}, err
-	}
-
-	strategyParams, err := jsonMap(strategyParamsJSON)
-	if err != nil {
-		return data.TradingTask{}, err
-	}
-	intentPolicy, err := jsonMap(intentPolicyJSON)
-	if err != nil {
-		return data.TradingTask{}, err
-	}
-	task.StrategyParams = strategyParams
-	task.IntentPolicy = intentPolicy
-	return task, nil
-}
-
-func scanStrategyIntent(row pgx.CollectableRow) (data.StrategyIntent, error) {
-	var (
-		intent      data.StrategyIntent
-		payloadJSON string
-	)
-	err := row.Scan(
-		&intent.ID,
-		&intent.TaskID,
-		&intent.TaskType,
-		&intent.StrategyID,
-		&intent.IntentType,
-		&intent.IdempotencyKey,
-		&payloadJSON,
-		&intent.Policy,
-		&intent.Status,
-		&intent.CreatedAt,
-	)
-	if err != nil {
-		return data.StrategyIntent{}, err
-	}
-	payload, err := jsonMap(payloadJSON)
-	if err != nil {
-		return data.StrategyIntent{}, err
-	}
-	intent.Payload = payload
-	return intent, nil
-}
-
-func scanOrder(row pgx.CollectableRow) (data.Order, error) {
-	var (
-		order                       data.Order
-		exchangeResponseSummaryJSON string
-	)
-	err := row.Scan(
-		&order.ID,
-		&order.TaskID,
-		&order.TaskType,
-		&order.IntentID,
-		&order.IdempotencyKey,
-		&order.Exchange,
-		&order.AccountID,
-		&order.Symbol,
-		&order.Side,
-		&order.OrderType,
-		&order.Price,
-		&order.Quantity,
-		&order.Status,
-		&order.ExchangeOrderID,
-		&exchangeResponseSummaryJSON,
-		&order.LastError,
-		&order.CreatedAt,
-		&order.UpdatedAt,
-	)
-	if err != nil {
-		return data.Order{}, err
-	}
-	summary, err := jsonMap(exchangeResponseSummaryJSON)
-	if err != nil {
-		return data.Order{}, err
-	}
-	order.ExchangeResponseSummary = summary
-	return order, nil
-}
-
-func scanNotification(row pgx.CollectableRow) (data.Notification, error) {
-	var notification data.Notification
-	err := row.Scan(
-		&notification.ID,
-		&notification.IntentID,
-		&notification.Channel,
-		&notification.Title,
-		&notification.Body,
-		&notification.Status,
-		&notification.Error,
-		&notification.CreatedAt,
-		&notification.SentAt,
-	)
-	return notification, err
 }

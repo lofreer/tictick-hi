@@ -123,6 +123,20 @@ func (server *Server) handleTradingTaskDetailCollection(
 			return
 		}
 		writeJSON(w, http.StatusOK, orders)
+	case "executions":
+		executions, err := server.repository.ListTradingExecutions(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, executions)
+	case "positions":
+		positions, err := server.repository.ListTradingPositions(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, positions)
 	case "notifications":
 		notifications, err := server.repository.ListTradingNotifications(r.Context(), id)
 		if err != nil {

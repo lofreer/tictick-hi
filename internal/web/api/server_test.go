@@ -275,6 +275,22 @@ func TestTradingTaskRoutes(t *testing.T) {
 		t.Fatalf("live create status = %d body = %s", liveRecorder.Code, liveRecorder.Body.String())
 	}
 
+	liveExecuteBody := `{
+		"name":"Live Execute EMA",
+		"type":"live",
+		"exchange":"binance",
+		"accountId":"acct_live",
+		"symbol":"BTCUSDT",
+		"interval":"5m",
+		"strategyId":"ema-cross",
+		"strategyParams":{"fastPeriod":12,"slowPeriod":26,"orderSize":0.01,"signalMode":"order"},
+		"intentPolicy":{"orderIntent":"execute","notificationChannel":"default"}
+	}`
+	liveExecuteRecorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", liveExecuteBody)
+	if liveExecuteRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("live execute status = %d body = %s", liveExecuteRecorder.Code, liveExecuteRecorder.Body.String())
+	}
+
 	startRecorder := serveAuthenticated(
 		server,
 		cookie,
@@ -291,6 +307,8 @@ func TestTradingTaskRoutes(t *testing.T) {
 		"/api/trading/tasks/" + created.ID,
 		"/api/trading/tasks/" + created.ID + "/intents",
 		"/api/trading/tasks/" + created.ID + "/orders",
+		"/api/trading/tasks/" + created.ID + "/executions",
+		"/api/trading/tasks/" + created.ID + "/positions",
 		"/api/trading/tasks/" + created.ID + "/notifications",
 	} {
 		recorder := serveAuthenticated(server, cookie, http.MethodGet, path, "")

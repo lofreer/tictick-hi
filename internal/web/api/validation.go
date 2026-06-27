@@ -122,10 +122,7 @@ func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.
 		return errors.New("intentPolicy.orderIntent must be execute or notify")
 	}
 	if task.Type == "live" && orderIntent == "execute" {
-		confirmed, ok := task.IntentPolicy["liveExecutionConfirmed"].(bool)
-		if !ok || !confirmed {
-			return errors.New("live execution must be explicitly confirmed")
-		}
+		return errors.New("live execution is disabled until the live safety stage")
 	}
 	return strategy.ValidateParams(definition, task.StrategyParams)
 }

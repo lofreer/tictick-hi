@@ -246,6 +246,14 @@ func (repository *fakeRepository) ListTradingOrders(context.Context, string) ([]
 	return nil, nil
 }
 
+func (repository *fakeRepository) ListTradingExecutions(context.Context, string) ([]data.Execution, error) {
+	return nil, nil
+}
+
+func (repository *fakeRepository) ListTradingPositions(context.Context, string) ([]data.Position, error) {
+	return nil, nil
+}
+
 func (repository *fakeRepository) ListTradingNotifications(context.Context, string) ([]data.Notification, error) {
 	return nil, nil
 }

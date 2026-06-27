@@ -12,17 +12,20 @@ import (
 )
 
 type Runner struct {
-	repository data.TradingRepository
-	strategies strategy.Repository
-	config     Config
-	now        func() time.Time
+	repository    data.TradingRepository
+	strategies    strategy.Repository
+	config        Config
+	now           func() time.Time
+	paperExecutor OrderExecutor
+	liveExecutor  OrderExecutor
 }
 
 type Config struct {
-	WorkerID     string
-	LeaseTTL     time.Duration
-	PollInterval time.Duration
-	CandleLimit  int
+	WorkerID          string
+	LeaseTTL          time.Duration
+	HeartbeatInterval time.Duration
+	PollInterval      time.Duration
+	CandleLimit       int
 }
 
 func NewRunner(repository data.TradingRepository, strategies strategy.Repository, config Config) *Runner {
@@ -32,6 +35,12 @@ func NewRunner(repository data.TradingRepository, strategies strategy.Repository
 	if config.LeaseTTL <= 0 {
 		config.LeaseTTL = 30 * time.Second
 	}
+	if config.HeartbeatInterval <= 0 {
+		config.HeartbeatInterval = config.LeaseTTL / 3
+	}
+	if config.HeartbeatInterval <= 0 {
+		config.HeartbeatInterval = 10 * time.Second
+	}
 	if config.PollInterval <= 0 {
 		config.PollInterval = 10 * time.Second
 	}
@@ -39,10 +48,12 @@ func NewRunner(repository data.TradingRepository, strategies strategy.Repository
 		config.CandleLimit = 500
 	}
 	return &Runner{
-		repository: repository,
-		strategies: strategies,
-		config:     config,
-		now:        func() time.Time { return time.Now().UTC() },
+		repository:    repository,
+		strategies:    strategies,
+		config:        config,
+		now:           func() time.Time { return time.Now().UTC() },
+		paperExecutor: PaperExecutor{},
+		liveExecutor:  LiveExecutor{},
 	}
 }
 
@@ -72,13 +83,62 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		return nil
 	}
 
-	if err := runner.runTask(ctx, task); err != nil {
+	if err := runner.runTaskWithHeartbeat(ctx, task); err != nil {
 		slog.Error("trading task failed", "task_id", task.ID, "error", err)
 		if markErr := runner.repository.MarkTradingTaskFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark trading task failed: %w", markErr)
 		}
 	}
 	return nil
+}
+
+func (runner *Runner) runTaskWithHeartbeat(ctx context.Context, task data.TradingTask) (err error) {
+	runCtx, cancel := context.WithCancel(ctx)
+	heartbeatErrors := make(chan error, 1)
+	done := make(chan struct{})
+
+	if err := runner.repository.HeartbeatTradingTask(runCtx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
+		cancel()
+		return err
+	}
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(runner.config.HeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				if err := runner.repository.HeartbeatTradingTask(
+					runCtx,
+					task.ID,
+					runner.config.WorkerID,
+					runner.config.LeaseTTL,
+				); err != nil {
+					select {
+					case heartbeatErrors <- err:
+					default:
+					}
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	err = runner.runTask(runCtx, task)
+	cancel()
+	<-done
+	select {
+	case heartbeatErr := <-heartbeatErrors:
+		if err == nil {
+			err = heartbeatErr
+		}
+	default:
+	}
+	return err
 }
 
 func (runner *Runner) runTask(ctx context.Context, task data.TradingTask) error {
@@ -101,39 +161,37 @@ func (runner *Runner) runTask(ctx context.Context, task data.TradingTask) error 
 		return err
 	}
 
-	result, err := runner.result(task, intents)
+	result, err := runner.result(ctx, task, intents)
 	if err != nil {
 		return err
 	}
 	return runner.repository.SaveTradingRunResult(ctx, result)
 }
 
-func (runner *Runner) result(task data.TradingTask, intents []strategy.Intent) (data.TradingRunResult, error) {
+func (runner *Runner) result(
+	ctx context.Context,
+	task data.TradingTask,
+	intents []strategy.Intent,
+) (data.TradingRunResult, error) {
 	now := runner.now()
-	policy := textPolicy(task.IntentPolicy, "orderIntent", "notify")
 	channel := textPolicy(task.IntentPolicy, "notificationChannel", "default")
 	result := data.TradingRunResult{TaskID: task.ID}
 
 	for _, intent := range intents {
 		idempotencyKey := task.ID + ":" + intent.ID
-		intentID, err := core.NewPrefixedID("si")
-		if err != nil {
-			return data.TradingRunResult{}, err
-		}
-		result.Intents = append(result.Intents, data.StrategyIntent{
-			ID:             intentID,
-			TaskID:         task.ID,
-			TaskType:       task.Type,
-			StrategyID:     task.StrategyID,
-			IntentType:     intent.Type,
-			IdempotencyKey: idempotencyKey,
-			Payload:        intentPayload(task, intent),
-			Policy:         policy,
-			Status:         "accepted",
-			CreatedAt:      now,
-		})
+		intentID := core.StablePrefixedID("si", "intent:"+idempotencyKey)
+		policy := intentPolicy(task, intent)
 
-		if intent.Type == strategy.IntentTypeNotification {
+		if policy == "notify" {
+			result.Intents = append(result.Intents, tradingIntent(intentRecord{
+				Task:           task,
+				Intent:         intent,
+				IntentID:       intentID,
+				IdempotencyKey: idempotencyKey,
+				Policy:         policy,
+				Status:         "notification_pending",
+				Now:            now,
+			}))
 			notification, err := runner.notification(task, intent, intentID, channel, now)
 			if err != nil {
 				return data.TradingRunResult{}, err
@@ -142,22 +200,54 @@ func (runner *Runner) result(task data.TradingTask, intents []strategy.Intent) (
 			continue
 		}
 
-		if policy == "execute" {
-			order, err := runner.order(task, intent, intentID, idempotencyKey, now)
-			if err != nil {
-				return data.TradingRunResult{}, err
-			}
-			result.Orders = append(result.Orders, order)
-			continue
-		}
-
-		notification, err := runner.notification(task, intent, intentID, channel, now)
+		execution, err := runner.executor(task).Execute(ctx, OrderRequest{
+			Task:           task,
+			Intent:         intent,
+			IntentID:       intentID,
+			IdempotencyKey: idempotencyKey,
+			Now:            now,
+		})
 		if err != nil {
 			return data.TradingRunResult{}, err
 		}
-		result.Notifications = append(result.Notifications, notification)
+		result.Intents = append(result.Intents, tradingIntent(intentRecord{
+			Task:           task,
+			Intent:         intent,
+			IntentID:       intentID,
+			IdempotencyKey: idempotencyKey,
+			Policy:         policy,
+			Status:         "executed",
+			Now:            now,
+		}))
+		result.Orders = append(result.Orders, execution.Order)
+		result.Executions = append(result.Executions, execution.Execution)
 	}
 	return result, nil
+}
+
+type intentRecord struct {
+	Task           data.TradingTask
+	Intent         strategy.Intent
+	IntentID       string
+	IdempotencyKey string
+	Policy         string
+	Status         string
+	Now            time.Time
+}
+
+func tradingIntent(record intentRecord) data.StrategyIntent {
+	return data.StrategyIntent{
+		ID:             record.IntentID,
+		TaskID:         record.Task.ID,
+		TaskType:       record.Task.Type,
+		StrategyID:     record.Task.StrategyID,
+		IntentType:     record.Intent.Type,
+		IdempotencyKey: record.IdempotencyKey,
+		Payload:        intentPayload(record.Task, record.Intent),
+		Policy:         record.Policy,
+		Status:         record.Status,
+		CreatedAt:      record.Now,
+	}
 }
 
 func intentPayload(task data.TradingTask, intent strategy.Intent) map[string]any {
@@ -171,41 +261,6 @@ func intentPayload(task data.TradingTask, intent strategy.Intent) map[string]any
 	return payload
 }
 
-func (runner *Runner) order(
-	task data.TradingTask,
-	intent strategy.Intent,
-	intentID string,
-	idempotencyKey string,
-	now time.Time,
-) (data.Order, error) {
-	orderID, err := core.NewPrefixedID("ord")
-	if err != nil {
-		return data.Order{}, err
-	}
-	status := "filled"
-	if task.Type == "live" {
-		status = "pending_submission"
-	}
-	return data.Order{
-		ID:                      orderID,
-		TaskID:                  task.ID,
-		TaskType:                task.Type,
-		IntentID:                intentID,
-		IdempotencyKey:          idempotencyKey,
-		Exchange:                task.Exchange,
-		AccountID:               task.AccountID,
-		Symbol:                  task.Symbol,
-		Side:                    intent.Side,
-		OrderType:               "market",
-		Price:                   intent.Price,
-		Quantity:                intent.Quantity,
-		Status:                  status,
-		ExchangeResponseSummary: map[string]any{},
-		CreatedAt:               now,
-		UpdatedAt:               now,
-	}, nil
-}
-
 func (runner *Runner) notification(
 	task data.TradingTask,
 	intent strategy.Intent,
@@ -213,10 +268,8 @@ func (runner *Runner) notification(
 	channel string,
 	now time.Time,
 ) (data.Notification, error) {
-	notificationID, err := core.NewPrefixedID("nt")
-	if err != nil {
-		return data.Notification{}, err
-	}
+	key := "notification:" + task.ID + ":" + intent.ID + ":" + channel
+	notificationID := core.StablePrefixedID("nt", key)
 	return data.Notification{
 		ID:        notificationID,
 		IntentID:  intentID,
@@ -245,4 +298,21 @@ func textPolicy(policy map[string]any, key string, fallback string) string {
 		return fallback
 	}
 	return text
+}
+
+func intentPolicy(task data.TradingTask, intent strategy.Intent) string {
+	if intent.Type == strategy.IntentTypeNotification {
+		return "notify"
+	}
+	if task.Type == "paper" {
+		return textPolicy(task.IntentPolicy, "orderIntent", "execute")
+	}
+	return textPolicy(task.IntentPolicy, "orderIntent", "notify")
+}
+
+func (runner *Runner) executor(task data.TradingTask) OrderExecutor {
+	if task.Type == "paper" {
+		return runner.paperExecutor
+	}
+	return runner.liveExecutor
 }

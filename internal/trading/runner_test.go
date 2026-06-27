@@ -24,8 +24,20 @@ func TestRunnerRunOnceSavesPaperOrder(t *testing.T) {
 	if len(repository.result.Orders) == 0 {
 		t.Fatal("expected saved orders")
 	}
+	if len(repository.result.Executions) == 0 {
+		t.Fatal("expected saved executions")
+	}
+	if repository.result.Executions[0].OrderID != repository.result.Orders[0].ID {
+		t.Fatalf("execution order id = %s, order id = %s", repository.result.Executions[0].OrderID, repository.result.Orders[0].ID)
+	}
 	if repository.result.Orders[0].Status != "filled" {
 		t.Fatalf("order status = %s", repository.result.Orders[0].Status)
+	}
+	if repository.result.Intents[0].Status != "executed" {
+		t.Fatalf("intent status = %s", repository.result.Intents[0].Status)
+	}
+	if repository.heartbeats == 0 {
+		t.Fatal("expected heartbeat to be refreshed")
 	}
 }
 
@@ -66,18 +78,40 @@ func TestRunnerRunOncePersistsStrategyNotificationIntent(t *testing.T) {
 	if len(repository.result.Orders) != 0 {
 		t.Fatalf("notification intent should not create orders: %#v", repository.result.Orders)
 	}
+	if len(repository.result.Executions) != 0 {
+		t.Fatalf("notification intent should not create executions: %#v", repository.result.Executions)
+	}
 	if len(repository.result.Notifications) == 0 {
 		t.Fatal("expected notification record")
 	}
 }
 
+func TestRunnerRunOnceRejectsLiveExecute(t *testing.T) {
+	repository := newFakeTradingRepository(map[string]any{"orderIntent": "execute"})
+	repository.task.Type = "live"
+	repository.task.AccountID = "acct_live"
+	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if repository.saved {
+		t.Fatal("live execution should not save a fake local order")
+	}
+	if !repository.failed {
+		t.Fatal("expected live execution task to be marked failed")
+	}
+}
+
 type fakeTradingRepository struct {
-	task    data.TradingTask
-	candles []data.Candle
-	result  data.TradingRunResult
-	claimed bool
-	saved   bool
-	failed  bool
+	task       data.TradingTask
+	candles    []data.Candle
+	result     data.TradingRunResult
+	claimed    bool
+	saved      bool
+	failed     bool
+	heartbeats int
 }
 
 func newFakeTradingRepository(policy map[string]any) *fakeTradingRepository {
@@ -109,6 +143,16 @@ func (repository *fakeTradingRepository) ClaimTradingTask(
 	}
 	repository.claimed = true
 	return repository.task, true, nil
+}
+
+func (repository *fakeTradingRepository) HeartbeatTradingTask(
+	context.Context,
+	string,
+	string,
+	time.Duration,
+) error {
+	repository.heartbeats++
+	return nil
 }
 
 func (repository *fakeTradingRepository) SaveTradingRunResult(

@@ -111,6 +111,9 @@ type TradingTask struct {
 	StrategyParams map[string]any `json:"strategyParams"`
 	IntentPolicy   map[string]any `json:"intentPolicy"`
 	Status         TaskStatus     `json:"status"`
+	LockedBy       string         `json:"lockedBy,omitempty"`
+	LockedUntil    *time.Time     `json:"lockedUntil,omitempty"`
+	HeartbeatAt    *time.Time     `json:"heartbeatAt,omitempty"`
 	StartedAt      *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt     *time.Time     `json:"finishedAt,omitempty"`
 	LastError      string         `json:"lastError,omitempty"`
@@ -165,6 +168,37 @@ type Order struct {
 	UpdatedAt               time.Time      `json:"updatedAt"`
 }
 
+type Execution struct {
+	ID             string    `json:"id"`
+	TaskID         string    `json:"taskId"`
+	TaskType       string    `json:"taskType"`
+	OrderID        string    `json:"orderId"`
+	IntentID       string    `json:"intentId,omitempty"`
+	IdempotencyKey string    `json:"idempotencyKey"`
+	Exchange       string    `json:"exchange"`
+	AccountID      string    `json:"accountId"`
+	Symbol         string    `json:"symbol"`
+	Side           string    `json:"side"`
+	Price          string    `json:"price"`
+	Quantity       string    `json:"quantity"`
+	Fee            string    `json:"fee"`
+	Status         string    `json:"status"`
+	ExecutedAt     time.Time `json:"executedAt"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
+type Position struct {
+	TaskID       string    `json:"taskId"`
+	TaskType     string    `json:"taskType"`
+	Exchange     string    `json:"exchange"`
+	AccountID    string    `json:"accountId"`
+	Symbol       string    `json:"symbol"`
+	Quantity     string    `json:"quantity"`
+	AveragePrice string    `json:"averagePrice"`
+	RealizedPnL  string    `json:"realizedPnl"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
 type Notification struct {
 	ID        string     `json:"id"`
 	IntentID  string     `json:"intentId,omitempty"`
@@ -181,6 +215,7 @@ type TradingRunResult struct {
 	TaskID        string
 	Intents       []StrategyIntent
 	Orders        []Order
+	Executions    []Execution
 	Notifications []Notification
 }
 
@@ -333,6 +368,8 @@ type Repository interface {
 	SetTradingTaskStatus(ctx context.Context, id string, status TaskStatus) (TradingTask, error)
 	ListTradingIntents(ctx context.Context, taskID string) ([]StrategyIntent, error)
 	ListTradingOrders(ctx context.Context, taskID string) ([]Order, error)
+	ListTradingExecutions(ctx context.Context, taskID string) ([]Execution, error)
+	ListTradingPositions(ctx context.Context, taskID string) ([]Position, error)
 	ListTradingNotifications(ctx context.Context, taskID string) ([]Notification, error)
 	ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error)
 	CreateNotificationChannel(ctx context.Context, channel CreateNotificationChannel) (NotificationChannel, error)
@@ -363,6 +400,7 @@ type BacktestRepository interface {
 
 type TradingRepository interface {
 	ClaimTradingTask(ctx context.Context, workerID string, leaseTTL time.Duration) (TradingTask, bool, error)
+	HeartbeatTradingTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveTradingRunResult(ctx context.Context, result TradingRunResult) error
 	MarkTradingTaskFailed(ctx context.Context, taskID string, err error) error
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
