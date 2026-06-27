@@ -182,7 +182,8 @@ a {
   max-height: 820px;
   min-height: 0;
   overflow: hidden;
-  contain: layout paint;
+  overflow: clip;
+  contain: size layout paint;
 }
 
 .side-panel {

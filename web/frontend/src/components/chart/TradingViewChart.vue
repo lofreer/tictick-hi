@@ -189,11 +189,10 @@ function readStableHostHeight(host: HTMLElement, hostBounds: DOMRect) {
   const offsetTop = host === panel ? 0 : Math.max(0, Math.floor(hostBounds.top - panelBounds.top));
   const availableHeight = Math.floor(panelHeight - offsetTop);
   if (availableHeight <= 0) {
-    return clampRenderedHeight(readObservedHeight(host) ?? readClientHeight(host) ?? Math.floor(hostBounds.height));
+    return clampRenderedHeight(panelHeight);
   }
 
-  const measuredHeight = readObservedHeight(host) ?? readClientHeight(host) ?? Math.floor(hostBounds.height);
-  return clampRenderedHeight(host === panel ? availableHeight : Math.min(measuredHeight, availableHeight));
+  return clampRenderedHeight(availableHeight);
 }
 
 function clampRenderedHeight(height: number) {

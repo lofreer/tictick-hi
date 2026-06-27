@@ -286,6 +286,7 @@ const healthTagType = computed<TagProps["type"]>(() => {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  overflow: clip;
   contain: strict;
 }
 

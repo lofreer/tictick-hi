@@ -121,7 +121,7 @@ describe("TradingViewChart", () => {
 
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
       if (this === panel) {
-        return rect({ top: 100, width: 1200, height: 1200 });
+        return rect({ top: 100, width: 1200, height: 720 });
       }
       if (this === host) {
         return rect({ top: 180, width: 1180, height: 640 });
@@ -184,7 +184,7 @@ describe("TradingViewChart", () => {
     panel.remove();
   });
 
-  it("uses fixed client height instead of inflated host bounds", () => {
+  it("uses the chart panel boundary instead of mutable host height", () => {
     const panel = document.createElement("section");
     panel.className = "chart-panel";
     const host = document.createElement("div");
@@ -213,9 +213,15 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: 1180,
-        height: 640,
+        height: 680,
       }),
     );
+    chartMocks.resize.mockClear();
+
+    setClientSize(host, { width: 1180, height: 5000 });
+    resizeCallback?.([resizeEntry(panel, { width: 1200, height: 760 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
 
     wrapper.unmount();
     panel.remove();
