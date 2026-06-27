@@ -686,6 +686,45 @@ scripts/quality-gate.sh
 
 - 本轮仍未在用户的可见 Chrome 会话里复现原始无限增长，只能通过源码约束、自动化污染输入测试和本地 headless Chrome 采样关闭已知反馈入口。
 
+### 阶段 1 研究页 K 线高度稳定性九次加固
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户侧再次反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 复查提交发现 `f891f46` 将研究页图表面板从 flex 剩余空间改回 grid，并把 `.research-chart-body` 恢复为 `height: 100%`，与前一轮“切断百分比高度反馈”的目标冲突。
+
+修复范围：
+
+- `ResearchPage` 图表面板恢复为固定高度 flex 列布局，工具栏占自然高度，`.research-chart-body` 用 `flex: 1 1 0` 承载剩余视口。
+- `.research-chart-body` 不再声明 `height: 100%`，避免 grid track / 百分比高度解算重新参与 chart DOM 高度反馈。
+- 新增 `ResearchPage.layout.test.ts`，用 SFC raw source 检查研究页图表布局契约，防止再次回退到 grid 或 `height: 100%`。
+- 保持 `TradingViewChart` 不向 root / canvas 写 inline 高度，图表库内部 DOM 仍被固定 viewport CSS 和 `contain: strict` 限制。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `docker compose up -d --build api`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+- Headless Chrome 桌面 `1440x900` 登录并打开 `/research`，80 次采样 first/last 均为 `documentHeight=1238`、`panel=680`、`chartBody=603`、`chart=603`、`canvasHost=603`、`tv=603`，`uniqueDocumentHeights=1`、`uniqueChartBodyHeights=1`、`grew=false`，无 runtime/log error。
+- Headless Chrome 移动 `390x844` 登录并打开 `/research`，80 次采样 first/last 均为 `documentHeight=1256`、`panel=624`、`chartBody=457`、`chart=457`、`canvasHost=457`、`tv=457`，`uniqueDocumentHeights=1`、`uniqueChartBodyHeights=1`、`grew=false`，无 runtime/log error。
+- `go test ./...`
+- `go vet ./...`
+- `git diff --check`
+- `scripts/quality-gate.sh`
+
+失败：
+
+- 新增布局测试首次失败两次：第一次使用 Node `fs/url`，不符合前端 src TS 环境；第二次把 `max-height: 100%` 误判为 `height: 100%`。已改为 Vite `?raw` 导入和 CSS 声明级匹配后通过。
+
+剩余风险：
+
+- 本轮在 headless Chrome 桌面/移动均未复现持续增长；用户可见 Chrome 会话仍需要人工确认，但已关闭当前代码中实际存在的 grid 百分比高度回归入口。
+
 ### 阶段 1 Candle 查询 limit 边界补充
 
 执行时间：2026-06-27
