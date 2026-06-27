@@ -176,4 +176,34 @@ describe("system api", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("lists audit events with an explicit limit", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify([
+          {
+            id: "ae_1",
+            actorOperatorId: "op_1",
+            actorUsername: "admin",
+            action: "operator.disable",
+            resourceType: "operator",
+            resourceId: "op_2",
+            outcome: "success",
+            metadata: { enabled: "false" },
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.listAuditEvents(50)).resolves.toEqual([
+      expect.objectContaining({ id: "ae_1", action: "operator.disable" }),
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/system/audit-events?limit=50",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

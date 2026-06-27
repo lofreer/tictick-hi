@@ -319,6 +319,22 @@ export type OperatorSession = {
   current: boolean;
 };
 
+export type AuditEvent = {
+  id: string;
+  actorOperatorId?: string;
+  actorUsername?: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string;
+  outcome: string;
+  requestMethod?: string;
+  requestPath?: string;
+  remoteAddr?: string;
+  userAgent?: string;
+  metadata: Record<string, string>;
+  createdAt: string;
+};
+
 export type ServiceHealth = {
   name: string;
   status: string;

@@ -14,6 +14,7 @@ const SystemNotificationsPage = () => import("@/pages/SystemNotificationsPage.vu
 const SystemExchangeAccountsPage = () => import("@/pages/SystemExchangeAccountsPage.vue");
 const SystemOperatorsPage = () => import("@/pages/SystemOperatorsPage.vue");
 const SystemSessionsPage = () => import("@/pages/SystemSessionsPage.vue");
+const SystemAuditEventsPage = () => import("@/pages/SystemAuditEventsPage.vue");
 const SystemHealthPage = () => import("@/pages/SystemHealthPage.vue");
 
 export const routes: RouteRecordRaw[] = [
@@ -88,6 +89,11 @@ export const routes: RouteRecordRaw[] = [
         path: "system/sessions",
         name: "system-sessions",
         component: SystemSessionsPage,
+      },
+      {
+        path: "system/audit-events",
+        name: "system-audit-events",
+        component: SystemAuditEventsPage,
       },
       {
         path: "system/health",

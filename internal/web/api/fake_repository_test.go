@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -15,6 +16,7 @@ type fakeRepository struct {
 	channels        []data.NotificationChannel
 	notifications   []data.Notification
 	accounts        []data.ExchangeAccount
+	auditEvents     []data.AuditEvent
 	operators       []data.Operator
 	passwords       map[string]string
 	sessions        map[string]data.OperatorSession
@@ -481,6 +483,43 @@ func (repository *fakeRepository) DeleteOperatorSessionByID(
 		return nil
 	}
 	return data.ErrNotFound
+}
+
+func (repository *fakeRepository) RecordAuditEvent(
+	_ context.Context,
+	request data.CreateAuditEvent,
+) (data.AuditEvent, error) {
+	event := data.AuditEvent{
+		ID:              "ae_" + strconv.Itoa(len(repository.auditEvents)+1),
+		ActorOperatorID: request.ActorOperatorID,
+		ActorUsername:   request.ActorUsername,
+		Action:          request.Action,
+		ResourceType:    request.ResourceType,
+		ResourceID:      request.ResourceID,
+		Outcome:         request.Outcome,
+		RequestMethod:   request.RequestMethod,
+		RequestPath:     request.RequestPath,
+		RemoteAddr:      request.RemoteAddr,
+		UserAgent:       request.UserAgent,
+		Metadata:        request.Metadata,
+		CreatedAt:       time.Date(2026, 1, 1, 0, 0, len(repository.auditEvents), 0, time.UTC),
+	}
+	if event.Metadata == nil {
+		event.Metadata = map[string]string{}
+	}
+	repository.auditEvents = append(repository.auditEvents, event)
+	return event, nil
+}
+
+func (repository *fakeRepository) ListAuditEvents(_ context.Context, limit int) ([]data.AuditEvent, error) {
+	events := append([]data.AuditEvent(nil), repository.auditEvents...)
+	sort.SliceStable(events, func(left int, right int) bool {
+		return events[left].CreatedAt.After(events[right].CreatedAt)
+	})
+	if limit <= 0 || limit > len(events) {
+		return events, nil
+	}
+	return events[:limit], nil
 }
 
 func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHealth, error) {

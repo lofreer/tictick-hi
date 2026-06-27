@@ -30,10 +30,28 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, notifications)
 		return
 	}
+	if len(parts) == 3 && parts[2] == "audit-events" && r.Method == http.MethodGet {
+		events, err := server.repository.ListAuditEvents(r.Context(), parseAuditLimit(r))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, events)
+		return
+	}
 	if len(parts) == 5 && parts[2] == "notifications" && parts[4] == "retry" && r.Method == http.MethodPost {
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
 		notification, err := server.repository.RetryNotification(r.Context(), parts[3])
 		if err != nil {
 			writeStoreError(w, err)
+			return
+		}
+		if err := server.recordAuditEvent(r, actor, "notification.retry", "notification", notification.ID, "success", nil); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, notification)
@@ -64,6 +82,11 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 		}
 		writeJSON(w, http.StatusOK, channels)
 	case http.MethodPost:
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
 		var request data.CreateNotificationChannel
 		if err := readJSON(r, &request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -75,6 +98,14 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 		}
 		channel, err := server.repository.CreateNotificationChannel(r.Context(), request)
 		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err := server.recordAuditEvent(r, actor, "notification_channel.create", "notification_channel", channel.ID, "success", map[string]string{
+			"name":     channel.Name,
+			"provider": channel.Provider,
+			"enabled":  boolString(channel.Enabled),
+		}); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -94,6 +125,11 @@ func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Requ
 		}
 		writeJSON(w, http.StatusOK, accounts)
 	case http.MethodPost:
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
 		var request data.CreateExchangeAccount
 		if err := readJSON(r, &request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -105,6 +141,14 @@ func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Requ
 		}
 		account, err := server.repository.CreateExchangeAccount(r.Context(), request)
 		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err := server.recordAuditEvent(r, actor, "exchange_account.create", "exchange_account", account.ID, "success", map[string]string{
+			"exchange": account.Exchange,
+			"alias":    account.Alias,
+			"enabled":  boolString(account.Enabled),
+		}); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -124,6 +168,11 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, operators)
 	case http.MethodPost:
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
 		var request data.CreateOperator
 		if err := readJSON(r, &request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -138,6 +187,13 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if err := server.recordAuditEvent(r, actor, "operator.create", "operator", operator.ID, "success", map[string]string{
+			"username": operator.Username,
+			"enabled":  boolString(operator.Enabled),
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		writeJSON(w, http.StatusCreated, operator)
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -147,6 +203,11 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Request, id string, action string) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	actor, _, authErr := server.currentOperator(r)
+	if authErr != nil {
+		writeAuthError(w, authErr)
 		return
 	}
 	var enabled bool
@@ -164,5 +225,19 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		writeStoreError(w, err)
 		return
 	}
+	if err := server.recordAuditEvent(r, actor, "operator."+action, "operator", operator.ID, "success", map[string]string{
+		"username": operator.Username,
+		"enabled":  boolString(operator.Enabled),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, operator)
+}
+
+func boolString(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
 }

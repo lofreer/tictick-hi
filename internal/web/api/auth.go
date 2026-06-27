@@ -59,6 +59,9 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		server.loginLimiter.recordFailure(limitKey)
+		_ = server.recordAnonymousAuditEvent(r, "auth.login", "operator", request.Username, "failure", map[string]string{
+			"reason": "unauthorized",
+		})
 		writeAuthError(w, err)
 		return
 	}
@@ -87,6 +90,12 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:  expiresAt,
 	})
 	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := server.recordAuditEvent(r, operator, "auth.login", "operator", operator.ID, "success", map[string]string{
+		"sessionId": sessionID,
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -123,6 +132,10 @@ func (server *Server) handleDeleteOperatorSession(w http.ResponseWriter, r *http
 		writeStoreError(w, err)
 		return
 	}
+	if err := server.recordAuditEvent(r, operator, "auth.session_revoke", "operator_session", sessionID, "success", nil); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -139,9 +152,13 @@ func (server *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if !server.validateCSRF(w, r) {
 		return
 	}
-	_, tokenHash, err := server.currentOperator(r)
+	operator, tokenHash, err := server.currentOperator(r)
 	if err == nil {
 		if err := server.repository.DeleteOperatorSession(r.Context(), tokenHash); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err := server.recordAuditEvent(r, operator, "auth.logout", "operator", operator.ID, "success", nil); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

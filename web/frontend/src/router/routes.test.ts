@@ -36,6 +36,7 @@ describe("routes", () => {
         "/system/exchange-accounts",
         "/system/operators",
         "/system/sessions",
+        "/system/audit-events",
         "/system/health",
       ]),
     );

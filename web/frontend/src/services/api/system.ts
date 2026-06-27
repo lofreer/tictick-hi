@@ -1,5 +1,6 @@
 import { apiClient } from "@/services/api/client";
 import type {
+  AuditEvent,
   CreateExchangeAccount,
   CreateNotificationChannel,
   CreateOperator,
@@ -50,5 +51,9 @@ export const systemApi = {
 
   health() {
     return apiClient.get<SystemHealth>("/system/health");
+  },
+
+  listAuditEvents(limit = 100) {
+    return apiClient.get<AuditEvent[]>(`/system/audit-events?limit=${encodeURIComponent(String(limit))}`);
   },
 };
