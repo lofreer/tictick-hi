@@ -40,7 +40,7 @@ done            用户确认关闭
 | Binance / OKX K 线 adapter | scaffold | 保留后加强 | 能拉 K 线，但 symbol 规范、限流、错误分类不完整 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，显示 source / health / base interval，但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
-| 回测 | scaffold | 返工 | 已经通过 CandleProvider 取 K 线并按策略 schema 校验参数，交易事实已移出 `float64`，但费用、滑点、触发语义仍不可信 |
+| 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进、intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | scaffold | 返工 / 延后 live | 已经通过 CandleProvider 取 K 线并落库 order / notification intent，paper/live executor 未真正分离，live 只是本地 pending 订单 |
 | 实盘安全 | below-scaffold | 延后 | 密钥字段名叫 encrypted，实际是 digest，不是真加密也不能解密 |
 | 通知 | scaffold | 返工 | 有通知记录雏形，但 provider/outbox/retry 不完整 |
@@ -526,22 +526,79 @@ scripts/quality-gate.sh
 - `cd web/frontend && pnpm run test`
 - `cd web/frontend && pnpm run build`
 
+### 阶段 3 当前验收快照
+
+执行时间：2026-06-27
+
+通过：
+
+- `git diff --check`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `docker compose up --build -d`
+- `curl -fsS http://127.0.0.1:8080/readyz`
+
+本地 smoke：
+
+- 登录本地 API 后创建 `Stage3 smoke minute replay` 回测，任务 ID：`bt_35934289802b746157d95471`。
+- worker 执行后任务状态为 `succeeded`。
+- 结果摘要包含 `triggerMode=minute_replay`、`executionInterval=1m`、`requestedInterval=1m`、`baseInterval=1m`、`candleSource=native`、`candleHealth=ok`。
+- `GET /api/backtests/:id/intents` 返回 232 条 strategy intent。
+- `GET /api/backtests/:id/orders` 返回 232 条 backtest order，订单 `intentId` 指向已落库的 strategy intent。
+- 详情图表按任务周期 `5m` 请求 K 线，CandleProvider 从 `1m` 聚合出 201 根 K 线，`source=aggregated`、`health=ok`。
+
+浏览器验收：
+
+- Headless Chrome 打开 `/backtests/bt_35934289802b746157d95471`，能看到策略意图、订单、执行周期和 `1m` 摘要。
+- 回测详情图表 6 次采样高度稳定：panel 780px、canvas 750px、`maxPanelDelta=0`、`maxBodyDelta=0`。
+- 回测详情长列表已限制为局部滚动：intent list 280px、order list 280px，页面高度稳定为 1624px。
+- Headless Chrome 打开 `/research`，同步任务列表在上、K 线图表在下。
+- 研究页图表 6 次采样高度稳定：panel 740px、canvas 634px、`maxPanelDelta=0`、`maxBodyDelta=0`。
+- 浏览器验收没有 console error 或 page error。
+- 截图保留在 `/tmp/tictick-stage3-backtest-detail.png` 和 `/tmp/tictick-stage3-research.png`。
+
+失败：
+
+- 无硬失败。
+
+警告：
+
+- Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
+- 当前回测 smoke 使用本地已有 `binance / BTCUSDT / 1m` 数据，不代表外部交易所稳定性。
+- 回测撮合仍是 demo 级顺序撮合，不具备可信回测指标和真实成交语义。
+
+后续风险审计：
+
+- `internal/store/postgres/system_store.go` 仍使用 `secretDigest` 处理交易所账号密钥。
+- `internal/trading/runner.go` 仍存在 `pending_submission`，live executor 未建立。
+- 通知仍没有 outbox / provider / retry。
+
+阶段 3 结论：
+
+- 回测链路达到 `demo` 检查点。
+- 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
+
 ## 4. 下一条可推进切片
 
 下一步只推进：
 
 ```text
-阶段 3：回测 demo 链路
+阶段 4：模拟盘 / paper executor demo 链路
 ```
 
 目标等级：`demo`，不是 usable。
 
 Definition of Done：
 
-- 回测 worker 通过 CandleProvider 执行任务。
-- `closed_candle` 和 `minute_replay` 触发模式有明确执行周期。
-- 策略 intent、订单和结果摘要落库。
-- 回测详情图表展示买卖点。
+- 交易 runner 通过 CandleProvider 执行任务。
+- paper executor 和 live executor 明确分离，live 仍禁止真实下单。
+- paper order / notification intent 有一致的状态流和结果记录。
+- 交易详情页能展示 intent、paper order、notification 和 worker 状态。
+- worker heartbeat 和失败状态能被本地 smoke 验证。
 - 后端、前端和质量门禁检查通过。
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
