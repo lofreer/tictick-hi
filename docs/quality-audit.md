@@ -33,7 +33,7 @@ done            用户确认关闭
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，集成测试和 Stage 8 smoke 已验证；仍缺完整状态机约束、数据迁移/回滚策略和部分多态任务参照约束 |
-| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查；仍缺统一 request / response mapping 和更强错误边界 |
+| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；仍缺完整 request / response mapping、审计日志和更细错误分类 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流已进入 API 边界；仍缺持久化限流、会话管理、审计和密码策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
@@ -1408,7 +1408,7 @@ Definition of Done：
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，并由 PostgreSQL 集成测试覆盖非法值与 orphan 写入拒绝 | 完整状态机约束、`strategy_intents` 多态 task 参照、数据迁移/回滚策略不足 |
-| API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验和 retry API 可测 | request/response mapping、错误分类、审计日志和一致错误模型不足 |
+| API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API 和结构化错误响应可测；前端 API client 会读取服务端 `message/error` 并保留 `code` | 完整 request/response mapping、全量错误分类和审计日志不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流有 route/smoke 覆盖 | 限流内存态、无会话列表/撤销、无密码策略/RBAC/审计 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
 | CandleProvider | demo | native/aggregated/gap/coverage metadata、runner 健康门禁和集成测试已覆盖 | 大范围分页/游标、性能压测、异常数据修复策略不足 |
@@ -1593,6 +1593,52 @@ Definition of Done：
 剩余风险：
 
 - PostgreSQL migrations 仍为 `scaffold`；`strategy_intents` 的多态 task 归属、完整状态机约束、数据修复迁移、rollback 策略和生产数据备份/恢复验证仍未关闭。
+
+### 阶段 8 API error model 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- Stage 8 readiness 重审计将 API server 维持为 `scaffold`，其中一个明确 blocker 是错误响应不一致、前端拿不到稳定错误 code，且 500 路径会把内部错误文本直接返回给客户端。
+- 前端 `ApiError` 之前主要依赖 HTTP `statusText`，用户可见错误容易退化成泛化的 `Bad Request` / `Conflict`。
+
+修复范围：
+
+- 后端 `writeError` / `writeStoreError` / `writeAuthError` 统一输出 `{code, message, error}`，保留旧 `error` 字段兼容现有调用。
+- `data.ErrNotFound`、`data.ErrInvalidState`、auth、CSRF、method、rate limit 和 generic bad request 映射为稳定 code。
+- 500 响应统一返回 `code=internal_error`、`message=internal server error`，不再把 repository / driver 细节直接暴露给前端。
+- 前端 `ApiError` 新增 `code` 字段，并优先使用服务端 `message`，兼容旧 `{error}` payload。
+- 不新增 API 路由，不改变正常成功响应，不在本轮补审计日志或全量错误 taxonomy。
+
+验证：
+
+- `go test ./internal/web/api`
+- `pnpm --dir web/frontend exec vitest run src/services/api/client.test.ts`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/stage8-smoke.sh`
+
+本轮 smoke 证据：
+
+- symbol `S81782577037USDT`
+- data task `dst_c1cf309192ba00847e2e70e3`
+- backtest `bt_e4183ad2b59d06999fd7ec28`
+- paper execute `tt_0122cf220fc3f22141d9f1a4`
+- paper notify `tt_f16ac0c66bf0e519aa063a69`
+- notification channel `stage8-smoke-1782577037`
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- API server 仍为 `scaffold`；还缺完整 request / response mapping、结构化审计日志、跨路由错误 taxonomy、错误响应文档和 OpenAPI / schema 级契约校验。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

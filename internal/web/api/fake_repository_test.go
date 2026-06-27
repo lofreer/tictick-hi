@@ -22,6 +22,15 @@ type fakeRepository struct {
 	candles         []data.Candle
 }
 
+type failingListRepository struct {
+	*fakeRepository
+	err error
+}
+
+func (repository *failingListRepository) ListDataSyncTasks(context.Context) ([]data.DataSyncTask, error) {
+	return nil, repository.err
+}
+
 func newFakeRepository() *fakeRepository {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{

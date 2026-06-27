@@ -46,12 +46,50 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+	code, safeMessage := defaultError(status, message)
+	writeAPIError(w, status, code, safeMessage)
+}
+
+type apiErrorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Error   string `json:"error"`
+}
+
+func writeAPIError(w http.ResponseWriter, status int, code string, message string) {
+	writeJSON(w, status, apiErrorResponse{
+		Code:    code,
+		Message: message,
+		Error:   message,
+	})
+}
+
+func defaultError(status int, message string) (string, string) {
+	switch status {
+	case http.StatusBadRequest:
+		return "invalid_request", message
+	case http.StatusUnauthorized:
+		return "unauthorized", message
+	case http.StatusForbidden:
+		return "forbidden", message
+	case http.StatusNotFound:
+		return "not_found", message
+	case http.StatusMethodNotAllowed:
+		return "method_not_allowed", message
+	case http.StatusConflict:
+		return "conflict", message
+	case http.StatusTooManyRequests:
+		return "too_many_requests", message
+	}
+	if status >= http.StatusInternalServerError {
+		return "internal_error", "internal server error"
+	}
+	return "request_failed", message
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {
 	if errors.Is(err, data.ErrUnauthorized) || errors.Is(err, data.ErrNotFound) {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())
@@ -59,11 +97,11 @@ func writeAuthError(w http.ResponseWriter, err error) {
 
 func writeStoreError(w http.ResponseWriter, err error) {
 	if errors.Is(err, data.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not found")
+		writeAPIError(w, http.StatusNotFound, "not_found", "not found")
 		return
 	}
 	if errors.Is(err, data.ErrInvalidState) {
-		writeError(w, http.StatusConflict, err.Error())
+		writeAPIError(w, http.StatusConflict, "invalid_state", err.Error())
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())

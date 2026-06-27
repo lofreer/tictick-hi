@@ -3,10 +3,12 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +23,12 @@ const (
 type authTestSession struct {
 	session *http.Cookie
 	csrf    *http.Cookie
+}
+
+type testAPIError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Error   string `json:"error"`
 }
 
 func newAuthenticatedTestServer(t *testing.T) (*fakeRepository, http.Handler, *authTestSession) {
@@ -92,6 +100,19 @@ func serveAuthenticatedWithoutCSRF(
 	return recorder
 }
 
+func decodeAPIError(t *testing.T, recorder *httptest.ResponseRecorder) testAPIError {
+	t.Helper()
+
+	var response testAPIError
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error != response.Message {
+		t.Fatalf("legacy error field must match message: %#v", response)
+	}
+	return response
+}
+
 func TestAPIRequiresAuthentication(t *testing.T) {
 	server := NewServer(newFakeRepository(), "")
 
@@ -100,6 +121,86 @@ func TestAPIRequiresAuthentication(t *testing.T) {
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "unauthorized" || response.Message != "unauthorized" {
+		t.Fatalf("unexpected auth error response: %#v", response)
+	}
+}
+
+func TestAPIStructuredErrorResponses(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	csrfRecorder := serveAuthenticatedWithoutCSRF(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m"}`,
+	)
+	if csrfRecorder.Code != http.StatusForbidden {
+		t.Fatalf("csrf status = %d body = %s", csrfRecorder.Code, csrfRecorder.Body.String())
+	}
+	csrfResponse := decodeAPIError(t, csrfRecorder)
+	if csrfResponse.Code != "csrf_invalid" || csrfResponse.Message != "csrf token is invalid" {
+		t.Fatalf("unexpected csrf error response: %#v", csrfResponse)
+	}
+
+	invalidRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m","extra":true}`,
+	)
+	if invalidRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid status = %d body = %s", invalidRecorder.Code, invalidRecorder.Body.String())
+	}
+	invalidResponse := decodeAPIError(t, invalidRecorder)
+	if invalidResponse.Code != "invalid_request" || invalidResponse.Message == "" {
+		t.Fatalf("unexpected invalid request response: %#v", invalidResponse)
+	}
+
+	repository, conflictServer, conflictAuth := newAuthenticatedTestServer(t)
+	createRecorder := serveAuthenticated(
+		conflictServer,
+		conflictAuth,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m"}`,
+	)
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	conflictRecorder := serveAuthenticated(conflictServer, conflictAuth, http.MethodPost, "/api/data/tasks/"+repository.tasks[0].ID+"/retry", "")
+	if conflictRecorder.Code != http.StatusConflict {
+		t.Fatalf("conflict status = %d body = %s", conflictRecorder.Code, conflictRecorder.Body.String())
+	}
+	conflictResponse := decodeAPIError(t, conflictRecorder)
+	if conflictResponse.Code != "invalid_state" || conflictResponse.Message != data.ErrInvalidState.Error() {
+		t.Fatalf("unexpected conflict response: %#v", conflictResponse)
+	}
+}
+
+func TestAPIStructuredInternalErrorDoesNotLeakDetails(t *testing.T) {
+	repository := &failingListRepository{
+		fakeRepository: newFakeRepository(),
+		err:            errors.New("database password leaked in driver detail"),
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/data/tasks", "")
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	body := recorder.Body.String()
+	response := decodeAPIError(t, recorder)
+	if response.Code != "internal_error" || response.Message != "internal server error" {
+		t.Fatalf("unexpected internal error response: %#v", response)
+	}
+	if strings.Contains(body, "password") {
+		t.Fatalf("internal response leaked details: %s", body)
 	}
 }
 

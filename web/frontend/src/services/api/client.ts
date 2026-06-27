@@ -6,6 +6,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
     readonly payload?: unknown,
   ) {
     super(message);
@@ -48,7 +49,8 @@ export class ApiClient {
 
     const payload = await readJson(response);
     if (!response.ok) {
-      throw new ApiError(response.statusText || "Request failed", response.status, payload);
+      const error = apiErrorDetails(payload, response.statusText || "Request failed");
+      throw new ApiError(error.message, response.status, error.code, payload);
     }
 
     return payload as T;
@@ -58,6 +60,26 @@ export class ApiClient {
 async function readJson(response: Response) {
   const text = await response.text();
   return text.length > 0 ? JSON.parse(text) : null;
+}
+
+function apiErrorDetails(payload: unknown, fallback: string) {
+  if (isRecord(payload)) {
+    const message = stringField(payload, "message") || stringField(payload, "error");
+    return {
+      code: stringField(payload, "code") || undefined,
+      message: message || fallback,
+    };
+  }
+  return { code: undefined, message: fallback };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function stringField(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+  return typeof field === "string" ? field : "";
 }
 
 function requestHeaders(init: JsonRequestInit) {

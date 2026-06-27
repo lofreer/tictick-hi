@@ -86,11 +86,11 @@ func (server *Server) validateCSRF(w http.ResponseWriter, r *http.Request) bool 
 	}
 	cookie, err := r.Cookie(csrfCookieName)
 	if err != nil || cookie.Value == "" {
-		writeError(w, http.StatusForbidden, "csrf token is required")
+		writeAPIError(w, http.StatusForbidden, "csrf_required", "csrf token is required")
 		return false
 	}
 	if r.Header.Get(csrfHeaderName) != cookie.Value {
-		writeError(w, http.StatusForbidden, "csrf token is invalid")
+		writeAPIError(w, http.StatusForbidden, "csrf_invalid", "csrf token is invalid")
 		return false
 	}
 	return true

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiClient } from "@/services/api/client";
+import { ApiClient, ApiError } from "@/services/api/client";
 
 describe("api client", () => {
   afterEach(() => {
@@ -32,5 +32,36 @@ describe("api client", () => {
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     const headers = init.headers as Headers;
     expect(headers.get("X-CSRF-Token")).toBeNull();
+  });
+
+  it("uses structured api error details when the server returns them", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ code: "invalid_state", message: "invalid state", error: "invalid state" }), {
+          status: 409,
+          statusText: "Conflict",
+        }),
+      ),
+    );
+
+    await expect(new ApiClient().post("/data/tasks/dst_1/retry")).rejects.toMatchObject({
+      name: "ApiError",
+      message: "invalid state",
+      status: 409,
+      code: "invalid_state",
+    } satisfies Partial<ApiError>);
+  });
+
+  it("keeps compatibility with legacy error payloads", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "legacy failure" }), { status: 400, statusText: "Bad Request" })),
+    );
+
+    await expect(new ApiClient().get("/broken")).rejects.toMatchObject({
+      message: "legacy failure",
+      status: 400,
+    });
   });
 });
