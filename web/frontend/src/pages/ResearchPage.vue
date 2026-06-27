@@ -30,6 +30,7 @@
           :tasks="tasks"
           @view="selectTask"
           @delete="deleteTask"
+          @retry="retryTask"
           @toggle-realtime="toggleRealtime"
           @toggle-sync="toggleSync"
         />
@@ -161,6 +162,7 @@ const {
   loadCandles,
   loadTasks,
   openCreateTask,
+  retryTask,
   selectTask,
   symbol,
   tasks,

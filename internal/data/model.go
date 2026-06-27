@@ -397,6 +397,7 @@ type Repository interface {
 	ListDataSyncTasks(ctx context.Context) ([]DataSyncTask, error)
 	CreateDataSyncTask(ctx context.Context, task CreateDataSyncTask) (DataSyncTask, error)
 	DeleteDataSyncTask(ctx context.Context, id string) error
+	RetryDataSyncTask(ctx context.Context, id string) (DataSyncTask, error)
 	SetSyncEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	SetRealtimeEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)

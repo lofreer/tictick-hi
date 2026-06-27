@@ -183,7 +183,7 @@ func TestServeFrontendSupportsGetAndHead(t *testing.T) {
 }
 
 func TestDataSyncTaskRoutes(t *testing.T) {
-	_, server, cookie := newAuthenticatedTestServer(t)
+	repository, server, cookie := newAuthenticatedTestServer(t)
 
 	createRecorder := serveAuthenticated(
 		server,
@@ -221,6 +221,35 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 	if len(tasks) != 1 || !tasks[0].RealtimeEnabled {
 		t.Fatalf("unexpected tasks: %#v", tasks)
+	}
+
+	invalidRetryRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/retry",
+		"",
+	)
+	if invalidRetryRecorder.Code != http.StatusConflict {
+		t.Fatalf("invalid retry status = %d body = %s", invalidRetryRecorder.Code, invalidRetryRecorder.Body.String())
+	}
+
+	repository.tasks[0].Status = data.TaskStatusFailed
+	repository.tasks[0].SyncEnabled = false
+	repository.tasks[0].RealtimeEnabled = false
+	repository.tasks[0].LastError = "invalid symbol"
+
+	retryPath := "/api/data/tasks/" + created.ID + "/retry"
+	retryRecorder := serveAuthenticated(server, cookie, http.MethodPost, retryPath, "")
+	if retryRecorder.Code != http.StatusOK {
+		t.Fatalf("retry status = %d body = %s", retryRecorder.Code, retryRecorder.Body.String())
+	}
+	var retried data.DataSyncTask
+	if err := json.NewDecoder(retryRecorder.Body).Decode(&retried); err != nil {
+		t.Fatal(err)
+	}
+	if retried.Status != data.TaskStatusPending || !retried.SyncEnabled || retried.LastError != "" {
+		t.Fatalf("unexpected retried task: %#v", retried)
 	}
 }
 

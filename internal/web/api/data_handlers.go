@@ -19,6 +19,10 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		server.deleteDataTask(w, r, parts[3])
 		return
 	}
+	if len(parts) == 5 && r.Method == http.MethodPost && parts[4] == "retry" {
+		server.retryDataTask(w, r, parts[3])
+		return
+	}
 	if len(parts) == 6 && r.Method == http.MethodPost {
 		server.handleTaskCommand(w, r, taskCommand{
 			id:       parts[3],
@@ -93,6 +97,15 @@ func (server *Server) deleteDataTask(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (server *Server) retryDataTask(w http.ResponseWriter, r *http.Request, id string) {
+	task, err := server.repository.RetryDataSyncTask(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, task)
 }
 
 func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {

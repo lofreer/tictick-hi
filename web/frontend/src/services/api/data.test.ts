@@ -124,4 +124,32 @@ describe("data api", () => {
       },
     ]);
   });
+
+  it("queues failed data sync task retry", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: "dst_1",
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          realtimeEnabled: false,
+          syncEnabled: true,
+          status: "pending",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.retryTask("dst_1")).resolves.toMatchObject({
+      id: "dst_1",
+      syncEnabled: true,
+      status: "pending",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/data/tasks/dst_1/retry",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
 });

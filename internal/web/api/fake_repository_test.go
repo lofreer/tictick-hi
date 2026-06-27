@@ -74,6 +74,24 @@ func (repository *fakeRepository) DeleteDataSyncTask(_ context.Context, id strin
 	return data.ErrNotFound
 }
 
+func (repository *fakeRepository) RetryDataSyncTask(
+	_ context.Context,
+	id string,
+) (data.DataSyncTask, error) {
+	for index := range repository.tasks {
+		if repository.tasks[index].ID == id {
+			if repository.tasks[index].Status != data.TaskStatusFailed {
+				return data.DataSyncTask{}, data.ErrInvalidState
+			}
+			repository.tasks[index].SyncEnabled = true
+			repository.tasks[index].Status = data.TaskStatusPending
+			repository.tasks[index].LastError = ""
+			return repository.tasks[index], nil
+		}
+	}
+	return data.DataSyncTask{}, data.ErrNotFound
+}
+
 func (repository *fakeRepository) SetSyncEnabled(
 	ctx context.Context,
 	id string,

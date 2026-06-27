@@ -164,6 +164,14 @@ export function useResearchWorkspace() {
     });
   }
 
+  async function retryTask(task: DataSyncTask) {
+    await runAction(async () => {
+      await dataApi.retryTask(task.id);
+      message.success(t("research.taskRetried"));
+      await loadTasks();
+    });
+  }
+
   async function runAction(action: () => Promise<void>) {
     try {
       await action();
@@ -189,6 +197,7 @@ export function useResearchWorkspace() {
     loadTasks,
     openCreateTask,
     refreshAll,
+    retryTask,
     selectTask,
     symbol,
     tasks,

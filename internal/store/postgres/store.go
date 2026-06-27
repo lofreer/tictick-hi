@@ -88,6 +88,52 @@ func (store *Store) DeleteDataSyncTask(ctx context.Context, id string) error {
 	return nil
 }
 
+func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.DataSyncTask, error) {
+	row := store.pool.QueryRow(ctx, fmt.Sprintf(`
+		UPDATE data_sync_tasks
+		   SET sync_enabled = true,
+		       status = $2,
+		       %s,
+		       finished_at = NULL,
+		       last_error = NULL,
+		       updated_at = now()
+		 WHERE id = $1
+		   AND status = $3
+		RETURNING id, exchange, symbol, interval, start_time, end_time,
+		          sync_enabled, realtime_enabled, status, last_synced_open_time,
+		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		clearLeaseAssignments(dataSyncTaskLease)),
+		id,
+		data.TaskStatusPending,
+		data.TaskStatusFailed,
+	)
+	task, err := scanDataSyncTaskRow(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			if exists, existsErr := store.dataSyncTaskExists(ctx, id); existsErr != nil {
+				return data.DataSyncTask{}, existsErr
+			} else if exists {
+				return data.DataSyncTask{}, fmt.Errorf("%w: data sync task must be failed before retry", data.ErrInvalidState)
+			}
+			return data.DataSyncTask{}, data.ErrNotFound
+		}
+		return data.DataSyncTask{}, fmt.Errorf("retry data sync task: %w", err)
+	}
+	return task, nil
+}
+
+func (store *Store) dataSyncTaskExists(ctx context.Context, id string) (bool, error) {
+	var exists bool
+	if err := store.pool.QueryRow(
+		ctx,
+		`SELECT EXISTS (SELECT 1 FROM data_sync_tasks WHERE id = $1)`,
+		id,
+	).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check data sync task exists: %w", err)
+	}
+	return exists, nil
+}
+
 func (store *Store) SetSyncEnabled(
 	ctx context.Context,
 	id string,

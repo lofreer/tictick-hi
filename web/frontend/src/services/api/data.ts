@@ -70,6 +70,11 @@ export const dataApi = {
     await apiClient.delete<null>(`/data/tasks/${id}`);
   },
 
+  async retryTask(id: string) {
+    const response = await apiClient.post<DataSyncTaskResponse>(`/data/tasks/${id}/retry`);
+    return normalizeTask(response);
+  },
+
   async setSync(id: string, enabled: boolean) {
     const action = enabled ? "start" : "stop";
     const response = await apiClient.post<DataSyncTaskResponse>(`/data/tasks/${id}/sync/${action}`);

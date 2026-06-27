@@ -220,6 +220,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.requiredFields": "请填写交易所、交易对和周期。",
     "research.taskCreated": "数据同步任务已创建。",
     "research.taskDeleted": "数据同步任务已删除。",
+    "research.taskRetried": "数据同步任务已重新排队。",
     "research.taskUpdated": "数据同步任务已更新。",
     "research.taskCreateFailed": "创建数据同步任务失败。",
     "research.taskUpdateFailed": "更新数据同步任务失败。",

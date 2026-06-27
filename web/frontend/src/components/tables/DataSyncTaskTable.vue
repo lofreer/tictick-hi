@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { Eye, Play, RefreshCw, Square, Trash2 } from "@lucide/vue";
+import { Eye, Play, RefreshCw, RotateCcw, Square, Trash2 } from "@lucide/vue";
 import {
   NButton,
   NDataTable,
@@ -32,6 +32,7 @@ const props = defineProps<{ tasks: DataSyncTask[] }>();
 const emit = defineEmits<{
   view: [task: DataSyncTask];
   delete: [task: DataSyncTask];
+  retry: [task: DataSyncTask];
   "toggle-realtime": [task: DataSyncTask];
   "toggle-sync": [task: DataSyncTask];
 }>();
@@ -78,11 +79,13 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
           row.realtimeEnabled ? t("research.stopRealtime") : t("research.startRealtime"),
           () => emit("toggle-realtime", row),
         ),
-        iconButton(
-          row.syncEnabled ? Square : RefreshCw,
-          row.syncEnabled ? t("research.stopSync") : t("research.startSync"),
-          () => emit("toggle-sync", row),
-        ),
+        row.status === "failed"
+          ? iconButton(RotateCcw, t("common.retry"), () => emit("retry", row))
+          : iconButton(
+              row.syncEnabled ? Square : RefreshCw,
+              row.syncEnabled ? t("research.stopSync") : t("research.startSync"),
+              () => emit("toggle-sync", row),
+            ),
         iconButton(Trash2, t("research.deleteTask"), () => emit("delete", row), "error"),
       ]),
   },

@@ -319,6 +319,83 @@ func TestIntegrationDataSyncPermanentFailureStopsTask(t *testing.T) {
 	}
 }
 
+func TestIntegrationRetryDataSyncTaskRestoresFailedTask(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	id := integrationID("dst")
+	symbol := integrationSymbol("RF")
+	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusFailed, false, false, "failed-worker")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+	})
+
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET last_error = 'invalid symbol'
+		 WHERE id = $1`,
+		id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	retried, err := store.RetryDataSyncTask(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retried.Status != data.TaskStatusPending || !retried.SyncEnabled || retried.RealtimeEnabled {
+		t.Fatalf("unexpected retried task: %#v", retried)
+	}
+	if retried.LastError != "" {
+		t.Fatalf("retry should clear last error: %#v", retried)
+	}
+	row := readIntegrationSyncTask(t, ctx, store, id)
+	if row.status != data.TaskStatusPending || !row.syncEnabled || row.realtimeEnabled {
+		t.Fatalf("retry should restore a claimable one-shot sync task: %#v", row)
+	}
+	if row.lockedBy.Valid || row.lockedUntil.Valid || row.heartbeatAt.Valid {
+		t.Fatalf("retry should clear failed lease fields: %#v", row)
+	}
+	if row.lastError != "" {
+		t.Fatalf("retry should clear stored error: %q", row.lastError)
+	}
+
+	claimed, ok, err := store.ClaimDataSyncTask(ctx, "retry-worker", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || claimed.ID != id {
+		t.Fatalf("expected retried task to be claimed, ok=%v task=%#v", ok, claimed)
+	}
+}
+
+func TestIntegrationRetryDataSyncTaskRejectsRunningTask(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	id := integrationID("dst")
+	symbol := integrationSymbol("RR")
+	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, true, "active-worker")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+	})
+
+	_, err := store.RetryDataSyncTask(ctx, id)
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("retry running task error = %v, want invalid state", err)
+	}
+	row := readIntegrationSyncTask(t, ctx, store, id)
+	if row.status != data.TaskStatusRunning || !row.lockedBy.Valid || row.lockedBy.String != "active-worker" {
+		t.Fatalf("retry should not mutate running task lease: %#v", row)
+	}
+}
+
 func openIntegrationStore(t *testing.T) *Store {
 	t.Helper()
 

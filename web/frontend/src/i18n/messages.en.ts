@@ -220,6 +220,7 @@ export const enUSMessages: Record<string, string> = {
     "research.requiredFields": "Fill exchange, symbol, and interval.",
     "research.taskCreated": "Data sync task created.",
     "research.taskDeleted": "Data sync task deleted.",
+    "research.taskRetried": "Data sync task queued for retry.",
     "research.taskUpdated": "Data sync task updated.",
     "research.taskCreateFailed": "Failed to create data sync task.",
     "research.taskUpdateFailed": "Failed to update data sync task.",

@@ -1334,6 +1334,18 @@ Definition of Done：
 - `hi sync` 继续通过 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 对临时 market data 错误做有限重试；`last_error` 保持规范化和 500 rune 截断。
 - 单元测试覆盖 URL 摘要脱敏、临时 / 永久错误分类、Binance fallback、OKX rate-limit 码和 sync runner 临时错误重试。
 
+已补充的数据同步失败恢复入口：
+
+- 新增 `POST /api/data/tasks/:id/retry`，用于从研究页恢复失败的数据同步任务。
+- PostgreSQL `RetryDataSyncTask` 只接受 `failed` 任务，并会将任务恢复为 `pending`、重新打开 `sync_enabled`、清理 `last_error`、`locked_by`、`locked_until`、`heartbeat_at` 和 `finished_at`，使 `hi sync` 能再次 claim。
+- 研究页失败任务的同步操作位显示明确的 retry 按钮，不再让用户依赖含义不清的重新同步按钮。
+- 前端 API wrapper、研究页 composable 和表格事件已接入 retry 后刷新任务列表。
+- 后端 route 测试覆盖 retry API 返回 `pending`、`syncEnabled=true`、`lastError=""`。
+- PostgreSQL 集成测试覆盖 failed task retry 后 lease 释放、错误清理、后续 `ClaimDataSyncTask` 可重新领取，以及 running task retry 不会清理 active lease。
+- 前端测试覆盖 `/api/data/tasks/:id/retry` 调用和失败行 retry 事件。
+- 本轮完整验证通过：`go test ./...`、`go vet ./...`、`scripts/quality-gate.sh`、`cd web/frontend && pnpm run typecheck`、`cd web/frontend && pnpm run test`、`cd web/frontend && pnpm run build`、`scripts/stage8-smoke.sh`、`git diff --check`。
+- 本轮 stage8 smoke 证据：symbol `S81782567804USDT`、data task `dst_6b653f85c1c419c924bfeafd`、backtest `bt_9b646cb1533bd879b44b2acf`、paper execute `tt_37a4340193eb71bd62a8d242`、paper notify `tt_e4bb9739cf5a05237761f9ef`、notification channel `stage8-smoke-1782567804`。
+
 失败：
 
 - 无当前硬失败。

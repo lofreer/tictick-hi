@@ -62,6 +62,10 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
+	if errors.Is(err, data.ErrInvalidState) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
 	writeError(w, http.StatusInternalServerError, err.Error())
 }
 
