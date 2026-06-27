@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户 stop sync / realtime 和 runner 上下文取消会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机和容器级 SIGTERM smoke |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列和图表高度已有前端约束；图表面板已用固定 grid 行和面板边界 clamp 切断高度反馈，显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，intent / order / result 落库，详情页展示 intent 和买卖点；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause 和 runner 上下文取消会释放 active lease，live execute 已禁用；仍缺可信风控、真实第三方通知 provider、完整统一 worker lease 和实盘安全边界 |
@@ -1132,11 +1132,12 @@ Definition of Done：
 
 前端图表回归修复：
 
-- K 线图表 resize 不再观察和读取图表库挂载节点或图表组件自身高度，观察目标收敛为固定 `.chart-panel`。
-- 图表尺寸由 `.research-chart-body` 宽度和 `.chart-panel` 剩余高度计算；body 高度为 0 或被子节点撑大时，使用 panel 剩余高度，避免反馈循环。
-- `.trading-chart` 脱离普通文档流并明确 `height: 100%` 铺满固定宿主，避免 lightweight-charts 内部 DOM 高度反向撑开页面。
-- headless Chrome 本地采样 `/research` 桌面 `2048x1024`：`scrollHeight=2026`、`panel=760`、`chart=683`、`canvas=681`、`tv=680` 全程稳定。
-- headless Chrome 本地采样 `/research` 移动 `390x844`：`scrollHeight=1984`、`panel=624`、`chart=457`、`canvas=455`、`tv=454` 全程稳定。
+- K 线图表 resize 不再读取图表库挂载节点或图表组件自身高度，观察目标收敛到页面提供的布局宿主。
+- 研究页图表面板改为固定两行 grid：任务列表在上，图表在下，`.research-chart-body` 使用 `minmax(0, 1fr)` 分配剩余高度。
+- 图表尺寸读取后会被夹在所在 `.chart-panel` 的可用高度和 `1200px` 安全上限内；即使 ResizeObserver 收到异常膨胀的 viewport 高度，也不会把异常高度写回 lightweight-charts。
+- `.trading-chart` 脱离普通文档流并明确 `height: 100%` 铺满固定宿主，lightweight-charts 根节点和 canvas 被约束在宿主尺寸内，避免内部 DOM 高度反向撑开页面。
+- headless Chrome 本地采样 `/research` 桌面 `2048x1034`：`scrollHeight=1318`、`panel=760`、`chart=683`、`canvas=682`、`tv=682` 连续 16 次稳定。
+- headless Chrome 本地采样 `/research` 移动 `390x844`：`scrollHeight=1256`、`panel=624`、`chart=457`、`canvas=456`、`tv=456` 连续 10 次稳定。
 
 已修正的 trading claim 公平性问题：
 

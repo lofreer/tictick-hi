@@ -43,6 +43,7 @@ let resizeObserver: ResizeObserver | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
 const fallbackSize = { width: 1, height: 360 };
+const maxRenderedChartHeight = 1200;
 
 onMounted(() => {
   if (!rootRef.value || !containerRef.value) return;
@@ -157,10 +158,29 @@ function readHostSize() {
 
   const bounds = host.getBoundingClientRect();
   const width = Math.floor(bounds.width);
-  const height = Math.floor(bounds.height);
+  const height = clampHostHeight(host, bounds);
   if (width <= 0 || height <= 0) return null;
 
   return { width, height };
+}
+
+function clampHostHeight(host: HTMLElement, hostBounds: DOMRect) {
+  const measuredHeight = Math.floor(hostBounds.height);
+  const panel = host.closest<HTMLElement>(".chart-panel");
+  if (!panel) return Math.min(measuredHeight, maxRenderedChartHeight);
+
+  const panelBounds = panel.getBoundingClientRect();
+  const panelHeight = readPixelHeight(panel) ?? panelBounds.height;
+  const availableHeight = Math.floor(panelBounds.top + panelHeight - hostBounds.top);
+  if (availableHeight <= 0) return Math.min(measuredHeight, maxRenderedChartHeight);
+
+  return Math.min(measuredHeight, availableHeight, maxRenderedChartHeight);
+}
+
+function readPixelHeight(element: HTMLElement) {
+  const value = Number.parseFloat(window.getComputedStyle(element).height);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
 }
 
 function readResizeHost() {

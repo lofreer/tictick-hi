@@ -227,8 +227,8 @@ const healthTagType = computed<TagProps["type"]>(() => {
 }
 
 .research-chart-panel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   height: clamp(560px, calc(100vh - 220px), 760px);
   min-height: 0;
   overflow: hidden;
@@ -260,17 +260,15 @@ const healthTagType = computed<TagProps["type"]>(() => {
 
 .research-chart-body {
   position: relative;
-  display: flex;
-  flex: 1 1 0;
-  height: 0;
-  max-height: 100%;
+  display: block;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
+  contain: size layout paint;
 }
 
 .research-chart-body :deep(.state-block),
 .research-chart-body :deep(.trading-chart) {
-  flex: 1 1 0;
   width: 100%;
   min-height: 0;
   height: 100%;
