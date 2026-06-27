@@ -464,24 +464,85 @@ scripts/quality-gate.sh
 - 策略沉淀达到 `demo` 检查点。
 - 项目整体仍为 `scaffold`，不能称为 usable、production-safe 或完成。
 
+### 阶段 3 Definition of Done：回测
+
+目标等级：demo
+
+范围内：
+
+- 回测任务从前端创建，经 API 保存到 PostgreSQL，并由 `hi backtest` worker 领取执行。
+- 回测 worker 必须通过 CandleProvider 读取 K 线；`closed_candle` 使用任务周期，`minute_replay` 使用 `1m` 作为推进周期，并在结果摘要中记录执行周期和 K 线来源。
+- 回测运行后必须保存策略 intent、订单和结果摘要，`order` intent 进入撮合，`notification` intent 只记录为 intent。
+- 回测详情页必须读取任务、K 线、intent、订单，并在图表上展示买卖点标记。
+- 回测订单、资金、仓位、PnL 继续禁止使用 `float64` 作为交易事实。
+- 回测 worker 在任务运行期间至少具备 heartbeat 刷新能力，避免长任务只 claim 不续租。
+
+范围外：
+
+- 可信撮合引擎、成交簿、部分成交、滑点曲线和复杂手续费模型。
+- 回测指标体系、风险指标、收益曲线和策略指标叠加。
+- 全系统统一 worker lease 状态机关闭。
+- PaperExecutor、LiveExecutor、通知 provider/outbox。
+- 实盘密钥和实盘下单安全边界。
+
+用户可见行为：
+
+- 用户能创建回测任务，并在 worker 运行后看到任务状态、结果摘要、策略 intent、订单列表。
+- 回测详情图表使用任务周期 K 线，并展示 buy / sell 标记。
+- `minute_replay` 回测结果能明确显示执行周期来自 `1m`。
+
+后端验收：
+
+- API 提供 `/api/backtests/:id/intents`。
+- BacktestRepository 保存并读取 strategy intents。
+- Backtest worker 单元测试覆盖 order intent、notification intent、minute replay 执行周期和 heartbeat。
+- API route 测试覆盖 backtest intents 路由。
+
+前端验收：
+
+- Backtest API client 支持读取 intents。
+- 图表组件支持订单 markers。
+- 回测详情页展示 intents，并把订单映射为图表 marker。
+- `pnpm run typecheck`、`pnpm run test`、`pnpm run build` 通过。
+
+数据验收：
+
+- `strategy_intents` 继续作为回测和交易共用 intent 表，通过 `task_type` 区分。
+- 不引入假的回测事实表；订单仍写入 `backtest_orders`。
+- 结果摘要记录 `candleSource`、`executionInterval`、`triggerMode`、`totalIntents`、`totalOrders`。
+
+安全验收：
+
+- 阶段 3 不声明回测可信或 usable。
+- 策略仍不能直接下单、通知或写库。
+- 实盘风险继续保留为后续阶段风险。
+
+测试验收：
+
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `cd web/frontend && pnpm run typecheck`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+
 ## 4. 下一条可推进切片
 
 下一步只推进：
 
 ```text
-统一 worker lease 状态机
+阶段 3：回测 demo 链路
 ```
 
-目标等级：`scaffold` 到 `demo` 的可靠性切片，不是 usable。
+目标等级：`demo`，不是 usable。
 
 Definition of Done：
 
-- 提取统一 lease 包，支持 claim、heartbeat、release、fail、pause。
-- 数据同步、回测、交易 worker 领取任务必须走同一套 lease 状态机。
-- 长任务运行期间持续刷新 `locked_until` / `heartbeat_at`。
-- heartbeat 失败达到阈值后停止外部副作用。
-- 进程退出或任务暂停时能明确释放或标记任务状态。
-- 重启后能认领过期 lease，不重复制造不可控副作用。
+- 回测 worker 通过 CandleProvider 执行任务。
+- `closed_candle` 和 `minute_replay` 触发模式有明确执行周期。
+- 策略 intent、订单和结果摘要落库。
+- 回测详情图表展示买卖点。
+- 后端、前端和质量门禁检查通过。
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
 - `scripts/quality-gate.sh` 通过。
