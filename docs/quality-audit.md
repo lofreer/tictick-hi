@@ -32,7 +32,7 @@ done            用户确认关闭
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，集成测试和 Stage 8 smoke 已验证；仍缺完整状态流转约束、数据迁移/回滚策略、历史数据验证和父任务删除级联策略 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，集成测试和 Stage 8 smoke 已验证；仍缺完整状态流转约束、数据迁移/回滚策略和历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；登录和系统管理写操作已有基础操作审计日志；仍缺完整 request / response mapping、更细错误分类和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
@@ -1593,7 +1593,7 @@ Definition of Done：
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
-| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，并由 PostgreSQL 集成测试覆盖非法值、orphan 写入、非法 lease 写入和 intent 父任务错配拒绝 | 完整状态流转约束、父任务删除级联/历史数据验证、数据迁移/回滚策略不足 |
+| PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，并由 PostgreSQL 集成测试覆盖非法值、orphan 写入、非法 lease 写入、intent 父任务错配拒绝和父任务删除拒绝 | 完整状态流转约束、历史数据验证、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code` | 完整 request/response mapping、全量错误分类和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
@@ -1724,7 +1724,7 @@ Definition of Done：
 
 剩余风险：
 
-- PostgreSQL migrations 仍为 `scaffold`；核心事实表 FK、worker lease 一致性 CHECK 和 `strategy_intents` 新增/更新父任务归属约束已补，但完整状态流转约束、父任务删除级联/历史数据验证、数据修复迁移和 rollback 策略仍未关闭。
+- PostgreSQL migrations 仍为 `scaffold`；核心事实表 FK、worker lease 一致性 CHECK、`strategy_intents` 新增/更新父任务归属约束和父任务删除防 orphan 保护已补，但完整状态流转约束、历史数据验证、数据修复迁移和 rollback 策略仍未关闭。
 
 ### 阶段 8 PostgreSQL referential constraints 补充
 
@@ -1778,7 +1778,7 @@ Definition of Done：
 
 剩余风险：
 
-- PostgreSQL migrations 仍为 `scaffold`；完整状态流转约束、父任务删除级联/历史数据验证、数据修复迁移、rollback 策略和生产数据备份/恢复验证仍未关闭。
+- PostgreSQL migrations 仍为 `scaffold`；完整状态流转约束、历史数据验证、数据修复迁移、rollback 策略和生产数据备份/恢复验证仍未关闭。
 
 ### 阶段 8 PostgreSQL worker lease constraints 补充
 
@@ -1838,7 +1838,37 @@ Definition of Done：
 
 剩余风险：
 
-- PostgreSQL migrations 仍为 `scaffold`；本轮只约束新写入/更新的 intent 父任务归属，未关闭父任务删除后的 orphan 防护、历史数据验证、完整状态流转、数据修复迁移、rollback 策略和生产备份/恢复验证。
+- PostgreSQL migrations 仍为 `scaffold`；本轮只约束新写入/更新的 intent 父任务归属，父任务删除防 orphan 保护见下一小节；历史数据验证、完整状态流转、数据修复迁移、rollback 策略和生产备份/恢复验证仍未关闭。
+
+### 阶段 8 PostgreSQL strategy intent parent delete guards 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- `0017_strategy_intent_parent_constraints.sql` 只约束 `strategy_intents` 新增/更新，仍允许直接删除已被 intent 引用的 backtest / trading 父任务并留下 orphan intent。
+- 项目当前没有公开删除 backtest / trading task 的业务 API，但数据库层仍应拒绝会破坏事实归属的直接写库操作。
+
+修复范围：
+
+- 新增 `0018_strategy_intent_parent_delete_guards.sql`，为 `backtest_tasks` 和 `trading_tasks` 增加 BEFORE DELETE guard trigger。
+- 当父任务仍被 `strategy_intents` 引用时，数据库拒绝删除并返回明确约束名。
+- 集成测试覆盖 backtest/trading 父任务被引用时删除失败，以及先删除 intent 后父任务可删除。
+- 调整约束测试辅助数据清理顺序，先清理下游 facts 和 intents，再删除 trading parent，避免测试库遗留数据。
+- 本轮不引入隐式级联删除，保持删除语义保守。
+
+验证：
+
+- `go test ./internal/store/postgres -run 'TestIntegrationStrategyIntentParentDeleteIsRestricted|TestIntegrationDatabaseReferentialConstraintsRejectOrphans' -count=1`
+- 本轮通用门禁见最终回复。
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- PostgreSQL migrations 仍为 `scaffold`；本轮只补父任务删除防 orphan 保护，未关闭历史数据验证、完整状态流转、数据修复迁移、rollback 策略和生产备份/恢复验证。
 
 ### 阶段 8 API error model 补充
 

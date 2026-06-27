@@ -481,6 +481,119 @@ func TestIntegrationDatabaseReferentialConstraintsRejectOrphans(t *testing.T) {
 	}
 }
 
+func TestIntegrationStrategyIntentParentDeleteIsRestricted(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	backtestTaskID := "bt_delete_parent_" + suffix
+	backtestIntentID := "si_delete_bt_parent_" + suffix
+	tradingTaskID := "tt_delete_parent_" + suffix
+	tradingIntentID := "si_delete_tt_parent_" + suffix
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO backtest_tasks (
+			id, name, exchange, symbol, interval, strategy_id,
+			initial_balance, trigger_mode
+		)
+		VALUES ($1, 'delete parent', 'binance', $2, '1m',
+		        'ema-cross', 10000, 'closed_candle')`,
+		backtestTaskID,
+		"ITDELBT"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO strategy_intents (
+			id, task_id, task_type, strategy_id, intent_type,
+			idempotency_key, policy, status
+		)
+		VALUES ($1, $2, 'backtest', 'ema-cross', 'order',
+		        $3, 'simulate', 'accepted')`,
+		backtestIntentID,
+		backtestTaskID,
+		"delete_bt_intent_"+suffix,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO trading_tasks (
+			id, name, type, exchange, account_id, symbol, interval, strategy_id
+		)
+		VALUES ($1, 'delete parent', 'paper', 'binance', 'paper',
+		        $2, '1m', 'ema-cross')`,
+		tradingTaskID,
+		"ITDELTT"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO strategy_intents (
+			id, task_id, task_type, strategy_id, intent_type,
+			idempotency_key, policy, status
+		)
+		VALUES ($1, $2, 'paper', 'ema-cross', 'order',
+		        $3, 'execute', 'accepted')`,
+		tradingIntentID,
+		tradingTaskID,
+		"delete_tt_intent_"+suffix,
+	); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM strategy_intents WHERE task_id IN ($1, $2)`, backtestTaskID, tradingTaskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM backtest_tasks WHERE id = $1`, backtestTaskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, tradingTaskID)
+	})
+
+	deleteCases := []struct {
+		name       string
+		statement  string
+		id         string
+		constraint string
+	}{
+		{
+			name:       "backtest parent with intent",
+			statement:  `DELETE FROM backtest_tasks WHERE id = $1`,
+			id:         backtestTaskID,
+			constraint: "strategy_intents_backtest_parent_delete_restrict",
+		},
+		{
+			name:       "trading parent with intent",
+			statement:  `DELETE FROM trading_tasks WHERE id = $1`,
+			id:         tradingTaskID,
+			constraint: "strategy_intents_trading_parent_delete_restrict",
+		},
+	}
+	for _, testCase := range deleteCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := store.pool.Exec(ctx, testCase.statement, testCase.id)
+			if err == nil {
+				t.Fatalf("expected %s violation", testCase.constraint)
+			}
+			if !strings.Contains(err.Error(), testCase.constraint) {
+				t.Fatalf("error = %v, want constraint %s", err, testCase.constraint)
+			}
+		})
+	}
+
+	if _, err := store.pool.Exec(ctx, `DELETE FROM strategy_intents WHERE task_id = $1`, backtestTaskID); err != nil {
+		t.Fatalf("delete backtest intents before parent: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `DELETE FROM backtest_tasks WHERE id = $1`, backtestTaskID); err != nil {
+		t.Fatalf("delete backtest parent after intents: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `DELETE FROM strategy_intents WHERE task_id = $1`, tradingTaskID); err != nil {
+		t.Fatalf("delete trading intents before parent: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, `DELETE FROM trading_tasks WHERE id = $1`, tradingTaskID); err != nil {
+		t.Fatalf("delete trading parent after intents: %v", err)
+	}
+}
+
 func seedIntegrationTradingGraph(
 	t *testing.T,
 	ctx context.Context,
@@ -547,8 +660,13 @@ func seedIntegrationTradingGraph(
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := testContext(t)
 		defer cleanupCancel()
-		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM notification_outbox WHERE task_id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM notifications WHERE task_id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM executions WHERE task_id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM orders WHERE task_id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM positions WHERE task_id = $1`, taskID)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM strategy_intents WHERE task_id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, taskID)
 	})
 
 	return taskID, intentID, orderID, notificationID
