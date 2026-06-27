@@ -235,7 +235,7 @@ func operationResponses(status int, responseSchema map[string]any, config operat
 		strconv.Itoa(status): successResponse(status, responseSchema),
 	}
 	for _, code := range errorCodes(config) {
-		responses[strconv.Itoa(code)] = jsonResponse(errorDescription(code), schemaRef("APIErrorResponse"))
+		responses[strconv.Itoa(code)] = errorResponse(code)
 	}
 	return responses
 }
@@ -252,6 +252,12 @@ func jsonResponse(description string, schema map[string]any) apiResponse {
 		Description: description,
 		Content:     map[string]apiMediaType{jsonMediaType: {Schema: schema}},
 	}
+}
+
+func errorResponse(status int) apiResponse {
+	response := jsonResponse(errorDescription(status), schemaRef("APIErrorResponse"))
+	response.XErrorCodes = apiErrorCodesForHTTPStatus(status)
+	return response
 }
 
 func errorCodes(config operationConfig) []int {

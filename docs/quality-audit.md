@@ -33,7 +33,7 @@ done            用户确认关闭
 | Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
-| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract；`scripts/quality-gate.sh` 已纳入前端 API route 和核心 TypeScript DTO 字段与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺 TS 类型自动生成、外部 OpenAPI validator、更细错误分类和生产级审计边界 |
+| API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺 TS 类型自动生成、外部 OpenAPI validator、领域级错误语义细分和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
@@ -1747,7 +1747,7 @@ Definition of Done：
 | Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、状态流转 trigger、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整统一状态机、全量历史数据验证、数据迁移/回滚策略不足 |
-| API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、session cookie 和 CSRF header；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段和 candle query 参数漂移 | TS 类型自动生成、全量错误分类、生产级审计边界和 OpenAPI 外部校验不足 |
+| API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、错误码 catalog、session cookie 和 CSRF header；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段和 candle query 参数漂移 | TS 类型自动生成、领域级错误语义细分、生产级审计边界和 OpenAPI 外部校验不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
 | CandleProvider | demo | native/aggregated/gap/coverage metadata、runner 健康门禁和集成测试已覆盖 | 大范围分页/游标、性能压测、异常数据修复策略不足 |
@@ -2332,6 +2332,46 @@ Definition of Done：
 剩余风险：
 
 - API server 仍为 `scaffold`；本轮字段级 drift gate 依赖当前项目简单 TypeScript type 语法解析，不是通用 TypeScript compiler AST，也没有自动生成前端类型或引入外部 OpenAPI validator。
+
+### 阶段 8 API error taxonomy contract 补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- API server 已有结构化错误响应和基础 OpenAPI contract，但错误码仍散落在 `defaultError`、CSRF、auth/store error 写入点中。
+- OpenAPI 只声明 `APIErrorResponse`，没有可枚举的错误码 schema，也没有说明每个错误 HTTP status 可能返回哪些 `code`。
+- 新增错误码时缺少硬测试，容易绕过现有 `code/message/error` 形状，导致前端和 API 使用者拿到未登记的错误 code。
+
+修复范围：
+
+- 新增 `internal/web/api/error_catalog.go`，集中定义 `apiErrorCode`、错误码 catalog、HTTP status、描述和 retryable 标记。
+- `writeAPIError` 改为接收 typed `apiErrorCode`；未知错误码会被降级为 `500 internal_error` 和安全文案 `internal server error`。
+- `defaultError`、`writeAuthError`、`writeStoreError`、CSRF 检查全部改为使用 catalog 常量，不再直接写错误码字符串。
+- `GET /api/system/api-contract` 的 components 新增 `APIErrorCode` enum schema 和 `x-errorCodes` catalog；`APIErrorResponse.code` 引用 `APIErrorCode`。
+- OpenAPI error response 增加 `x-errorCodes`，按 HTTP status 声明该 response 可能返回的错误码。
+- 新增 `api_error_taxonomy_test.go`，覆盖 catalog 唯一性/状态码合法性、contract enum、error response `x-errorCodes`、未知错误码兜底和源码 callsite 禁止直接写字符串错误码。
+
+验证：
+
+- `go test ./internal/web/api -count=1`
+- `go test ./...`
+- `go vet ./...`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- `scripts/stage8-smoke.sh`
+- 本轮 Stage 8 smoke 证据：symbol `S81782596411USDT`、data task `dst_8aad8bbd835de1e3215b1741`、backtest `bt_152477ba71b59ae63355f9d7`、paper execute `tt_fc8ce26166d2eecbed5e9bd5`、paper notify `tt_2d76f91b9eed943eb15dc392`、notification channel `stage8-smoke-1782596411`。
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- API server 仍为 `scaffold`；本轮关闭的是基础错误码 catalog 和 contract 暴露，不是完整领域错误语义、TS 类型自动生成、外部 OpenAPI validator、RBAC 或生产级审计。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

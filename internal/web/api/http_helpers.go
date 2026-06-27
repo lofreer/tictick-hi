@@ -61,40 +61,45 @@ type apiErrorResponse struct {
 	Error   string `json:"error"`
 }
 
-func writeAPIError(w http.ResponseWriter, status int, code string, message string) {
+func writeAPIError(w http.ResponseWriter, status int, code apiErrorCode, message string) {
+	if !apiErrorCodeKnown(code) {
+		status = http.StatusInternalServerError
+		code = apiErrorInternal
+		message = "internal server error"
+	}
 	writeJSON(w, status, apiErrorResponse{
-		Code:    code,
+		Code:    string(code),
 		Message: message,
 		Error:   message,
 	})
 }
 
-func defaultError(status int, message string) (string, string) {
+func defaultError(status int, message string) (apiErrorCode, string) {
 	switch status {
 	case http.StatusBadRequest:
-		return "invalid_request", message
+		return apiErrorInvalidRequest, message
 	case http.StatusUnauthorized:
-		return "unauthorized", message
+		return apiErrorUnauthorized, message
 	case http.StatusForbidden:
-		return "forbidden", message
+		return apiErrorForbidden, message
 	case http.StatusNotFound:
-		return "not_found", message
+		return apiErrorNotFound, message
 	case http.StatusMethodNotAllowed:
-		return "method_not_allowed", message
+		return apiErrorMethodNotAllowed, message
 	case http.StatusConflict:
-		return "conflict", message
+		return apiErrorConflict, message
 	case http.StatusTooManyRequests:
-		return "too_many_requests", message
+		return apiErrorTooManyRequests, message
 	}
 	if status >= http.StatusInternalServerError {
-		return "internal_error", "internal server error"
+		return apiErrorInternal, "internal server error"
 	}
-	return "request_failed", message
+	return apiErrorRequestFailed, message
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {
 	if errors.Is(err, data.ErrUnauthorized) || errors.Is(err, data.ErrNotFound) {
-		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
+		writeAPIError(w, http.StatusUnauthorized, apiErrorUnauthorized, "unauthorized")
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())
@@ -102,11 +107,11 @@ func writeAuthError(w http.ResponseWriter, err error) {
 
 func writeStoreError(w http.ResponseWriter, err error) {
 	if errors.Is(err, data.ErrNotFound) {
-		writeAPIError(w, http.StatusNotFound, "not_found", "not found")
+		writeAPIError(w, http.StatusNotFound, apiErrorNotFound, "not found")
 		return
 	}
 	if errors.Is(err, data.ErrInvalidState) {
-		writeAPIError(w, http.StatusConflict, "invalid_state", err.Error())
+		writeAPIError(w, http.StatusConflict, apiErrorInvalidState, err.Error())
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())

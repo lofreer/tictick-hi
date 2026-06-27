@@ -26,6 +26,7 @@ type apiContractInfo struct {
 type apiContractComponents struct {
 	Schemas         map[string]map[string]any    `json:"schemas"`
 	SecuritySchemes map[string]apiSecurityScheme `json:"securitySchemes"`
+	ErrorCodes      []apiErrorDefinition         `json:"x-errorCodes"`
 }
 
 type apiSecurityScheme struct {
@@ -62,6 +63,7 @@ type apiRequestBody struct {
 type apiResponse struct {
 	Description string                  `json:"description"`
 	Content     map[string]apiMediaType `json:"content,omitempty"`
+	XErrorCodes []string                `json:"x-errorCodes,omitempty"`
 }
 
 type apiMediaType struct {
@@ -88,6 +90,7 @@ func apiContractDocument() openAPIContract {
 		Components: apiContractComponents{
 			Schemas:         buildContractSchemas(),
 			SecuritySchemes: apiContractSecuritySchemes(),
+			ErrorCodes:      apiErrorCatalog(),
 		},
 	}
 }
@@ -130,7 +133,12 @@ func buildContractSchemas() map[string]map[string]any {
 		{"ServiceHealth", data.ServiceHealth{}},
 		{"AuditEvent", data.AuditEvent{}},
 	})
-	return registry.schemas()
+	schemas := registry.schemas()
+	schemas["APIErrorCode"] = apiErrorCodeSchema()
+	if properties, ok := schemas["APIErrorResponse"]["properties"].(map[string]any); ok {
+		properties["code"] = schemaRef("APIErrorCode")
+	}
+	return schemas
 }
 
 func apiContractSecuritySchemes() map[string]apiSecurityScheme {
