@@ -4120,6 +4120,39 @@ Definition of Done：
 - 本轮是研究页 K 线可视边界加固，不是完整桌面/移动/暗色主题视觉回归体系。
 - lightweight-charts 交互工具仍薄，不能据此把研究页提升到 usable。
 
+### 阶段 1 研究页图表窄视口溢出约束
+
+目标等级：demo
+
+触发问题：
+
+- 用户在本地 127.0.0.1:8080 观察到研究页 K 线图表区域在窄视口下仍有内容被裁掉的观感。
+- 排查确认 lightweight-charts 固定槽本身稳定，但研究页工具栏 metadata 在移动宽度下可横向溢出，且横向布局的 `flex-basis` 在纵向断点里会把图表工具栏撑高。
+
+修复范围：
+
+- 将研究页样式拆到 `ResearchPage.css`，避免 `ResearchPage.vue` 为修布局突破 Vue 文件 450 行硬上限。
+- 研究页图表面板、toolbar、context、metadata 增加 `min-width: 0` / `max-width: 100%` 约束，长 metadata tag 使用单行 ellipsis，不再把图表面板撑出横向滚动。
+- 移动断点下把 `.research-context` 从横向布局的 `flex: 1 1 320px` 收敛为 `flex: 0 1 auto`，避免纵向 flex-basis 把工具栏高度撑到 320px。
+- `scripts/research-chart-height-smoke.mjs` 增加横向溢出断言，要求研究页图表 panel/body/chart/canvas/tv 的 `scrollWidth <= clientWidth`。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/pages/ResearchPage.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose build api && docker compose up -d api && curl -fsS http://127.0.0.1:8080/readyz` 通过。
+- `node scripts/research-chart-height-smoke.mjs` 通过，desktop / 812x1320 / mobile 三组采样高度稳定且无横向溢出；mobile 图表 panel 730px、body/chart/tv 457px。
+- headless Chrome 390x844 截图确认：document 宽度 390，图表 panel / body / tv 的 `scrollWidth` 均等于 `clientWidth`，窗口 metadata 以 ellipsis 收敛。
+
+失败：
+
+- 无。
+
+剩余风险：
+
+- 本轮只修研究页图表卡片及其 metadata 的窄视口溢出，不处理宽数据表和顶部导航在移动宽度下的完整产品级重排。
+- 仍缺系统性视觉回归矩阵，不能据此把研究页或前端基础设施提升到 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

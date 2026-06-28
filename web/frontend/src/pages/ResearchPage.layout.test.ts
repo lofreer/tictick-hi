@@ -1,16 +1,23 @@
+/// <reference types="node" />
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import windowControlsSource from "@/components/research/ResearchWindowControls.vue?raw";
 import source from "./ResearchPage.vue?raw";
 
+const pageStyles = readFileSync("src/pages/ResearchPage.css", "utf8");
+
 describe("ResearchPage chart layout contract", () => {
   it("keeps the chart in a fixed flex viewport below the sync list", () => {
-    const panelStyle = cssBlock(source, ".research-chart-panel");
-    const bodyStyle = cssBlock(source, ".research-chart-body");
+    const panelStyle = cssBlock(pageStyles, ".research-chart-panel");
+    const bodyStyle = cssBlock(pageStyles, ".research-chart-body");
 
     expect(panelStyle).toContain("display: flex;");
     expect(panelStyle).toContain("flex-direction: column;");
     expect(panelStyle).toContain("--research-chart-viewport-height:");
+    expect(panelStyle).toContain("width: 100%;");
+    expect(panelStyle).toContain("max-width: 100%;");
+    expect(panelStyle).toContain("min-width: 0;");
     expect(panelStyle).toContain("height: auto;");
     expect(panelStyle).toContain("max-height: none;");
     expect(panelStyle).toContain("contain: layout paint;");
@@ -24,17 +31,23 @@ describe("ResearchPage chart layout contract", () => {
     expect(bodyStyle).toContain("max-block-size: var(--research-chart-viewport-height) !important;");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
     expect(bodyStyle).toContain("contain: strict;");
-    expect(source).toContain("height: 100% !important;");
-    expect(source).toContain("max-height: 100% !important;");
-    expect(source).toContain("block-size: 100% !important;");
-    expect(source).toContain("max-block-size: 100% !important;");
+    expect(pageStyles).toContain("height: 100% !important;");
+    expect(pageStyles).toContain("max-height: 100% !important;");
+    expect(pageStyles).toContain("block-size: 100% !important;");
+    expect(pageStyles).toContain("max-block-size: 100% !important;");
+    expect(pageStyles).toContain(".research-meta .n-tag__content");
+    expect(pageStyles).toContain("overflow: hidden;");
+    expect(pageStyles).toContain("text-overflow: ellipsis;");
+    expect(pageStyles).toContain("white-space: nowrap;");
+    expect(source).toContain('import "./ResearchPage.css";');
     expect(source).toContain('class="research-chart-body" data-chart-viewport="fixed"');
   });
 
   it("reduces the fixed chart viewport when the app header stacks on narrow desktop widths", () => {
-    expect(source).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px);");
-    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px);");
+    expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px);");
+    expect(pageStyles).toContain("flex: 0 1 auto;");
   });
 
   it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {

@@ -279,8 +279,11 @@ function sampleExpression() {
         const style = getComputedStyle(element);
         return {
           clientHeight: element.clientHeight,
+          clientWidth: element.clientWidth,
           offsetHeight: element.offsetHeight,
+          offsetWidth: element.offsetWidth,
           scrollHeight: element.scrollHeight,
+          scrollWidth: element.scrollWidth,
           rectWidth: Math.round(rect.width),
           rectHeight: Math.round(rect.height),
           left: Math.round(rect.left),
@@ -316,6 +319,7 @@ function sampleExpression() {
         .sort((left, right) => right.bottom - left.bottom)[0] ?? null;
       return {
         href: location.href,
+        viewportWidth: innerWidth,
         bodyScrollHeight: document.body.scrollHeight,
         docScrollHeight: document.documentElement.scrollHeight,
         viewportHeight: innerHeight,
@@ -432,6 +436,23 @@ function assertChartLayout(label, sample) {
         bottomTimeAxisCanvas,
       })}`,
     );
+  }
+  for (const [name, node] of [
+    ["panel", sample.panel],
+    ["body", sample.body],
+    ["chart", sample.chart],
+    ["canvas", sample.canvas],
+    ["tv", sample.tv],
+  ]) {
+    if (!node) continue;
+    if (node.scrollWidth > node.clientWidth + 1 || node.rectWidth > sample.viewportWidth + 1) {
+      throw new Error(
+        `${label} ${name} overflowed horizontally: ${JSON.stringify({
+          viewportWidth: sample.viewportWidth,
+          node,
+        })}`,
+      );
+    }
   }
 }
 
