@@ -252,10 +252,10 @@ describe("data api", () => {
             missingCandles: 1,
           },
         },
-        lastError: 'binance klines: Get "api.binance.com": EOF',
+        lastError: "binance klines: api.binance.com: EOF",
         nextAttemptAt: "2026-06-28T01:30:00Z",
         exchangeBackoffUntil: "2026-06-28T01:45:00Z",
-        exchangeBackoffLastError: 'binance klines temporary unavailable: Get "api.binance.com": EOF',
+        exchangeBackoffLastError: "binance klines temporary unavailable: api.binance.com: EOF",
       },
     ]);
   });

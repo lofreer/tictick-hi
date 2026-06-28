@@ -5265,6 +5265,32 @@ Definition of Done：
 - 仍未建立人工像素快照基线、全语言/全主题视觉矩阵、真实浏览器长时间 soak 和完整图表工具能力。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 数据同步错误 API 出口脱敏补充
+
+目标等级：scaffold
+
+触发问题：
+
+- data sync adapter 已能生成不含 path/query 的 endpoint 摘要，前端也会兜底清洗外部 URL，但历史库里已有的 `Get "https://.../klines?...": EOF` 形态仍可能在 API 出口被简化为 `Get "host": EOF`，对用户仍是开发者噪声。
+- 外部交易所错误不能依赖单一前端展示层清洗；API 返回给浏览器前应已经剥离完整 URL、path、query 和潜在参数。
+
+修复范围：
+
+- `/api/data/tasks`、data sync command 和 gap repair 返回的 `lastError` / `exchangeBackoffLastError` 在 API 出口识别 `Get "https://...": reason` 这类 transport error，并压缩为 `host: reason`。
+- 前端 `sanitizeExternalError` 保留同样兜底规则，即使后端或测试 fixture 传入历史完整 URL，也只展示 `host: reason`。
+- 后端 API 测试和前端 API 归一化测试收紧断言，禁止回退到完整 URL、query 参数或 `Get "host"` 形态。
+
+验证：
+
+- `go test ./internal/web/api -run 'TestDataSyncTaskRoutesSanitizeLastError|TestDataSyncTaskRoutes' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.test.ts src/components/tables/DataSyncTaskTable.test.ts` 通过。
+
+剩余风险：
+
+- 本轮只加强 data sync 错误 API 出口和前端兜底展示，不处理真实交易所恢复压测、分布式限流或完整错误码分类。
+- 已入库的历史 `last_error` 文本仍不做迁移清洗；清洗发生在 API/前端出口。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

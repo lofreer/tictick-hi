@@ -303,8 +303,8 @@ func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 	if len(tasks) != 1 {
 		t.Fatalf("tasks length = %d, want 1", len(tasks))
 	}
-	assertSanitizedTaskError(t, tasks[0].LastError)
-	assertSanitizedTaskError(t, tasks[0].ExchangeBackoffError)
+	assertSanitizedTaskError(t, tasks[0].LastError, "binance klines: api.binance.com: EOF")
+	assertSanitizedTaskError(t, tasks[0].ExchangeBackoffError, "binance klines temporary unavailable: api.binance.com: EOF")
 
 	startRecorder := serveAuthenticated(
 		server,
@@ -320,21 +320,18 @@ func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 	if err := json.NewDecoder(startRecorder.Body).Decode(&started); err != nil {
 		t.Fatal(err)
 	}
-	assertSanitizedTaskError(t, started.LastError)
-	assertSanitizedTaskError(t, started.ExchangeBackoffError)
+	assertSanitizedTaskError(t, started.LastError, "binance klines: api.binance.com: EOF")
+	assertSanitizedTaskError(t, started.ExchangeBackoffError, "binance klines temporary unavailable: api.binance.com: EOF")
 }
 
-func assertSanitizedTaskError(t *testing.T, value string) {
+func assertSanitizedTaskError(t *testing.T, value string, expected string) {
 	t.Helper()
-	if value == "" {
-		t.Fatal("expected sanitized error")
+	if value != expected {
+		t.Fatalf("sanitized error = %q, want %q", value, expected)
 	}
-	for _, forbidden := range []string{"/api/v3/klines", "symbol=BTCUSDT", "endTime=", "startTime=", "https://"} {
+	for _, forbidden := range []string{`Get "`, "/api/v3/klines", "symbol=BTCUSDT", "endTime=", "startTime=", "https://"} {
 		if strings.Contains(value, forbidden) {
 			t.Fatalf("error leaks %q: %s", forbidden, value)
 		}
-	}
-	if !strings.Contains(value, "api.binance.com") || !strings.Contains(value, "EOF") {
-		t.Fatalf("sanitized error lost useful context: %s", value)
 	}
 }

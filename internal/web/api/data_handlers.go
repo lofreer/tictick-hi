@@ -12,7 +12,10 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
-var externalErrorURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
+var (
+	externalErrorTransportPattern = regexp.MustCompile(`\b(?:Get|Post|Put|Patch|Delete|Head|Options) "(https?://[^"]+)": ([^;]+)`)
+	externalErrorURLPattern       = regexp.MustCompile(`https?://[^\s"'<>]+`)
+)
 
 func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 	parts := pathParts(r.URL.Path)
@@ -219,12 +222,15 @@ func sanitizeExternalError(value string) string {
 	if normalized == "" {
 		return ""
 	}
-	sanitized := externalErrorURLPattern.ReplaceAllStringFunc(normalized, func(raw string) string {
-		parsed, err := url.Parse(raw)
-		if err == nil && parsed.Host != "" {
-			return parsed.Host
+	sanitized := externalErrorTransportPattern.ReplaceAllStringFunc(normalized, func(raw string) string {
+		matches := externalErrorTransportPattern.FindStringSubmatch(raw)
+		if len(matches) != 3 {
+			return "[external-url]"
 		}
-		return "[external-url]"
+		return externalErrorHost(matches[1]) + ": " + strings.TrimSpace(matches[2])
+	})
+	sanitized = externalErrorURLPattern.ReplaceAllStringFunc(sanitized, func(raw string) string {
+		return externalErrorHost(raw)
 	})
 	const maxRunes = 500
 	runes := []rune(sanitized)
@@ -232,6 +238,14 @@ func sanitizeExternalError(value string) string {
 		return sanitized
 	}
 	return string(runes[:maxRunes-3]) + "..."
+}
+
+func externalErrorHost(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err == nil && parsed.Host != "" {
+		return parsed.Host
+	}
+	return "[external-url]"
 }
 
 func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
