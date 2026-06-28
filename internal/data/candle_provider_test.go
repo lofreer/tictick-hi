@@ -64,10 +64,10 @@ func TestCandleProviderAggregatesFromOneMinuteCandles(t *testing.T) {
 	}
 }
 
-func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
+func TestCandleProviderAggregatesAcrossPagedBaseWindow(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	candles := make([]Candle, 0, MaxCandleLimit+1000)
-	for index := 0; index < MaxCandleLimit+1000; index++ {
+	candles := make([]Candle, 0, maxAggregationBaseCandles)
+	for index := 0; index < maxAggregationBaseCandles; index++ {
 		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
 	}
 	store := fakeCandleStore{candles: candles}
@@ -81,16 +81,51 @@ func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if result.Source != CandleSourceAggregated || result.Health != CandleHealthOK {
+		t.Fatalf("unexpected metadata: %#v", result)
+	}
+	if result.Coverage.LimitedByBaseWindow {
+		t.Fatalf("expected full paged base coverage: %#v", result.Coverage)
+	}
+	if result.Coverage.RequiredBaseCandles != maxAggregationBaseCandles ||
+		result.Coverage.BaseLimit != maxAggregationBaseCandles ||
+		result.Coverage.ReturnedBaseCandles != maxAggregationBaseCandles ||
+		result.Coverage.ReturnedCandles != DefaultCandleLimit {
+		t.Fatalf("unexpected coverage: %#v", result.Coverage)
+	}
+	assertTimePtr(t, result.Window.From, start)
+	assertTimePtr(t, result.Window.To, start.Add(time.Duration(DefaultCandleLimit-1)*time.Hour))
+}
+
+func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := make([]Candle, 0, maxAggregationBaseCandles+1000)
+	for index := 0; index < maxAggregationBaseCandles+1000; index++ {
+		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
+	}
+	store := fakeCandleStore{candles: candles}
+
+	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "4h",
+		Limit:    DefaultCandleLimit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if result.Source != CandleSourceAggregated || result.Health != CandleHealthInsufficient {
 		t.Fatalf("unexpected metadata: %#v", result)
 	}
 	if !result.Coverage.LimitedByBaseWindow {
 		t.Fatalf("expected limited coverage: %#v", result.Coverage)
 	}
-	if result.Coverage.RequiredBaseCandles != DefaultCandleLimit*60 || result.Coverage.BaseLimit != MaxCandleLimit {
+	if result.Coverage.RequiredBaseCandles != DefaultCandleLimit*240 ||
+		result.Coverage.BaseLimit != maxAggregationBaseCandles {
 		t.Fatalf("unexpected base coverage: %#v", result.Coverage)
 	}
-	if result.Coverage.ReturnedBaseCandles != MaxCandleLimit || result.Coverage.ReturnedCandles >= result.Coverage.RequestedLimit {
+	if result.Coverage.ReturnedBaseCandles != maxAggregationBaseCandles ||
+		result.Coverage.ReturnedCandles >= result.Coverage.RequestedLimit {
 		t.Fatalf("unexpected returned coverage: %#v", result.Coverage)
 	}
 }
@@ -306,6 +341,42 @@ type fakeCandleStore struct {
 }
 
 func (store fakeCandleStore) ListNativeCandles(_ context.Context, query CandleQuery) ([]Candle, error) {
+	if query.From == nil && query.To == nil {
+		return store.latestNativeCandles(query), nil
+	}
+	return store.nativeCandles(query), nil
+}
+
+func (store fakeCandleStore) ListLatestNativeCandles(_ context.Context, query CandleQuery) ([]Candle, error) {
+	return store.latestNativeCandles(query), nil
+}
+
+func (store fakeCandleStore) nativeCandles(query CandleQuery) []Candle {
+	matches := store.matchingNativeCandles(query)
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.Before(matches[right].OpenTime)
+	})
+	if limit := NormalizeCandleLimit(query.Limit); len(matches) > limit {
+		matches = matches[:limit]
+	}
+	return matches
+}
+
+func (store fakeCandleStore) latestNativeCandles(query CandleQuery) []Candle {
+	matches := store.matchingNativeCandles(query)
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.After(matches[right].OpenTime)
+	})
+	if limit := NormalizeCandleLimit(query.Limit); len(matches) > limit {
+		matches = matches[:limit]
+	}
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.Before(matches[right].OpenTime)
+	})
+	return matches
+}
+
+func (store fakeCandleStore) matchingNativeCandles(query CandleQuery) []Candle {
 	matches := make([]Candle, 0)
 	for _, candle := range store.candles {
 		if candle.Exchange != query.Exchange || candle.Symbol != query.Symbol || candle.Interval != query.Interval {
@@ -319,13 +390,7 @@ func (store fakeCandleStore) ListNativeCandles(_ context.Context, query CandleQu
 		}
 		matches = append(matches, candle)
 	}
-	sort.Slice(matches, func(left int, right int) bool {
-		return matches[left].OpenTime.Before(matches[right].OpenTime)
-	})
-	if limit := NormalizeCandleLimit(query.Limit); len(matches) > limit {
-		matches = matches[:limit]
-	}
-	return matches, nil
+	return matches
 }
 
 func testIntervalCandle(interval string, openTime time.Time, close string) Candle {

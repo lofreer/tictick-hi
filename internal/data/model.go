@@ -390,6 +390,7 @@ type CandleResult struct {
 
 type NativeCandleStore interface {
 	ListNativeCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+	ListLatestNativeCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 }
 
 type Repository interface {

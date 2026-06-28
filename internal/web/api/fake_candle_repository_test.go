@@ -13,6 +13,45 @@ func (repository *fakeRepository) ListNativeCandles(
 	_ context.Context,
 	query data.CandleQuery,
 ) ([]data.Candle, error) {
+	if query.From == nil && query.To == nil {
+		return repository.latestNativeCandles(query), nil
+	}
+	return repository.nativeCandles(query), nil
+}
+
+func (repository *fakeRepository) ListLatestNativeCandles(
+	_ context.Context,
+	query data.CandleQuery,
+) ([]data.Candle, error) {
+	return repository.latestNativeCandles(query), nil
+}
+
+func (repository *fakeRepository) nativeCandles(query data.CandleQuery) []data.Candle {
+	matches := repository.matchingNativeCandles(query)
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.Before(matches[right].OpenTime)
+	})
+	if limit := data.NormalizeCandleLimit(query.Limit); len(matches) > limit {
+		matches = matches[:limit]
+	}
+	return matches
+}
+
+func (repository *fakeRepository) latestNativeCandles(query data.CandleQuery) []data.Candle {
+	matches := repository.matchingNativeCandles(query)
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.After(matches[right].OpenTime)
+	})
+	if limit := data.NormalizeCandleLimit(query.Limit); len(matches) > limit {
+		matches = matches[:limit]
+	}
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.Before(matches[right].OpenTime)
+	})
+	return matches
+}
+
+func (repository *fakeRepository) matchingNativeCandles(query data.CandleQuery) []data.Candle {
 	matches := make([]data.Candle, 0)
 	for _, candle := range repository.candles {
 		if candle.Exchange != query.Exchange || candle.Symbol != query.Symbol || candle.Interval != query.Interval {
@@ -26,13 +65,7 @@ func (repository *fakeRepository) ListNativeCandles(
 		}
 		matches = append(matches, candle)
 	}
-	sort.Slice(matches, func(left int, right int) bool {
-		return matches[left].OpenTime.Before(matches[right].OpenTime)
-	})
-	if limit := data.NormalizeCandleLimit(query.Limit); len(matches) > limit {
-		matches = matches[:limit]
-	}
-	return matches, nil
+	return matches
 }
 
 func (repository *fakeRepository) ScanMarketCandleGaps(

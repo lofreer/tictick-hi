@@ -175,9 +175,14 @@ func (store *Store) ListNativeCandles(ctx context.Context, query data.CandleQuer
 	limit := data.NormalizeCandleLimit(query.Limit)
 
 	if query.From == nil && query.To == nil {
-		return store.listLatestNativeCandles(ctx, query, limit)
+		return store.ListLatestNativeCandles(ctx, query)
 	}
 	return store.listNativeCandlesInRange(ctx, query, limit)
+}
+
+func (store *Store) ListLatestNativeCandles(ctx context.Context, query data.CandleQuery) ([]data.Candle, error) {
+	limit := data.NormalizeCandleLimit(query.Limit)
+	return store.listLatestNativeCandles(ctx, query, limit)
 }
 
 func (store *Store) listNativeCandlesInRange(
@@ -222,11 +227,13 @@ func (store *Store) listLatestNativeCandles(
 			 WHERE exchange = $1
 			   AND symbol = $2
 			   AND interval = $3
+			   AND ($4::timestamptz IS NULL OR open_time >= $4)
+			   AND ($5::timestamptz IS NULL OR open_time <= $5)
 			 ORDER BY open_time DESC
-			 LIMIT $4
+			 LIMIT $6
 		  ) latest
 		 ORDER BY open_time ASC`,
-		query.Exchange, query.Symbol, query.Interval, limit,
+		query.Exchange, query.Symbol, query.Interval, query.From, query.To, limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list latest candles: %w", err)

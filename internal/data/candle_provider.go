@@ -29,11 +29,11 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 		return provider.withPagination(ctx, query, candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps))
 	}
 
-	baseQuery := query
-	baseQuery.Interval = baseCandleInterval
-	baseWindow := baseWindowForAggregation(query.Interval, query.Limit)
-	baseQuery.Limit = baseWindow.Limit
-	baseCandles, err := provider.store.ListNativeCandles(ctx, baseQuery)
+	baseQuery, baseWindow, err := newAggregationBaseQuery(query)
+	if err != nil {
+		return CandleResult{}, err
+	}
+	baseCandles, err := provider.listAggregationBaseCandles(ctx, baseQuery, baseWindow)
 	if err != nil {
 		return CandleResult{}, err
 	}
@@ -46,9 +46,8 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	if err != nil {
 		return CandleResult{}, err
 	}
-	if query.Limit > 0 && len(aggregated) > query.Limit {
-		aggregated = aggregated[:query.Limit]
-	}
+	aggregated = filterCandlesInRange(aggregated, query.From, query.To)
+	aggregated = trimAggregatedCandles(aggregated, query)
 
 	result := candleResult(query, aggregated, CandleSourceAggregated, baseCandleInterval, baseGaps)
 	result.Coverage.RequiredBaseCandles = baseWindow.Required
@@ -296,21 +295,4 @@ type aggregationBaseWindow struct {
 	Required int
 	Limit    int
 	Limited  bool
-}
-
-func baseWindowForAggregation(interval string, limit int) aggregationBaseWindow {
-	duration, err := IntervalDuration(interval)
-	if err != nil {
-		return aggregationBaseWindow{Required: limit, Limit: limit}
-	}
-	ratio := int(duration / time.Minute)
-	if ratio < 1 {
-		ratio = 1
-	}
-	requestedLimit := NormalizeCandleLimit(limit)
-	required := requestedLimit * ratio
-	if required > MaxCandleLimit {
-		return aggregationBaseWindow{Required: required, Limit: MaxCandleLimit, Limited: true}
-	}
-	return aggregationBaseWindow{Required: required, Limit: required}
 }
