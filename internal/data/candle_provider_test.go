@@ -120,10 +120,21 @@ func TestCandleProviderReportsNativePagination(t *testing.T) {
 	if !result.Pagination.HasPrevious || !result.Pagination.HasNext {
 		t.Fatalf("expected previous and next windows: %#v", result.Pagination)
 	}
+	if result.Pagination.PreviousCursor == "" || result.Pagination.NextCursor == "" {
+		t.Fatalf("expected opaque cursors: %#v", result.Pagination)
+	}
 	assertTimePtr(t, result.Pagination.PreviousFrom, start.Add(-time.Minute))
 	assertTimePtr(t, result.Pagination.PreviousTo, start)
 	assertTimePtr(t, result.Pagination.NextFrom, start.Add(3*time.Minute))
 	assertTimePtr(t, result.Pagination.NextTo, start.Add(4*time.Minute))
+
+	nextCursor, err := DecodeCandleCursor(result.Pagination.NextCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !nextCursor.MatchesQuery(dataQuery("1m")) || nextCursor.Limit != 2 {
+		t.Fatalf("unexpected next cursor context: %#v", nextCursor)
+	}
 }
 
 func TestCandleProviderReportsAggregatedPaginationFromBaseCandles(t *testing.T) {
@@ -155,6 +166,9 @@ func TestCandleProviderReportsAggregatedPaginationFromBaseCandles(t *testing.T) 
 	assertTimePtr(t, result.Window.To, start.Add(5*time.Minute))
 	if !result.Pagination.HasPrevious || !result.Pagination.HasNext {
 		t.Fatalf("expected previous and next windows: %#v", result.Pagination)
+	}
+	if result.Pagination.PreviousCursor == "" || result.Pagination.NextCursor == "" {
+		t.Fatalf("expected opaque cursors: %#v", result.Pagination)
 	}
 	assertTimePtr(t, result.Pagination.PreviousFrom, start)
 	assertTimePtr(t, result.Pagination.PreviousTo, start)
@@ -346,4 +360,8 @@ func assertGap(t *testing.T, actual CandleGap, from time.Time, to time.Time, mis
 	if !actual.From.Equal(from) || !actual.To.Equal(to) || actual.MissingCandles != missingCandles {
 		t.Fatalf("gap = %#v, want from %s to %s missing %d", actual, from, to, missingCandles)
 	}
+}
+
+func dataQuery(interval string) CandleQuery {
+	return CandleQuery{Exchange: "binance", Symbol: "BTCUSDT", Interval: interval}
 }

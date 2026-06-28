@@ -422,5 +422,6 @@ func candleQueryParameters() []apiParameter {
 		queryParam("from", false, "Inclusive start time", map[string]any{"type": "string", "format": "date-time"}),
 		queryParam("to", false, "Inclusive end time", map[string]any{"type": "string", "format": "date-time"}),
 		queryParam("limit", false, "Maximum candle count", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxCandleLimit}),
+		queryParam("cursor", false, "Opaque adjacent-window cursor returned by CandlePagination", map[string]any{"type": "string"}),
 	}
 }

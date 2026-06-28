@@ -8,22 +8,20 @@ import {
   canLoadNextCandleWindow,
   canLoadPreviousCandleWindow,
   errorMessage,
+  nextCandleWindow,
+  previousCandleWindow,
   readOptionalQuery,
   readQuery,
   repairSourceTask,
   researchQuery,
-  type ResearchForm,
   selectedTaskMatchesMarket,
+  type ResearchForm,
 } from "@/composables/researchWorkspaceHelpers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, DataSyncGapList, DataSyncTask } from "@/types/app";
-import {
-  coerceSymbolForExchange,
-  isSymbolFormatForExchange,
-  normalizeSymbolInput,
-} from "@/utils/marketSymbols";
+import { coerceSymbolForExchange, isSymbolFormatForExchange, normalizeSymbolInput } from "@/utils/marketSymbols";
 
 export function useResearchWorkspace() {
   const route = useRoute();
@@ -36,8 +34,10 @@ export function useResearchWorkspace() {
   const exchange = ref(initialExchange);
   const symbol = ref(coerceSymbolForExchange(initialExchange, readQuery(route.query.symbol, "BTCUSDT")));
   const interval = ref(readQuery(route.query.interval, "1m"));
-  const candleWindowFrom = ref(readOptionalQuery(route.query.from));
-  const candleWindowTo = ref(readOptionalQuery(route.query.to));
+  const initialCandleWindowCursor = readOptionalQuery(route.query.cursor);
+  const candleWindowCursor = ref(initialCandleWindowCursor);
+  const candleWindowFrom = ref(initialCandleWindowCursor ? "" : readOptionalQuery(route.query.from));
+  const candleWindowTo = ref(initialCandleWindowCursor ? "" : readOptionalQuery(route.query.to));
   const tasks = ref<DataSyncTask[]>([]);
   const candles = ref<ChartCandle[]>([]);
   const candleResult = ref<CandleResult | null>(null);
@@ -110,12 +110,13 @@ export function useResearchWorkspace() {
     },
   );
 
-  watch([exchange, symbol, interval, candleWindowFrom, candleWindowTo], (nextValues, previousValues) => {
+  watch([exchange, symbol, interval, candleWindowFrom, candleWindowTo, candleWindowCursor], (nextValues, previousValues) => {
     const contextChanged =
       nextValues[0] !== previousValues[0] || nextValues[1] !== previousValues[1] || nextValues[2] !== previousValues[2];
-    if (contextChanged && (candleWindowFrom.value || candleWindowTo.value)) {
+    if (contextChanged && (candleWindowFrom.value || candleWindowTo.value || candleWindowCursor.value)) {
       candleWindowFrom.value = "";
       candleWindowTo.value = "";
+      candleWindowCursor.value = "";
       return;
     }
     if (
@@ -164,6 +165,7 @@ export function useResearchWorkspace() {
         interval.value,
         candleWindowFrom.value,
         candleWindowTo.value,
+        candleWindowCursor.value,
       ));
       candleResult.value = result;
       candles.value = result.candles;
@@ -217,27 +219,30 @@ export function useResearchWorkspace() {
     interval.value = task.interval;
     candleWindowFrom.value = "";
     candleWindowTo.value = "";
+    candleWindowCursor.value = "";
     selectedChartTask.value = task;
   }
 
   function loadPreviousCandles() {
-    const pagination = candleResult.value?.pagination;
-    if (!pagination?.hasPrevious || !pagination.previousFrom || !pagination.previousTo) return;
-    candleWindowFrom.value = pagination.previousFrom;
-    candleWindowTo.value = pagination.previousTo;
+    applyCandleWindow(previousCandleWindow(candleResult.value));
   }
 
   function loadNextCandles() {
-    const pagination = candleResult.value?.pagination;
-    if (!pagination?.hasNext || !pagination.nextFrom || !pagination.nextTo) return;
-    candleWindowFrom.value = pagination.nextFrom;
-    candleWindowTo.value = pagination.nextTo;
+    applyCandleWindow(nextCandleWindow(candleResult.value));
+  }
+
+  function applyCandleWindow(window: { cursor?: string; from?: string; to?: string } | null) {
+    if (!window) return;
+    candleWindowCursor.value = window.cursor ?? "";
+    candleWindowFrom.value = window.from ?? "";
+    candleWindowTo.value = window.to ?? "";
   }
 
   function replaceResearchQuery() {
+    const query = researchQuery(exchange.value, symbol.value, interval.value, candleWindowFrom.value, candleWindowTo.value, candleWindowCursor.value);
     router.replace({
       name: "research",
-      query: researchQuery(exchange.value, symbol.value, interval.value, candleWindowFrom.value, candleWindowTo.value),
+      query,
     });
   }
 

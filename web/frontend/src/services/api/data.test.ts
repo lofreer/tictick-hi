@@ -72,6 +72,8 @@ describe("data api", () => {
             pagination: {
               hasPrevious: true,
               hasNext: true,
+              previousCursor: "prev_cursor",
+              nextCursor: "next_cursor",
               previousFrom: "2025-12-31T22:00:00Z",
               previousTo: "2025-12-31T23:55:00Z",
               nextFrom: "2026-01-01T00:05:00Z",
@@ -111,12 +113,44 @@ describe("data api", () => {
       pagination: {
         hasPrevious: true,
         hasNext: true,
+        previousCursor: "prev_cursor",
+        nextCursor: "next_cursor",
         previousFrom: "2025-12-31T22:00:00Z",
         previousTo: "2025-12-31T23:55:00Z",
         nextFrom: "2026-01-01T00:05:00Z",
         nextTo: "2026-01-01T02:00:00Z",
       },
     });
+  });
+
+  it("sends candle cursor without explicit window or limit parameters", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          candles: [],
+          source: "none",
+          requestedInterval: "1m",
+          health: "insufficient",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await dataApi.getCandles({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      cursor: "opaque_cursor",
+      from: "2026-01-01T00:00:00Z",
+      to: "2026-01-01T01:00:00Z",
+      limit: 500,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m&cursor=opaque_cursor",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("keeps data sync attempt count", async () => {

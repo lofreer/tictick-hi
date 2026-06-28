@@ -18,6 +18,7 @@ import type {
 import { sanitizeExternalError } from "@/utils/errorText";
 
 export type CandleQuery = {
+  cursor?: string;
   exchange: string;
   symbol: string;
   interval: string;
@@ -77,13 +78,17 @@ export const dataApi = {
       exchange: query.exchange,
       symbol: query.symbol,
       interval: query.interval,
-      limit: String(query.limit ?? 1000),
     });
-    if (query.from) {
-      params.set("from", query.from);
-    }
-    if (query.to) {
-      params.set("to", query.to);
+    if (query.cursor) {
+      params.set("cursor", query.cursor);
+    } else {
+      params.set("limit", String(query.limit ?? 1000));
+      if (query.from) {
+        params.set("from", query.from);
+      }
+      if (query.to) {
+        params.set("to", query.to);
+      }
     }
     const response = await apiClient.get<CandleResultResponse>(`/candles?${params.toString()}`);
     return normalizeCandleResult(response, query.interval);

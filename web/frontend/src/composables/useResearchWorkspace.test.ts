@@ -247,6 +247,58 @@ describe("useResearchWorkspace", () => {
     });
   });
 
+  it("prefers opaque candle cursors when navigating adjacent windows", async () => {
+    routerMocks.query = {
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      cursor: "initial_cursor",
+    };
+    dataApiMocks.getCandles.mockResolvedValueOnce(
+      candleResult({
+        pagination: {
+          hasPrevious: true,
+          hasNext: true,
+          previousCursor: "previous_cursor",
+          nextCursor: "next_cursor",
+          previousFrom: "2026-06-27T23:00:00Z",
+          previousTo: "2026-06-27T23:55:00Z",
+          nextFrom: "2026-06-28T01:05:00Z",
+          nextTo: "2026-06-28T02:00:00Z",
+        },
+      }),
+    );
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    expect(dataApi.getCandles).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      cursor: "initial_cursor",
+    });
+
+    workspace.loadNextCandles();
+    await flushPromises();
+
+    expect(routerMocks.replace).toHaveBeenLastCalledWith({
+      name: "research",
+      query: {
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "5m",
+        cursor: "next_cursor",
+      },
+    });
+    expect(dataApi.getCandles).toHaveBeenLastCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      cursor: "next_cursor",
+    });
+  });
+
   it("does not call the candles API for a symbol that does not match the selected exchange", async () => {
     const workspace = mountWorkspace();
     await flushPromises();

@@ -252,10 +252,20 @@ func (provider *CandleProvider) pagination(
 	if hasPrevious {
 		pagination.PreviousFrom = &previousFrom
 		pagination.PreviousTo = &previousTo
+		cursor, err := EncodeCandleCursor(NewCandleCursor(query, previousFrom, previousTo, limit))
+		if err != nil {
+			return CandlePagination{}, err
+		}
+		pagination.PreviousCursor = cursor
 	}
 	if hasNext {
 		pagination.NextFrom = &nextFrom
 		pagination.NextTo = &nextTo
+		cursor, err := EncodeCandleCursor(NewCandleCursor(query, nextFrom, nextTo, limit))
+		if err != nil {
+			return CandlePagination{}, err
+		}
+		pagination.NextCursor = cursor
 	}
 	return pagination, nil
 }

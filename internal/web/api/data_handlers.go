@@ -283,6 +283,27 @@ func parseCandleQuery(r *http.Request) (data.CandleQuery, error) {
 		}
 		query.Limit = limit
 	}
+	if rawCursor := values.Get("cursor"); rawCursor != "" {
+		if values.Get("from") != "" || values.Get("to") != "" || values.Get("limit") != "" {
+			return data.CandleQuery{}, errors.New("cursor cannot be combined with from, to or limit")
+		}
+		cursor, err := data.DecodeCandleCursor(rawCursor)
+		if err != nil {
+			return data.CandleQuery{}, err
+		}
+		if !cursor.MatchesQuery(query) {
+			return data.CandleQuery{}, errors.New("cursor does not match exchange, symbol or interval")
+		}
+		from := cursor.From
+		to := cursor.To
+		query.From = &from
+		query.To = &to
+		query.Limit = cursor.Limit
+		if err := data.ValidateCandleQueryRange(query); err != nil {
+			return data.CandleQuery{}, err
+		}
+		return query, nil
+	}
 	from, err := parseOptionalTime(values.Get("from"))
 	if err != nil {
 		return data.CandleQuery{}, fmt.Errorf("from: %w", err)

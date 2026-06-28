@@ -87,6 +87,114 @@ func TestCandlesRouteReturnsPaginationMetadata(t *testing.T) {
 	if result.Pagination.NextFrom == nil || !result.Pagination.NextFrom.Equal(start.Add(2*time.Minute)) {
 		t.Fatalf("unexpected next cursor: %#v", result.Pagination)
 	}
+	if result.Pagination.PreviousCursor == "" || result.Pagination.NextCursor == "" {
+		t.Fatalf("expected opaque cursors: %#v", result.Pagination)
+	}
+}
+
+func TestCandlesRouteAcceptsOpaquePaginationCursor(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for index := 0; index < 4; index++ {
+		openTime := start.Add(time.Duration(index) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		})
+	}
+	firstFrom := start.Add(time.Minute)
+	firstRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		fmt.Sprintf(
+			"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m&from=%s&limit=1",
+			url.QueryEscape(firstFrom.Format(time.RFC3339)),
+		),
+		"",
+	)
+	if firstRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", firstRecorder.Code, firstRecorder.Body.String())
+	}
+	var firstResult data.CandleResult
+	if err := json.NewDecoder(firstRecorder.Body).Decode(&firstResult); err != nil {
+		t.Fatal(err)
+	}
+	if firstResult.Pagination.NextCursor == "" {
+		t.Fatalf("expected next cursor: %#v", firstResult.Pagination)
+	}
+
+	nextRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m&cursor="+url.QueryEscape(firstResult.Pagination.NextCursor),
+		"",
+	)
+	if nextRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", nextRecorder.Code, nextRecorder.Body.String())
+	}
+	var nextResult data.CandleResult
+	if err := json.NewDecoder(nextRecorder.Body).Decode(&nextResult); err != nil {
+		t.Fatal(err)
+	}
+	if len(nextResult.Candles) != 1 || !nextResult.Candles[0].OpenTime.Equal(start.Add(2*time.Minute)) {
+		t.Fatalf("unexpected cursor result: %#v", nextResult.Candles)
+	}
+}
+
+func TestCandlesRouteRejectsCursorContextMismatch(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cursor, err := data.EncodeCandleCursor(data.NewCandleCursor(data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		Limit:    1,
+	}, start, start, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/candles?exchange=binance&symbol=ETHUSDT&interval=1m&cursor="+url.QueryEscape(cursor),
+		"",
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCandlesRouteRejectsCursorMixedWithExplicitWindow(t *testing.T) {
+	_, server, cookie := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cursor, err := data.EncodeCandleCursor(data.NewCandleCursor(data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		Limit:    1,
+	}, start, start, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m&from="+url.QueryEscape(start.Format(time.RFC3339))+"&cursor="+url.QueryEscape(cursor),
+		"",
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
 }
 
 func TestCandlesRouteRejectsOversizedLimit(t *testing.T) {
