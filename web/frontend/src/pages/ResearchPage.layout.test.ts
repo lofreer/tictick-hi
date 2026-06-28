@@ -21,6 +21,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height);");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
     expect(bodyStyle).toContain("contain: strict;");
+    expect(source).toContain('class="research-chart-body" data-chart-viewport="fixed"');
   });
 
   it("uses exchange-specific symbol options for chart and create form", () => {

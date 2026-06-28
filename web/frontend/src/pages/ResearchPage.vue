@@ -67,7 +67,7 @@
             </div>
           </div>
         </div>
-        <div class="research-chart-body">
+        <div class="research-chart-body" data-chart-viewport="fixed">
           <ErrorState
             v-if="candlesError"
             :title="candlesError"

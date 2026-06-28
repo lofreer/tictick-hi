@@ -129,6 +129,17 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("does not observe a generic chart panel without an explicit viewport marker", () => {
+    const host = createResearchHost({ markViewport: false });
+    const wrapper = mountChart(host.body);
+
+    expect(observedTarget).not.toBe(host.panel);
+    expect(observedTarget).not.toBe(host.body);
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("initializes from the fixed chart slot without reading inflated internal nodes", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
@@ -227,11 +238,14 @@ describe("TradingViewChart", () => {
   });
 });
 
-function createResearchHost() {
+function createResearchHost(options: { markViewport?: boolean } = {}) {
   const panel = document.createElement("section");
   panel.className = "chart-panel";
   const body = document.createElement("div");
   body.className = "research-chart-body";
+  if (options.markViewport !== false) {
+    body.setAttribute("data-chart-viewport", "fixed");
+  }
   panel.append(body);
   document.body.append(panel);
   return { panel, body };

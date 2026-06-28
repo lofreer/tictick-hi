@@ -223,7 +223,7 @@ function readObserverContentSize(entry: ResizeObserverEntry) {
 function readResizeHost() {
   const root = rootRef.value;
   if (!root) return null;
-  const fixedChartSlot = root.closest<HTMLElement>(".research-chart-body, .chart-panel");
+  const fixedChartSlot = root.closest<HTMLElement>('[data-chart-viewport="fixed"]');
   if (fixedChartSlot && fixedChartSlot !== root) return fixedChartSlot;
   const parent = root.parentElement;
   if (!parent) return root;
