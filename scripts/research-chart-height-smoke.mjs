@@ -17,6 +17,11 @@ const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
+  {
+    label: "narrow-desktop-812x1320",
+    metrics: { width: 812, height: 1320, deviceScaleFactor: 2, mobile: false },
+    requireInitialChartFit: true,
+  },
   { label: "mobile-390x844", metrics: { width: 390, height: 844, deviceScaleFactor: 2, mobile: true } },
 ];
 
@@ -93,7 +98,11 @@ async function runViewport(endpoint, viewport) {
     await waitFor(cdp, "!!document.querySelector('.research-chart-body')", 15000);
     await waitFor(cdp, "!!document.querySelector('.tv-lightweight-charts')", 15000);
     await delay(settleMs);
-    assertChartLayout(viewport.label, await evaluate(cdp, sampleExpression()));
+    const initialSample = await evaluate(cdp, sampleExpression());
+    assertChartLayout(viewport.label, initialSample);
+    if (viewport.requireInitialChartFit) {
+      assertInitialChartFit(viewport.label, initialSample);
+    }
 
     const samples = [];
     for (let index = 0; index < samplesPerViewport; index += 1) {
@@ -420,6 +429,24 @@ function assertChartLayout(label, sample) {
       `${label} chart bottom edge overflowed fixed body: ${JSON.stringify({
         body,
         tv,
+        bottomTimeAxisCanvas,
+      })}`,
+    );
+  }
+}
+
+function assertInitialChartFit(label, sample) {
+  const { body, bottomTimeAxisCanvas, viewportHeight } = sample;
+  if (!body || !bottomTimeAxisCanvas) return;
+
+  const bottomPadding = 16;
+  const maxBottom = viewportHeight - bottomPadding;
+  if (body.bottom > maxBottom || bottomTimeAxisCanvas.bottom > maxBottom) {
+    throw new Error(
+      `${label} chart bottom axis is clipped from the initial viewport: ${JSON.stringify({
+        viewportHeight,
+        maxBottom,
+        body,
         bottomTimeAxisCanvas,
       })}`,
     );

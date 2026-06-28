@@ -31,6 +31,12 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain('class="research-chart-body" data-chart-viewport="fixed"');
   });
 
+  it("reduces the fixed chart viewport when the app header stacks on narrow desktop widths", () => {
+    expect(source).toContain("@media (min-width: 761px) and (max-width: 980px)");
+    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 760px), 560px);");
+    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 760px), 560px);");
+  });
+
   it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {
     expect(source).toContain('import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";');
     expect(source).toContain('<MarketSymbolAutoComplete v-model:value="symbol"');

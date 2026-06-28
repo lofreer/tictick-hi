@@ -444,4 +444,7 @@ function formatWindowTime(value: string) {
     justify-content: flex-start;
   }
 }
+@media (min-width: 761px) and (max-width: 980px) {
+  .research-chart-panel { --research-chart-viewport-height: clamp(300px, calc(100vh - 760px), 560px); --research-chart-viewport-height: clamp(300px, calc(100dvh - 760px), 560px); }
+}
 </style>
