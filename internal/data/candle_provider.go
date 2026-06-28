@@ -20,6 +20,9 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	if err != nil {
 		return CandleResult{}, err
 	}
+	if err := validateCandleSeries(nativeCandles, query.Interval); err != nil {
+		return CandleResult{}, err
+	}
 
 	nativeGaps, err := DetectCandleGapsInRange(nativeCandles, query.Interval, query.From, query.To)
 	if err != nil {
@@ -35,6 +38,9 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	}
 	baseCandles, err := provider.listAggregationBaseCandles(ctx, baseQuery, baseWindow)
 	if err != nil {
+		return CandleResult{}, err
+	}
+	if err := validateCandleSeries(baseCandles, baseCandleInterval); err != nil {
 		return CandleResult{}, err
 	}
 

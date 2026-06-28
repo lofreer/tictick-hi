@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -333,6 +334,39 @@ func TestCandleProviderReportsInsufficientData(t *testing.T) {
 	}
 	if result.Source != CandleSourceNone || result.Health != CandleHealthInsufficient || len(result.Candles) != 0 {
 		t.Fatalf("unexpected insufficient result: %#v", result)
+	}
+}
+
+func TestCandleProviderRejectsInvalidNativeCandleSeries(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	store := fakeCandleStore{candles: []Candle{
+		testCandle(start, "10", "10", "10", "10", "1"),
+		testCandle(start, "11", "11", "11", "11", "1"),
+	}}
+
+	_, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+	})
+	if err == nil || !strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("expected duplicate candle error, got %v", err)
+	}
+}
+
+func TestCandleProviderRejectsInvalidAggregationBaseCandleSeries(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	badBase := testCandle(start, "10", "10", "10", "10", "1")
+	badBase.CloseTime = start.Add(2 * time.Minute)
+	store := fakeCandleStore{candles: []Candle{badBase}}
+
+	_, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "5m",
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("expected base candle close time error, got %v", err)
 	}
 }
 

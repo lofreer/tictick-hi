@@ -189,7 +189,7 @@ scripts/quality-gate.sh
 - `/api/candles` 已校验 interval、`from <= to`，并按闭区间语义限制 `from/to` 最大跨度为 `(MaxCandleLimit - 1) * interval`；倒置或超大时间范围返回 `400`。
 - CandleProvider 返回 `coverage` 元数据；高周期从 `1m` 聚合且基础窗口被 `MaxCandleLimit` 截断时，`limitedByBaseWindow=true`，研究页显示窗口受限，避免静默冒充完整窗口。
 - CandleProvider 返回窗口级 `pagination` 元数据和 opaque `previousCursor/nextCursor`；研究页可显式请求上一/下一窗口并把 cursor 保留在 URL，旧 `from/to` URL 仍兼容。
-- 仍缺大范围性能压测、聚合窗口分页读取和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
+- 仍缺大范围性能压测、超过 60000 根基础 K 线的缓存/分段策略和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
 
 关闭条件：
 
@@ -4732,6 +4732,43 @@ Definition of Done：
 - 60000 根基础 K 线是有界读取上限，不是无限历史查询方案；`4h/1d` 大窗口仍可能因为超过上限而返回 `limitedByBaseWindow=true`。
 - 未做大范围 PostgreSQL 性能压测、聚合缓存、预取、虚拟化或批量异常数据修复策略。
 - CandleProvider 和研究页仍保持 `demo` 模块评级；项目整体仍是 `scaffold`。
+
+### 阶段 1 CandleProvider 异常 K 线边界补充
+
+目标等级：scaffold
+
+触发问题：
+
+- CandleProvider 之前会对 store 返回的 K 线直接做缺口检测或聚合；如果底层出现 open_time 未按 interval 对齐、重复 open_time、close_time 不匹配 interval 等异常数据，可能被排序、缺口检测或聚合流程掩盖。
+- 这些异常会影响研究页图表、回测 runner 和交易 runner 的共同数据入口，不能静默返回健康数据。
+
+修复范围：
+
+- 新增 `validateCandleSeries`，校验 K 线序列的 open_time interval 对齐、close_time = open_time + interval、升序和重复 open_time。
+- CandleProvider 在 native 路径和 aggregation base `1m` 路径都先校验 K 线序列，发现异常直接返回错误，不继续生成 health=ok 的结果。
+- 单元测试覆盖校验器本身，以及 `GetCandles` 的 native/base 两条异常路径。
+
+验证：
+
+- `go test ./internal/data -run 'TestCandleProvider|TestValidateCandleSeries|TestAggregateCandles|TestDetect' -count=1` 通过。
+- `go test ./internal/web/api -run 'TestCandles|TestFrontendAPI' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，21 个测试文件 / 102 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `git diff --check` 通过。
+
+失败：
+
+- 本轮未出现失败检查。
+
+剩余风险：
+
+- 本轮没有新增 API 级错误码；底层异常仍会作为服务端错误被 API 层统一处理。
+- 未覆盖 OHLCV 业务合法性、异常尖刺、交易所修正数据审计或坏数据自动修复策略。
+- 未做大范围 PostgreSQL 性能压测、聚合缓存或超过 60000 根基础 K 线的分段策略。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
