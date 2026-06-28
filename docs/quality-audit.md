@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取自己的 `.trading-chart__canvas` viewport，不再向上查找 `.research-chart-body` / `.chart-panel` 或把祖先高度喂回 `chart.resize`，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取自己的稳定 `.trading-chart` root viewport，不再观察传给 lightweight-charts 的 mount canvas，也不再向上查找 `.research-chart-body` / `.chart-panel` 或把祖先高度喂回 `chart.resize`，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；但交易对仍硬编码、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -838,6 +838,41 @@ scripts/quality-gate.sh
 
 - 该 smoke 依赖本机可用 Chrome；无 Chrome 的 CI/主机需要设置 `CHROME_PATH` 或跳过该本地运行检查。
 - 这次只证明当前真实 8080 构建的研究页图表高度稳定，不关闭研究页交易对硬编码、图表工具薄和外部交易所网络韧性风险。
+
+### 阶段 1 研究页 K 线高度稳定性十二次加固
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户再次反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 现有 8080 headless Chrome 长采样未复现增长，但代码层仍把 ResizeObserver 绑定在传给 lightweight-charts 的 `.trading-chart__canvas` mount 节点上；该节点内部 DOM 会被图表库持续改写，不应作为组件自己的稳定 resize 输入。
+
+修复范围：
+
+- `TradingViewChart` 的 ResizeObserver 目标从 `.trading-chart__canvas` 改为稳定的 `.trading-chart` root viewport。
+- ResizeObserver 回调只在 entry target 等于当前观察宿主时才调度 `chart.resize`，忽略 chart mount 或其他子节点的异常 resize entry。
+- 初始化和 resize 仍只读取组件自身 viewport，不向上读取 `.research-chart-body` / `.chart-panel`，也不向 root/canvas 写 inline 尺寸。
+- `TradingViewChart.test.ts` 覆盖 root viewport 观察、chart mount 异常 entry 被忽略、祖先/内部 chart DOM 膨胀不影响初始化和 resize。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- `docker compose up -d --build api` 已重建本地 8080 API 容器，`docker inspect` 显示 `tictick-hi-api-1` healthy。
+- `curl -I http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`。
+- 重建前真实 8080 长采样 `SMOKE_SAMPLES=180 SMOKE_INTERVAL_MS=250 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 仍稳定：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1256->1256, panel 624->624, body 457->457, chart 457->457, tv 457->457`。
+- 重建后真实 8080 采样 `SMOKE_SAMPLES=80 SMOKE_INTERVAL_MS=150 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1256->1256, panel 624->624, body 457->457, chart 457->457, tv 457->457`。
+
+剩余风险：
+
+- 真实 8080 headless Chrome 未复现用户可见 Chrome 中的原始无限增长；本轮代码层已切断 chart mount DOM 到 `chart.resize` 的反馈入口，并由本地 8080 smoke 覆盖当前构建。
 
 ### 阶段 1 Candle 查询 limit 边界补充
 

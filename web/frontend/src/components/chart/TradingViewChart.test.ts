@@ -62,19 +62,22 @@ describe("TradingViewChart", () => {
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
       get() {
-        return this instanceof Element && this.classList.contains("trading-chart__canvas") ? viewportSize.width : 0;
+        return this instanceof Element && this.classList.contains("trading-chart") ? viewportSize.width : 0;
       },
     });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", {
       configurable: true,
       get() {
-        return this instanceof Element && this.classList.contains("trading-chart__canvas") ? viewportSize.height : 0;
+        return this instanceof Element && this.classList.contains("trading-chart") ? viewportSize.height : 0;
       },
     });
 
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
-      if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
+      if (this instanceof Element && this.classList.contains("trading-chart")) {
         return rect({ top: 180, width: viewportSize.width, height: viewportSize.height });
+      }
+      if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
+        return rect({ top: 180, width: viewportSize.width, height: viewportSize.height + 3200 });
       }
       if (this instanceof Element && this.classList.contains("research-chart-body")) {
         return rect({ top: 180, width: viewportSize.width, height: 5000 });
@@ -111,22 +114,22 @@ describe("TradingViewChart", () => {
     restorePrototypeProperty("clientHeight", originalClientHeight);
   });
 
-  it("observes only its own fixed canvas viewport", () => {
+  it("observes only its own fixed root viewport", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(canvasHost);
+    expect(observedTarget).toBe(root);
+    expect(observedTarget).not.toBe(canvasHost);
     expect(observedTarget).not.toBe(host.panel);
     expect(observedTarget).not.toBe(host.body);
-    expect(observedTarget).not.toBe(root);
 
     wrapper.unmount();
     host.panel.remove();
   });
 
-  it("initializes from the canvas viewport without reading inflated ancestors", () => {
+  it("initializes from the root viewport without reading inflated ancestors", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 
@@ -142,7 +145,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("resizes only when the fixed canvas viewport changes", () => {
+  it("resizes only when the fixed root viewport changes", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     chartMocks.resize.mockClear();
@@ -155,6 +158,20 @@ describe("TradingViewChart", () => {
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1180, 603);
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("ignores resize entries from the chart mount element", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+    const canvasHost = wrapper.get(".trading-chart__canvas").element;
+    chartMocks.resize.mockClear();
+
+    resizeCallback?.([resizeEntry(canvasHost, { width: 1180, height: 9000 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
 
     wrapper.unmount();
     host.panel.remove();

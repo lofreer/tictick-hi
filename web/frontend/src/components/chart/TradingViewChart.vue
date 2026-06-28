@@ -136,12 +136,15 @@ function syncMarkers() {
 }
 
 function handleObservedResize(entries: ResizeObserverEntry[]) {
+  let sawObservedHost = false;
   for (const entry of entries) {
     if (entry.target === observedResizeHost) {
       observedResizeHostSize = readObserverContentSize(entry);
+      sawObservedHost = true;
       break;
     }
   }
+  if (!sawObservedHost) return;
   scheduleResize();
 }
 
@@ -218,7 +221,7 @@ function readObserverContentSize(entry: ResizeObserverEntry) {
 }
 
 function readResizeHost() {
-  return containerRef.value;
+  return rootRef.value;
 }
 
 function positiveFloor(value: number) {
