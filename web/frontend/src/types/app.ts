@@ -152,6 +152,7 @@ export type MarketInstrumentSyncResult = {
   exchange: string;
   activeCount: number;
   inactiveCount: number;
+  pausedDataSyncTaskCount: number;
   syncedAt: string;
 };
 

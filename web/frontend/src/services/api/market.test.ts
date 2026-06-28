@@ -44,6 +44,7 @@ describe("market api", () => {
           exchange: "binance",
           activeCount: 100,
           inactiveCount: 2,
+          pausedDataSyncTaskCount: 1,
           syncedAt: "2026-06-28T00:00:00Z",
         }),
         { status: 200 },
@@ -54,6 +55,7 @@ describe("market api", () => {
     await expect(marketApi.syncInstruments("binance")).resolves.toMatchObject({
       exchange: "binance",
       activeCount: 100,
+      pausedDataSyncTaskCount: 1,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/market/instruments/sync?exchange=binance",

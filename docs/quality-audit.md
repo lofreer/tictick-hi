@@ -49,6 +49,8 @@ done            用户确认关闭
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
+注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和交易所业务状态细分。
+
 ## 3. 必须先修的问题
 
 ### 阶段 0 Definition of Done：质量底座
@@ -5106,7 +5108,7 @@ Definition of Done：
 
 剩余风险：
 
-- 本轮只做到“可见 + 阻止继续启动 + worker 不领取”，不自动把既有任务改成 failed / paused，也不自动清理 sync_enabled / realtime_enabled。
+- 该小节当时只做到“可见 + 阻止继续启动 + worker 不领取”；后续已补充 instrument catalog 同步后的 data sync task 自动停用，但仍不自动迁移、删除或修复历史任务。
 - 本轮仍没有完整建模交易所退市、停牌、只撤单、只减仓或迁移窗口等业务状态；`inactive` 仍是粗粒度内部状态。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
@@ -5140,6 +5142,37 @@ Definition of Done：
 
 - 仍未建立人工视觉基线截图审批、全主题/全语言矩阵或长期浏览器 soak；研究页图表能力仍是阶段 1 scaffold 增量。
 - 图表仍缺指标层、十字线增强、绘图工具、完整缩放/拖拽 UX 和自定义时间范围。
+
+### 阶段 1 instrument catalog 同步后自动停用非 active 数据同步任务补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 已有 `marketStatus=inactive/missing` 可见和启动阻断，但已经启用的既有数据同步任务仍可能保留 `sync_enabled` / `realtime_enabled` 期望状态。
+- `hi sync` claim 虽然跳过非 active 任务，但用户在研究页仍会看到“期望继续同步/实时”的状态残留，不利于判断退市、停牌或交易对迁移后的处置边界。
+
+修复范围：
+
+- `ReplaceMarketInstruments` 在同一 PostgreSQL 事务中完成 instrument upsert / stale active 标记 inactive 后，自动停用当前 exchange 下不再命中 active catalog 的数据同步任务。
+- 自动停用只影响 `pending/running/paused` 且 `sync_enabled` 或 `realtime_enabled` 为 true 的 data sync task：设置 `sync_enabled=false`、`realtime_enabled=false`、`status=paused`，并清理 `locked_by/locked_until/heartbeat_at`。
+- `MarketInstrumentSyncResult` 新增 `pausedDataSyncTaskCount`，API contract、fake repository、前端类型和测试样本同步更新。
+- `hi sync` instrument catalog 同步日志输出 `paused_data_sync_tasks`。
+
+验证：
+
+- `go test ./internal/store/postgres ./internal/web/api ./internal/marketsync -run 'TestIntegrationReplaceMarketInstruments|TestMarketInstrument|TestMarketInstrumentSync|TestRunner' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/market.test.ts src/components/market/MarketSymbolAutoComplete.test.ts` 通过。
+
+失败：
+
+- 本轮定向检查未出现失败。
+
+剩余风险：
+
+- 本轮只自动停用数据同步任务，不自动删除任务、不删除 K 线、不为退市/迁移生成修复任务，也不处理回测 / 交易任务。
+- `inactive` 仍是粗粒度内部状态，没有区分停牌、退市、只撤单、只减仓、迁移窗口等交易所业务语义。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

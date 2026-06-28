@@ -107,6 +107,7 @@ func (runner *Runner) RunOnce(ctx context.Context) []ExchangeResult {
 				"exchange", exchangeID,
 				"active", result.Result.ActiveCount,
 				"inactive", result.Result.InactiveCount,
+				"paused_data_sync_tasks", result.Result.PausedDataSyncTaskCount,
 			)
 		}
 		results = append(results, result)

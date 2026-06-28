@@ -272,7 +272,7 @@ func TestMarketInstrumentSyncRouteRefreshesCatalog(t *testing.T) {
 	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Exchange != "binance" || result.ActiveCount != 1 || result.InactiveCount != 1 {
+	if result.Exchange != "binance" || result.ActiveCount != 1 || result.InactiveCount != 1 || result.PausedDataSyncTaskCount != 0 {
 		t.Fatalf("unexpected sync result: %#v", result)
 	}
 

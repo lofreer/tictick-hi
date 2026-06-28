@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -200,6 +201,70 @@ func TestIntegrationReplaceMarketInstrumentsMarksMissingActiveInactive(t *testin
 	}
 	if len(instruments) != 1 || instruments[0].Symbol != newSymbol {
 		t.Fatalf("active instruments = %#v, want only %s", instruments, newSymbol)
+	}
+}
+
+func TestIntegrationReplaceMarketInstrumentsPausesDataSyncTasksForInactiveMarkets(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	symbol := integrationSymbol("PMI")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+	})
+
+	existingActive, err := listAllIntegrationActiveInstruments(ctx, store, "binance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertIntegrationSyncTask(t, ctx, store, taskID, symbol, data.TaskStatusRunning, true, true, "market-status-worker")
+
+	result, err := store.ReplaceMarketInstruments(
+		ctx,
+		"binance",
+		append(existingActive, data.MarketInstrument{
+			Symbol:         symbol,
+			BaseAsset:      "PMI",
+			QuoteAsset:     "USDT",
+			InstrumentType: "spot",
+			Status:         "inactive",
+			SearchPriority: 100,
+		}),
+		time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PausedDataSyncTaskCount != 1 {
+		t.Fatalf("paused data sync task count = %d, want 1", result.PausedDataSyncTaskCount)
+	}
+
+	var (
+		syncEnabled     bool
+		realtimeEnabled bool
+		status          data.TaskStatus
+		lockedBy        sql.NullString
+		lockedUntil     sql.NullTime
+		heartbeatAt     sql.NullTime
+	)
+	if err := store.pool.QueryRow(ctx, `
+		SELECT sync_enabled, realtime_enabled, status, locked_by, locked_until, heartbeat_at
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		taskID,
+	).Scan(&syncEnabled, &realtimeEnabled, &status, &lockedBy, &lockedUntil, &heartbeatAt); err != nil {
+		t.Fatal(err)
+	}
+	if syncEnabled || realtimeEnabled || status != data.TaskStatusPaused {
+		t.Fatalf("task state = sync:%t realtime:%t status:%s, want disabled paused", syncEnabled, realtimeEnabled, status)
+	}
+	if lockedBy.Valid || lockedUntil.Valid || heartbeatAt.Valid {
+		t.Fatalf("task lease not cleared: lockedBy=%#v lockedUntil=%#v heartbeatAt=%#v", lockedBy, lockedUntil, heartbeatAt)
 	}
 }
 

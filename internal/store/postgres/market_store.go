@@ -200,15 +200,56 @@ func (store *Store) ReplaceMarketInstruments(
 		return data.MarketInstrumentSyncResult{}, fmt.Errorf("deactivate stale market instruments: %w", err)
 	}
 
+	pausedTasks, err := store.pauseDataSyncTasksForInactiveMarkets(ctx, tx, exchangeID)
+	if err != nil {
+		return data.MarketInstrumentSyncResult{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return data.MarketInstrumentSyncResult{}, fmt.Errorf("commit market instrument sync: %w", err)
 	}
 	return data.MarketInstrumentSyncResult{
-		Exchange:      exchangeID,
-		ActiveCount:   activeCount,
-		InactiveCount: int(tag.RowsAffected()),
-		SyncedAt:      syncedAt,
+		Exchange:                exchangeID,
+		ActiveCount:             activeCount,
+		InactiveCount:           int(tag.RowsAffected()),
+		PausedDataSyncTaskCount: pausedTasks,
+		SyncedAt:                syncedAt,
 	}, nil
+}
+
+func (store *Store) pauseDataSyncTasksForInactiveMarkets(
+	ctx context.Context,
+	exec leaseExec,
+	exchangeID string,
+) (int, error) {
+	tag, err := exec.Exec(ctx, fmt.Sprintf(`
+		UPDATE data_sync_tasks
+		   SET sync_enabled = false,
+		       realtime_enabled = false,
+		       status = $2,
+		       %s,
+		       updated_at = now()
+		 WHERE exchange = $1
+		   AND status IN ($3, $4, $5)
+		   AND (sync_enabled = true OR realtime_enabled = true)
+		   AND NOT EXISTS (
+		     SELECT 1
+		       FROM market_instruments AS instrument
+		      WHERE instrument.exchange = data_sync_tasks.exchange
+		        AND instrument.symbol = data_sync_tasks.symbol
+		        AND instrument.status = 'active'
+		   )`,
+		clearLeaseAssignments(dataSyncTaskLease)),
+		exchangeID,
+		data.TaskStatusPaused,
+		data.TaskStatusPending,
+		data.TaskStatusRunning,
+		data.TaskStatusPaused,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("pause data sync tasks for inactive markets: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 func normalizeMarketInstrumentLimit(limit int) int {

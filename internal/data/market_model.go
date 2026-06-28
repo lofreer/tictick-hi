@@ -23,8 +23,9 @@ type MarketInstrumentQuery struct {
 }
 
 type MarketInstrumentSyncResult struct {
-	Exchange      string    `json:"exchange"`
-	ActiveCount   int       `json:"activeCount"`
-	InactiveCount int       `json:"inactiveCount"`
-	SyncedAt      time.Time `json:"syncedAt"`
+	Exchange                string    `json:"exchange"`
+	ActiveCount             int       `json:"activeCount"`
+	InactiveCount           int       `json:"inactiveCount"`
+	PausedDataSyncTaskCount int       `json:"pausedDataSyncTaskCount"`
+	SyncedAt                time.Time `json:"syncedAt"`
 }

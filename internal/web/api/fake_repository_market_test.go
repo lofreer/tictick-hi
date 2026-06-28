@@ -108,10 +108,41 @@ func (repository *fakeRepository) ReplaceMarketInstruments(
 	for _, instrument := range incoming {
 		repository.marketInstruments = append(repository.marketInstruments, instrument)
 	}
+	pausedTasks := repository.pauseDataSyncTasksForInactiveMarkets(exchangeID)
 	return data.MarketInstrumentSyncResult{
-		Exchange:      exchangeID,
-		ActiveCount:   active,
-		InactiveCount: inactive,
-		SyncedAt:      syncedAt,
+		Exchange:                exchangeID,
+		ActiveCount:             active,
+		InactiveCount:           inactive,
+		PausedDataSyncTaskCount: pausedTasks,
+		SyncedAt:                syncedAt,
 	}, nil
+}
+
+func (repository *fakeRepository) pauseDataSyncTasksForInactiveMarkets(exchangeID string) int {
+	paused := 0
+	for index := range repository.tasks {
+		task := &repository.tasks[index]
+		if task.Exchange != exchangeID || (!task.SyncEnabled && !task.RealtimeEnabled) {
+			continue
+		}
+		if task.Status != data.TaskStatusPending && task.Status != data.TaskStatusRunning && task.Status != data.TaskStatusPaused {
+			continue
+		}
+		if repository.hasActiveMarketInstrument(task.Exchange, task.Symbol) {
+			continue
+		}
+		task.SyncEnabled = false
+		task.RealtimeEnabled = false
+		task.Status = data.TaskStatusPaused
+		task.MarketStatus = data.DataSyncMarketStatusInactive
+		task.UpdatedAt = time.Now().UTC()
+		paused++
+	}
+	return paused
+}
+
+func (repository *fakeRepository) hasActiveMarketInstrument(exchangeID string, symbol string) bool {
+	return slices.ContainsFunc(repository.marketInstruments, func(instrument data.MarketInstrument) bool {
+		return instrument.Exchange == exchangeID && instrument.Symbol == symbol && instrument.Status == "active"
+	})
 }
