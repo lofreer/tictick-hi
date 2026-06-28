@@ -3,6 +3,7 @@ package binance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,50 +17,81 @@ import (
 
 const defaultBaseURL = "https://api.binance.com"
 
+const (
+	defaultRequestWeightLimit  = 1200
+	defaultRequestWeightWindow = time.Minute
+	exchangeInfoRequestWeight  = 20
+	klinesRequestWeight        = 2
+)
+
 var defaultBaseURLs = []string{
 	defaultBaseURL,
 	"https://data-api.binance.vision",
 }
 
 type MarketClient struct {
-	baseURLs   []string
-	httpClient *http.Client
+	baseURLs    []string
+	httpClient  *http.Client
+	rateLimiter exchange.RateLimiter
+}
+
+type MarketClientOptions struct {
+	BaseURLs    []string
+	HTTPClient  *http.Client
+	RateLimiter exchange.RateLimiter
 }
 
 func NewMarketClient(httpClient *http.Client) *MarketClient {
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 15 * time.Second}
-	}
-	return &MarketClient{baseURLs: append([]string(nil), defaultBaseURLs...), httpClient: httpClient}
+	return NewMarketClientWithOptions(MarketClientOptions{HTTPClient: httpClient})
 }
 
 func NewMarketClientWithBaseURLs(baseURLs []string, httpClient *http.Client) *MarketClient {
-	client := NewMarketClient(httpClient)
-	client.baseURLs = normalizeBaseURLs(baseURLs)
-	return client
+	return NewMarketClientWithOptions(MarketClientOptions{
+		BaseURLs:   baseURLs,
+		HTTPClient: httpClient,
+	})
 }
 
 func NewMarketClientForURL(baseURL string, httpClient *http.Client) *MarketClient {
 	return NewMarketClientWithBaseURLs([]string{baseURL}, httpClient)
 }
 
+func NewMarketClientWithOptions(options MarketClientOptions) *MarketClient {
+	httpClient := options.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 15 * time.Second}
+	}
+	rateLimiter := options.RateLimiter
+	if rateLimiter == nil {
+		rateLimiter = exchange.NewFixedWindowRateLimiter(defaultRequestWeightLimit, defaultRequestWeightWindow)
+	}
+	return &MarketClient{
+		baseURLs:    normalizeBaseURLs(options.BaseURLs),
+		httpClient:  httpClient,
+		rateLimiter: rateLimiter,
+	}
+}
+
 func (client *MarketClient) FetchCandles(
 	ctx context.Context,
 	request exchange.CandleRequest,
 ) ([]data.Candle, error) {
-	var errors []string
+	var endpointErrors []string
 	allTemporary := true
 	for _, baseURL := range client.baseURLs {
 		candles, err := client.fetchCandlesFrom(ctx, baseURL, request)
 		if err == nil {
 			return candles, nil
 		}
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
 		if !exchange.IsTemporaryEndpointError(err) {
 			allTemporary = false
 		}
-		errors = append(errors, exchange.EndpointErrorSummary(baseURL, err))
+		endpointErrors = append(endpointErrors, exchange.EndpointErrorSummary(baseURL, err))
 	}
-	message := strings.Join(errors, "; ")
+	message := strings.Join(endpointErrors, "; ")
 	if allTemporary {
 		return nil, exchange.NewTemporaryError("binance klines temporary unavailable: "+message, nil)
 	}
@@ -67,19 +99,22 @@ func (client *MarketClient) FetchCandles(
 }
 
 func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.MarketInstrument, error) {
-	var errors []string
+	var endpointErrors []string
 	allTemporary := true
 	for _, baseURL := range client.baseURLs {
 		instruments, err := client.fetchInstrumentsFrom(ctx, baseURL)
 		if err == nil {
 			return instruments, nil
 		}
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
 		if !exchange.IsTemporaryEndpointError(err) {
 			allTemporary = false
 		}
-		errors = append(errors, exchange.EndpointErrorSummary(baseURL, err))
+		endpointErrors = append(endpointErrors, exchange.EndpointErrorSummary(baseURL, err))
 	}
-	message := strings.Join(errors, "; ")
+	message := strings.Join(endpointErrors, "; ")
 	if allTemporary {
 		return nil, exchange.NewTemporaryError("binance instruments temporary unavailable: "+message, nil)
 	}
@@ -97,6 +132,9 @@ func (client *MarketClient) fetchInstrumentsFrom(
 
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
+		return nil, err
+	}
+	if err := client.wait(ctx, exchangeInfoRequestWeight); err != nil {
 		return nil, err
 	}
 
@@ -146,6 +184,9 @@ func (client *MarketClient) fetchCandlesFrom(
 	if err != nil {
 		return nil, err
 	}
+	if err := client.wait(ctx, klinesRequestWeight); err != nil {
+		return nil, err
+	}
 
 	response, err := client.httpClient.Do(httpRequest)
 	if err != nil {
@@ -185,6 +226,16 @@ func normalizeBaseURLs(baseURLs []string) []string {
 		return append([]string(nil), defaultBaseURLs...)
 	}
 	return normalized
+}
+
+func (client *MarketClient) wait(ctx context.Context, weight int) error {
+	if client.rateLimiter == nil {
+		return nil
+	}
+	if err := client.rateLimiter.Wait(ctx, weight); err != nil {
+		return fmt.Errorf("binance rate limit wait: %w", err)
+	}
+	return nil
 }
 
 type binanceKline []json.RawMessage

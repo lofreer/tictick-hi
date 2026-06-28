@@ -173,8 +173,8 @@ func runSync(ctx context.Context, args []string) error {
 	}
 	defer store.Close()
 
-	binanceClient := binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil)
-	okxClient := okx.NewMarketClient(nil)
+	binanceClient := newBinanceMarketClient()
+	okxClient := newOKXMarketClient()
 	runner := datasync.NewRunner(store, exchange.NewRegistry(map[string]exchange.MarketDataClient{
 		"binance": binanceClient,
 		"okx":     okxClient,
@@ -243,8 +243,8 @@ func runAPI(ctx context.Context) error {
 			SessionTTL:   durationEnv("AUTH_SESSION_TTL", 12*time.Hour),
 			CookieSecure: boolEnv("AUTH_COOKIE_SECURE", false),
 			InstrumentClients: map[string]exchange.InstrumentClient{
-				"binance": binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil),
-				"okx":     okx.NewMarketClient(nil),
+				"binance": newBinanceMarketClient(),
+				"okx":     newOKXMarketClient(),
 			},
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -362,6 +362,25 @@ func boolEnv(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func newBinanceMarketClient() *binance.MarketClient {
+	return binance.NewMarketClientWithOptions(binance.MarketClientOptions{
+		BaseURLs: stringListEnv("BINANCE_BASE_URLS"),
+		RateLimiter: exchange.NewFixedWindowRateLimiter(
+			intEnv("BINANCE_REQUEST_WEIGHT_LIMIT", 1200),
+			durationEnv("BINANCE_REQUEST_WEIGHT_WINDOW", time.Minute),
+		),
+	})
+}
+
+func newOKXMarketClient() *okx.MarketClient {
+	return okx.NewMarketClientWithOptions(okx.MarketClientOptions{
+		RateLimiter: exchange.NewFixedWindowRateLimiter(
+			intEnv("OKX_MARKET_REQUEST_LIMIT", 20),
+			durationEnv("OKX_MARKET_REQUEST_WINDOW", 2*time.Second),
+		),
+	})
 }
 
 func stringListEnv(key string) []string {

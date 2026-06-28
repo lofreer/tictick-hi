@@ -16,22 +16,49 @@ import (
 
 const defaultBaseURL = "https://www.okx.com"
 
+const (
+	defaultMarketRequestLimit  = 20
+	defaultMarketRequestWindow = 2 * time.Second
+	marketRequestWeight        = 1
+)
+
 type MarketClient struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL     string
+	httpClient  *http.Client
+	rateLimiter exchange.RateLimiter
+}
+
+type MarketClientOptions struct {
+	BaseURL     string
+	HTTPClient  *http.Client
+	RateLimiter exchange.RateLimiter
 }
 
 func NewMarketClient(httpClient *http.Client) *MarketClient {
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 15 * time.Second}
-	}
-	return &MarketClient{baseURL: defaultBaseURL, httpClient: httpClient}
+	return NewMarketClientWithOptions(MarketClientOptions{HTTPClient: httpClient})
 }
 
 func NewMarketClientForURL(baseURL string, httpClient *http.Client) *MarketClient {
-	client := NewMarketClient(httpClient)
-	client.baseURL = baseURL
-	return client
+	return NewMarketClientWithOptions(MarketClientOptions{
+		BaseURL:    baseURL,
+		HTTPClient: httpClient,
+	})
+}
+
+func NewMarketClientWithOptions(options MarketClientOptions) *MarketClient {
+	httpClient := options.HTTPClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 15 * time.Second}
+	}
+	rateLimiter := options.RateLimiter
+	if rateLimiter == nil {
+		rateLimiter = exchange.NewFixedWindowRateLimiter(defaultMarketRequestLimit, defaultMarketRequestWindow)
+	}
+	baseURL := strings.TrimSpace(options.BaseURL)
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+	return &MarketClient{baseURL: baseURL, httpClient: httpClient, rateLimiter: rateLimiter}
 }
 
 func (client *MarketClient) FetchCandles(
@@ -53,6 +80,9 @@ func (client *MarketClient) FetchCandles(
 
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
+		return nil, err
+	}
+	if err := client.wait(ctx); err != nil {
 		return nil, err
 	}
 
@@ -107,6 +137,9 @@ func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.Market
 
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
+		return nil, err
+	}
+	if err := client.wait(ctx); err != nil {
 		return nil, err
 	}
 
@@ -245,4 +278,14 @@ func limit(value int, max int) int {
 		return max
 	}
 	return value
+}
+
+func (client *MarketClient) wait(ctx context.Context) error {
+	if client.rateLimiter == nil {
+		return nil
+	}
+	if err := client.rateLimiter.Wait(ctx, marketRequestWeight); err != nil {
+		return fmt.Errorf("okx rate limit wait: %w", err)
+	}
+	return nil
 }

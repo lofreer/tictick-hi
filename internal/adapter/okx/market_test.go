@@ -1,6 +1,7 @@
 package okx
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,34 @@ func TestFetchCandles(t *testing.T) {
 	}
 }
 
+func TestFetchCandlesConsumesMarketRequestBeforeHTTP(t *testing.T) {
+	limiter := &recordingRateLimiter{err: context.Canceled}
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("HTTP request should not be sent when rate limit wait fails")
+	}))
+	defer server.Close()
+
+	client := NewMarketClientWithOptions(MarketClientOptions{
+		BaseURL:     server.URL,
+		HTTPClient:  server.Client(),
+		RateLimiter: limiter,
+	})
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("FetchCandles error = %v, want context canceled", err)
+	}
+	if len(limiter.weights) != 1 || limiter.weights[0] != marketRequestWeight {
+		t.Fatalf("rate limiter weights = %#v, want [%d]", limiter.weights, marketRequestWeight)
+	}
+}
+
 func TestFetchInstruments(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v5/public/instruments" {
@@ -73,6 +102,27 @@ func TestFetchInstruments(t *testing.T) {
 	}
 	if instruments[1].Symbol != "OLD-USDT" || instruments[1].Status != "inactive" {
 		t.Fatalf("unexpected inactive instrument: %#v", instruments[1])
+	}
+}
+
+func TestFetchInstrumentsConsumesMarketRequestBeforeHTTP(t *testing.T) {
+	limiter := &recordingRateLimiter{err: context.Canceled}
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("HTTP request should not be sent when rate limit wait fails")
+	}))
+	defer server.Close()
+
+	client := NewMarketClientWithOptions(MarketClientOptions{
+		BaseURL:     server.URL,
+		HTTPClient:  server.Client(),
+		RateLimiter: limiter,
+	})
+	_, err := client.FetchInstruments(t.Context())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("FetchInstruments error = %v, want context canceled", err)
+	}
+	if len(limiter.weights) != 1 || limiter.weights[0] != marketRequestWeight {
+		t.Fatalf("rate limiter weights = %#v, want [%d]", limiter.weights, marketRequestWeight)
 	}
 }
 
@@ -184,4 +234,14 @@ func TestEndpointErrorHidesQueryURL(t *testing.T) {
 	if !strings.Contains(summary, "www.okx.com") || !strings.Contains(summary, "EOF") {
 		t.Fatalf("summary misses host or reason: %s", summary)
 	}
+}
+
+type recordingRateLimiter struct {
+	weights []int
+	err     error
+}
+
+func (limiter *recordingRateLimiter) Wait(_ context.Context, weight int) error {
+	limiter.weights = append(limiter.weights, weight)
+	return limiter.err
 }
