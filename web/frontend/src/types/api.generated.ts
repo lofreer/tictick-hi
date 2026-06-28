@@ -82,12 +82,21 @@ export type CandleGap = {
   to: string;
 };
 export type CandleHealth = "ok" | "gap" | "insufficient";
+export type CandlePagination = {
+  hasNext: boolean;
+  hasPrevious: boolean;
+  nextFrom?: string;
+  nextTo?: string;
+  previousFrom?: string;
+  previousTo?: string;
+};
 export type CandleResult = {
   baseInterval?: string;
   candles: Candle[];
   coverage: CandleCoverage;
   gaps?: CandleGap[];
   health: CandleHealth;
+  pagination: CandlePagination;
   requestedInterval: string;
   source: CandleSource;
 };

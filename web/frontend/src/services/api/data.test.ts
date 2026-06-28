@@ -64,6 +64,14 @@ describe("data api", () => {
               returnedBaseCandles: 2000,
               limitedByBaseWindow: true,
             },
+            pagination: {
+              hasPrevious: true,
+              hasNext: true,
+              previousFrom: "2025-12-31T22:00:00Z",
+              previousTo: "2025-12-31T23:55:00Z",
+              nextFrom: "2026-01-01T00:05:00Z",
+              nextTo: "2026-01-01T02:00:00Z",
+            },
           }),
           { status: 200 },
         ),
@@ -89,6 +97,14 @@ describe("data api", () => {
         baseLimit: 5000,
         returnedBaseCandles: 2000,
         limitedByBaseWindow: true,
+      },
+      pagination: {
+        hasPrevious: true,
+        hasNext: true,
+        previousFrom: "2025-12-31T22:00:00Z",
+        previousTo: "2025-12-31T23:55:00Z",
+        nextFrom: "2026-01-01T00:05:00Z",
+        nextTo: "2026-01-01T02:00:00Z",
       },
     });
   });

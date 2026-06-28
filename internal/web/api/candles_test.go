@@ -44,6 +44,48 @@ func TestCandlesRouteReturnsMetadata(t *testing.T) {
 	}
 }
 
+func TestCandlesRouteReturnsPaginationMetadata(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for index := 0; index < 3; index++ {
+		openTime := start.Add(time.Duration(index) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		})
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		fmt.Sprintf(
+			"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m&from=%s&limit=1",
+			url.QueryEscape(start.Add(time.Minute).Format(time.RFC3339)),
+		),
+		"",
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var result data.CandleResult
+	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.Pagination.HasPrevious || !result.Pagination.HasNext {
+		t.Fatalf("expected previous and next pagination: %#v", result.Pagination)
+	}
+	if result.Pagination.PreviousTo == nil || !result.Pagination.PreviousTo.Equal(start) {
+		t.Fatalf("unexpected previous cursor: %#v", result.Pagination)
+	}
+	if result.Pagination.NextFrom == nil || !result.Pagination.NextFrom.Equal(start.Add(2*time.Minute)) {
+		t.Fatalf("unexpected next cursor: %#v", result.Pagination)
+	}
+}
+
 func TestCandlesRouteRejectsOversizedLimit(t *testing.T) {
 	_, server, cookie := newAuthenticatedTestServer(t)
 

@@ -3,6 +3,14 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 
+import {
+  candleQuery,
+  errorMessage,
+  readOptionalQuery,
+  readQuery,
+  researchQuery,
+  toISOString,
+} from "@/composables/researchWorkspaceHelpers";
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncGapList, DataSyncTask } from "@/types/app";
 import {
@@ -30,6 +38,8 @@ export function useResearchWorkspace() {
   const exchange = ref(initialExchange);
   const symbol = ref(coerceSymbolForExchange(initialExchange, readQuery(route.query.symbol, "BTCUSDT")));
   const interval = ref(readQuery(route.query.interval, "1m"));
+  const candleWindowFrom = ref(readOptionalQuery(route.query.from));
+  const candleWindowTo = ref(readOptionalQuery(route.query.to));
   const tasks = ref<DataSyncTask[]>([]);
   const candles = ref<ChartCandle[]>([]);
   const candleResult = ref<CandleResult | null>(null);
@@ -62,6 +72,18 @@ export function useResearchWorkspace() {
   );
   const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
   const canRepairGap = computed(() => firstRepairableGap.value !== null);
+  const canLoadPreviousCandles = computed(
+    () =>
+      Boolean(candleResult.value?.pagination.hasPrevious) &&
+      Boolean(candleResult.value?.pagination.previousFrom) &&
+      Boolean(candleResult.value?.pagination.previousTo),
+  );
+  const canLoadNextCandles = computed(
+    () =>
+      Boolean(candleResult.value?.pagination.hasNext) &&
+      Boolean(candleResult.value?.pagination.nextFrom) &&
+      Boolean(candleResult.value?.pagination.nextTo),
+  );
 
   watch(exchange, (nextExchange) => {
     symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
@@ -91,11 +113,15 @@ export function useResearchWorkspace() {
     },
   );
 
-  watch([exchange, symbol, interval], () => {
-    router.replace({
-      name: "research",
-      query: { exchange: exchange.value, symbol: symbol.value, interval: interval.value },
-    });
+  watch([exchange, symbol, interval, candleWindowFrom, candleWindowTo], (nextValues, previousValues) => {
+    const contextChanged =
+      nextValues[0] !== previousValues[0] || nextValues[1] !== previousValues[1] || nextValues[2] !== previousValues[2];
+    if (contextChanged && (candleWindowFrom.value || candleWindowTo.value)) {
+      candleWindowFrom.value = "";
+      candleWindowTo.value = "";
+      return;
+    }
+    replaceResearchQuery();
     void loadCandles();
   });
 
@@ -130,11 +156,13 @@ export function useResearchWorkspace() {
         return;
       }
 
-      const result = await dataApi.getCandles({
-        exchange: exchange.value,
-        symbol: normalizeSymbolInput(symbol.value),
-        interval: interval.value,
-      });
+      const result = await dataApi.getCandles(candleQuery(
+        exchange.value,
+        normalizeSymbolInput(symbol.value),
+        interval.value,
+        candleWindowFrom.value,
+        candleWindowTo.value,
+      ));
       candleResult.value = result;
       candles.value = result.candles;
     } catch (error) {
@@ -190,6 +218,29 @@ export function useResearchWorkspace() {
     exchange.value = task.exchange;
     symbol.value = task.symbol;
     interval.value = task.interval;
+    candleWindowFrom.value = "";
+    candleWindowTo.value = "";
+  }
+
+  function loadPreviousCandles() {
+    const pagination = candleResult.value?.pagination;
+    if (!pagination?.hasPrevious || !pagination.previousFrom || !pagination.previousTo) return;
+    candleWindowFrom.value = pagination.previousFrom;
+    candleWindowTo.value = pagination.previousTo;
+  }
+
+  function loadNextCandles() {
+    const pagination = candleResult.value?.pagination;
+    if (!pagination?.hasNext || !pagination.nextFrom || !pagination.nextTo) return;
+    candleWindowFrom.value = pagination.nextFrom;
+    candleWindowTo.value = pagination.nextTo;
+  }
+
+  function replaceResearchQuery() {
+    router.replace({
+      name: "research",
+      query: researchQuery(exchange.value, symbol.value, interval.value, candleWindowFrom.value, candleWindowTo.value),
+    });
   }
 
   function deleteTask(task: DataSyncTask) {
@@ -310,6 +361,8 @@ export function useResearchWorkspace() {
     candles,
     candlesError,
     candlesLoading,
+    canLoadNextCandles,
+    canLoadPreviousCandles,
     createForm,
     createLoading,
     createModalOpen,
@@ -323,6 +376,8 @@ export function useResearchWorkspace() {
     gapDetailsTask,
     interval,
     loadCandles,
+    loadNextCandles,
+    loadPreviousCandles,
     loadTasks,
     openCreateTask,
     repairFirstGap,
@@ -340,19 +395,4 @@ export function useResearchWorkspace() {
     toggleSync,
     viewTaskGaps,
   };
-}
-
-function readQuery(value: unknown, fallback: string) {
-  return typeof value === "string" && value.length > 0 ? value : fallback;
-}
-
-function toISOString(value: number | null) {
-  return value === null ? undefined : new Date(value).toISOString();
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return fallback;
 }

@@ -269,6 +269,8 @@ export const zhCNMessages: Record<string, string> = {
     "research.taskGapRepairFailed": "创建任务缺口修复失败。",
     "research.noRepairableTaskGaps": "当前任务没有可排队的缺口。",
     "research.coverageLimited": "窗口受限 {returned}/{requested}",
+    "research.previousWindow": "上一窗口",
+    "research.nextWindow": "下一窗口",
     "research.chartEmpty": "选择数据源后加载 K 线图表。",
     "research.syncTasks": "数据同步任务",
     "research.createTask": "创建同步任务",

@@ -26,7 +26,7 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 		return CandleResult{}, err
 	}
 	if query.Interval == baseCandleInterval || len(nativeCandles) > 0 && len(nativeGaps) == 0 {
-		return candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps), nil
+		return provider.withPagination(ctx, query, candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps))
 	}
 
 	baseQuery := query
@@ -60,7 +60,7 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	}
 	if len(baseCandles) == 0 {
 		if len(nativeCandles) > 0 {
-			return candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps), nil
+			return provider.withPagination(ctx, query, candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps))
 		}
 		result.Source = CandleSourceNone
 		result.BaseInterval = ""
@@ -68,7 +68,7 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	if len(aggregated) == 0 && len(baseGaps) > 0 {
 		result.Health = CandleHealthGap
 	}
-	return result, nil
+	return provider.withPagination(ctx, query, result)
 }
 
 func DetectCandleGaps(candles []Candle, interval string) ([]CandleGap, error) {
@@ -135,6 +135,99 @@ func candleHealth(candles []Candle, gaps []CandleGap) CandleHealth {
 		return CandleHealthInsufficient
 	}
 	return CandleHealthOK
+}
+
+func (provider *CandleProvider) withPagination(
+	ctx context.Context,
+	query CandleQuery,
+	result CandleResult,
+) (CandleResult, error) {
+	pagination, err := provider.pagination(ctx, query, result)
+	if err != nil {
+		return CandleResult{}, err
+	}
+	result.Pagination = pagination
+	return result, nil
+}
+
+func (provider *CandleProvider) pagination(
+	ctx context.Context,
+	query CandleQuery,
+	result CandleResult,
+) (CandlePagination, error) {
+	if len(result.Candles) == 0 {
+		return CandlePagination{}, nil
+	}
+
+	intervalDuration, err := IntervalDuration(query.Interval)
+	if err != nil {
+		return CandlePagination{}, err
+	}
+	limit := NormalizeCandleLimit(query.Limit)
+	firstOpen := result.Candles[0].OpenTime.UTC()
+	lastOpen := result.Candles[len(result.Candles)-1].OpenTime.UTC()
+
+	previousTo := firstOpen.Add(-intervalDuration)
+	previousFrom := previousTo.Add(-time.Duration(limit-1) * intervalDuration)
+	nextFrom := lastOpen.Add(intervalDuration)
+	nextTo := nextFrom.Add(time.Duration(limit-1) * intervalDuration)
+
+	probeInterval := query.Interval
+	probePreviousTo := previousTo
+	probeNextFrom := nextFrom
+	if result.Source == CandleSourceAggregated {
+		baseDuration, err := IntervalDuration(baseCandleInterval)
+		if err != nil {
+			return CandlePagination{}, err
+		}
+		probeInterval = baseCandleInterval
+		probePreviousTo = firstOpen.Add(-baseDuration)
+	}
+
+	hasPrevious, err := provider.hasNativeCandle(ctx, query, probeInterval, nil, &probePreviousTo)
+	if err != nil {
+		return CandlePagination{}, err
+	}
+	hasNext, err := provider.hasNativeCandle(ctx, query, probeInterval, &probeNextFrom, nil)
+	if err != nil {
+		return CandlePagination{}, err
+	}
+
+	pagination := CandlePagination{
+		HasPrevious: hasPrevious,
+		HasNext:     hasNext,
+	}
+	if hasPrevious {
+		pagination.PreviousFrom = &previousFrom
+		pagination.PreviousTo = &previousTo
+	}
+	if hasNext {
+		pagination.NextFrom = &nextFrom
+		pagination.NextTo = &nextTo
+	}
+	return pagination, nil
+}
+
+func (provider *CandleProvider) hasNativeCandle(
+	ctx context.Context,
+	query CandleQuery,
+	interval string,
+	from *time.Time,
+	to *time.Time,
+) (bool, error) {
+	probeQuery := CandleQuery{
+		Exchange: query.Exchange,
+		Symbol:   query.Symbol,
+		Interval: interval,
+		From:     from,
+		To:       to,
+		Limit:    1,
+	}
+	candles, err := provider.store.ListNativeCandles(ctx, probeQuery)
+	if err != nil {
+		return false, err
+	}
+	return len(candles) > 0, nil
 }
 
 type aggregationBaseWindow struct {

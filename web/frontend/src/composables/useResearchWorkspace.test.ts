@@ -104,6 +104,61 @@ describe("useResearchWorkspace", () => {
     });
   });
 
+  it("loads and navigates adjacent candle windows", async () => {
+    routerMocks.query = {
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      from: "2026-06-28T00:00:00Z",
+      to: "2026-06-28T01:00:00Z",
+    };
+    dataApiMocks.getCandles.mockResolvedValueOnce(
+      candleResult({
+        pagination: {
+          hasPrevious: true,
+          hasNext: true,
+          previousFrom: "2026-06-27T23:00:00Z",
+          previousTo: "2026-06-27T23:55:00Z",
+          nextFrom: "2026-06-28T01:05:00Z",
+          nextTo: "2026-06-28T02:00:00Z",
+        },
+      }),
+    );
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    expect(dataApi.getCandles).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      from: "2026-06-28T00:00:00Z",
+      to: "2026-06-28T01:00:00Z",
+    });
+    expect(workspace.canLoadNextCandles.value).toBe(true);
+
+    workspace.loadNextCandles();
+    await flushPromises();
+
+    expect(routerMocks.replace).toHaveBeenLastCalledWith({
+      name: "research",
+      query: {
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "5m",
+        from: "2026-06-28T01:05:00Z",
+        to: "2026-06-28T02:00:00Z",
+      },
+    });
+    expect(dataApi.getCandles).toHaveBeenLastCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      from: "2026-06-28T01:05:00Z",
+      to: "2026-06-28T02:00:00Z",
+    });
+  });
+
   it("does not call the candles API for a symbol that does not match the selected exchange", async () => {
     const workspace = mountWorkspace();
     await flushPromises();
@@ -233,6 +288,10 @@ function candleResult(overrides: Record<string, unknown>) {
       requestedLimit: 1000,
       returnedCandles: 0,
       limitedByBaseWindow: false,
+    },
+    pagination: {
+      hasPrevious: false,
+      hasNext: false,
     },
     ...overrides,
   };

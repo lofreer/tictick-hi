@@ -221,19 +221,6 @@ func (repository *fakeRepository) ListCandles(
 	return result.Candles, nil
 }
 
-func (repository *fakeRepository) ListNativeCandles(
-	_ context.Context,
-	query data.CandleQuery,
-) ([]data.Candle, error) {
-	matches := make([]data.Candle, 0)
-	for _, candle := range repository.candles {
-		if candle.Exchange == query.Exchange && candle.Symbol == query.Symbol && candle.Interval == query.Interval {
-			matches = append(matches, candle)
-		}
-	}
-	return matches, nil
-}
-
 func (repository *fakeRepository) ListBacktestTasks(context.Context) ([]data.BacktestTask, error) {
 	return append([]data.BacktestTask(nil), repository.backtests...), nil
 }

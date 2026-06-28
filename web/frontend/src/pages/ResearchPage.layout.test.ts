@@ -39,6 +39,17 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).not.toContain('<NSelect v-model:value="createForm.symbol"');
     expect(source).not.toContain(':options="symbolOptions" filterable tag');
   });
+
+  it("exposes explicit candle window controls", () => {
+    expect(source).toContain("ChevronLeft");
+    expect(source).toContain("ChevronRight");
+    expect(source).toContain("canLoadPreviousCandles");
+    expect(source).toContain("canLoadNextCandles");
+    expect(source).toContain("@click=\"loadPreviousCandles\"");
+    expect(source).toContain("@click=\"loadNextCandles\"");
+    expect(source).toContain("research.previousWindow");
+    expect(source).toContain("research.nextWindow");
+  });
 });
 
 function cssBlock(source: string, selector: string) {

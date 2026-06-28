@@ -90,6 +90,68 @@ func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
 	}
 }
 
+func TestCandleProviderReportsNativePagination(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := make([]Candle, 0, 5)
+	for index := 0; index < 5; index++ {
+		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
+	}
+	store := fakeCandleStore{candles: candles}
+	from := start.Add(time.Minute)
+
+	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     &from,
+		Limit:    2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Candles) != 2 {
+		t.Fatalf("unexpected candles: %#v", result.Candles)
+	}
+	if !result.Pagination.HasPrevious || !result.Pagination.HasNext {
+		t.Fatalf("expected previous and next windows: %#v", result.Pagination)
+	}
+	assertTimePtr(t, result.Pagination.PreviousFrom, start.Add(-time.Minute))
+	assertTimePtr(t, result.Pagination.PreviousTo, start)
+	assertTimePtr(t, result.Pagination.NextFrom, start.Add(3*time.Minute))
+	assertTimePtr(t, result.Pagination.NextTo, start.Add(4*time.Minute))
+}
+
+func TestCandleProviderReportsAggregatedPaginationFromBaseCandles(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := make([]Candle, 0, 15)
+	for index := 0; index < 15; index++ {
+		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
+	}
+	store := fakeCandleStore{candles: candles}
+	from := start.Add(5 * time.Minute)
+
+	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "5m",
+		From:     &from,
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != CandleSourceAggregated || len(result.Candles) != 1 {
+		t.Fatalf("unexpected aggregation: %#v", result)
+	}
+	if !result.Pagination.HasPrevious || !result.Pagination.HasNext {
+		t.Fatalf("expected previous and next windows: %#v", result.Pagination)
+	}
+	assertTimePtr(t, result.Pagination.PreviousFrom, start)
+	assertTimePtr(t, result.Pagination.PreviousTo, start)
+	assertTimePtr(t, result.Pagination.NextFrom, start.Add(10*time.Minute))
+	assertTimePtr(t, result.Pagination.NextTo, start.Add(10*time.Minute))
+}
+
 func TestCandleProviderFallsBackWhenNativeHasGap(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	store := fakeCandleStore{candles: []Candle{
@@ -210,5 +272,15 @@ func testIntervalCandle(interval string, openTime time.Time, close string) Candl
 		Close:     close,
 		Volume:    "1",
 		IsClosed:  true,
+	}
+}
+
+func assertTimePtr(t *testing.T, actual *time.Time, expected time.Time) {
+	t.Helper()
+	if actual == nil {
+		t.Fatalf("time pointer is nil, want %s", expected.Format(time.RFC3339))
+	}
+	if !actual.Equal(expected) {
+		t.Fatalf("time = %s, want %s", actual.Format(time.RFC3339), expected.Format(time.RFC3339))
 	}
 }

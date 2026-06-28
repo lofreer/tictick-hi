@@ -46,6 +46,34 @@
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
             <NAutoComplete v-model:value="symbol" class="research-symbol-input" :options="symbolOptions" clearable />
             <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
+            <div class="research-window-controls">
+              <NButton
+                circle
+                secondary
+                size="small"
+                :aria-label="t('research.previousWindow')"
+                :disabled="!canLoadPreviousCandles || candlesLoading"
+                :title="t('research.previousWindow')"
+                @click="loadPreviousCandles"
+              >
+                <template #icon>
+                  <ChevronLeft :size="16" />
+                </template>
+              </NButton>
+              <NButton
+                circle
+                secondary
+                size="small"
+                :aria-label="t('research.nextWindow')"
+                :disabled="!canLoadNextCandles || candlesLoading"
+                :title="t('research.nextWindow')"
+                @click="loadNextCandles"
+              >
+                <template #icon>
+                  <ChevronRight :size="16" />
+                </template>
+              </NButton>
+            </div>
           </div>
           <div class="research-context">
             <NText depth="3">
@@ -173,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from "@lucide/vue";
+import { ChevronLeft, ChevronRight, Plus } from "@lucide/vue";
 import {
   NAutoComplete,
   NButton,
@@ -206,6 +234,8 @@ import { symbolOptionsForExchange } from "@/utils/marketSymbols";
 const { t } = useI18n();
 const {
   canCreateTask,
+  canLoadNextCandles,
+  canLoadPreviousCandles,
   canRepairGap,
   candleResult,
   candles,
@@ -224,6 +254,8 @@ const {
   gapDetailsTask,
   interval,
   loadCandles,
+  loadNextCandles,
+  loadPreviousCandles,
   loadTasks,
   openCreateTask,
   repairFirstGap,
@@ -388,6 +420,8 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-select--compact {
   width: 96px;
 }
+
+.research-window-controls { display: inline-flex; align-items: center; gap: 6px; }
 
 :global(.research-modal) {
   width: min(560px, calc(100vw - 32px));

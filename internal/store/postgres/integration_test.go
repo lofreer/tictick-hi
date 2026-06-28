@@ -601,6 +601,17 @@ func assertOpenTimes(t *testing.T, candles []data.Candle, expected ...time.Time)
 	}
 }
 
+func assertTimePtr(t *testing.T, actual *time.Time, expected time.Time) {
+	t.Helper()
+
+	if actual == nil {
+		t.Fatalf("time pointer is nil, want %s", expected.Format(time.RFC3339))
+	}
+	if !actual.Equal(expected) {
+		t.Fatalf("time = %s, want %s", actual.Format(time.RFC3339), expected.Format(time.RFC3339))
+	}
+}
+
 type integrationSyncTaskRow struct {
 	status          data.TaskStatus
 	syncEnabled     bool

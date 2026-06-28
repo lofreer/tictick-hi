@@ -359,14 +359,24 @@ type CandleCoverage struct {
 	LimitedByBaseWindow bool `json:"limitedByBaseWindow"`
 }
 
+type CandlePagination struct {
+	HasPrevious  bool       `json:"hasPrevious"`
+	HasNext      bool       `json:"hasNext"`
+	PreviousFrom *time.Time `json:"previousFrom,omitempty"`
+	PreviousTo   *time.Time `json:"previousTo,omitempty"`
+	NextFrom     *time.Time `json:"nextFrom,omitempty"`
+	NextTo       *time.Time `json:"nextTo,omitempty"`
+}
+
 type CandleResult struct {
-	Candles           []Candle       `json:"candles"`
-	Source            CandleSource   `json:"source"`
-	RequestedInterval string         `json:"requestedInterval"`
-	BaseInterval      string         `json:"baseInterval,omitempty"`
-	Health            CandleHealth   `json:"health"`
-	Gaps              []CandleGap    `json:"gaps,omitempty"`
-	Coverage          CandleCoverage `json:"coverage"`
+	Candles           []Candle         `json:"candles"`
+	Source            CandleSource     `json:"source"`
+	RequestedInterval string           `json:"requestedInterval"`
+	BaseInterval      string           `json:"baseInterval,omitempty"`
+	Health            CandleHealth     `json:"health"`
+	Gaps              []CandleGap      `json:"gaps,omitempty"`
+	Coverage          CandleCoverage   `json:"coverage"`
+	Pagination        CandlePagination `json:"pagination"`
 }
 
 type NativeCandleStore interface {
