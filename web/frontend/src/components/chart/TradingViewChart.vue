@@ -197,12 +197,12 @@ function guardFixedViewportSize(
   nextSize: { width: number; height: number; fixedViewport: boolean },
   nextWindowSize: { width: number; height: number },
 ) {
+  const windowUnchanged =
+    nextWindowSize.width === lastWindowSize.width && nextWindowSize.height === lastWindowSize.height;
   if (
     nextSize.fixedViewport &&
-    nextSize.width === lastSize.width &&
-    nextSize.height > lastSize.height &&
-    nextWindowSize.width === lastWindowSize.width &&
-    nextWindowSize.height === lastWindowSize.height
+    windowUnchanged &&
+    nextSize.height !== lastSize.height
   ) {
     return { width: nextSize.width, height: lastSize.height };
   }

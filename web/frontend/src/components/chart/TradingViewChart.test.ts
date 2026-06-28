@@ -187,12 +187,13 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("blocks fixed viewport height growth when the window and width are unchanged", () => {
+  it("blocks fixed viewport height changes while the window is unchanged", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     chartMocks.resize.mockClear();
 
     viewportSize = { width: 1180, height: 641 };
+    host.body.style.height = "641px";
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
     expect(chartMocks.resize).not.toHaveBeenCalled();
@@ -201,7 +202,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("resizes only when the fixed chart slot changes", () => {
+  it("does not accept fixed viewport height changes when only the width changes", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     chartMocks.resize.mockClear();
@@ -209,12 +210,13 @@ describe("TradingViewChart", () => {
     resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 640 })], {} as ResizeObserver);
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
-    viewportSize = { width: 1180, height: 603 };
+    viewportSize = { width: 1190, height: 603 };
+    host.body.style.width = "1190px";
     host.body.style.height = "603px";
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 603);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1190, 640);
 
     wrapper.unmount();
     host.panel.remove();
@@ -259,6 +261,11 @@ describe("TradingViewChart", () => {
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
     host.body.style.height = "560px";
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 9000 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
     resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 9000 })], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
