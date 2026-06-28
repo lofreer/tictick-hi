@@ -17,45 +17,6 @@ const (
 	TaskStatusCancelled TaskStatus = "cancelled"
 )
 
-type DataSyncHealth string
-
-const (
-	DataSyncHealthOK           DataSyncHealth = "ok"
-	DataSyncHealthSyncing      DataSyncHealth = "syncing"
-	DataSyncHealthGap          DataSyncHealth = "gap"
-	DataSyncHealthFailed       DataSyncHealth = "failed"
-	DataSyncHealthPaused       DataSyncHealth = "paused"
-	DataSyncHealthRetrying     DataSyncHealth = "retrying"
-	DataSyncHealthInsufficient DataSyncHealth = "insufficient"
-)
-
-type DataSyncTask struct {
-	ID                   string         `json:"id"`
-	Exchange             string         `json:"exchange"`
-	Symbol               string         `json:"symbol"`
-	Interval             string         `json:"interval"`
-	StartTime            *time.Time     `json:"startTime,omitempty"`
-	EndTime              *time.Time     `json:"endTime,omitempty"`
-	SyncEnabled          bool           `json:"syncEnabled"`
-	RealtimeEnabled      bool           `json:"realtimeEnabled"`
-	Status               TaskStatus     `json:"status"`
-	DataHealth           DataSyncHealth `json:"dataHealth"`
-	LatestSyncedOpenTime *time.Time     `json:"latestSyncedAt,omitempty"`
-	LastError            string         `json:"lastError,omitempty"`
-	AttemptCount         int            `json:"attemptCount"`
-	NextAttemptAt        *time.Time     `json:"nextAttemptAt,omitempty"`
-	CreatedAt            time.Time      `json:"createdAt"`
-	UpdatedAt            time.Time      `json:"updatedAt"`
-}
-
-type CreateDataSyncTask struct {
-	Exchange  string     `json:"exchange"`
-	Symbol    string     `json:"symbol"`
-	Interval  string     `json:"interval"`
-	StartTime *time.Time `json:"startTime,omitempty"`
-	EndTime   *time.Time `json:"endTime,omitempty"`
-}
-
 type BacktestTask struct {
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`

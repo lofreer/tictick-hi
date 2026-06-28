@@ -101,6 +101,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"StatusResponse", apiStatusResponse{}},
 		{"TaskStatus", data.TaskStatus("")},
 		{"DataSyncHealth", data.DataSyncHealth("")},
+		{"DataSyncGapSummary", data.DataSyncGapSummary{}},
 		{"DataSyncTask", data.DataSyncTask{}},
 		{"CreateDataSyncTask", data.CreateDataSyncTask{}},
 		{"Candle", data.Candle{}},

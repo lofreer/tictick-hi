@@ -50,6 +50,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 		schemaName string
 	}{
 		{"DataSyncTask", "DataSyncTask"},
+		{"DataSyncGapSummary", "DataSyncGapSummary"},
 		{"CandleGap", "CandleGap"},
 		{"CandleCoverage", "CandleCoverage"},
 		{"CandleResult", "CandleResult"},

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -43,28 +44,40 @@ func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask,
 		  FROM data_sync_tasks AS t
 		  LEFT JOIN LATERAL (
 			SELECT COUNT(*) AS candle_count,
-			       COALESCE(
-			         BOOL_OR(
-			           previous_open_time IS NOT NULL
-			           AND interval_duration IS NOT NULL
-			           AND open_time - previous_open_time > interval_duration
-			         ),
-			         false
-			       ) AS has_gap
+			       COUNT(*) FILTER (WHERE is_gap) AS gap_count,
+			       (ARRAY_AGG(expected_open_time ORDER BY open_time) FILTER (WHERE is_gap))[1] AS first_gap_from,
+			       (ARRAY_AGG(open_time ORDER BY open_time) FILTER (WHERE is_gap))[1] AS first_gap_to,
+			       (ARRAY_AGG(missing_candles ORDER BY open_time) FILTER (WHERE is_gap))[1] AS first_gap_missing_candles,
+			       COALESCE(BOOL_OR(is_gap), false) AS has_gap
 			  FROM (
-				SELECT c.open_time,
-				       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
-				       %s AS interval_duration
-				  FROM market_candles AS c
-				 WHERE c.exchange = t.exchange
-				   AND c.symbol = t.symbol
-				   AND c.interval = t.interval
-				   AND (t.start_time IS NULL OR c.open_time >= t.start_time)
-				   AND c.open_time <= COALESCE(t.end_time, t.last_synced_open_time, now())
-			  ) ordered_candles
+				SELECT open_time,
+				       previous_open_time + interval_duration AS expected_open_time,
+				       CASE
+				         WHEN previous_open_time IS NULL OR interval_duration IS NULL THEN 0
+				         ELSE GREATEST(
+				           (EXTRACT(EPOCH FROM (open_time - previous_open_time))
+				            / NULLIF(EXTRACT(EPOCH FROM interval_duration), 0))::int - 1,
+				           0
+				         )
+				       END AS missing_candles,
+				       previous_open_time IS NOT NULL
+				       AND interval_duration IS NOT NULL
+				       AND open_time - previous_open_time > interval_duration AS is_gap
+				  FROM (
+					SELECT c.open_time,
+					       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
+					       %s AS interval_duration
+					  FROM market_candles AS c
+					 WHERE c.exchange = t.exchange
+					   AND c.symbol = t.symbol
+					   AND c.interval = t.interval
+					   AND (t.start_time IS NULL OR c.open_time >= t.start_time)
+					   AND c.open_time <= COALESCE(t.end_time, t.last_synced_open_time, now())
+				  ) ordered_candles
+			 ) gap_candidates
 		  ) candle_state ON true
 		 ORDER BY t.created_at DESC`,
-		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t")),
+		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL()),
 		dataSyncTaskIntervalDurationSQL("t"),
 	))
 	if err != nil {
@@ -302,14 +315,15 @@ func (store *Store) updateTaskFlag(
 }
 
 func dataSyncTaskReturningColumns() string {
-	return dataSyncTaskScanColumns("", dataSyncTaskStateHealthSQL(""))
+	return dataSyncTaskScanColumns("", dataSyncTaskStateHealthSQL(""), dataSyncTaskEmptyGapSummarySQL())
 }
 
-func dataSyncTaskScanColumns(alias string, healthSQL string) string {
-	return fmt.Sprintf(`%s, %s AS data_health, %s, %s, %s, %s, %s, %s`,
+func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL string) string {
+	return fmt.Sprintf(`%s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s`,
 		dataSyncTaskColumnList(alias, "id", "exchange", "symbol", "interval", "start_time", "end_time",
 			"sync_enabled", "realtime_enabled", "status"),
 		healthSQL,
+		gapSummarySQL,
 		dataSyncTaskColumn(alias, "last_synced_open_time"),
 		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "last_error")),
 		dataSyncTaskColumn(alias, "attempt_count"),
@@ -317,6 +331,20 @@ func dataSyncTaskScanColumns(alias string, healthSQL string) string {
 		dataSyncTaskColumn(alias, "created_at"),
 		dataSyncTaskColumn(alias, "updated_at"),
 	)
+}
+
+func dataSyncTaskListGapSummarySQL() string {
+	return `COALESCE(candle_state.gap_count, 0) AS gap_count,
+		candle_state.first_gap_from AS first_gap_from,
+		candle_state.first_gap_to AS first_gap_to,
+		COALESCE(candle_state.first_gap_missing_candles, 0) AS first_gap_missing_candles`
+}
+
+func dataSyncTaskEmptyGapSummarySQL() string {
+	return `0 AS gap_count,
+		NULL::timestamptz AS first_gap_from,
+		NULL::timestamptz AS first_gap_to,
+		0 AS first_gap_missing_candles`
 }
 
 func dataSyncTaskColumnList(alias string, columns ...string) string {
@@ -409,6 +437,10 @@ func scanDataSyncTask(row pgx.CollectableRow) (data.DataSyncTask, error) {
 
 func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 	var task data.DataSyncTask
+	var gapCount int64
+	var firstGapFrom sql.NullTime
+	var firstGapTo sql.NullTime
+	var firstGapMissingCandles sql.NullInt64
 	err := row.Scan(
 		&task.ID,
 		&task.Exchange,
@@ -420,6 +452,10 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&task.RealtimeEnabled,
 		&task.Status,
 		&task.DataHealth,
+		&gapCount,
+		&firstGapFrom,
+		&firstGapTo,
+		&firstGapMissingCandles,
 		&task.LatestSyncedOpenTime,
 		&task.LastError,
 		&task.AttemptCount,
@@ -427,6 +463,16 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	)
+	if err == nil && gapCount > 0 {
+		task.GapSummary = &data.DataSyncGapSummary{Count: int(gapCount)}
+		if firstGapFrom.Valid && firstGapTo.Valid {
+			task.GapSummary.FirstGap = &data.CandleGap{
+				From:           firstGapFrom.Time,
+				To:             firstGapTo.Time,
+				MissingCandles: int(firstGapMissingCandles.Int64),
+			}
+		}
+	}
 	return task, err
 }
 

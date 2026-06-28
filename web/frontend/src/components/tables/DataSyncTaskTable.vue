@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1400"
+    :scroll-x="1580"
     size="small"
   />
 </template>
@@ -59,6 +59,12 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
       h(NTag, { bordered: false, size: "small", type: dataHealthTagType(row.dataHealth) }, () =>
         t(`research.dataHealth.${row.dataHealth}`),
       ),
+  },
+  {
+    title: t("research.gapSummary"),
+    key: "gapSummary",
+    width: 180,
+    render: gapSummaryCell,
   },
   {
     title: t("research.realtime"),
@@ -118,6 +124,50 @@ function iconButton(
     NButton,
     { size: "tiny", quaternary: true, type, title: label, onClick },
     { icon: () => h(icon, { size: 15 }) },
+  );
+}
+
+function gapSummaryCell(row: DataSyncTask) {
+  const summary = row.gapSummary;
+  if (!summary || summary.count <= 0) {
+    return h(NText, { depth: 3 }, () => "-");
+  }
+
+  const text = summary.firstGap
+    ? t("research.gapSummaryFirst", {
+        count: summary.count,
+        from: summary.firstGap.from,
+        missing: summary.firstGap.missingCandles,
+        to: summary.firstGap.to,
+      })
+    : t("research.gapSummaryCountOnly", { count: summary.count });
+
+  return h(
+    NTooltip,
+    { trigger: "hover", width: 420 },
+    {
+      trigger: () =>
+        h(
+          "span",
+          {
+            class: "task-gap-summary",
+            title: text,
+          },
+          text,
+        ),
+      default: () =>
+        h(
+          "span",
+          {
+            style: {
+              display: "block",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            },
+          },
+          text,
+        ),
+    },
   );
 }
 
@@ -182,6 +232,15 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
   max-width: 100%;
   overflow: hidden;
   color: var(--tt-danger);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-gap-summary {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--tt-warning);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

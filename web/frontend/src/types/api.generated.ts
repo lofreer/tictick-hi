@@ -142,6 +142,10 @@ export type CreateTradingTask = {
   symbol: string;
   type: string;
 };
+export type DataSyncGapSummary = {
+  count: number;
+  firstGap?: CandleGap;
+};
 export type DataSyncHealth = "ok" | "syncing" | "gap" | "failed" | "paused" | "retrying" | "insufficient";
 export type DataSyncTask = {
   attemptCount: number;
@@ -149,6 +153,7 @@ export type DataSyncTask = {
   dataHealth: DataSyncHealth;
   endTime?: string;
   exchange: string;
+  gapSummary?: DataSyncGapSummary;
   id: string;
   interval: string;
   lastError?: string;

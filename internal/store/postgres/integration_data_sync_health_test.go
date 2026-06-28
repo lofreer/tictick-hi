@@ -33,8 +33,8 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 		})
 	}
 
-	insertDataHealthTask(t, ctx, store, taskIDs["gap"], taskSymbols["gap"], data.TaskStatusSucceeded, false, false, ptrTime(start.Add(3*time.Minute)), nil, "")
-	for _, minute := range []int{0, 1, 3} {
+	insertDataHealthTask(t, ctx, store, taskIDs["gap"], taskSymbols["gap"], data.TaskStatusSucceeded, false, false, ptrTime(start.Add(6*time.Minute)), nil, "")
+	for _, minute := range []int{0, 1, 3, 6} {
 		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(taskSymbols["gap"], start, minute))
 	}
 
@@ -53,8 +53,10 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	healthByID := make(map[string]data.DataSyncHealth)
+	gapSummaryByID := make(map[string]*data.DataSyncGapSummary)
 	for _, task := range tasks {
 		healthByID[task.ID] = task.DataHealth
+		gapSummaryByID[task.ID] = task.GapSummary
 	}
 
 	expected := map[string]data.DataSyncHealth{
@@ -69,6 +71,25 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 		if got := healthByID[id]; got != want {
 			t.Fatalf("task %s data health = %q, want %q", id, got, want)
 		}
+	}
+
+	gapSummary := gapSummaryByID[taskIDs["gap"]]
+	if gapSummary == nil {
+		t.Fatal("gap task should expose gap summary")
+	}
+	if gapSummary.Count != 2 {
+		t.Fatalf("gap summary count = %d, want 2", gapSummary.Count)
+	}
+	if gapSummary.FirstGap == nil {
+		t.Fatal("gap task should expose first gap")
+	}
+	if !gapSummary.FirstGap.From.Equal(start.Add(2*time.Minute)) ||
+		!gapSummary.FirstGap.To.Equal(start.Add(3*time.Minute)) ||
+		gapSummary.FirstGap.MissingCandles != 1 {
+		t.Fatalf("unexpected first gap summary: %#v", gapSummary.FirstGap)
+	}
+	if gapSummaryByID[taskIDs["ok"]] != nil {
+		t.Fatalf("ok task gap summary = %#v, want nil", gapSummaryByID[taskIDs["ok"]])
 	}
 }
 

@@ -108,6 +108,14 @@ describe("data api", () => {
               syncEnabled: true,
               status: "running",
               dataHealth: "retrying",
+              gapSummary: {
+                count: 2,
+                firstGap: {
+                  from: "2026-06-27T03:02:00Z",
+                  to: "2026-06-27T03:03:00Z",
+                  missingCandles: 1,
+                },
+              },
               lastError: "temporary EOF",
               attemptCount: 3,
               nextAttemptAt: "2026-06-28T01:30:00Z",
@@ -123,6 +131,14 @@ describe("data api", () => {
         id: "dst_1",
         attemptCount: 3,
         dataHealth: "retrying",
+        gapSummary: {
+          count: 2,
+          firstGap: {
+            from: "2026-06-27T03:02:00Z",
+            to: "2026-06-27T03:03:00Z",
+            missingCandles: 1,
+          },
+        },
         lastError: "temporary EOF",
         nextAttemptAt: "2026-06-28T01:30:00Z",
       },
