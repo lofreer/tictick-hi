@@ -52,6 +52,9 @@ describe("useResearchWorkspace", () => {
       taskId: "dst_1",
       gaps: [{ from: "2026-06-27T03:02:00Z", to: "2026-06-27T03:03:00Z", missingCandles: 1 }],
       limited: false,
+      totalCount: 1,
+      returnedCount: 1,
+      repairLimit: 20,
     });
     dataApiMocks.createTask.mockResolvedValue({ id: "dst_repair" });
     dataApiMocks.repairTaskGaps.mockResolvedValue({
@@ -59,6 +62,8 @@ describe("useResearchWorkspace", () => {
       createdTasks: [{ id: "dst_repair_1" }],
       skippedExisting: 0,
       limited: false,
+      totalCount: 1,
+      repairLimit: 20,
     });
     dataApiMocks.setSync.mockResolvedValue({ id: "dst_repair" });
   });

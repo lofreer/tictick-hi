@@ -256,7 +256,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.gapFrom": "起始时间",
     "research.gapTo": "结束时间",
     "research.missingCandles": "缺失 K 线",
-    "research.gapDetailsLimited": "仅显示前 20 个缺口",
+    "research.gapDetailsLimited": "已显示 {returned}/{total} 个缺口，单次最多修复 {limit} 个",
     "research.noGapDetails": "当前任务没有检测到缺口。",
     "research.gapDetailsLoadFailed": "加载缺口详情失败。",
     "research.repairFirstGap": "修复首个缺口",

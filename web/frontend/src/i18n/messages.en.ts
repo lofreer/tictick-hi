@@ -256,7 +256,7 @@ export const enUSMessages: Record<string, string> = {
     "research.gapFrom": "From",
     "research.gapTo": "To",
     "research.missingCandles": "Missing candles",
-    "research.gapDetailsLimited": "Showing the first 20 gaps",
+    "research.gapDetailsLimited": "Showing {returned}/{total} gaps; one repair can queue up to {limit}",
     "research.noGapDetails": "No gaps detected for this task.",
     "research.gapDetailsLoadFailed": "Failed to load gap details.",
     "research.repairFirstGap": "Repair first gap",

@@ -121,12 +121,49 @@ func TestIntegrationListDataSyncTaskGapsReportsWindows(t *testing.T) {
 	if gaps.TaskID != taskID || gaps.Limited || len(gaps.Gaps) != 2 {
 		t.Fatalf("unexpected gap list metadata: %#v", gaps)
 	}
+	if gaps.TotalCount != 2 || gaps.ReturnedCount != 2 || gaps.RepairLimit != 20 {
+		t.Fatalf("unexpected gap list counts: %#v", gaps)
+	}
 	assertTaskGap(t, gaps.Gaps[0], start.Add(2*time.Minute), start.Add(3*time.Minute), 1)
 	assertTaskGap(t, gaps.Gaps[1], start.Add(4*time.Minute), start.Add(6*time.Minute), 2)
 
 	if _, err := store.ListDataSyncTaskGaps(ctx, integrationID("missing")); !errors.Is(err, data.ErrNotFound) {
 		t.Fatalf("missing task error = %v, want ErrNotFound", err)
 	}
+}
+
+func TestIntegrationListDataSyncTaskGapsReportsLimitedTotal(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 5, 30, 0, 0, time.UTC)
+	symbol := integrationSymbol("DHLG")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(44*time.Minute)), nil, "")
+	for minute := 0; minute <= 44; minute += 2 {
+		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
+	}
+
+	gaps, err := store.ListDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !gaps.Limited || gaps.TotalCount != 22 || gaps.ReturnedCount != 20 || len(gaps.Gaps) != 20 {
+		t.Fatalf("unexpected limited gap list metadata: %#v", gaps)
+	}
+	if gaps.RepairLimit != 20 {
+		t.Fatalf("repair limit = %d, want 20", gaps.RepairLimit)
+	}
+	assertTaskGap(t, gaps.Gaps[0], start.Add(time.Minute), start.Add(2*time.Minute), 1)
+	assertTaskGap(t, gaps.Gaps[19], start.Add(39*time.Minute), start.Add(40*time.Minute), 1)
 }
 
 func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
@@ -155,6 +192,9 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 	}
 	if result.SourceTaskID != taskID || result.SkippedExisting != 0 || result.Limited {
 		t.Fatalf("unexpected repair result metadata: %#v", result)
+	}
+	if result.TotalCount != 2 || result.RepairLimit != 20 {
+		t.Fatalf("unexpected repair result counts: %#v", result)
 	}
 	if len(result.CreatedTasks) != 2 {
 		t.Fatalf("created repair task count = %d, want 2: %#v", len(result.CreatedTasks), result.CreatedTasks)

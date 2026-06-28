@@ -173,7 +173,13 @@
       <template #footer>
         <NSpace justify="end">
           <NTag v-if="gapDetails?.limited" :bordered="false" type="warning">
-            {{ t("research.gapDetailsLimited") }}
+            {{
+              t("research.gapDetailsLimited", {
+                returned: gapDetails.returnedCount,
+                total: gapDetails.totalCount,
+                limit: gapDetails.repairLimit,
+              })
+            }}
           </NTag>
           <NButton @click="gapDetailsModalOpen = false">{{ t("common.close") }}</NButton>
         </NSpace>

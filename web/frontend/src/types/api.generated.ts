@@ -160,13 +160,18 @@ export type CreateTradingTask = {
 export type DataSyncGapList = {
   gaps: CandleGap[];
   limited: boolean;
+  repairLimit: number;
+  returnedCount: number;
   taskId: string;
+  totalCount: number;
 };
 export type DataSyncGapRepairResult = {
   createdTasks: DataSyncTask[];
   limited: boolean;
+  repairLimit: number;
   skippedExisting: number;
   sourceTaskId: string;
+  totalCount: number;
 };
 export type DataSyncGapSummary = {
   count: number;

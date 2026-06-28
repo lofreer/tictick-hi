@@ -122,7 +122,10 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 			{From: gapFrom, To: gapTo, MissingCandles: 1},
 			{From: gapTo.Add(time.Minute), To: gapTo.Add(3 * time.Minute), MissingCandles: 2},
 		},
-		Limited: false,
+		Limited:       false,
+		TotalCount:    2,
+		ReturnedCount: 2,
+		RepairLimit:   20,
 	}
 
 	gapsRecorder := serveAuthenticated(
@@ -141,6 +144,9 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 	if gapList.TaskID != created.ID ||
 		gapList.Limited ||
+		gapList.TotalCount != 2 ||
+		gapList.ReturnedCount != 2 ||
+		gapList.RepairLimit != 20 ||
 		len(gapList.Gaps) != 2 ||
 		!gapList.Gaps[0].From.Equal(gapFrom) ||
 		gapList.Gaps[1].MissingCandles != 2 {
@@ -163,6 +169,8 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 	if repairResult.SourceTaskID != created.ID ||
 		len(repairResult.CreatedTasks) != 1 ||
+		repairResult.TotalCount != 2 ||
+		repairResult.RepairLimit != 20 ||
 		repairResult.CreatedTasks[0].StartTime == nil ||
 		!repairResult.CreatedTasks[0].StartTime.Equal(gapFrom) ||
 		!repairResult.CreatedTasks[0].SyncEnabled {

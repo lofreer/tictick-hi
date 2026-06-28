@@ -30,14 +30,17 @@ func (store *Store) ListDataSyncTaskGaps(ctx context.Context, id string) (data.D
 		return data.DataSyncGapList{}, err
 	}
 
-	windows, limited, err := listDataSyncRepairWindows(ctx, store.pool, id)
+	windows, totalCount, limited, err := listDataSyncRepairWindows(ctx, store.pool, id)
 	if err != nil {
 		return data.DataSyncGapList{}, err
 	}
 	return data.DataSyncGapList{
-		TaskID:  task.ID,
-		Gaps:    dataSyncRepairWindowsToGaps(windows),
-		Limited: limited,
+		TaskID:        task.ID,
+		Gaps:          dataSyncRepairWindowsToGaps(windows),
+		Limited:       limited,
+		TotalCount:    totalCount,
+		ReturnedCount: len(windows),
+		RepairLimit:   maxDataSyncGapRepairTasks,
 	}, nil
 }
 
@@ -56,7 +59,7 @@ func (store *Store) RepairDataSyncTaskGaps(
 		return data.DataSyncGapRepairResult{}, err
 	}
 
-	windows, limited, err := listDataSyncRepairWindows(ctx, tx, id)
+	windows, totalCount, limited, err := listDataSyncRepairWindows(ctx, tx, id)
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
@@ -65,6 +68,8 @@ func (store *Store) RepairDataSyncTaskGaps(
 		SourceTaskID: source.ID,
 		CreatedTasks: []data.DataSyncTask{},
 		Limited:      limited,
+		TotalCount:   totalCount,
+		RepairLimit:  maxDataSyncGapRepairTasks,
 	}
 	for _, window := range windows {
 		exists, err := dataSyncRepairTaskExists(ctx, tx, source, window)
@@ -128,10 +133,11 @@ func listDataSyncRepairWindows(
 	ctx context.Context,
 	queryer dataSyncGapQueryer,
 	id string,
-) ([]dataSyncGapRepairWindow, bool, error) {
+) ([]dataSyncGapRepairWindow, int, bool, error) {
 	rows, err := queryer.Query(ctx, fmt.Sprintf(`
-		SELECT expected_open_time, open_time, missing_candles
-		  FROM (
+		WITH gaps AS (
+			SELECT expected_open_time, open_time, missing_candles
+			  FROM (
 			SELECT open_time,
 			       previous_open_time + interval_duration AS expected_open_time,
 			       CASE
@@ -158,34 +164,35 @@ func listDataSyncRepairWindows(
 				   AND (t.start_time IS NULL OR c.open_time >= t.start_time)
 				   AND c.open_time <= COALESCE(t.end_time, t.last_synced_open_time, now())
 			  ) ordered_candles
-		  ) gap_candidates
-		 WHERE is_gap
+			  ) gap_candidates
+			 WHERE is_gap
+		)
+		SELECT expected_open_time, open_time, missing_candles, COUNT(*) OVER () AS total_count
+		  FROM gaps
 		 ORDER BY open_time
 		 LIMIT $2`,
 		dataSyncTaskIntervalDurationSQL("t"),
-	), id, maxDataSyncGapRepairTasks+1)
+	), id, maxDataSyncGapRepairTasks)
 	if err != nil {
-		return nil, false, fmt.Errorf("list data sync repair windows: %w", err)
+		return nil, 0, false, fmt.Errorf("list data sync repair windows: %w", err)
 	}
 	defer rows.Close()
 
 	windows := make([]dataSyncGapRepairWindow, 0)
+	totalCount := 0
 	for rows.Next() {
 		var window dataSyncGapRepairWindow
-		if err := rows.Scan(&window.from, &window.to, &window.missingCandles); err != nil {
-			return nil, false, fmt.Errorf("scan data sync repair window: %w", err)
+		if err := rows.Scan(&window.from, &window.to, &window.missingCandles, &totalCount); err != nil {
+			return nil, 0, false, fmt.Errorf("scan data sync repair window: %w", err)
 		}
 		windows = append(windows, window)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, false, fmt.Errorf("iterate data sync repair windows: %w", err)
+		return nil, 0, false, fmt.Errorf("iterate data sync repair windows: %w", err)
 	}
 
-	limited := len(windows) > maxDataSyncGapRepairTasks
-	if limited {
-		windows = windows[:maxDataSyncGapRepairTasks]
-	}
-	return windows, limited, nil
+	limited := totalCount > maxDataSyncGapRepairTasks
+	return windows, totalCount, limited, nil
 }
 
 func dataSyncRepairWindowsToGaps(windows []dataSyncGapRepairWindow) []data.CandleGap {

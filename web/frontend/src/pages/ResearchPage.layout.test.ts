@@ -56,6 +56,13 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("research.candleWindow");
     expect(source).toContain("formatWindowTime");
   });
+
+  it("shows returned and total gap counts when gap details are limited", () => {
+    expect(source).toContain("research.gapDetailsLimited");
+    expect(source).toContain("returned: gapDetails.returnedCount");
+    expect(source).toContain("total: gapDetails.totalCount");
+    expect(source).toContain("limit: gapDetails.repairLimit");
+  });
 });
 
 function cssBlock(source: string, selector: string) {

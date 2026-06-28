@@ -40,9 +40,12 @@ type DataSyncGapSummary struct {
 }
 
 type DataSyncGapList struct {
-	TaskID  string      `json:"taskId"`
-	Gaps    []CandleGap `json:"gaps"`
-	Limited bool        `json:"limited"`
+	TaskID        string      `json:"taskId"`
+	Gaps          []CandleGap `json:"gaps"`
+	Limited       bool        `json:"limited"`
+	TotalCount    int         `json:"totalCount"`
+	ReturnedCount int         `json:"returnedCount"`
+	RepairLimit   int         `json:"repairLimit"`
 }
 
 type DataSyncGapRepairResult struct {
@@ -50,6 +53,8 @@ type DataSyncGapRepairResult struct {
 	CreatedTasks    []DataSyncTask `json:"createdTasks"`
 	SkippedExisting int            `json:"skippedExisting"`
 	Limited         bool           `json:"limited"`
+	TotalCount      int            `json:"totalCount"`
+	RepairLimit     int            `json:"repairLimit"`
 }
 
 type CreateDataSyncTask struct {

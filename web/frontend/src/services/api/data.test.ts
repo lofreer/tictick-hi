@@ -215,6 +215,9 @@ describe("data api", () => {
             },
           ],
           limited: false,
+          totalCount: 1,
+          returnedCount: 1,
+          repairLimit: 20,
         }),
         { status: 200 },
       ),
@@ -231,6 +234,9 @@ describe("data api", () => {
         },
       ],
       limited: false,
+      totalCount: 1,
+      returnedCount: 1,
+      repairLimit: 20,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/data/tasks/dst_1/gaps",
@@ -259,6 +265,8 @@ describe("data api", () => {
           ],
           skippedExisting: 1,
           limited: false,
+          totalCount: 1,
+          repairLimit: 20,
         }),
         { status: 200 },
       ),
@@ -277,6 +285,8 @@ describe("data api", () => {
       ],
       skippedExisting: 1,
       limited: false,
+      totalCount: 1,
+      repairLimit: 20,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/data/tasks/dst_1/repair-gaps",

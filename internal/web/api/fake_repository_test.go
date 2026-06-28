@@ -120,11 +120,15 @@ func (repository *fakeRepository) ListDataSyncTaskGaps(
 			return cloneDataSyncGapList(detail), nil
 		}
 		result := data.DataSyncGapList{
-			TaskID: task.ID,
-			Gaps:   []data.CandleGap{},
+			TaskID:      task.ID,
+			Gaps:        []data.CandleGap{},
+			RepairLimit: 20,
 		}
 		if task.GapSummary != nil && task.GapSummary.FirstGap != nil && task.GapSummary.Count > 0 {
 			result.Gaps = append(result.Gaps, *task.GapSummary.FirstGap)
+			result.TotalCount = task.GapSummary.Count
+			result.ReturnedCount = len(result.Gaps)
+			result.Limited = task.GapSummary.Count > result.ReturnedCount
 		}
 		return result, nil
 	}
@@ -142,11 +146,14 @@ func (repository *fakeRepository) RepairDataSyncTaskGaps(
 		result := data.DataSyncGapRepairResult{
 			SourceTaskID: repository.tasks[index].ID,
 			CreatedTasks: []data.DataSyncTask{},
+			RepairLimit:  20,
 		}
 		summary := repository.tasks[index].GapSummary
 		if summary == nil || summary.FirstGap == nil || summary.Count <= 0 {
 			return result, nil
 		}
+		result.TotalCount = summary.Count
+		result.Limited = summary.Count > result.RepairLimit
 		if repository.fakeRepairTaskExists(repository.tasks[index], *summary.FirstGap) {
 			result.SkippedExisting = 1
 			return result, nil
@@ -642,9 +649,12 @@ func (repository *fakeRepository) fakeRepairTaskExists(source data.DataSyncTask,
 
 func cloneDataSyncGapList(value data.DataSyncGapList) data.DataSyncGapList {
 	return data.DataSyncGapList{
-		TaskID:  value.TaskID,
-		Gaps:    append([]data.CandleGap(nil), value.Gaps...),
-		Limited: value.Limited,
+		TaskID:        value.TaskID,
+		Gaps:          append([]data.CandleGap(nil), value.Gaps...),
+		Limited:       value.Limited,
+		TotalCount:    value.TotalCount,
+		ReturnedCount: value.ReturnedCount,
+		RepairLimit:   value.RepairLimit,
 	}
 }
 
