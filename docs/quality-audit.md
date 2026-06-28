@@ -3932,6 +3932,45 @@ Definition of Done：
 
 - API server 仍为 `scaffold`；本轮只细分了数据同步状态冲突错误。交易任务、通知、auth/session、系统管理等其他领域还需要继续建立稳定领域错误码和生产级审计边界。
 
+### 阶段 1 K 线图表固定槽高度读取规则补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 当前真实 8080 长采样未复现持续增长，但代码复查发现固定图表槽在同时存在 `height` 和较宽松 `max-height` 时优先读取 `max-height`，会让详情页这类 `chart-panel[data-chart-viewport="fixed"]` 的渲染高度偏离真实容器高度。
+- 现有研究页高度 smoke 只污染 `.tv-lightweight-charts` 根、内部 table 和 canvas，未覆盖 table 布局中间层 `tbody/tr/td`。
+
+修复范围：
+
+- `TradingViewChart` 固定槽高度读取规则调整为优先使用有效 `height`；只有 `height` 缺失、无效或超过有效 `max-height` 时，才用 `max-height` 兜底。
+- `TradingViewChart.test.ts` 新增固定 `chart-panel` 场景，验证 `height: 720px` 不会被误读成 `max-height: 820px`。
+- `scripts/research-chart-height-smoke.mjs` 的高度污染对象扩展到 `.tv-lightweight-charts tbody/tr/td`，覆盖 table 布局中间层被写入超大高度的情况。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts` 通过：2 个测试文件、19 个测试通过。
+- `node --check scripts/research-chart-height-smoke.mjs` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：20 个测试文件、88 个测试通过。
+- `pnpm --dir web/frontend run build` 通过，生产入口为 `/assets/index-DW1G5fki.js`。
+- `docker compose build api` 通过。
+- `docker compose up -d --no-deps api` 后 `docker inspect -f '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
+- `curl http://127.0.0.1:8080/research` 确认真实 8080 已服务新入口 `/assets/index-DW1G5fki.js`。
+- `SMOKE_SAMPLES=120 SMOKE_INTERVAL_MS=100 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+
+失败：
+
+- 当前真实 8080 仍未复现用户可视 Chrome 会话中的原始无限增长堆栈。
+
+剩余风险：
+
+- 本轮关闭的是固定槽高度读取顺序和 table 中间层高度污染 smoke 覆盖缺口，不等于完整桌面 / 移动 / 主题视觉回归体系。
+- 研究页图表研究能力仍薄，项目整体仍为 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -233,11 +233,10 @@ function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect, refresh:
 }
 
 function readDeclaredFixedViewportHeight(element: HTMLElement, bounds: DOMRect, previousHeight: number | null) {
-  const declaredMaxHeight = readFixedViewportPixelSize(readPixelSize(element, "maxHeight"));
-  if (declaredMaxHeight) return declaredMaxHeight;
-
   const declaredHeight = readFixedViewportPixelSize(readPixelSize(element, "height"));
-  if (declaredHeight) return declaredHeight;
+  const declaredMaxHeight = readFixedViewportPixelSize(readPixelSize(element, "maxHeight"));
+  if (declaredHeight && (!declaredMaxHeight || declaredHeight <= declaredMaxHeight)) return declaredHeight;
+  if (declaredMaxHeight) return declaredMaxHeight;
 
   const boundedHeight = readFixedViewportPixelSize(positiveFloor(bounds.height));
   if (boundedHeight) return boundedHeight;

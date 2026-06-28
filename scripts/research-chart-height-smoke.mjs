@@ -300,10 +300,12 @@ async function polluteInternalChartHeights(cdp) {
         '.research-chart-body',
         '.tv-lightweight-charts',
         '.tv-lightweight-charts table',
+        '.tv-lightweight-charts tbody',
+        '.tv-lightweight-charts tr',
+        '.tv-lightweight-charts td',
         '.trading-chart__canvas canvas'
       ]) {
-        const element = document.querySelector(selector);
-        if (element) {
+        for (const element of document.querySelectorAll(selector)) {
           element.style.height = '9000px';
           element.style.maxHeight = '9000px';
           element.style.blockSize = '9000px';

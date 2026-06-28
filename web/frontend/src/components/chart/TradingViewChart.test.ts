@@ -221,6 +221,22 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("uses the declared fixed viewport height before a looser max-height", () => {
+    const host = createFixedPanelHost();
+    const wrapper = mountChart(host.panel);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1000,
+        height: 720,
+      }),
+    );
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("blocks fixed viewport height changes while the window is unchanged", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
@@ -397,6 +413,17 @@ function createResearchHost(options: { declareViewportSize?: boolean; markViewpo
   panel.append(body);
   document.body.append(panel);
   return { panel, body };
+}
+
+function createFixedPanelHost() {
+  const panel = document.createElement("section");
+  panel.className = "chart-panel";
+  panel.setAttribute("data-chart-viewport", "fixed");
+  panel.style.width = "1000px";
+  panel.style.height = "720px";
+  panel.style.maxHeight = "820px";
+  document.body.append(panel);
+  return { panel };
 }
 
 function mountChart(host: HTMLElement) {
