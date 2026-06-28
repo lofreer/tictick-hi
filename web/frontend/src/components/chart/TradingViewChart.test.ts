@@ -62,25 +62,25 @@ describe("TradingViewChart", () => {
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
       get() {
-        return this instanceof Element && this.classList.contains("trading-chart") ? viewportSize.width : 0;
+        return this instanceof Element && this.classList.contains("research-chart-body") ? viewportSize.width : 0;
       },
     });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", {
       configurable: true,
       get() {
-        return this instanceof Element && this.classList.contains("trading-chart") ? viewportSize.height : 0;
+        return this instanceof Element && this.classList.contains("research-chart-body") ? viewportSize.height : 0;
       },
     });
 
     Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
-      if (this instanceof Element && this.classList.contains("trading-chart")) {
+      if (this instanceof Element && this.classList.contains("research-chart-body")) {
         return rect({ top: 180, width: viewportSize.width, height: viewportSize.height });
+      }
+      if (this instanceof Element && this.classList.contains("trading-chart")) {
+        return rect({ top: 180, width: viewportSize.width, height: viewportSize.height + 2200 });
       }
       if (this instanceof Element && this.classList.contains("trading-chart__canvas")) {
         return rect({ top: 180, width: viewportSize.width, height: viewportSize.height + 3200 });
-      }
-      if (this instanceof Element && this.classList.contains("research-chart-body")) {
-        return rect({ top: 180, width: viewportSize.width, height: 5000 });
       }
       if (this instanceof Element && this.classList.contains("chart-panel")) {
         return rect({ top: 100, width: viewportSize.width + 20, height: 5200 });
@@ -114,22 +114,22 @@ describe("TradingViewChart", () => {
     restorePrototypeProperty("clientHeight", originalClientHeight);
   });
 
-  it("observes only its own fixed root viewport", () => {
+  it("observes only the external fixed chart slot", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
 
-    expect(observedTarget).toBe(root);
+    expect(observedTarget).toBe(host.body);
+    expect(observedTarget).not.toBe(root);
     expect(observedTarget).not.toBe(canvasHost);
     expect(observedTarget).not.toBe(host.panel);
-    expect(observedTarget).not.toBe(host.body);
 
     wrapper.unmount();
     host.panel.remove();
   });
 
-  it("initializes from the root viewport without reading inflated ancestors", () => {
+  it("initializes from the fixed chart slot without reading inflated internal nodes", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 
@@ -145,7 +145,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("resizes only when the fixed root viewport changes", () => {
+  it("resizes only when the fixed chart slot changes", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     chartMocks.resize.mockClear();
@@ -163,13 +163,17 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("ignores resize entries from the chart mount element", () => {
+  it("ignores resize entries from internal chart elements", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
+    const root = wrapper.get(".trading-chart").element;
     const canvasHost = wrapper.get(".trading-chart__canvas").element;
     chartMocks.resize.mockClear();
 
-    resizeCallback?.([resizeEntry(canvasHost, { width: 1180, height: 9000 })], {} as ResizeObserver);
+    resizeCallback?.(
+      [resizeEntry(root, { width: 1180, height: 7000 }), resizeEntry(canvasHost, { width: 1180, height: 9000 })],
+      {} as ResizeObserver,
+    );
 
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
@@ -234,8 +238,10 @@ function createResearchHost() {
 }
 
 function mountChart(host: HTMLElement) {
+  const mountPoint = document.createElement("div");
+  host.append(mountPoint);
   return mount(TradingViewChart, {
-    attachTo: host,
+    attachTo: mountPoint,
     props: {
       data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
       emptyTitle: "No candles",

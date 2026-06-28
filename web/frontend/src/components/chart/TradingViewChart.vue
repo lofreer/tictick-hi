@@ -221,7 +221,14 @@ function readObserverContentSize(entry: ResizeObserverEntry) {
 }
 
 function readResizeHost() {
-  return rootRef.value;
+  const root = rootRef.value;
+  if (!root) return null;
+  const fixedChartSlot = root.closest<HTMLElement>(".research-chart-body, .chart-panel");
+  if (fixedChartSlot && fixedChartSlot !== root) return fixedChartSlot;
+  const parent = root.parentElement;
+  if (!parent) return root;
+  if (parent.hasAttribute("data-v-app") && parent.parentElement) return parent.parentElement;
+  return parent;
 }
 
 function positiveFloor(value: number) {
