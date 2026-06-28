@@ -20,6 +20,7 @@ describe("data api", () => {
                 high: "101.2",
                 low: "99.8",
                 close: "100.7",
+                volume: "1234.56",
               },
             ],
             source: "native",
@@ -40,8 +41,50 @@ describe("data api", () => {
     });
 
     expect(candles).toEqual([
-      { time: 1767225600, open: 100.1, high: 101.2, low: 99.8, close: 100.7 },
+      { time: 1767225600, open: 100.1, high: 101.2, low: 99.8, close: 100.7, volume: 1234.56 },
     ]);
+  });
+
+  it("drops candles with invalid volume", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            candles: [
+              {
+                openTime: "2026-01-01T00:00:00Z",
+                open: "100.1",
+                high: "101.2",
+                low: "99.8",
+                close: "100.7",
+                volume: "not-a-number",
+              },
+              {
+                openTime: "2026-01-01T00:01:00Z",
+                open: "101",
+                high: "102",
+                low: "100",
+                close: "101.5",
+                volume: "42",
+              },
+            ],
+            source: "native",
+            requestedInterval: "1m",
+            health: "ok",
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    await expect(
+      dataApi.listCandles({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+      }),
+    ).resolves.toEqual([{ time: 1767225660, open: 101, high: 102, low: 100, close: 101.5, volume: 42 }]);
   });
 
   it("maps candle metadata", async () => {

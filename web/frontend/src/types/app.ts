@@ -62,6 +62,7 @@ export type ChartCandle = {
   high: number;
   low: number;
   close: number;
+  volume: number;
 };
 
 export type ChartMarker = {

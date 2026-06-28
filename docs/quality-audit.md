@@ -4840,7 +4840,41 @@ Definition of Done：
 剩余风险：
 
 - 本轮关闭的是研究页 K 线固定槽内主图/轴 canvas 裁切风险和内部 table/canvas 外部几何覆盖风险，不是完整像素快照回归体系。
-- 研究页仍缺成交量、指标层、十字线工具、图表设置、全主题/全语言/真实浏览器矩阵视觉基线和长期采样；项目整体仍为 `scaffold`。
+- 研究页仍缺指标层、十字线工具、图表设置、全主题/全语言/真实浏览器矩阵视觉基线和长期采样；项目整体仍为 `scaffold`。
+
+### 阶段 1 研究页成交量图层补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 后端 `Candle` contract 已包含 `volume`，CandleProvider 聚合规则也要求高周期 `volume` 由基础 K 线求和，但前端 `ChartCandle` 和 `normalizeCandleResult()` 丢弃了 volume。
+- 研究页实施计划把成交量列为图表逐步增强项，当前 K 线图只有 OHLC 主图，无法支撑基础行情研究。
+
+修复范围：
+
+- `ChartCandle` 增加必需 `volume` 字段，前端 API 映射从 `/api/candles` 的 decimal string 解析为 number；任何 OHLCV 字段不是有限数字时丢弃整根 candle，避免 K 线层和成交量层时间错位。
+- `TradingViewChart` 增加 lightweight-charts `HistogramSeries` 成交量图层，绑定 overlay price scale，隐藏成交量 last value / price line，并按 K 线涨跌使用绿色/红色半透明柱。
+- 主 K 线价格轴通过 `scaleMargins` 给底部成交量区域留出空间，成交量图层使用同一固定图表槽和同一时间轴，不引入额外 DOM 容器。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.test.ts src/components/chart/TradingViewChart.test.ts` 通过，2 个测试文件 / 29 个测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过，21 个测试文件 / 105 个测试。
+- `pnpm --dir web/frontend run build` 通过，入口 chunk `449.09 kB`。
+- `scripts/quality-gate.sh` 通过。
+- `docker compose up -d --build api` 通过并重启本地 8080 API。
+- `scripts/research-chart-height-smoke.mjs` 在更新后的 8080 上通过：desktop `body/chart/tv 603->603`，narrow desktop `500->500`，mobile `457->457`。
+- Headless Chrome 截图核验底部成交量柱已渲染在固定图表槽内，右侧价格轴和底部时间轴未被裁切。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮只把后端 volume 数据接入研究页图表，不包含成交量均线、指标层、图表设置或完整视觉回归。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

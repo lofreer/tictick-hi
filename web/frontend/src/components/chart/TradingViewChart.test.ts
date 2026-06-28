@@ -3,22 +3,28 @@ import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TradingViewChart from "@/components/chart/TradingViewChart.vue";
-import { createChart } from "lightweight-charts";
+import { createChart, HistogramSeries } from "lightweight-charts";
 
 const chartMocks = vi.hoisted(() => ({
+  addSeries: vi.fn(),
+  applyOptions: vi.fn(),
+  applyPriceScaleOptions: vi.fn(),
   createChart: vi.fn(),
   fitContent: vi.fn(),
+  priceScale: vi.fn(),
   remove: vi.fn(),
   resize: vi.fn(),
+  setCandleData: vi.fn(),
   setVisibleLogicalRange: vi.fn(),
-  setData: vi.fn(),
   setMarkers: vi.fn(),
+  setVolumeData: vi.fn(),
 }));
 
 vi.mock("lightweight-charts", () => ({
   CandlestickSeries: "CandlestickSeries",
   createChart: chartMocks.createChart,
   createSeriesMarkers: vi.fn(() => ({ setMarkers: chartMocks.setMarkers })),
+  HistogramSeries: "HistogramSeries",
 }));
 
 const mockedCreateChart = vi.mocked(createChart);
@@ -26,9 +32,18 @@ const researchViewportSize = { width: 1180, height: 640 };
 const researchRenderSize = { ...researchViewportSize };
 
 function mockChartApi() {
+  chartMocks.addSeries.mockImplementation((seriesType) => {
+    if (seriesType === "HistogramSeries") {
+      return { setData: chartMocks.setVolumeData };
+    }
+    return { setData: chartMocks.setCandleData };
+  });
   chartMocks.createChart.mockReturnValue({
-    addSeries: vi.fn(() => ({ setData: chartMocks.setData })),
-    applyOptions: vi.fn(),
+    addSeries: chartMocks.addSeries,
+    applyOptions: chartMocks.applyOptions,
+    priceScale: chartMocks.priceScale.mockReturnValue({
+      applyOptions: chartMocks.applyPriceScaleOptions,
+    }),
     remove: chartMocks.remove,
     resize: chartMocks.resize,
     timeScale: vi.fn(() => ({
@@ -200,9 +215,50 @@ describe("TradingViewChart", () => {
       high: 110,
       low: 95,
       close: 104,
+      volume: 1000 + index,
     })));
 
     expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: -62, to: 1061 });
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("renders volume histogram on an overlay price scale", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body, [
+      { time: 1, open: 100, high: 110, low: 95, close: 104, volume: 1200 },
+      { time: 2, open: 104, high: 108, low: 96, close: 99, volume: 1800 },
+    ]);
+
+    expect(chartMocks.addSeries).toHaveBeenCalledWith(
+      HistogramSeries,
+      expect.objectContaining({
+        base: 0,
+        lastValueVisible: false,
+        priceFormat: { type: "volume" },
+        priceLineVisible: false,
+        priceScaleId: "",
+      }),
+    );
+    expect(chartMocks.setVolumeData).toHaveBeenCalledWith([
+      { time: 1, value: 1200, color: "rgba(14, 203, 129, 0.28)" },
+      { time: 2, value: 1800, color: "rgba(246, 70, 93, 0.28)" },
+    ]);
+    expect(chartMocks.priceScale).toHaveBeenCalledWith("right");
+    expect(chartMocks.priceScale).toHaveBeenCalledWith("");
+    expect(chartMocks.applyPriceScaleOptions).toHaveBeenCalledWith({
+      scaleMargins: {
+        top: 0.08,
+        bottom: 0.24,
+      },
+    });
+    expect(chartMocks.applyPriceScaleOptions).toHaveBeenCalledWith({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
 
     wrapper.unmount();
     host.panel.remove();
@@ -476,7 +532,7 @@ function createFixedPanelHost() {
   return { panel };
 }
 
-function mountChart(host: HTMLElement, data = [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }]) {
+function mountChart(host: HTMLElement, data = [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104, volume: 1200 }]) {
   const mountPoint = document.createElement("div");
   host.append(mountPoint);
   return mount(TradingViewChart, {

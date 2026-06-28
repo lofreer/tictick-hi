@@ -153,8 +153,9 @@ function toChartCandle(response: CandleResponse): ChartCandle | null {
   const high = Number(response.high);
   const low = Number(response.low);
   const close = Number(response.close);
+  const volume = Number(response.volume);
 
-  if (![time, open, high, low, close].every(Number.isFinite)) {
+  if (![time, open, high, low, close, volume].every(Number.isFinite)) {
     return null;
   }
 
@@ -164,6 +165,7 @@ function toChartCandle(response: CandleResponse): ChartCandle | null {
     high,
     low,
     close,
+    volume,
   };
 }
 

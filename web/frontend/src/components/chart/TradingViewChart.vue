@@ -12,7 +12,9 @@ import {
   CandlestickSeries,
   createChart,
   createSeriesMarkers,
+  HistogramSeries,
   type CandlestickData,
+  type HistogramData,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
@@ -38,6 +40,7 @@ const rootRef = ref<HTMLDivElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
 let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
+let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
@@ -50,6 +53,9 @@ const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
 const minTimeAxisEdgePaddingBars = 6;
 const timeAxisEdgePaddingPixels = 72;
+const volumePriceScaleId = "";
+const volumeUpColor = "rgba(14, 203, 129, 0.28)";
+const volumeDownColor = "rgba(246, 70, 93, 0.28)";
 
 onMounted(() => {
   if (!rootRef.value || !containerRef.value) return;
@@ -73,6 +79,15 @@ onMounted(() => {
     wickUpColor: appColors.success,
     wickDownColor: appColors.danger,
   });
+  volumeSeries = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: "volume" },
+    priceLineVisible: false,
+    lastValueVisible: false,
+    priceScaleId: volumePriceScaleId,
+    color: volumeUpColor,
+    base: 0,
+  });
+  configurePriceScales();
   markerPlugin = createSeriesMarkers(series, []);
 
   observedResizeHost = readResizeHost();
@@ -102,6 +117,7 @@ onBeforeUnmount(() => {
   chart?.remove();
   chart = null;
   series = null;
+  volumeSeries = null;
   markerPlugin = null;
 });
 
@@ -119,7 +135,10 @@ watch(
 
 watch(
   () => themeStore.mode,
-  (mode) => chart?.applyOptions(chartTheme(mode)),
+  (mode) => {
+    chart?.applyOptions(chartTheme(mode));
+    configurePriceScales();
+  },
 );
 
 function syncData() {
@@ -130,10 +149,31 @@ function syncData() {
     low: item.low,
     close: item.close,
   }));
+  const volumeData: HistogramData[] = props.data.map((item) => ({
+    time: item.time as Time,
+    value: item.volume,
+    color: item.close >= item.open ? volumeUpColor : volumeDownColor,
+  }));
 
   series?.setData(candleData);
+  volumeSeries?.setData(volumeData);
   syncMarkers();
   fitChartContent(candleData.length);
+}
+
+function configurePriceScales() {
+  chart?.priceScale("right").applyOptions({
+    scaleMargins: {
+      top: 0.08,
+      bottom: 0.24,
+    },
+  });
+  chart?.priceScale(volumePriceScaleId).applyOptions({
+    scaleMargins: {
+      top: 0.8,
+      bottom: 0,
+    },
+  });
 }
 
 function syncMarkers() {
