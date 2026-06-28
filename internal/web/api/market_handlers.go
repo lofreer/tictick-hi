@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -12,10 +13,17 @@ import (
 const maxMarketInstrumentQueryLimit = 50
 
 func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/api/market/instruments" {
+	switch r.URL.Path {
+	case "/api/market/instruments":
+		server.handleMarketInstruments(w, r)
+	case "/api/market/instruments/sync":
+		server.syncMarketInstruments(w, r)
+	default:
 		writeError(w, http.StatusNotFound, "market route not found")
-		return
 	}
+}
+
+func (server *Server) handleMarketInstruments(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w, http.MethodGet)
 		return
@@ -32,6 +40,34 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, instruments)
+}
+
+func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+	query, err := parseMarketInstrumentSyncQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	client := server.instrumentClients[query.Exchange]
+	if client == nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorRequestFailed, "market instrument sync is unavailable for "+query.Exchange)
+		return
+	}
+	instruments, err := client.FetchInstruments(r.Context())
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorRequestFailed, "sync market instruments: "+err.Error())
+		return
+	}
+	result, err := server.repository.ReplaceMarketInstruments(r.Context(), query.Exchange, instruments, time.Now().UTC())
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func parseMarketInstrumentQuery(r *http.Request) (data.MarketInstrumentQuery, error) {
@@ -58,6 +94,17 @@ func parseMarketInstrumentQuery(r *http.Request) (data.MarketInstrumentQuery, er
 		query.Limit = limit
 	}
 	return query, nil
+}
+
+func parseMarketInstrumentSyncQuery(r *http.Request) (data.MarketInstrumentQuery, error) {
+	exchange := strings.TrimSpace(r.URL.Query().Get("exchange"))
+	if exchange == "" {
+		return data.MarketInstrumentQuery{}, fmt.Errorf("exchange is required")
+	}
+	if err := validateExchangeSymbol(exchange, defaultSymbolForExchange(exchange)); err != nil {
+		return data.MarketInstrumentQuery{}, err
+	}
+	return data.MarketInstrumentQuery{Exchange: exchange}, nil
 }
 
 func defaultSymbolForExchange(exchange string) string {

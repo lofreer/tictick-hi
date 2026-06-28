@@ -1,0 +1,29 @@
+package data
+
+import "time"
+
+type MarketInstrument struct {
+	Exchange       string     `json:"exchange"`
+	Symbol         string     `json:"symbol"`
+	BaseAsset      string     `json:"baseAsset"`
+	QuoteAsset     string     `json:"quoteAsset"`
+	InstrumentType string     `json:"instrumentType"`
+	Status         string     `json:"status"`
+	SearchPriority int        `json:"searchPriority"`
+	SyncedAt       *time.Time `json:"syncedAt,omitempty"`
+	CreatedAt      time.Time  `json:"-"`
+	UpdatedAt      time.Time  `json:"-"`
+}
+
+type MarketInstrumentQuery struct {
+	Exchange string
+	Query    string
+	Limit    int
+}
+
+type MarketInstrumentSyncResult struct {
+	Exchange      string    `json:"exchange"`
+	ActiveCount   int       `json:"activeCount"`
+	InactiveCount int       `json:"inactiveCount"`
+	SyncedAt      time.Time `json:"syncedAt"`
+}

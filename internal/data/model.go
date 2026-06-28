@@ -256,25 +256,6 @@ type CreateExchangeAccount struct {
 	Enabled   bool   `json:"enabled"`
 }
 
-type MarketInstrument struct {
-	Exchange       string     `json:"exchange"`
-	Symbol         string     `json:"symbol"`
-	BaseAsset      string     `json:"baseAsset"`
-	QuoteAsset     string     `json:"quoteAsset"`
-	InstrumentType string     `json:"instrumentType"`
-	Status         string     `json:"status"`
-	SearchPriority int        `json:"searchPriority"`
-	SyncedAt       *time.Time `json:"syncedAt,omitempty"`
-	CreatedAt      time.Time  `json:"-"`
-	UpdatedAt      time.Time  `json:"-"`
-}
-
-type MarketInstrumentQuery struct {
-	Exchange string
-	Query    string
-	Limit    int
-}
-
 type Operator struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
@@ -443,6 +424,7 @@ type Repository interface {
 	GetExchangeAccount(ctx context.Context, exchange string, accountID string) (ExchangeAccount, error)
 	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
 	ListMarketInstruments(ctx context.Context, query MarketInstrumentQuery) ([]MarketInstrument, error)
+	ReplaceMarketInstruments(ctx context.Context, exchange string, instruments []MarketInstrument, syncedAt time.Time) (MarketInstrumentSyncResult, error)
 	ListOperators(ctx context.Context) ([]Operator, error)
 	CreateOperator(ctx context.Context, operator CreateOperator) (Operator, error)
 	SetOperatorEnabled(ctx context.Context, id string, enabled bool) (Operator, error)

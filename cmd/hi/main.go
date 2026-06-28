@@ -225,6 +225,10 @@ func runAPI(ctx context.Context) error {
 			StaticRoot:   staticRoot,
 			SessionTTL:   durationEnv("AUTH_SESSION_TTL", 12*time.Hour),
 			CookieSecure: boolEnv("AUTH_COOKIE_SECURE", false),
+			InstrumentClients: map[string]exchange.InstrumentClient{
+				"binance": binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil),
+				"okx":     okx.NewMarketClient(nil),
+			},
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

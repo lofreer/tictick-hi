@@ -43,6 +43,36 @@ func TestFetchCandles(t *testing.T) {
 	}
 }
 
+func TestFetchInstruments(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/exchangeInfo" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"symbols":[{"symbol":"BTCUSDT","status":"TRADING","baseAsset":"BTC","quoteAsset":"USDT","isSpotTradingAllowed":true},{"symbol":"OLDUSDT","status":"BREAK","baseAsset":"OLD","quoteAsset":"USDT","isSpotTradingAllowed":true},{"symbol":"PERPUSDT","status":"TRADING","baseAsset":"PERP","quoteAsset":"USDT","isSpotTradingAllowed":false}]}`))
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	instruments, err := client.FetchInstruments(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(instruments) != 2 {
+		t.Fatalf("instruments = %#v, want 2 spot instruments", instruments)
+	}
+	if instruments[0].Exchange != "binance" ||
+		instruments[0].Symbol != "BTCUSDT" ||
+		instruments[0].BaseAsset != "BTC" ||
+		instruments[0].QuoteAsset != "USDT" ||
+		instruments[0].Status != "active" {
+		t.Fatalf("unexpected active instrument: %#v", instruments[0])
+	}
+	if instruments[1].Symbol != "OLDUSDT" || instruments[1].Status != "inactive" {
+		t.Fatalf("unexpected inactive instrument: %#v", instruments[1])
+	}
+}
+
 func TestFetchCandlesFallsBackToNextBaseURL(t *testing.T) {
 	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "unavailable", http.StatusServiceUnavailable)

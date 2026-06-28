@@ -96,10 +96,93 @@ func (client *MarketClient) FetchCandles(
 	return candles, nil
 }
 
+func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.MarketInstrument, error) {
+	endpoint, err := url.Parse(strings.TrimRight(client.baseURL, "/") + "/api/v5/public/instruments")
+	if err != nil {
+		return nil, fmt.Errorf("okx endpoint: %w", err)
+	}
+	values := endpoint.Query()
+	values.Set("instType", "SPOT")
+	endpoint.RawQuery = values.Encode()
+
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := client.httpClient.Do(httpRequest)
+	if err != nil {
+		return nil, exchange.NewTemporaryError("okx instruments temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err), err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= 400 {
+		err := exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
+		if exchange.IsTemporaryEndpointError(err) {
+			return nil, exchange.NewTemporaryError("okx instruments temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err), err)
+		}
+		return nil, fmt.Errorf("okx instruments unavailable: %s", exchange.EndpointErrorSummary(client.baseURL, err))
+	}
+
+	var envelope okxInstrumentsResponse
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		return nil, fmt.Errorf("decode okx instruments: %w", err)
+	}
+	if envelope.Code != "0" {
+		err := fmt.Errorf("okx instruments code %s: %s", envelope.Code, envelope.Message)
+		if isTemporaryOKXCode(envelope.Code) {
+			return nil, exchange.NewTemporaryError("okx instruments temporary unavailable: "+err.Error(), err)
+		}
+		return nil, err
+	}
+
+	instruments := make([]data.MarketInstrument, 0, len(envelope.Data))
+	for _, item := range envelope.Data {
+		instrument, ok := item.toInstrument()
+		if ok {
+			instruments = append(instruments, instrument)
+		}
+	}
+	return instruments, nil
+}
+
 type okxCandlesResponse struct {
 	Code    string         `json:"code"`
 	Message string         `json:"msg"`
 	Data    []okxCandleRow `json:"data"`
+}
+
+type okxInstrumentsResponse struct {
+	Code    string          `json:"code"`
+	Message string          `json:"msg"`
+	Data    []okxInstrument `json:"data"`
+}
+
+type okxInstrument struct {
+	InstrumentID  string `json:"instId"`
+	BaseCurrency  string `json:"baseCcy"`
+	QuoteCurrency string `json:"quoteCcy"`
+	State         string `json:"state"`
+}
+
+func (instrument okxInstrument) toInstrument() (data.MarketInstrument, bool) {
+	if strings.TrimSpace(instrument.InstrumentID) == "" ||
+		strings.TrimSpace(instrument.BaseCurrency) == "" ||
+		strings.TrimSpace(instrument.QuoteCurrency) == "" {
+		return data.MarketInstrument{}, false
+	}
+	status := "inactive"
+	if instrument.State == "live" {
+		status = "active"
+	}
+	return data.MarketInstrument{
+		Exchange:       "okx",
+		Symbol:         strings.ToUpper(instrument.InstrumentID),
+		BaseAsset:      strings.ToUpper(instrument.BaseCurrency),
+		QuoteAsset:     strings.ToUpper(instrument.QuoteCurrency),
+		InstrumentType: "spot",
+		Status:         status,
+		SearchPriority: 100,
+	}, true
 }
 
 type okxCandleRow []string

@@ -138,6 +138,13 @@ export type CreateExchangeAccount = APICreateExchangeAccount;
 
 export type MarketInstrument = APIMarketInstrument;
 
+export type MarketInstrumentSyncResult = {
+  exchange: string;
+  activeCount: number;
+  inactiveCount: number;
+  syncedAt: string;
+};
+
 export type Operator = APIOperator;
 
 export type CreateOperator = APICreateOperator;

@@ -36,4 +36,28 @@ describe("market api", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("requests a catalog sync for one exchange", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          exchange: "binance",
+          activeCount: 100,
+          inactiveCount: 2,
+          syncedAt: "2026-06-28T00:00:00Z",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(marketApi.syncInstruments("binance")).resolves.toMatchObject({
+      exchange: "binance",
+      activeCount: 100,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/market/instruments/sync?exchange=binance",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
 });

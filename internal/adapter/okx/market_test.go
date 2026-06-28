@@ -43,6 +43,39 @@ func TestFetchCandles(t *testing.T) {
 	}
 }
 
+func TestFetchInstruments(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v5/public/instruments" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("instType") != "SPOT" {
+			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"0","msg":"","data":[{"instId":"BTC-USDT","baseCcy":"BTC","quoteCcy":"USDT","state":"live"},{"instId":"OLD-USDT","baseCcy":"OLD","quoteCcy":"USDT","state":"suspend"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	instruments, err := client.FetchInstruments(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(instruments) != 2 {
+		t.Fatalf("instruments = %#v, want 2", instruments)
+	}
+	if instruments[0].Exchange != "okx" ||
+		instruments[0].Symbol != "BTC-USDT" ||
+		instruments[0].BaseAsset != "BTC" ||
+		instruments[0].QuoteAsset != "USDT" ||
+		instruments[0].Status != "active" {
+		t.Fatalf("unexpected active instrument: %#v", instruments[0])
+	}
+	if instruments[1].Symbol != "OLD-USDT" || instruments[1].Status != "inactive" {
+		t.Fatalf("unexpected inactive instrument: %#v", instruments[1])
+	}
+}
+
 func TestFetchCandlesMarksServiceUnavailableTemporary(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "unavailable", http.StatusServiceUnavailable)

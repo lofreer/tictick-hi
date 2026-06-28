@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/exchange"
 	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
@@ -22,11 +23,13 @@ type Config struct {
 	LoginFailureLimit  int
 	LoginFailureWindow time.Duration
 	LoginLockout       time.Duration
+	InstrumentClients  map[string]exchange.InstrumentClient
 }
 
 type Server struct {
 	repository         data.Repository
 	strategyRepository strategy.Repository
+	instrumentClients  map[string]exchange.InstrumentClient
 	staticRoot         string
 	sessionTTL         time.Duration
 	cookieSecure       bool
@@ -53,11 +56,23 @@ func NewServerWithConfig(repository data.Repository, config Config) http.Handler
 	return &Server{
 		repository:         repository,
 		strategyRepository: strategy.BuiltinRegistry(),
+		instrumentClients:  cloneInstrumentClients(config.InstrumentClients),
 		staticRoot:         config.StaticRoot,
 		sessionTTL:         config.SessionTTL,
 		cookieSecure:       config.CookieSecure,
 		loginLimiter:       newLoginLimiter(config.LoginFailureLimit, config.LoginFailureWindow, config.LoginLockout),
 	}
+}
+
+func cloneInstrumentClients(clients map[string]exchange.InstrumentClient) map[string]exchange.InstrumentClient {
+	if len(clients) == 0 {
+		return nil
+	}
+	cloned := make(map[string]exchange.InstrumentClient, len(clients))
+	for key, client := range clients {
+		cloned[key] = client
+	}
+	return cloned
 }
 
 func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

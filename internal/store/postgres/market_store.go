@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -83,6 +84,93 @@ func (store *Store) ListMarketInstruments(
 	return instruments, nil
 }
 
+func (store *Store) ReplaceMarketInstruments(
+	ctx context.Context,
+	exchangeID string,
+	instruments []data.MarketInstrument,
+	syncedAt time.Time,
+) (data.MarketInstrumentSyncResult, error) {
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.MarketInstrumentSyncResult{}, fmt.Errorf("begin market instrument sync: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	seen := make(map[string]struct{}, len(instruments))
+	activeCount := 0
+	for _, instrument := range instruments {
+		symbol := strings.ToUpper(strings.TrimSpace(instrument.Symbol))
+		baseAsset := strings.ToUpper(strings.TrimSpace(instrument.BaseAsset))
+		quoteAsset := strings.ToUpper(strings.TrimSpace(instrument.QuoteAsset))
+		if symbol == "" || baseAsset == "" || quoteAsset == "" {
+			continue
+		}
+		seen[symbol] = struct{}{}
+		status := normalizedInstrumentStatus(instrument.Status)
+		if status == "active" {
+			activeCount++
+		}
+		priority := instrument.SearchPriority
+		if priority <= 0 {
+			priority = 100
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO market_instruments (
+				exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (exchange, symbol) DO UPDATE
+			   SET base_asset = EXCLUDED.base_asset,
+			       quote_asset = EXCLUDED.quote_asset,
+			       instrument_type = EXCLUDED.instrument_type,
+			       status = EXCLUDED.status,
+			       search_priority = LEAST(market_instruments.search_priority, EXCLUDED.search_priority),
+			       synced_at = EXCLUDED.synced_at,
+			       updated_at = now()`,
+			exchangeID,
+			symbol,
+			baseAsset,
+			quoteAsset,
+			normalizedInstrumentType(instrument.InstrumentType),
+			status,
+			priority,
+			syncedAt,
+		); err != nil {
+			return data.MarketInstrumentSyncResult{}, fmt.Errorf("upsert market instrument: %w", err)
+		}
+	}
+
+	symbols := make([]string, 0, len(seen))
+	for symbol := range seen {
+		symbols = append(symbols, symbol)
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE market_instruments
+		   SET status = 'inactive',
+		       synced_at = $2,
+		       updated_at = now()
+		 WHERE exchange = $1
+		   AND status = 'active'
+		   AND NOT (symbol = ANY($3))`,
+		exchangeID,
+		syncedAt,
+		symbols,
+	)
+	if err != nil {
+		return data.MarketInstrumentSyncResult{}, fmt.Errorf("deactivate stale market instruments: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return data.MarketInstrumentSyncResult{}, fmt.Errorf("commit market instrument sync: %w", err)
+	}
+	return data.MarketInstrumentSyncResult{
+		Exchange:      exchangeID,
+		ActiveCount:   activeCount,
+		InactiveCount: int(tag.RowsAffected()),
+		SyncedAt:      syncedAt,
+	}, nil
+}
+
 func normalizeMarketInstrumentLimit(limit int) int {
 	if limit <= 0 {
 		return defaultMarketInstrumentLimit
@@ -91,4 +179,19 @@ func normalizeMarketInstrumentLimit(limit int) int {
 		return maxMarketInstrumentLimit
 	}
 	return limit
+}
+
+func normalizedInstrumentStatus(status string) string {
+	if strings.EqualFold(strings.TrimSpace(status), "inactive") {
+		return "inactive"
+	}
+	return "active"
+}
+
+func normalizedInstrumentType(instrumentType string) string {
+	instrumentType = strings.ToLower(strings.TrimSpace(instrumentType))
+	if instrumentType == "" {
+		return "spot"
+	}
+	return instrumentType
 }

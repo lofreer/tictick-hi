@@ -274,6 +274,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.taskGapRepairAlreadyQueued": "缺口修复任务已存在。",
     "research.taskGapRepairFailed": "创建任务缺口修复失败。",
     "research.noRepairableTaskGaps": "当前任务没有可排队的缺口。",
+    "research.refreshInstruments": "刷新交易对",
     "research.coverageLimited": "窗口受限 {returned}/{requested}",
     "research.candleWindow": "窗口 {from} - {to} / {count} 根",
     "research.previousWindow": "上一窗口",

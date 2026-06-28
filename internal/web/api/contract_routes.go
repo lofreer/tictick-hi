@@ -113,6 +113,26 @@ func addMarketContractPaths(paths map[string]apiPathItem) {
 		),
 		withErrors(http.StatusBadRequest),
 	))
+	addOperation(paths, "/api/market/instruments/sync", http.MethodPost, operation(
+		"market", "syncMarketInstruments", "Synchronize market instruments", http.StatusOK, marketInstrumentSyncResultSchema(),
+		withCSRF(), withParameters(
+			queryParam("exchange", true, "Exchange id", map[string]any{"type": "string", "enum": []string{"binance", "okx"}}),
+		),
+		withErrors(http.StatusBadRequest),
+	))
+}
+
+func marketInstrumentSyncResultSchema() map[string]any {
+	return map[string]any{
+		"type":     "object",
+		"required": []string{"exchange", "activeCount", "inactiveCount", "syncedAt"},
+		"properties": map[string]any{
+			"exchange":      map[string]any{"type": "string"},
+			"activeCount":   map[string]any{"type": "integer"},
+			"inactiveCount": map[string]any{"type": "integer"},
+			"syncedAt":      map[string]any{"type": "string", "format": "date-time"},
+		},
+	}
 }
 
 func addStrategyContractPaths(paths map[string]apiPathItem) {

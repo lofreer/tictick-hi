@@ -1,16 +1,33 @@
 <template>
-  <NAutoComplete
-    :loading="loading"
-    :options="options"
-    :value="value"
-    clearable
-    @update:value="handleUpdateValue"
-  />
+  <div class="market-symbol-autocomplete">
+    <NAutoComplete
+      class="market-symbol-autocomplete__input"
+      :loading="loading"
+      :options="options"
+      :value="value"
+      clearable
+      @update:value="handleUpdateValue"
+    />
+    <NButton
+      circle
+      quaternary
+      size="small"
+      :loading="syncing"
+      :title="t('research.refreshInstruments')"
+      @click="syncInstruments"
+    >
+      <template #icon>
+        <RefreshCw :size="15" />
+      </template>
+    </NButton>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { NAutoComplete } from "naive-ui";
+import { RefreshCw } from "@lucide/vue";
+import { NAutoComplete, NButton } from "naive-ui";
 import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 import { marketApi } from "@/services/api/market";
 import type { MarketInstrument } from "@/types/app";
@@ -25,7 +42,9 @@ const emit = defineEmits<{
   "update:value": [value: string];
 }>();
 
+const { t } = useI18n();
 const loading = ref(false);
+const syncing = ref(false);
 const options = ref<MarketSymbolOption[]>(symbolOptionsForExchange(props.exchange));
 let requestSequence = 0;
 
@@ -65,6 +84,18 @@ function handleUpdateValue(nextValue: string) {
   void loadOptions(nextValue);
 }
 
+async function syncInstruments() {
+  syncing.value = true;
+  try {
+    await marketApi.syncInstruments(props.exchange);
+    await loadOptions(props.value);
+  } catch {
+    options.value = symbolOptionsForExchange(props.exchange);
+  } finally {
+    syncing.value = false;
+  }
+}
+
 function instrumentOption(instrument: MarketInstrument): MarketSymbolOption {
   return {
     label: instrument.symbol,
@@ -72,3 +103,17 @@ function instrumentOption(instrument: MarketInstrument): MarketSymbolOption {
   };
 }
 </script>
+
+<style scoped>
+.market-symbol-autocomplete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.market-symbol-autocomplete__input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+</style>

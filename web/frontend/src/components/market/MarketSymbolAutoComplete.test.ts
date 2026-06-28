@@ -6,10 +6,15 @@ import { marketApi } from "@/services/api/market";
 
 const marketApiMocks = vi.hoisted(() => ({
   listInstruments: vi.fn(),
+  syncInstruments: vi.fn(),
 }));
 
 vi.mock("@/services/api/market", () => ({
   marketApi: marketApiMocks,
+}));
+
+vi.mock("vue-i18n", () => ({
+  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 vi.mock("naive-ui", () => ({
@@ -18,6 +23,12 @@ vi.mock("naive-ui", () => ({
     props: ["loading", "options", "value"],
     emits: ["update:value"],
     template: "<input :value='value' />",
+  },
+  NButton: {
+    name: "NButton",
+    props: ["loading", "title"],
+    emits: ["click"],
+    template: "<button :title='title' @click='$emit(\"click\")'><slot name='icon' /></button>",
   },
 }));
 
@@ -37,6 +48,12 @@ describe("MarketSymbolAutoComplete", () => {
         updatedAt: "2026-06-28T00:00:00Z",
       },
     ]);
+    marketApiMocks.syncInstruments.mockResolvedValue({
+      exchange: "binance",
+      activeCount: 1,
+      inactiveCount: 0,
+      syncedAt: "2026-06-28T00:00:00Z",
+    });
   });
 
   it("loads symbol options from the market instrument API", async () => {
@@ -67,6 +84,18 @@ describe("MarketSymbolAutoComplete", () => {
     wrapper.getComponent({ name: "NAutoComplete" }).vm.$emit("update:value", "SOLUSDT");
 
     expect(wrapper.emitted("update:value")).toEqual([["SOLUSDT"]]);
+  });
+
+  it("syncs instruments and reloads options from the refresh button", async () => {
+    const wrapper = mountAutoComplete();
+    await flushPromises();
+    marketApiMocks.listInstruments.mockClear();
+
+    await wrapper.getComponent({ name: "NButton" }).trigger("click");
+    await flushPromises();
+
+    expect(marketApi.syncInstruments).toHaveBeenCalledWith("binance");
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 20, q: "" });
   });
 });
 

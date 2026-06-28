@@ -21,6 +21,10 @@ type MarketDataClient interface {
 	FetchCandles(ctx context.Context, request CandleRequest) ([]data.Candle, error)
 }
 
+type InstrumentClient interface {
+	FetchInstruments(ctx context.Context) ([]data.MarketInstrument, error)
+}
+
 type Registry struct {
 	clients map[string]MarketDataClient
 }
