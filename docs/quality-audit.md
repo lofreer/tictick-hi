@@ -1333,6 +1333,40 @@ scripts/quality-gate.sh
 
 - 本轮未在用户可视 Chrome 会话中捕获原始崩溃栈；当前本地 8080 已更新为本轮镜像并通过桌面/移动连续高度采样。
 
+### 阶段 1 K 线图表固定槽 CSS 高度优先补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 真实 8080 的 headless Chrome 采样未复现增长，但代码复查发现固定图表槽高度仍优先读取 `clientHeight`，再读取 CSS computed height；如果真实浏览器中的 `clientHeight` 被图表内部布局污染，仍可能把异常高度送入 `chart.resize()`。
+
+修复范围：
+
+- `TradingViewChart` 对 `data-chart-viewport="fixed"` 宿主的高度读取改为 `computed height -> clientHeight -> bounds height`，固定槽优先信任页面声明的 CSS 高度。
+- `ResizeObserver` 不再保存或回放 observer content box 宽高，只作为“重新测量”信号，避免 observer 回报的污染高度成为图表 resize 输入。
+- 单测新增固定槽 `clientHeight=5000px`、observer height `9000px`，但 CSS height 为 `603px` 的污染场景，验证图表初始化和 resize 均以 CSS 声明高度为准。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `docker compose build api`
+- `docker compose up -d --no-deps api`
+- `docker inspect` 显示 `tictick-hi-api-1` healthy。
+- `curl -I http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`。
+- 真实 8080 采样 `SMOKE_SAMPLES=100 SMOKE_INTERVAL_MS=150 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1256->1256, panel 624->624, body 457->457, chart 457->457, tv 457->457`。
+
+剩余风险：
+
+- 本轮仍未在用户的可视 Chrome 会话中捕获原始无限增长栈；当前代码已切断固定槽 observer content height 和污染 `clientHeight` 优先级两条反馈入口。
+
 ### 阶段 1 数据同步任务健康可观察补充
 
 执行时间：2026-06-28

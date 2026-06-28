@@ -41,7 +41,6 @@ let series: ISeriesApi<"Candlestick"> | null = null;
 let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
-let observedResizeHostSize: { width: number; height: number } | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
 const fallbackSize = { width: 1, height: 360 };
@@ -88,7 +87,6 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
   observedResizeHost = null;
-  observedResizeHostSize = null;
   window.removeEventListener("resize", scheduleResize);
   chart?.remove();
   chart = null;
@@ -136,16 +134,9 @@ function syncMarkers() {
 }
 
 function handleObservedResize(entries: ResizeObserverEntry[]) {
-  let sawObservedHost = false;
-  for (const entry of entries) {
-    if (entry.target === observedResizeHost) {
-      observedResizeHostSize = readObserverContentSize(entry);
-      sawObservedHost = true;
-      break;
-    }
+  if (entries.some((entry) => entry.target === observedResizeHost)) {
+    scheduleResize();
   }
-  if (!sawObservedHost) return;
-  scheduleResize();
 }
 
 function scheduleResize() {
@@ -172,10 +163,10 @@ function readHostSize() {
   const bounds = host.getBoundingClientRect();
   const fixedViewport = isFixedViewportHost(host);
   const measuredWidth =
-    readClientWidth(host) ?? readPixelSize(host, "width") ?? readObservedWidth(host) ?? positiveFloor(bounds.width);
+    readClientWidth(host) ?? readPixelSize(host, "width") ?? positiveFloor(bounds.width);
   const measuredHeight = fixedViewport
-    ? readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height)
-    : readClientHeight(host) ?? readObservedHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
+    ? readPixelSize(host, "height") ?? readClientHeight(host) ?? positiveFloor(bounds.height)
+    : readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
   const width = measuredWidth ?? fallbackSize.width;
   const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
   if (width <= 0 || height <= 0) return null;
@@ -201,26 +192,6 @@ function readPixelSize(element: HTMLElement, property: "width" | "height") {
   const value = Number.parseFloat(window.getComputedStyle(element)[property]);
   if (!Number.isFinite(value) || value <= 0) return null;
   return value;
-}
-
-function readObservedWidth(element: HTMLElement) {
-  if (element !== observedResizeHost || !observedResizeHostSize) return null;
-  return observedResizeHostSize.width > 0 ? observedResizeHostSize.width : null;
-}
-
-function readObservedHeight(element: HTMLElement) {
-  if (element !== observedResizeHost || !observedResizeHostSize) return null;
-  return observedResizeHostSize.height > 0 ? observedResizeHostSize.height : null;
-}
-
-function readObserverContentSize(entry: ResizeObserverEntry) {
-  const box = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
-  const width = box?.inlineSize ?? entry.contentRect.width;
-  const height = box?.blockSize ?? entry.contentRect.height;
-  return {
-    width: Math.floor(width),
-    height: Math.floor(height),
-  };
 }
 
 function readResizeHost() {

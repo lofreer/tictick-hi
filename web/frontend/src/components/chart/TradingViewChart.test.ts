@@ -156,6 +156,35 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("prefers fixed CSS height over polluted client height", () => {
+    viewportSize = { width: 1180, height: 5000 };
+    const host = createResearchHost();
+    host.body.style.height = "603px";
+    const wrapper = mountChart(host.body);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1180,
+        height: 603,
+      }),
+    );
+
+    chartMocks.resize.mockClear();
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9000 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    host.body.style.height = "604px";
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9000 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("resizes only when the fixed chart slot changes", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
