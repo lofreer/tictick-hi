@@ -253,6 +253,13 @@ UPDATE data_sync_tasks
        last_error = NULL,
        updated_at = now()
  WHERE id = :'task_id';
+
+UPDATE data_sync_tasks
+   SET status = 'succeeded',
+       sync_enabled = false,
+       finished_at = now(),
+       updated_at = now()
+ WHERE id = :'task_id';
 SQL
 }
 

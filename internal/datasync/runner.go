@@ -142,12 +142,19 @@ func (runner *Runner) syncTaskWithHeartbeat(ctx context.Context, task data.DataS
 }
 
 func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) error {
-	client, err := runner.registry.Client(task.Exchange)
+	duration, err := data.IntervalDuration(task.Interval)
 	if err != nil {
 		return err
 	}
 
-	duration, err := data.IntervalDuration(task.Interval)
+	if isAlreadySyncedThroughEnd(task, duration) {
+		return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
+			TaskID:    task.ID,
+			Completed: true,
+		})
+	}
+
+	client, err := runner.registry.Client(task.Exchange)
 	if err != nil {
 		return err
 	}
@@ -276,6 +283,14 @@ func (runner *Runner) isCompleted(
 	}
 	nextOpen := lastOpen.Add(interval)
 	return !nextOpen.Before(targetEnd)
+}
+
+func isAlreadySyncedThroughEnd(task data.DataSyncTask, interval time.Duration) bool {
+	if task.RealtimeEnabled || task.EndTime == nil || task.LatestSyncedOpenTime == nil {
+		return false
+	}
+	nextOpen := task.LatestSyncedOpenTime.Add(interval)
+	return !nextOpen.Before(task.EndTime.UTC())
 }
 
 func latestOpenTime(candles []data.Candle) *time.Time {

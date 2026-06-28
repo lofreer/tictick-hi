@@ -1046,6 +1046,42 @@ scripts/quality-gate.sh
 - 数据同步 worker 仍没有统一 lease 包和运行中 heartbeat loop，本补充不把数据同步升级为 usable。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
+### 阶段 1 数据同步完成边界补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 本地真实 8080 的研究页数据同步列表里保留了多条 Stage 8 smoke 生成的 `S8...USDT` 任务，这些任务已经有 `last_synced_open_time=2026-01-01T01:59:00Z` 和 `end_time=2026-01-01T02:00:00Z`，但仍是 `running + sync_enabled=true`。
+- 常驻 sync worker 重启后会按 overlap 窗口继续领取这些一次性任务，并对测试 symbol 访问真实 Binance，造成 `api.binance.com: EOF; data-api.binance.vision: status 400 Bad Request` 之类的研究页噪音。
+- 该问题不属于 UI 展示问题，而是一次性同步任务已覆盖 `endTime` 后仍留在 claim 队列的状态边界问题。
+
+修复范围：
+
+- `datasync.Runner` 在获取 exchange client 之前先判断非实时任务是否已经通过 `latestSyncedOpenTime + interval >= endTime` 覆盖目标窗口；已覆盖时直接 `SaveDataSyncResult(... Completed=true)`，不再因为 overlap 重打外部 API。
+- `scripts/stage8-smoke.sh` 的研究数据 seed SQL 改为按状态机先 `pending -> running`，再落到 `succeeded + sync_enabled=false + finished_at`，避免以后 Stage 8 smoke 在本地 volume 留下可 claim 的假 symbol 同步任务。
+
+验证：
+
+- `go test ./internal/datasync ./internal/store/postgres`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/quality-gate.sh`
+- `scripts/stage8-smoke.sh`
+- `git diff --check`
+- `TestRunnerCompletesOneShotTaskAlreadySyncedThroughEndWithoutExchangeClient` 覆盖已同步到 `endTime` 的一次性任务，即使没有注册 exchange client 也会直接完成，不会发起外部 fetch。
+- Stage 8 smoke 本轮创建的 `dataTask=dst_6f4d9aac2a0d58838a69960b` 在 PostgreSQL 中为 `status=succeeded`、`sync_enabled=false`、`realtime_enabled=false`、锁字段为空、`last_error=''`。
+- 使用新镜像执行 `docker compose run --rm sync sync --once` 后，旧 S8 running 残留数从 15 降到 14，新增一条 `succeeded`，且没有新增 `last_error`，证明常驻 worker 会按新完成边界逐步消化旧残留。
+
+失败：
+
+- 无硬失败。
+
+剩余风险：
+
+- 本轮没有删除历史本地测试残留；旧 `S8...` running 任务会被新 sync worker 逐条转为 `succeeded`，不是一次性批量清库。
+- 真实交易所网络限流、全局退避和 symbol 合法性预校验仍未达到 usable。
+
 ### 阶段 1 PostgreSQL 集成证据补充
 
 执行时间：2026-06-27

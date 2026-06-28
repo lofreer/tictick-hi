@@ -57,6 +57,38 @@ func TestRunnerSyncsClaimedTask(t *testing.T) {
 	}
 }
 
+func TestRunnerCompletesOneShotTaskAlreadySyncedThroughEndWithoutExchangeClient(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC)
+	latest := time.Date(2026, 1, 1, 1, 59, 0, 0, time.UTC)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:                   "dst_1",
+			Exchange:             "binance",
+			Symbol:               "S8SEEDEDUSDT",
+			Interval:             "1m",
+			StartTime:            &start,
+			EndTime:              &end,
+			SyncEnabled:          true,
+			RealtimeEnabled:      false,
+			Status:               data.TaskStatusRunning,
+			LatestSyncedOpenTime: &latest,
+		},
+		claimed: true,
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(nil), Config{WorkerID: "test", BatchLimit: 10, OverlapCandles: 2})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.saved.TaskID != "dst_1" || !repository.saved.Completed || len(repository.saved.Candles) != 0 {
+		t.Fatalf("unexpected saved result: %#v", repository.saved)
+	}
+	if repository.failed != nil || repository.retry != nil {
+		t.Fatalf("task should complete without failure or retry, failed=%v retry=%v", repository.failed, repository.retry)
+	}
+}
+
 func TestRunnerMarksFailedTask(t *testing.T) {
 	repository := &fakeSyncRepository{
 		task: data.DataSyncTask{
