@@ -342,8 +342,11 @@ function sampleExpression() {
       return {
         href: location.href,
         viewportWidth: innerWidth,
+        bodyScrollWidth: document.body.scrollWidth,
         bodyScrollHeight: document.body.scrollHeight,
+        docScrollWidth: document.documentElement.scrollWidth,
         docScrollHeight: document.documentElement.scrollHeight,
+        scrollX: Math.round(window.scrollX),
         viewportHeight: innerHeight,
         taskPanel: read('.research-tasks-panel'),
         panel: read('.research-chart-panel'),
@@ -487,6 +490,18 @@ function assertChartLayout(label, sample) {
   }
   if (sample.taskPanel?.overflowX === "hidden" || sample.taskPanel?.overflowY === "hidden") {
     throw new Error(`${label} research task panel must expose scrollable overflow instead of clipping table columns`);
+  }
+  if (sample.scrollX !== 0 || sample.docScrollWidth > sample.viewportWidth + 1 || sample.bodyScrollWidth > sample.viewportWidth + 1) {
+    throw new Error(
+      `${label} page overflowed horizontally and can clip the chart viewport: ${JSON.stringify({
+        viewportWidth: sample.viewportWidth,
+        scrollX: sample.scrollX,
+        docScrollWidth: sample.docScrollWidth,
+        bodyScrollWidth: sample.bodyScrollWidth,
+        taskPanel: sample.taskPanel,
+        panel: sample.panel,
+      })}`,
+    );
   }
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
@@ -737,7 +752,7 @@ function cleanupChrome() {
     chrome = null;
   }
   if (chromeProfileDir) {
-    fs.rmSync(chromeProfileDir, { recursive: true, force: true });
+    fs.rmSync(chromeProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     chromeProfileDir = null;
   }
 }

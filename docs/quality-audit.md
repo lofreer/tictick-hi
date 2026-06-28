@@ -5233,6 +5233,38 @@ Definition of Done：
 - 不自动删除 K 线、不迁移任务、不处理回测 / 交易任务的历史语义。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页图表容器横向溢出与短视口补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户在本地研究页继续观察到 K 线图表固定容器内容被截掉，且此前截图显示 data sync 表格横向内容可能把页面整体撑宽，导致只看到表格或图表右侧区域。
+- 任务表最近错误列虽然已有摘要和 tooltip，但表格外层缺少足够的 grid 子项宽度边界，长表格仍可能影响页面级横向滚动。
+
+修复范围：
+
+- 研究页工作区、任务面板和任务表根节点补充 `width/max-width/min-width` 边界，把横向滚动限制在任务表自身，不让 2210px 表格宽度反向撑大页面。
+- data sync 任务表长文本单元格统一 `width:100%`、`min-width:0`、单行省略，避免最近错误、缺口摘要和同步窗口在窄列里失控换行。
+- 研究页图表固定视口的短视口最小高度下调，避免浏览器高度不足时图表轴线更容易落到可见区域外。
+- `research-chart-height-smoke.mjs` 新增 document/body 横向溢出和 `scrollX` 检查，并修复 Chrome profile 清理偶发 `ENOTEMPTY` 导致的误失败。
+
+验证：
+
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- 使用当前源码重建的本地 Docker API `http://127.0.0.1:8080/research` 通过 `scripts/research-chart-height-smoke.mjs`：desktop、812x1320 窄桌面、mobile 三组高度稳定，主图 canvas、右侧价格轴、底部时间轴和页面横向溢出检查均通过。
+
+剩余风险：
+
+- 本轮只修复研究页容器、表格横向边界和运行态 smoke 漏检，不代表完整图表交互达到 production-safe。
+- 仍未建立人工像素快照基线、全语言/全主题视觉矩阵、真实浏览器长时间 soak 和完整图表工具能力。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

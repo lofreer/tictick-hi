@@ -75,7 +75,12 @@ require_order "$RESEARCH_PAGE" 'class="surface research-tasks-panel"' 'class="su
 require_contains "$RESEARCH_PAGE" 'class="research-chart-body" data-chart-viewport="fixed"'
 require_not_contains "$RESEARCH_PAGE" 'class="surface chart-panel research-chart-panel"'
 
+require_contains "$RESEARCH_CSS" ".research-workspace"
+require_contains "$RESEARCH_CSS" "overflow-x: clip;"
 require_contains "$RESEARCH_CSS" ".research-tasks-panel"
+require_contains "$RESEARCH_CSS" "width: 100%;"
+require_contains "$RESEARCH_CSS" "max-width: 100%;"
+require_contains "$RESEARCH_CSS" "min-width: 0;"
 require_contains "$RESEARCH_CSS" "max-height: 360px;"
 require_contains "$RESEARCH_CSS" "overflow: auto;"
 require_contains "$RESEARCH_CSS" ".research-chart-panel"
@@ -119,7 +124,9 @@ require_contains "$CHART_SMOKE" "chart main pane canvas is clipped by fixed body
 require_contains "$CHART_SMOKE" "main pane has no visible candle pixels"
 require_contains "$CHART_SMOKE" "research chart panel must not inherit the global chart-panel sizing contract"
 require_contains "$CHART_SMOKE" "chart bottom axis is clipped from the initial viewport"
+require_contains "$CHART_SMOKE" "page overflowed horizontally and can clip the chart viewport"
 require_contains "$CHART_SMOKE" "time-axis label touches fixed body edge"
 require_contains "$CHART_SMOKE" "left too much unused fixed body height"
+require_contains "$CHART_SMOKE" "maxRetries: 5"
 
 echo "research chart layout check passed"

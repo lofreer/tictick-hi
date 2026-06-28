@@ -1,5 +1,6 @@
 <template>
   <NDataTable
+    class="data-sync-task-table"
     :columns="columns"
     :data="tasks"
     :row-key="rowKey"
@@ -399,39 +400,48 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
 </script>
 
 <style scoped>
-.task-error-text {
+.task-error-text,
+.task-gap-summary,
+.task-sync-window,
+.task-exchange-backoff {
   display: block;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow: hidden;
-  color: var(--tt-danger);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.task-gap-summary {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
+.task-error-text {
+  color: var(--tt-danger);
+}
+
+.task-gap-summary,
+.task-exchange-backoff {
   color: var(--tt-warning);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .task-sync-window {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
   color: var(--tt-text-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.task-exchange-backoff {
-  display: block;
+.data-sync-task-table {
+  width: 100%;
   max-width: 100%;
-  overflow: hidden;
-  color: var(--tt-warning);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+}
+
+.data-sync-task-table :deep(.n-data-table-base-table),
+.data-sync-task-table :deep(.n-data-table-base-table-header),
+.data-sync-task-table :deep(.n-data-table-base-table-body),
+.data-sync-task-table :deep(.n-data-table-scroll-container) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.data-sync-task-table :deep(.n-data-table-th),
+.data-sync-task-table :deep(.n-data-table-td) {
+  min-width: 0;
 }
 </style>

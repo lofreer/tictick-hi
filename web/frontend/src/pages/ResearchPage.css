@@ -3,12 +3,26 @@
   grid-auto-rows: max-content;
   align-items: start;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .research-tasks-panel {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   max-height: 360px;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+.research-tasks-panel .n-data-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .research-section-header {
@@ -23,8 +37,8 @@
 }
 
 .research-chart-panel {
-  --research-chart-viewport-height: clamp(483px, calc(100vh - 297px), 683px);
-  --research-chart-viewport-height: clamp(483px, calc(100dvh - 297px), 683px);
+  --research-chart-viewport-height: clamp(320px, calc(100vh - 297px), 683px);
+  --research-chart-viewport-height: clamp(320px, calc(100dvh - 297px), 683px);
 
   display: flex;
   flex-direction: column;
@@ -150,8 +164,8 @@
 
 @media (max-width: 760px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(360px, calc(100vh - 387px), 457px);
-    --research-chart-viewport-height: clamp(360px, calc(100dvh - 387px), 457px);
+    --research-chart-viewport-height: clamp(280px, calc(100vh - 387px), 457px);
+    --research-chart-viewport-height: clamp(280px, calc(100dvh - 387px), 457px);
   }
 
   .research-toolbar {
@@ -171,7 +185,7 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px);
-    --research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px);
+    --research-chart-viewport-height: clamp(240px, calc(100vh - 820px), 500px);
+    --research-chart-viewport-height: clamp(240px, calc(100dvh - 820px), 500px);
   }
 }

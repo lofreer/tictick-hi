@@ -29,6 +29,7 @@ describe("DataSyncTaskTable", () => {
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
     expect(table.props("scrollX")).toBe(2210);
+    expect(wrapper.find(".data-sync-task-table").exists()).toBe(true);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
     expect(columns.find((column) => column.key === "actions")).toMatchObject({ fixed: "right", width: 292 });
 

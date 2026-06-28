@@ -14,6 +14,11 @@ describe("ResearchPage chart layout contract", () => {
     const panelStyle = cssBlock(pageStyles, ".research-chart-panel");
     const bodyStyle = cssBlock(pageStyles, ".research-chart-body");
 
+    expect(pageStyles).toContain(".research-workspace");
+    expect(pageStyles).toContain("overflow-x: clip;");
+    expect(tasksStyle).toContain("width: 100%;");
+    expect(tasksStyle).toContain("max-width: 100%;");
+    expect(tasksStyle).toContain("min-width: 0;");
     expect(tasksStyle).toContain("max-height: 360px;");
     expect(tasksStyle).toContain("overflow: auto;");
     expect(tasksStyle).toContain("overscroll-behavior: contain;");
@@ -55,8 +60,8 @@ describe("ResearchPage chart layout contract", () => {
 
   it("reduces the fixed chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100vh - 820px), 500px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100dvh - 820px), 500px);");
     expect(pageStyles).toContain("flex: 0 1 auto;");
   });
 
