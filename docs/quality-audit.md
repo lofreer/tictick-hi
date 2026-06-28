@@ -1683,6 +1683,41 @@ scripts/quality-gate.sh
 
 - 仍未捕获用户可视 Chrome 会话里的原始无限增长栈；本轮修复关闭的是固定槽 inline height 污染和内部 table/canvas 污染入口，不代表完整视觉回归体系。
 
+### 阶段 1 K 线图表固定槽 observer 零信任补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 本地 8080 真实构建的 headless Chrome 长采样未自然复现持续增长，但既有实现仍让固定槽 `ResizeObserver` 触发完整尺寸重读；在真实 Chrome 会话中如果固定槽或图表内部 DOM 持续发出高度变化，仍可能形成高频测量 / 写回路径。
+
+修复范围：
+
+- `TradingViewChart` 对 `data-chart-viewport="fixed"` 宿主改为只把 `ResizeObserver` 当作宽度变化通知。
+- 固定槽高度只在初始化和真实 `window.resize` 时从声明式 CSS 高度读取；observer 触发时不会重新读取或接受任何宿主高度。
+- lightweight-charts 创建时显式设置 `autoSize: false`，避免库内部 ResizeObserver 与外部手动 resize 形成双通道尺寸控制。
+- 单测调整为验证固定槽高度刷新只能来自 `window.resize`，而不是 ResizeObserver 的 height entry。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：18 个测试文件、77 个测试通过。
+- `pnpm --dir web/frontend run build` 通过，生产入口为 `/assets/index-ZKMZqIFC.js`。
+- `docker compose build api` 通过。
+- `docker compose up -d --no-deps api` 后 `docker inspect --format '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
+- `curl -fsSI http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`。
+- `SMOKE_SAMPLES=120 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+
+剩余风险：
+
+- 本轮仍未捕获用户可视 Chrome 会话中的原始无限增长栈；当前修复关闭的是固定槽 ResizeObserver 高度反馈入口和 lightweight-charts autoSize 双通道风险，不代表完整桌面 / 移动 / 主题视觉回归体系。
+
 ### 阶段 1 数据同步任务健康可观察补充
 
 执行时间：2026-06-28

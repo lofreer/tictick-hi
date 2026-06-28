@@ -148,6 +148,7 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
+        autoSize: false,
         width: 1180,
         height: 640,
       }),
@@ -178,7 +179,7 @@ describe("TradingViewChart", () => {
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
     host.body.style.height = "604px";
-    resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9000 })], {} as ResizeObserver);
+    window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
@@ -211,7 +212,7 @@ describe("TradingViewChart", () => {
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
     host.body.style.maxHeight = "604px";
-    resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9500 })], {} as ResizeObserver);
+    window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
@@ -299,7 +300,7 @@ describe("TradingViewChart", () => {
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
-    resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 9000 })], {} as ResizeObserver);
+    window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1000, 560);

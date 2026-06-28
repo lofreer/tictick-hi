@@ -43,8 +43,9 @@ let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
-let lastWindowSize = readWindowSize();
-let fixedViewportHeightSnapshot: { windowSize: { width: number; height: number }; height: number } | null = null;
+let lastObservedHostWidth = 0;
+let fixedViewportHeightSnapshot: number | null = null;
+let pendingFixedViewportHeightRefresh = false;
 const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
 
@@ -53,9 +54,9 @@ onMounted(() => {
 
   const initialSize = readHostSize() ?? { ...fallbackSize, fixedViewport: false };
   lastSize = { width: initialSize.width, height: initialSize.height };
-  lastWindowSize = readWindowSize();
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
+    autoSize: false,
     width: initialSize.width,
     height: initialSize.height,
     localization: {
@@ -73,10 +74,11 @@ onMounted(() => {
 
   observedResizeHost = readResizeHost();
   if (observedResizeHost) {
+    lastObservedHostWidth = initialSize.width;
     resizeObserver = new ResizeObserver(handleObservedResize);
     resizeObserver.observe(observedResizeHost);
   }
-  window.addEventListener("resize", scheduleResize);
+  window.addEventListener("resize", handleWindowResize);
 
   syncData();
   scheduleResize();
@@ -91,7 +93,9 @@ onBeforeUnmount(() => {
   resizeObserver = null;
   observedResizeHost = null;
   fixedViewportHeightSnapshot = null;
-  window.removeEventListener("resize", scheduleResize);
+  pendingFixedViewportHeightRefresh = false;
+  lastObservedHostWidth = 0;
+  window.removeEventListener("resize", handleWindowResize);
   chart?.remove();
   chart = null;
   series = null;
@@ -138,12 +142,28 @@ function syncMarkers() {
 }
 
 function handleObservedResize(entries: ResizeObserverEntry[]) {
-  if (entries.some((entry) => entry.target === observedResizeHost)) {
+  const host = observedResizeHost;
+  const hostEntry = entries.find((entry) => entry.target === host);
+  if (!host || !hostEntry) return;
+
+  if (!isFixedViewportHost(host)) {
     scheduleResize();
+    return;
   }
+
+  const nextWidth = readResizeEntryWidth(hostEntry) ?? readHostWidth(host);
+  if (!nextWidth || nextWidth === lastObservedHostWidth) return;
+
+  lastObservedHostWidth = nextWidth;
+  scheduleResize();
 }
 
-function scheduleResize() {
+function handleWindowResize() {
+  scheduleResize(true);
+}
+
+function scheduleResize(refreshFixedViewportHeight = false) {
+  pendingFixedViewportHeightRefresh ||= refreshFixedViewportHeight;
   if (resizeFrame > 0) return;
   resizeFrame = window.requestAnimationFrame(resizeChart);
 }
@@ -152,28 +172,25 @@ function resizeChart() {
   resizeFrame = 0;
   if (!chart) return;
 
-  const nextMeasurement = readHostSize();
+  const nextMeasurement = readHostSize(pendingFixedViewportHeightRefresh);
+  pendingFixedViewportHeightRefresh = false;
   if (!nextMeasurement) return;
 
-  const nextWindowSize = readWindowSize();
-  const nextSize = guardFixedViewportSize(nextMeasurement, nextWindowSize);
-  if (nextSize.width === lastSize.width && nextSize.height === lastSize.height) return;
+  if (nextMeasurement.width === lastSize.width && nextMeasurement.height === lastSize.height) return;
 
-  lastSize = nextSize;
-  lastWindowSize = nextWindowSize;
-  chart.resize(nextSize.width, nextSize.height);
+  lastSize = { width: nextMeasurement.width, height: nextMeasurement.height };
+  chart.resize(nextMeasurement.width, nextMeasurement.height);
 }
 
-function readHostSize() {
+function readHostSize(refreshFixedViewportHeight = false) {
   const host = readResizeHost();
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
   const fixedViewport = isFixedViewportHost(host);
-  const measuredWidth =
-    readClientWidth(host) ?? readPixelSize(host, "width") ?? positiveFloor(bounds.width);
+  const measuredWidth = readHostWidth(host, bounds);
   const measuredHeight = fixedViewport
-    ? readFixedViewportHeight(host, bounds)
+    ? readFixedViewportHeight(host, bounds, refreshFixedViewportHeight)
     : readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
   const width = measuredWidth ?? fallbackSize.width;
   const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
@@ -182,14 +199,13 @@ function readHostSize() {
   return { width, height, fixedViewport };
 }
 
-function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect) {
-  const windowSize = readWindowSize();
-  if (fixedViewportHeightSnapshot && sameWindowSize(fixedViewportHeightSnapshot.windowSize, windowSize)) {
-    return fixedViewportHeightSnapshot.height;
+function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect, refresh: boolean) {
+  if (fixedViewportHeightSnapshot !== null && !refresh) {
+    return fixedViewportHeightSnapshot;
   }
 
   const declaredHeight = readDeclaredFixedViewportHeight(element, bounds);
-  fixedViewportHeightSnapshot = { windowSize, height: declaredHeight };
+  fixedViewportHeightSnapshot = declaredHeight;
   return declaredHeight;
 }
 
@@ -204,30 +220,6 @@ function readDeclaredFixedViewportHeight(element: HTMLElement, bounds: DOMRect) 
   if (boundedHeight && boundedHeight <= fixedViewportHeightCap()) return boundedHeight;
 
   return fallbackSize.height;
-}
-
-function sameWindowSize(
-  left: { width: number; height: number },
-  right: { width: number; height: number },
-) {
-  return left.width === right.width && left.height === right.height;
-}
-
-function guardFixedViewportSize(
-  nextSize: { width: number; height: number; fixedViewport: boolean },
-  nextWindowSize: { width: number; height: number },
-) {
-  const windowUnchanged =
-    nextWindowSize.width === lastWindowSize.width && nextWindowSize.height === lastWindowSize.height;
-  if (
-    nextSize.fixedViewport &&
-    windowUnchanged &&
-    nextSize.height !== lastSize.height
-  ) {
-    return { width: nextSize.width, height: lastSize.height };
-  }
-
-  return { width: nextSize.width, height: nextSize.height };
 }
 
 function clampRenderedHeight(height: number) {
@@ -245,6 +237,15 @@ function readClientWidth(element: HTMLElement) {
 
 function readClientHeight(element: HTMLElement) {
   return element.clientHeight > 0 ? element.clientHeight : null;
+}
+
+function readHostWidth(element: HTMLElement, bounds = element.getBoundingClientRect()) {
+  return readClientWidth(element) ?? readPixelSize(element, "width") ?? positiveFloor(bounds.width);
+}
+
+function readResizeEntryWidth(entry: ResizeObserverEntry) {
+  const contentBox = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
+  return positiveFloor(contentBox?.inlineSize ?? entry.contentRect.width);
 }
 
 function readPixelSize(element: HTMLElement, property: "width" | "height" | "maxHeight") {
@@ -266,13 +267,6 @@ function readResizeHost() {
 
 function isFixedViewportHost(element: HTMLElement) {
   return element.getAttribute("data-chart-viewport") === "fixed";
-}
-
-function readWindowSize() {
-  return {
-    width: window.innerWidth > 0 ? window.innerWidth : 0,
-    height: window.innerHeight > 0 ? window.innerHeight : 0,
-  };
 }
 
 function positiveFloor(value: number) {
