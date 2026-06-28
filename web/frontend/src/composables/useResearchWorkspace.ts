@@ -5,12 +5,18 @@ import { useRoute, useRouter } from "vue-router";
 
 import {
   candleQuery,
+  canLoadNextCandleWindow,
+  canLoadPreviousCandleWindow,
   errorMessage,
   readOptionalQuery,
   readQuery,
+  repairSourceTask,
   researchQuery,
+  type ResearchForm,
+  selectedTaskMatchesMarket,
   toISOString,
 } from "@/composables/researchWorkspaceHelpers";
+import { repairChartGap } from "@/composables/researchGapRepairActions";
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncGapList, DataSyncTask } from "@/types/app";
 import {
@@ -18,14 +24,6 @@ import {
   isSymbolFormatForExchange,
   normalizeSymbolInput,
 } from "@/utils/marketSymbols";
-
-type ResearchForm = {
-  exchange: string;
-  symbol: string;
-  interval: string;
-  startTime: number | null;
-  endTime: number | null;
-};
 
 export function useResearchWorkspace() {
   const route = useRoute();
@@ -56,6 +54,7 @@ export function useResearchWorkspace() {
   const tasksError = ref("");
   const candlesError = ref("");
   const createModalOpen = ref(false);
+  const selectedChartTask = ref<DataSyncTask | null>(null);
   const createForm = reactive<ResearchForm>({
     exchange: exchange.value,
     symbol: symbol.value,
@@ -72,18 +71,16 @@ export function useResearchWorkspace() {
   );
   const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
   const canRepairGap = computed(() => firstRepairableGap.value !== null);
-  const canLoadPreviousCandles = computed(
-    () =>
-      Boolean(candleResult.value?.pagination.hasPrevious) &&
-      Boolean(candleResult.value?.pagination.previousFrom) &&
-      Boolean(candleResult.value?.pagination.previousTo),
-  );
-  const canLoadNextCandles = computed(
-    () =>
-      Boolean(candleResult.value?.pagination.hasNext) &&
-      Boolean(candleResult.value?.pagination.nextFrom) &&
-      Boolean(candleResult.value?.pagination.nextTo),
-  );
+  const selectedRepairSourceTask = computed(() => {
+    return repairSourceTask(
+      selectedChartTask.value,
+      exchange.value,
+      normalizeSymbolInput(symbol.value),
+      candleResult.value?.baseInterval || interval.value,
+    );
+  });
+  const canLoadPreviousCandles = computed(() => canLoadPreviousCandleWindow(candleResult.value));
+  const canLoadNextCandles = computed(() => canLoadNextCandleWindow(candleResult.value));
 
   watch(exchange, (nextExchange) => {
     symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
@@ -121,13 +118,18 @@ export function useResearchWorkspace() {
       candleWindowTo.value = "";
       return;
     }
+    if (
+      contextChanged &&
+      selectedChartTask.value &&
+      !selectedTaskMatchesMarket(selectedChartTask.value, exchange.value, normalizeSymbolInput(symbol.value))
+    ) {
+      selectedChartTask.value = null;
+    }
     replaceResearchQuery();
     void loadCandles();
   });
 
-  onMounted(() => {
-    void refreshAll();
-  });
+  onMounted(() => void refreshAll());
 
   async function refreshAll() {
     await Promise.all([loadTasks(), loadCandles()]);
@@ -220,6 +222,7 @@ export function useResearchWorkspace() {
     interval.value = task.interval;
     candleWindowFrom.value = "";
     candleWindowTo.value = "";
+    selectedChartTask.value = task;
   }
 
   function loadPreviousCandles() {
@@ -325,20 +328,18 @@ export function useResearchWorkspace() {
       return;
     }
     const repairInterval = candleResult.value?.baseInterval || interval.value;
-    const request: CreateDataSyncTask = {
-      exchange: exchange.value,
-      symbol: normalizeSymbolInput(symbol.value),
-      interval: repairInterval,
-      startTime: gap.from,
-      endTime: gap.to,
-    };
 
     repairGapLoading.value = true;
     try {
-      const task = await dataApi.createTask(request);
-      await dataApi.setSync(task.id, true);
-      message.success(t("research.gapRepairQueued"));
-      await loadTasks();
+      await repairChartGap({
+        exchange: exchange.value,
+        gap,
+        loadTasks,
+        onSuccess: (messageKey) => message.success(t(messageKey)),
+        repairInterval,
+        sourceTask: selectedRepairSourceTask.value,
+        symbol: normalizeSymbolInput(symbol.value),
+      });
     } catch (error) {
       message.error(errorMessage(error, t("research.gapRepairFailed")));
     } finally {

@@ -301,6 +301,10 @@ export type Position = {
   taskType: string;
   updatedAt: string;
 };
+export type RepairDataSyncTaskGapRequest = {
+  from: string;
+  to: string;
+};
 export type ServiceHealth = {
   detail?: string;
   exchangeBackoffCount?: number;

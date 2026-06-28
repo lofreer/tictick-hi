@@ -11,6 +11,7 @@ import type {
   DataSyncGapList,
   DataSyncGapRepairResult,
   DataSyncTask,
+  RepairDataSyncTaskGapRequest,
 } from "@/types/app";
 import { sanitizeExternalError } from "@/utils/errorText";
 
@@ -49,10 +50,12 @@ export const dataApi = {
 
   async repairTaskGaps(id: string): Promise<DataSyncGapRepairResult> {
     const response = await apiClient.post<DataSyncGapRepairResult>(`/data/tasks/${id}/repair-gaps`);
-    return {
-      ...response,
-      createdTasks: response.createdTasks.map(normalizeTask),
-    };
+    return normalizeGapRepairResult(response);
+  },
+
+  async repairTaskGap(id: string, request: RepairDataSyncTaskGapRequest): Promise<DataSyncGapRepairResult> {
+    const response = await apiClient.post<DataSyncGapRepairResult>(`/data/tasks/${id}/repair-gap`, request);
+    return normalizeGapRepairResult(response);
   },
 
   async setSync(id: string, enabled: boolean) {
@@ -89,6 +92,13 @@ export const dataApi = {
     return result.candles;
   },
 };
+
+function normalizeGapRepairResult(response: DataSyncGapRepairResult): DataSyncGapRepairResult {
+  return {
+    ...response,
+    createdTasks: response.createdTasks.map(normalizeTask),
+  };
+}
 
 function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
   return {

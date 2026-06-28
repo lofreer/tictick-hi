@@ -52,6 +52,14 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		server.repairDataTaskGaps(w, r, parts[3])
 		return
 	}
+	if len(parts) == 5 && parts[4] == "repair-gap" {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
+		server.repairDataTaskGap(w, r, parts[3])
+		return
+	}
 	if len(parts) == 6 && (parts[4] == "sync" || parts[4] == "realtime") {
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w, http.MethodPost)
@@ -152,6 +160,24 @@ func (server *Server) listDataTaskGaps(w http.ResponseWriter, r *http.Request, i
 
 func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
 	result, err := server.repository.RepairDataSyncTaskGaps(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
+func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, id string) {
+	var request data.RepairDataSyncTaskGapRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if request.From.IsZero() || request.To.IsZero() || !request.From.Before(request.To) {
+		writeError(w, http.StatusBadRequest, "from and to are required and from must be before to")
+		return
+	}
+	result, err := server.repository.RepairDataSyncTaskGap(r.Context(), id, request)
 	if err != nil {
 		writeStoreError(w, err)
 		return

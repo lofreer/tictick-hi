@@ -1,0 +1,32 @@
+import { dataApi } from "@/services/api/data";
+import type { CandleGap, DataSyncTask } from "@/types/app";
+
+import {
+  chartGapRepairRequest,
+  fallbackGapRepairTask,
+  repairResultMessageKey,
+} from "./researchWorkspaceHelpers";
+
+type RepairChartGapOptions = {
+  exchange: string;
+  gap: CandleGap;
+  loadTasks: () => Promise<void>;
+  onSuccess: (messageKey: string) => void;
+  repairInterval: string;
+  sourceTask: DataSyncTask | null;
+  symbol: string;
+};
+
+export async function repairChartGap(options: RepairChartGapOptions) {
+  const { exchange, gap, loadTasks, onSuccess, repairInterval, sourceTask, symbol } = options;
+  if (sourceTask) {
+    const result = await dataApi.repairTaskGap(sourceTask.id, chartGapRepairRequest(gap));
+    onSuccess(repairResultMessageKey(result));
+  } else {
+    const request = fallbackGapRepairTask(gap, exchange, symbol, repairInterval);
+    const task = await dataApi.createTask(request);
+    await dataApi.setSync(task.id, true);
+    onSuccess("research.gapRepairQueued");
+  }
+  await loadTasks();
+}

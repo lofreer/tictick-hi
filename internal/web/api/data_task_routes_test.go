@@ -177,6 +177,64 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		!repairResult.CreatedTasks[0].SyncEnabled {
 		t.Fatalf("unexpected repair result: %#v", repairResult)
 	}
+
+	singleGapFrom := gapTo.Add(time.Minute)
+	singleGapTo := gapTo.Add(3 * time.Minute)
+	repairOneRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-gap",
+		`{"from":"`+singleGapFrom.Format(time.RFC3339)+`","to":"`+singleGapTo.Format(time.RFC3339)+`"}`,
+	)
+	if repairOneRecorder.Code != http.StatusOK {
+		t.Fatalf("repair one status = %d body = %s", repairOneRecorder.Code, repairOneRecorder.Body.String())
+	}
+	var repairOneResult data.DataSyncGapRepairResult
+	if err := json.NewDecoder(repairOneRecorder.Body).Decode(&repairOneResult); err != nil {
+		t.Fatal(err)
+	}
+	if repairOneResult.SourceTaskID != created.ID ||
+		len(repairOneResult.CreatedTasks) != 1 ||
+		repairOneResult.TotalCount != 1 ||
+		repairOneResult.RepairLimit != 1 ||
+		repairOneResult.CreatedTasks[0].StartTime == nil ||
+		!repairOneResult.CreatedTasks[0].StartTime.Equal(singleGapFrom) ||
+		repairOneResult.CreatedTasks[0].EndTime == nil ||
+		!repairOneResult.CreatedTasks[0].EndTime.Equal(singleGapTo) ||
+		repairOneResult.CreatedTasks[0].RepairSourceTaskID != created.ID ||
+		!repairOneResult.CreatedTasks[0].SyncEnabled {
+		t.Fatalf("unexpected single repair result: %#v", repairOneResult)
+	}
+
+	duplicateOneRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-gap",
+		`{"from":"`+singleGapFrom.Format(time.RFC3339)+`","to":"`+singleGapTo.Format(time.RFC3339)+`"}`,
+	)
+	if duplicateOneRecorder.Code != http.StatusOK {
+		t.Fatalf("duplicate repair one status = %d body = %s", duplicateOneRecorder.Code, duplicateOneRecorder.Body.String())
+	}
+	var duplicateOneResult data.DataSyncGapRepairResult
+	if err := json.NewDecoder(duplicateOneRecorder.Body).Decode(&duplicateOneResult); err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicateOneResult.CreatedTasks) != 0 || duplicateOneResult.SkippedExisting != 1 {
+		t.Fatalf("unexpected duplicate single repair result: %#v", duplicateOneResult)
+	}
+
+	invalidOneRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-gap",
+		`{"from":"`+singleGapTo.Format(time.RFC3339)+`","to":"`+singleGapFrom.Format(time.RFC3339)+`"}`,
+	)
+	if invalidOneRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid repair one status = %d body = %s", invalidOneRecorder.Code, invalidOneRecorder.Body.String())
+	}
 }
 
 func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {

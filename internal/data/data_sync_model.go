@@ -58,6 +58,11 @@ type DataSyncGapRepairResult struct {
 	RepairLimit     int            `json:"repairLimit"`
 }
 
+type RepairDataSyncTaskGapRequest struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
 type CreateDataSyncTask struct {
 	Exchange  string     `json:"exchange"`
 	Symbol    string     `json:"symbol"`

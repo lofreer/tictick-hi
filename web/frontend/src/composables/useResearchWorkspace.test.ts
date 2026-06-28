@@ -12,6 +12,7 @@ const dataApiMocks = vi.hoisted(() => ({
   getCandles: vi.fn(),
   getTaskGaps: vi.fn(),
   listTasks: vi.fn(),
+  repairTaskGap: vi.fn(),
   repairTaskGaps: vi.fn(),
   retryTask: vi.fn(),
   setRealtime: vi.fn(),
@@ -57,6 +58,14 @@ describe("useResearchWorkspace", () => {
       repairLimit: 20,
     });
     dataApiMocks.createTask.mockResolvedValue({ id: "dst_repair" });
+    dataApiMocks.repairTaskGap.mockResolvedValue({
+      sourceTaskId: "dst_source_1",
+      createdTasks: [{ id: "dst_repair_1" }],
+      skippedExisting: 0,
+      limited: false,
+      totalCount: 1,
+      repairLimit: 1,
+    });
     dataApiMocks.repairTaskGaps.mockResolvedValue({
       sourceTaskId: "dst_1",
       createdTasks: [{ id: "dst_repair_1" }],
@@ -94,6 +103,60 @@ describe("useResearchWorkspace", () => {
     expect(dataApi.setSync).toHaveBeenCalledWith("dst_repair", true);
     expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
     expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
+  });
+
+  it("repairs the first chart gap through the selected source task", async () => {
+    dataApiMocks.getCandles.mockResolvedValue(
+      candleResult({
+        baseInterval: "1m",
+        gaps: [{ from: "2026-06-28T00:01:00Z", to: "2026-06-28T00:03:00Z", missingCandles: 2 }],
+      }),
+    );
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    workspace.selectTask(dataSyncTask({ id: "dst_source_1", interval: "1m" }));
+    await flushPromises();
+
+    await workspace.repairFirstGap();
+    await flushPromises();
+
+    expect(dataApi.repairTaskGap).toHaveBeenCalledWith("dst_source_1", {
+      from: "2026-06-28T00:01:00Z",
+      to: "2026-06-28T00:03:00Z",
+    });
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(dataApi.setSync).not.toHaveBeenCalled();
+    expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
+    expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
+  });
+
+  it("keeps the selected source task when switching to an aggregated chart interval", async () => {
+    dataApiMocks.getCandles.mockResolvedValue(
+      candleResult({
+        baseInterval: "1m",
+        gaps: [{ from: "2026-06-28T00:01:00Z", to: "2026-06-28T00:03:00Z", missingCandles: 2 }],
+      }),
+    );
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    workspace.selectTask(dataSyncTask({ id: "dst_source_1", interval: "1m" }));
+    await flushPromises();
+    workspace.interval.value = "5m";
+    await flushPromises();
+
+    await workspace.repairFirstGap();
+    await flushPromises();
+
+    expect(dataApi.repairTaskGap).toHaveBeenCalledWith("dst_source_1", {
+      from: "2026-06-28T00:01:00Z",
+      to: "2026-06-28T00:03:00Z",
+    });
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(dataApi.setSync).not.toHaveBeenCalled();
   });
 
   it("loads arbitrary valid symbols from the route after normalizing input", async () => {
@@ -225,6 +288,7 @@ describe("useResearchWorkspace", () => {
     await workspace.repairFirstGap();
 
     expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(dataApi.repairTaskGap).not.toHaveBeenCalled();
     expect(dataApi.setSync).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledWith("当前没有可修复缺口。");
   });

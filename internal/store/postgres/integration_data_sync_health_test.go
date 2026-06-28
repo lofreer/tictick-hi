@@ -225,6 +225,46 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 	}
 }
 
+func TestIntegrationRepairDataSyncTaskGapCreatesSyncTask(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 5, 0, 0, 0, time.UTC)
+	symbol := integrationSymbol("DSGP")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(10*time.Minute)), nil, "")
+	request := data.RepairDataSyncTaskGapRequest{
+		From: start.Add(2 * time.Minute),
+		To:   start.Add(5 * time.Minute),
+	}
+	result, err := store.RepairDataSyncTaskGap(ctx, taskID, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceTaskID != taskID || result.SkippedExisting != 0 || result.Limited {
+		t.Fatalf("unexpected single repair metadata: %#v", result)
+	}
+	if result.TotalCount != 1 || result.RepairLimit != 1 || len(result.CreatedTasks) != 1 {
+		t.Fatalf("unexpected single repair result: %#v", result)
+	}
+	assertRepairTaskWindow(t, result.CreatedTasks[0], taskID, request.From, request.To)
+
+	duplicateResult, err := store.RepairDataSyncTaskGap(ctx, taskID, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicateResult.CreatedTasks) != 0 || duplicateResult.SkippedExisting != 1 {
+		t.Fatalf("duplicate single repair result = %#v, want skipped existing", duplicateResult)
+	}
+}
+
 func assertTaskGap(t *testing.T, gap data.CandleGap, from time.Time, to time.Time, missingCandles int) {
 	t.Helper()
 	if !gap.From.Equal(from) || !gap.To.Equal(to) || gap.MissingCandles != missingCandles {

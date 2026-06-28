@@ -26,6 +26,7 @@ import type {
   OperatorSession as APIOperatorSession,
   Order as APIOrder,
   Position as APIPosition,
+  RepairDataSyncTaskGapRequest as APIRepairDataSyncTaskGapRequest,
   ServiceHealth as APIServiceHealth,
   StrategyDefinition as APIStrategyDefinition,
   StrategyIntent as APIStrategyIntent,
@@ -47,6 +48,8 @@ export type DataSyncTask = APIDataSyncTask;
 export type DataSyncGapList = APIDataSyncGapList;
 
 export type DataSyncGapRepairResult = APIDataSyncGapRepairResult;
+
+export type RepairDataSyncTaskGapRequest = APIRepairDataSyncTaskGapRequest;
 
 export type ChartCandle = {
   time: number;

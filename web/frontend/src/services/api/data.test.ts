@@ -297,4 +297,64 @@ describe("data api", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("queues a repair task for a single chart gap", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          sourceTaskId: "dst_1",
+          createdTasks: [
+            {
+              id: "dst_repair_1",
+              exchange: "binance",
+              symbol: "BTCUSDT",
+              interval: "1m",
+              startTime: "2026-06-27T03:02:00Z",
+              endTime: "2026-06-27T03:03:00Z",
+              repairSourceTaskId: "dst_1",
+              realtimeEnabled: false,
+              syncEnabled: true,
+              status: "pending",
+              dataHealth: "syncing",
+            },
+          ],
+          skippedExisting: 0,
+          limited: false,
+          totalCount: 1,
+          repairLimit: 1,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.repairTaskGap("dst_1", {
+      from: "2026-06-27T03:02:00Z",
+      to: "2026-06-27T03:03:00Z",
+    })).resolves.toMatchObject({
+      sourceTaskId: "dst_1",
+      createdTasks: [
+        {
+          id: "dst_repair_1",
+          startTime: "2026-06-27T03:02:00Z",
+          repairSourceTaskId: "dst_1",
+          syncEnabled: true,
+          dataHealth: "syncing",
+        },
+      ],
+      skippedExisting: 0,
+      totalCount: 1,
+      repairLimit: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/data/tasks/dst_1/repair-gap",
+      expect.objectContaining({
+        body: JSON.stringify({
+          from: "2026-06-27T03:02:00Z",
+          to: "2026-06-27T03:03:00Z",
+        }),
+        method: "POST",
+      }),
+    );
+  });
 });

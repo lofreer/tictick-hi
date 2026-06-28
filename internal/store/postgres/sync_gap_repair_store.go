@@ -94,6 +94,49 @@ func (store *Store) RepairDataSyncTaskGaps(
 	return result, nil
 }
 
+func (store *Store) RepairDataSyncTaskGap(
+	ctx context.Context,
+	id string,
+	request data.RepairDataSyncTaskGapRequest,
+) (data.DataSyncGapRepairResult, error) {
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("begin repair data sync gap: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	source, err := lockDataSyncTask(ctx, tx, id)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+
+	window := dataSyncGapRepairWindow{from: request.From, to: request.To}
+	result := data.DataSyncGapRepairResult{
+		SourceTaskID: source.ID,
+		CreatedTasks: []data.DataSyncTask{},
+		TotalCount:   1,
+		RepairLimit:  1,
+	}
+	exists, err := dataSyncRepairTaskExists(ctx, tx, source, window)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	if exists {
+		result.SkippedExisting = 1
+	} else {
+		task, err := insertDataSyncRepairTask(ctx, tx, source, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		result.CreatedTasks = append(result.CreatedTasks, task)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("commit repair data sync gap: %w", err)
+	}
+	return result, nil
+}
+
 func getDataSyncTask(ctx context.Context, queryer dataSyncGapQueryer, id string) (data.DataSyncTask, error) {
 	row := queryer.QueryRow(ctx, `
 		SELECT `+dataSyncTaskReturningColumns()+`
