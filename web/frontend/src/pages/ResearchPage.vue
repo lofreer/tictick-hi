@@ -40,7 +40,7 @@
         <EmptyState v-else :title="t('research.noTasks')" />
       </section>
 
-      <section class="surface chart-panel research-chart-panel">
+      <section class="surface research-chart-panel">
         <div class="research-toolbar">
           <div class="toolbar-row">
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />

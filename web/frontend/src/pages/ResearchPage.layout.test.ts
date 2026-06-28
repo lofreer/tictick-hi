@@ -6,12 +6,18 @@ import windowControlsSource from "@/components/research/ResearchWindowControls.v
 import source from "./ResearchPage.vue?raw";
 
 const pageStyles = readFileSync("src/pages/ResearchPage.css", "utf8");
+const chartStyles = readFileSync("src/components/chart/TradingViewChart.css", "utf8");
 
 describe("ResearchPage chart layout contract", () => {
   it("keeps the chart in a fixed flex viewport below the sync list", () => {
+    const tasksStyle = cssBlock(pageStyles, ".research-tasks-panel");
     const panelStyle = cssBlock(pageStyles, ".research-chart-panel");
     const bodyStyle = cssBlock(pageStyles, ".research-chart-body");
 
+    expect(tasksStyle).toContain("max-height: 360px;");
+    expect(tasksStyle).toContain("overflow: auto;");
+    expect(tasksStyle).toContain("overscroll-behavior: contain;");
+    expect(tasksStyle).not.toContain("overflow: hidden;");
     expect(panelStyle).toContain("display: flex;");
     expect(panelStyle).toContain("flex-direction: column;");
     expect(panelStyle).toContain("--research-chart-viewport-height:");
@@ -42,6 +48,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("text-overflow: ellipsis;");
     expect(pageStyles).toContain("white-space: nowrap;");
     expect(source).toContain('import "./ResearchPage.css";');
+    expect(source).toContain('class="surface research-chart-panel"');
+    expect(source).not.toContain('class="surface chart-panel research-chart-panel"');
     expect(source).toContain('class="research-chart-body" data-chart-viewport="fixed"');
   });
 
@@ -50,6 +58,17 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px);");
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px);");
     expect(pageStyles).toContain("flex: 0 1 auto;");
+  });
+
+  it("keeps the chart renderer anchored by explicit coordinates instead of inset shorthand", () => {
+    for (const selector of [".trading-chart", ".trading-chart__canvas", ".trading-chart__canvas > .tv-lightweight-charts"]) {
+      const style = cssBlock(chartStyles, selector);
+      expect(style).toContain("top: 0;");
+      expect(style).toContain("right: auto;");
+      expect(style).toContain("bottom: auto;");
+      expect(style).toContain("left: 0;");
+      expect(style).not.toContain("inset: 0;");
+    }
   });
 
   it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {

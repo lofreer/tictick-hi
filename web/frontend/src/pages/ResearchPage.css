@@ -7,7 +7,8 @@
 
 .research-tasks-panel {
   max-height: 360px;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .research-section-header {

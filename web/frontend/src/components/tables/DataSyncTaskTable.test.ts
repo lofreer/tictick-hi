@@ -29,6 +29,8 @@ describe("DataSyncTaskTable", () => {
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
     expect(table.props("scrollX")).toBe(2060);
+    const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
+    expect(columns.find((column) => column.key === "actions")).toMatchObject({ fixed: "right", width: 292 });
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).not.toContain("/api/v3/klines");

@@ -280,6 +280,8 @@ function sampleExpression() {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return {
+          className: element.className,
+          classList: Array.from(element.classList),
           clientHeight: element.clientHeight,
           clientWidth: element.clientWidth,
           offsetHeight: element.offsetHeight,
@@ -291,6 +293,7 @@ function sampleExpression() {
           left: Math.round(rect.left),
           right: Math.round(rect.right),
           styleHeight: style.height,
+          overflowX: style.overflowX,
           contain: style.contain,
           overflowY: style.overflowY
         };
@@ -325,6 +328,7 @@ function sampleExpression() {
         bodyScrollHeight: document.body.scrollHeight,
         docScrollHeight: document.documentElement.scrollHeight,
         viewportHeight: innerHeight,
+        taskPanel: read('.research-tasks-panel'),
         panel: read('.research-chart-panel'),
         body,
         chart: read('.trading-chart'),
@@ -400,6 +404,12 @@ function compactSample(sample) {
 
 function assertChartLayout(label, sample) {
   const { body, tv, rightAxisCanvas, bottomTimeAxisCanvas } = sample;
+  if (sample.panel?.classList?.includes("chart-panel")) {
+    throw new Error(`${label} research chart panel must not inherit the global chart-panel sizing contract`);
+  }
+  if (sample.taskPanel?.overflowX === "hidden" || sample.taskPanel?.overflowY === "hidden") {
+    throw new Error(`${label} research task panel must expose scrollable overflow instead of clipping table columns`);
+  }
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
   }
