@@ -322,7 +322,7 @@ func durationEnvStrict(key string, fallback time.Duration) (time.Duration, error
 	}
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
-		return 0, fmt.Errorf("%s must be a valid duration: %w", key, err)
+		return 0, fmt.Errorf("%s must be a valid duration", key)
 	}
 	if parsed <= 0 {
 		return 0, fmt.Errorf("%s must be greater than 0", key)
@@ -337,7 +337,7 @@ func intEnvStrict(key string, fallback int, min int) (int, error) {
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, fmt.Errorf("%s must be a valid integer: %w", key, err)
+		return 0, fmt.Errorf("%s must be a valid integer", key)
 	}
 	if parsed < min {
 		return 0, fmt.Errorf("%s must be greater than or equal to %d", key, min)
@@ -356,7 +356,7 @@ func boolEnvStrict(key string, fallback bool) (bool, error) {
 	case "0", "false", "no", "off":
 		return false, nil
 	default:
-		return false, fmt.Errorf("%s must be a boolean, got %q", key, value)
+		return false, fmt.Errorf("%s must be a boolean", key)
 	}
 }
 

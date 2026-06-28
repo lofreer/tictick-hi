@@ -69,6 +69,18 @@ curl -fsS http://127.0.0.1:8080/readyz
 docker compose ps
 ```
 
+Go subcommand runbook:
+
+```text
+docs/go-command-runbook.md
+```
+
+Run the command config smoke before changing `hi api/sync/backtest/trading/notify` startup behavior:
+
+```bash
+scripts/stage8-command-config-smoke.sh
+```
+
 Run the research chart height smoke after the stack is up:
 
 ```bash
