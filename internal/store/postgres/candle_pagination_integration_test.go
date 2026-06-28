@@ -84,3 +84,50 @@ func TestIntegrationCandleProviderReportsPaginationWindows(t *testing.T) {
 		t.Fatalf("unexpected aggregated pagination: %#v", aggregated.Pagination)
 	}
 }
+
+func TestIntegrationCandleProviderReportsRequestedRangeBoundaryGaps(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	symbol := integrationSymbol("BG")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	start := time.Date(2026, 6, 27, 4, 0, 0, 0, time.UTC)
+	for index := 1; index <= 3; index++ {
+		insertIntegrationCandle(t, ctx, store, data.Candle{
+			Exchange:  "binance",
+			Symbol:    symbol,
+			Interval:  "1m",
+			OpenTime:  start.Add(time.Duration(index) * time.Minute),
+			CloseTime: start.Add(time.Duration(index+1) * time.Minute),
+			Open:      fmt.Sprintf("%d", index),
+			High:      fmt.Sprintf("%d", index+1),
+			Low:       fmt.Sprintf("%d", index),
+			Close:     fmt.Sprintf("%d", index),
+			Volume:    "1",
+			IsClosed:  true,
+		})
+	}
+
+	to := start.Add(4 * time.Minute)
+	result, err := store.GetCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		From:     &start,
+		To:       &to,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Health != data.CandleHealthGap || len(result.Gaps) != 2 {
+		t.Fatalf("unexpected boundary gap result: %#v", result)
+	}
+	assertTaskGap(t, result.Gaps[0], start, start.Add(time.Minute), 1)
+	assertTaskGap(t, result.Gaps[1], start.Add(4*time.Minute), start.Add(5*time.Minute), 1)
+}

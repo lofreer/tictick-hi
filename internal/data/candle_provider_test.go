@@ -207,6 +207,52 @@ func TestCandleProviderReportsGaps(t *testing.T) {
 	}
 }
 
+func TestCandleProviderReportsRangeBoundaryGaps(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := start.Add(4 * time.Minute)
+	store := fakeCandleStore{candles: []Candle{
+		testCandle(start.Add(time.Minute), "10", "11", "9", "10", "1"),
+		testCandle(start.Add(2*time.Minute), "10", "11", "9", "10", "1"),
+		testCandle(start.Add(3*time.Minute), "10", "11", "9", "10", "1"),
+	}}
+
+	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     &start,
+		To:       &to,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Health != CandleHealthGap || len(result.Gaps) != 2 {
+		t.Fatalf("unexpected boundary gaps: %#v", result)
+	}
+	assertGap(t, result.Gaps[0], start, start.Add(time.Minute), 1)
+	assertGap(t, result.Gaps[1], start.Add(4*time.Minute), start.Add(5*time.Minute), 1)
+}
+
+func TestCandleProviderReportsWholeRequestedWindowGap(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := start.Add(2 * time.Minute)
+
+	result, err := NewCandleProvider(fakeCandleStore{}).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     &start,
+		To:       &to,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != CandleSourceNone || result.Health != CandleHealthGap || len(result.Gaps) != 1 {
+		t.Fatalf("unexpected empty range result: %#v", result)
+	}
+	assertGap(t, result.Gaps[0], start, start.Add(3*time.Minute), 3)
+}
+
 func TestCandleProviderReturnsGappedNativeWhenFallbackIsMissing(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	store := fakeCandleStore{candles: []Candle{
@@ -292,5 +338,12 @@ func assertTimePtr(t *testing.T, actual *time.Time, expected time.Time) {
 	}
 	if !actual.Equal(expected) {
 		t.Fatalf("time = %s, want %s", actual.Format(time.RFC3339), expected.Format(time.RFC3339))
+	}
+}
+
+func assertGap(t *testing.T, actual CandleGap, from time.Time, to time.Time, missingCandles int) {
+	t.Helper()
+	if !actual.From.Equal(from) || !actual.To.Equal(to) || actual.MissingCandles != missingCandles {
+		t.Fatalf("gap = %#v, want from %s to %s missing %d", actual, from, to, missingCandles)
 	}
 }

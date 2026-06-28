@@ -21,7 +21,7 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 		return CandleResult{}, err
 	}
 
-	nativeGaps, err := DetectCandleGaps(nativeCandles, query.Interval)
+	nativeGaps, err := DetectCandleGapsInRange(nativeCandles, query.Interval, query.From, query.To)
 	if err != nil {
 		return CandleResult{}, err
 	}
@@ -38,7 +38,7 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 		return CandleResult{}, err
 	}
 
-	baseGaps, err := DetectCandleGaps(baseCandles, baseCandleInterval)
+	baseGaps, err := DetectCandleGapsInRange(baseCandles, baseCandleInterval, baseQuery.From, baseQuery.To)
 	if err != nil {
 		return CandleResult{}, err
 	}
@@ -72,33 +72,72 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 }
 
 func DetectCandleGaps(candles []Candle, interval string) ([]CandleGap, error) {
+	return DetectCandleGapsInRange(candles, interval, nil, nil)
+}
+
+func DetectCandleGapsInRange(candles []Candle, interval string, from *time.Time, to *time.Time) ([]CandleGap, error) {
 	duration, err := IntervalDuration(interval)
 	if err != nil {
 		return nil, err
 	}
-	if len(candles) < 2 {
-		return nil, nil
+	if len(candles) == 0 {
+		if from == nil || to == nil {
+			return nil, nil
+		}
+		firstExpected := firstExpectedOpen(*from, duration)
+		lastExpected := alignTime(*to, duration)
+		if lastExpected.Before(firstExpected) {
+			return nil, nil
+		}
+		return []CandleGap{newCandleGap(firstExpected, lastExpected.Add(duration), duration)}, nil
 	}
 
 	ordered := sortedCandles(candles)
 	gaps := make([]CandleGap, 0)
+	if from != nil {
+		firstExpected := firstExpectedOpen(*from, duration)
+		firstOpen := ordered[0].OpenTime.UTC()
+		if firstOpen.After(firstExpected) {
+			gaps = append(gaps, newCandleGap(firstExpected, firstOpen, duration))
+		}
+	}
 	for index := 1; index < len(ordered); index++ {
 		expected := ordered[index-1].OpenTime.UTC().Add(duration)
 		actual := ordered[index].OpenTime.UTC()
 		if !actual.After(expected) {
 			continue
 		}
-		missing := int(actual.Sub(expected) / duration)
-		if missing < 1 {
-			missing = 1
+		gaps = append(gaps, newCandleGap(expected, actual, duration))
+	}
+	if to != nil {
+		lastOpen := ordered[len(ordered)-1].OpenTime.UTC()
+		lastExpected := alignTime(*to, duration)
+		nextExpected := lastOpen.Add(duration)
+		if !lastExpected.Before(nextExpected) {
+			gaps = append(gaps, newCandleGap(nextExpected, lastExpected.Add(duration), duration))
 		}
-		gaps = append(gaps, CandleGap{
-			From:           expected,
-			To:             actual,
-			MissingCandles: missing,
-		})
 	}
 	return gaps, nil
+}
+
+func firstExpectedOpen(value time.Time, duration time.Duration) time.Time {
+	aligned := alignTime(value, duration)
+	if aligned.Before(value.UTC()) {
+		return aligned.Add(duration)
+	}
+	return aligned
+}
+
+func newCandleGap(from time.Time, to time.Time, duration time.Duration) CandleGap {
+	missing := int(to.Sub(from) / duration)
+	if missing < 1 {
+		missing = 1
+	}
+	return CandleGap{
+		From:           from,
+		To:             to,
+		MissingCandles: missing,
+	}
 }
 
 func candleResult(
