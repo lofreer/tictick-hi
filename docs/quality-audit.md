@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按连续 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康可观察 active exchange backoff 数量和最近重试时间；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、交易所精确权重限流、全历史缺口扫描和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；仍缺精确权重限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、下次重试列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；研究页交易所切换会收敛到对应 Binance / OKX 交易对选项；但交易对仍是固定白名单、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`，可区分正常、同步中、有缺口、失败、暂停、重试中和数据不足；任务表格错误列、下次重试列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；研究页交易所切换会收敛到对应 Binance / OKX 交易对选项；但交易对仍是固定白名单、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -1332,6 +1332,45 @@ scripts/quality-gate.sh
 剩余风险：
 
 - 本轮未在用户可视 Chrome 会话中捕获原始崩溃栈；当前本地 8080 已更新为本轮镜像并通过桌面/移动连续高度采样。
+
+### 阶段 1 数据同步任务健康可观察补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+范围内：
+
+- `DataSyncTask` API 增加派生字段 `dataHealth`，取值为 `ok / syncing / gap / failed / paused / retrying / insufficient`。
+- `ListDataSyncTasks` 使用真实 PostgreSQL `market_candles` 相邻 `open_time` 窗口函数检测任务同交易所、同交易对、同周期窗口内缺口。
+- 写操作返回的 `DataSyncTask` 使用任务状态、`next_attempt_at` 和 `last_synced_open_time` 派生健康状态，避免写路径引入额外重查询。
+- 研究页任务表新增“数据健康”列。
+- 概览页数据同步缺口告警改为按 `dataHealth=gap` 统计，不再把 `TaskStatus` 当成缺口状态。
+- API contract 和生成的前端 TypeScript DTO 同步更新。
+
+范围外：
+
+- 不做全历史缺口扫描。
+- 不做交易所权重限流。
+- 不重构完整 worker 状态机。
+- 不改变同步游标推进语义。
+
+验证：
+
+- `go test ./internal/web/api ./internal/store/postgres`
+- `TICTICK_WRITE_GENERATED_API_TYPES=1 go test ./internal/web/api -run TestWriteGeneratedFrontendAPITypes`
+- `docker run --rm --network tictick-hi_default ... go test ./internal/store/postgres -run TestIntegrationListDataSyncTasksReportsDataHealth -count=1 -v` 通过，真实 PostgreSQL 验证 `gap / ok / syncing / paused / retrying / failed` 派生结果。
+- `cd web/frontend && pnpm run test -- DataSyncTaskTable useOverviewWorkspace data`
+- `cd web/frontend && pnpm run typecheck`
+- `go test ./...`
+- `go vet ./...`
+- `cd web/frontend && pnpm run test`
+- `cd web/frontend && pnpm run build`
+- `scripts/quality-gate.sh`
+
+剩余风险：
+
+- 当前缺口检测限定在任务自身交易所、交易对、周期和同步窗口内；仍不是生产级全历史缺口扫描，也没有缺口修复工作流。
 
 ### 阶段 1 PostgreSQL 集成证据补充
 

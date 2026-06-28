@@ -87,6 +87,7 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     realtimeEnabled: response.realtimeEnabled,
     syncEnabled: response.syncEnabled,
     status: response.status,
+    dataHealth: response.dataHealth,
     lastError: response.lastError,
     attemptCount: response.attemptCount,
     nextAttemptAt: response.nextAttemptAt,

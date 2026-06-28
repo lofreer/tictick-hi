@@ -107,6 +107,7 @@ describe("data api", () => {
               realtimeEnabled: true,
               syncEnabled: true,
               status: "running",
+              dataHealth: "retrying",
               lastError: "temporary EOF",
               attemptCount: 3,
               nextAttemptAt: "2026-06-28T01:30:00Z",
@@ -121,6 +122,7 @@ describe("data api", () => {
       {
         id: "dst_1",
         attemptCount: 3,
+        dataHealth: "retrying",
         lastError: "temporary EOF",
         nextAttemptAt: "2026-06-28T01:30:00Z",
       },
@@ -138,6 +140,7 @@ describe("data api", () => {
           realtimeEnabled: false,
           syncEnabled: true,
           status: "pending",
+          dataHealth: "syncing",
         }),
         { status: 200 },
       ),
@@ -146,6 +149,7 @@ describe("data api", () => {
 
     await expect(dataApi.retryTask("dst_1")).resolves.toMatchObject({
       id: "dst_1",
+      dataHealth: "syncing",
       syncEnabled: true,
       status: "pending",
     });

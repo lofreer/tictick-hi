@@ -302,7 +302,9 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	if err := json.NewDecoder(createRecorder.Body).Decode(&created); err != nil {
 		t.Fatal(err)
 	}
-	if created.Exchange != "binance" || created.Status != data.TaskStatusPending {
+	if created.Exchange != "binance" ||
+		created.Status != data.TaskStatusPending ||
+		created.DataHealth != data.DataSyncHealthInsufficient {
 		t.Fatalf("unexpected created task: %#v", created)
 	}
 
@@ -321,7 +323,9 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	if err := json.NewDecoder(listRecorder.Body).Decode(&tasks); err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 1 || !tasks[0].RealtimeEnabled {
+	if len(tasks) != 1 ||
+		!tasks[0].RealtimeEnabled ||
+		tasks[0].DataHealth != data.DataSyncHealthSyncing {
 		t.Fatalf("unexpected tasks: %#v", tasks)
 	}
 
@@ -369,7 +373,10 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	if err := json.NewDecoder(retryRecorder.Body).Decode(&retried); err != nil {
 		t.Fatal(err)
 	}
-	if retried.Status != data.TaskStatusPending || !retried.SyncEnabled || retried.LastError != "" {
+	if retried.Status != data.TaskStatusPending ||
+		!retried.SyncEnabled ||
+		retried.LastError != "" ||
+		retried.DataHealth != data.DataSyncHealthSyncing {
 		t.Fatalf("unexpected retried task: %#v", retried)
 	}
 }

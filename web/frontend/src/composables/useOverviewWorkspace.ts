@@ -110,7 +110,7 @@ export function useOverviewWorkspace() {
       items.push(alert("health", t("overview.systemHealth"), health.value.status, t("overview.healthAlert"), "warning", { name: "system-health" }));
     }
     addCountAlert(items, "sync-failed", dataSyncTasks.value, "failed", t("overview.dataSync"), { name: "research" });
-    addCountAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research" });
+    addDataHealthAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research" });
     addCountAlert(items, "backtests-failed", backtests.value, "failed", t("overview.backtests"), { name: "backtests" });
     addCountAlert(items, "trading-failed", tradingTasks.value, "failed", t("overview.tradingTasks"), { name: "trading" });
 
@@ -196,6 +196,20 @@ export function useOverviewWorkspace() {
     if (count === 0) return;
     const type = status === "failed" ? "error" : "warning";
     items.push(alert(key, title, t("overview.failedCount", { count }), t(`status.${status}`), type, to));
+  }
+
+  function addDataHealthAlert(
+    items: OverviewAlert[],
+    key: string,
+    tasks: DataSyncTask[],
+    health: DataSyncTask["dataHealth"],
+    title: string,
+    to: RouteLocationRaw,
+  ) {
+    const count = tasks.filter((task) => task.dataHealth === health).length;
+    if (count === 0) return;
+    const type = health === "failed" ? "error" : "warning";
+    items.push(alert(key, title, t("overview.failedCount", { count }), t(`research.dataHealth.${health}`), type, to));
   }
 
   function activityFromTask(

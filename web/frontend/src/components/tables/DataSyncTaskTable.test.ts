@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(1290);
+    expect(table.props("scrollX")).toBe(1400);
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).toBe(longError);
@@ -55,6 +55,26 @@ describe("DataSyncTaskTable", () => {
     });
 
     expect(wrapper.text()).toContain("2026-06-28T01:30:00Z");
+  });
+
+  it("shows backend-derived data health", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            exchange: "binance",
+            symbol: "BTCUSDT",
+            interval: "1m",
+            dataHealth: "gap",
+          }),
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain("数据健康");
+    expect(wrapper.text()).toContain("有缺口");
   });
 
   it("emits retry for failed tasks", async () => {
@@ -89,6 +109,7 @@ function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
     realtimeEnabled: false,
     syncEnabled: true,
     status: "failed",
+    dataHealth: "failed",
     attemptCount: 1,
     createdAt: "2026-06-28T00:00:00Z",
     updatedAt: "2026-06-28T00:00:00Z",

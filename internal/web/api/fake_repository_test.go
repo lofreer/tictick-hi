@@ -64,13 +64,14 @@ func (repository *fakeRepository) CreateDataSyncTask(
 ) (data.DataSyncTask, error) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	task := data.DataSyncTask{
-		ID:        "dst_1",
-		Exchange:  request.Exchange,
-		Symbol:    request.Symbol,
-		Interval:  request.Interval,
-		Status:    data.TaskStatusPending,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:         "dst_1",
+		Exchange:   request.Exchange,
+		Symbol:     request.Symbol,
+		Interval:   request.Interval,
+		Status:     data.TaskStatusPending,
+		DataHealth: data.DataSyncHealthInsufficient,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 	repository.tasks = append(repository.tasks, task)
 	return task, nil
@@ -98,6 +99,7 @@ func (repository *fakeRepository) RetryDataSyncTask(
 			repository.tasks[index].SyncEnabled = true
 			repository.tasks[index].Status = data.TaskStatusPending
 			repository.tasks[index].LastError = ""
+			refreshFakeDataSyncHealth(&repository.tasks[index])
 			return repository.tasks[index], nil
 		}
 	}
@@ -115,6 +117,7 @@ func (repository *fakeRepository) SetSyncEnabled(
 		if !enabled {
 			task.Status = data.TaskStatusPaused
 		}
+		refreshFakeDataSyncHealth(task)
 	})
 }
 
@@ -129,6 +132,7 @@ func (repository *fakeRepository) SetRealtimeEnabled(
 		if !enabled {
 			task.Status = data.TaskStatusPaused
 		}
+		refreshFakeDataSyncHealth(task)
 	})
 }
 
@@ -571,4 +575,34 @@ func dataSyncTaskCommandAllowed(status data.TaskStatus) bool {
 	return status == data.TaskStatusPending ||
 		status == data.TaskStatusRunning ||
 		status == data.TaskStatusPaused
+}
+
+func refreshFakeDataSyncHealth(task *data.DataSyncTask) {
+	if task.Status == data.TaskStatusFailed || task.Status == data.TaskStatusCancelled {
+		task.DataHealth = data.DataSyncHealthFailed
+		return
+	}
+	if task.NextAttemptAt != nil && task.NextAttemptAt.After(time.Now().UTC()) {
+		task.DataHealth = data.DataSyncHealthRetrying
+		return
+	}
+	if task.Status == data.TaskStatusPaused {
+		task.DataHealth = data.DataSyncHealthPaused
+		return
+	}
+	if task.LatestSyncedOpenTime == nil {
+		if (task.Status == data.TaskStatusPending || task.Status == data.TaskStatusRunning) &&
+			(task.SyncEnabled || task.RealtimeEnabled) {
+			task.DataHealth = data.DataSyncHealthSyncing
+			return
+		}
+		task.DataHealth = data.DataSyncHealthInsufficient
+		return
+	}
+	if (task.Status == data.TaskStatusPending || task.Status == data.TaskStatusRunning) &&
+		(task.SyncEnabled || task.RealtimeEnabled) {
+		task.DataHealth = data.DataSyncHealthSyncing
+		return
+	}
+	task.DataHealth = data.DataSyncHealthOK
 }

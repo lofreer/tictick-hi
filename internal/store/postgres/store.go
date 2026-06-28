@@ -38,12 +38,35 @@ func (store *Store) Close() {
 }
 
 func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask, error) {
-	rows, err := store.pool.Query(ctx, `
-		SELECT id, exchange, symbol, interval, start_time, end_time,
-		       sync_enabled, realtime_enabled, status, last_synced_open_time,
-		       COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at
-		  FROM data_sync_tasks
-		 ORDER BY created_at DESC`)
+	rows, err := store.pool.Query(ctx, fmt.Sprintf(`
+		SELECT %s
+		  FROM data_sync_tasks AS t
+		  LEFT JOIN LATERAL (
+			SELECT COUNT(*) AS candle_count,
+			       COALESCE(
+			         BOOL_OR(
+			           previous_open_time IS NOT NULL
+			           AND interval_duration IS NOT NULL
+			           AND open_time - previous_open_time > interval_duration
+			         ),
+			         false
+			       ) AS has_gap
+			  FROM (
+				SELECT c.open_time,
+				       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
+				       %s AS interval_duration
+				  FROM market_candles AS c
+				 WHERE c.exchange = t.exchange
+				   AND c.symbol = t.symbol
+				   AND c.interval = t.interval
+				   AND (t.start_time IS NULL OR c.open_time >= t.start_time)
+				   AND c.open_time <= COALESCE(t.end_time, t.last_synced_open_time, now())
+			  ) ordered_candles
+		  ) candle_state ON true
+		 ORDER BY t.created_at DESC`,
+		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t")),
+		dataSyncTaskIntervalDurationSQL("t"),
+	))
 	if err != nil {
 		return nil, fmt.Errorf("list data sync tasks: %w", err)
 	}
@@ -64,9 +87,7 @@ func (store *Store) CreateDataSyncTask(
 	row := store.pool.QueryRow(ctx, `
 		INSERT INTO data_sync_tasks (id, exchange, symbol, interval, start_time, end_time)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, exchange, symbol, interval, start_time, end_time,
-		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
+		RETURNING `+dataSyncTaskReturningColumns(),
 		id, task.Exchange, task.Symbol, task.Interval, task.StartTime, task.EndTime,
 	)
 
@@ -100,9 +121,7 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 		       updated_at = now()
 		 WHERE id = $1
 		   AND status = $3
-		RETURNING id, exchange, symbol, interval, start_time, end_time,
-		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
+		RETURNING `+dataSyncTaskReturningColumns(),
 		clearLeaseAssignments(dataSyncTaskLease)),
 		id,
 		data.TaskStatusPending,
@@ -256,9 +275,7 @@ func (store *Store) updateTaskFlag(
 		     status = $3
 		     OR ($3 IN ($4, $5, $6) AND status IN ($4, $5, $6))
 		   )
-		RETURNING id, exchange, symbol, interval, start_time, end_time,
-		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
+		RETURNING `+dataSyncTaskReturningColumns(),
 		column,
 		clearLeaseCaseAssignments(dataSyncTaskLease, "NOT $2::boolean")),
 		id,
@@ -284,6 +301,104 @@ func (store *Store) updateTaskFlag(
 	return task, nil
 }
 
+func dataSyncTaskReturningColumns() string {
+	return dataSyncTaskScanColumns("", dataSyncTaskStateHealthSQL(""))
+}
+
+func dataSyncTaskScanColumns(alias string, healthSQL string) string {
+	return fmt.Sprintf(`%s, %s AS data_health, %s, %s, %s, %s, %s, %s`,
+		dataSyncTaskColumnList(alias, "id", "exchange", "symbol", "interval", "start_time", "end_time",
+			"sync_enabled", "realtime_enabled", "status"),
+		healthSQL,
+		dataSyncTaskColumn(alias, "last_synced_open_time"),
+		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "last_error")),
+		dataSyncTaskColumn(alias, "attempt_count"),
+		dataSyncTaskColumn(alias, "next_attempt_at"),
+		dataSyncTaskColumn(alias, "created_at"),
+		dataSyncTaskColumn(alias, "updated_at"),
+	)
+}
+
+func dataSyncTaskColumnList(alias string, columns ...string) string {
+	result := ""
+	for index, column := range columns {
+		if index > 0 {
+			result += ", "
+		}
+		result += dataSyncTaskColumn(alias, column)
+	}
+	return result
+}
+
+func dataSyncTaskColumn(alias string, column string) string {
+	if alias == "" {
+		return column
+	}
+	return alias + "." + column
+}
+
+func dataSyncTaskListHealthSQL(alias string) string {
+	return fmt.Sprintf(`CASE
+		WHEN %s IN ('failed', 'cancelled') THEN 'failed'
+		WHEN %s IS NOT NULL AND %s > now() THEN 'retrying'
+		WHEN candle_state.has_gap THEN 'gap'
+		WHEN %s = 'paused' THEN 'paused'
+		WHEN %s IS NULL OR COALESCE(candle_state.candle_count, 0) = 0 THEN
+			CASE WHEN (%s IN ('pending', 'running') AND (%s OR %s)) THEN 'syncing' ELSE 'insufficient' END
+		WHEN %s IN ('pending', 'running') AND (%s OR %s) THEN 'syncing'
+		ELSE 'ok'
+	END`,
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "next_attempt_at"),
+		dataSyncTaskColumn(alias, "next_attempt_at"),
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "last_synced_open_time"),
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "sync_enabled"),
+		dataSyncTaskColumn(alias, "realtime_enabled"),
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "sync_enabled"),
+		dataSyncTaskColumn(alias, "realtime_enabled"),
+	)
+}
+
+func dataSyncTaskStateHealthSQL(alias string) string {
+	return fmt.Sprintf(`CASE
+		WHEN %s IN ('failed', 'cancelled') THEN 'failed'
+		WHEN %s IS NOT NULL AND %s > now() THEN 'retrying'
+		WHEN %s = 'paused' THEN 'paused'
+		WHEN %s IS NULL THEN
+			CASE WHEN (%s IN ('pending', 'running') AND (%s OR %s)) THEN 'syncing' ELSE 'insufficient' END
+		WHEN %s IN ('pending', 'running') AND (%s OR %s) THEN 'syncing'
+		ELSE 'ok'
+	END`,
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "next_attempt_at"),
+		dataSyncTaskColumn(alias, "next_attempt_at"),
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "last_synced_open_time"),
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "sync_enabled"),
+		dataSyncTaskColumn(alias, "realtime_enabled"),
+		dataSyncTaskColumn(alias, "status"),
+		dataSyncTaskColumn(alias, "sync_enabled"),
+		dataSyncTaskColumn(alias, "realtime_enabled"),
+	)
+}
+
+func dataSyncTaskIntervalDurationSQL(alias string) string {
+	intervalColumn := dataSyncTaskColumn(alias, "interval")
+	return fmt.Sprintf(`CASE %s
+		WHEN '1m' THEN interval '1 minute'
+		WHEN '5m' THEN interval '5 minutes'
+		WHEN '15m' THEN interval '15 minutes'
+		WHEN '1h' THEN interval '1 hour'
+		WHEN '4h' THEN interval '4 hours'
+		WHEN '1d' THEN interval '1 day'
+		ELSE NULL
+	END`, intervalColumn)
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }
@@ -304,6 +419,7 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&task.SyncEnabled,
 		&task.RealtimeEnabled,
 		&task.Status,
+		&task.DataHealth,
 		&task.LatestSyncedOpenTime,
 		&task.LastError,
 		&task.AttemptCount,

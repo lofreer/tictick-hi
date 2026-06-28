@@ -63,7 +63,7 @@ describe("useOverviewWorkspace", () => {
       ],
     });
     apiMocks.listDataTasks.mockResolvedValue([
-      task("sync_1", "running", "2026-06-28T01:01:00Z", { realtimeEnabled: true }),
+      task("sync_1", "running", "2026-06-28T01:01:00Z", { dataHealth: "gap", realtimeEnabled: true }),
       task("sync_2", "failed", "2026-06-28T01:02:00Z"),
     ]);
     apiMocks.listBacktests.mockResolvedValue([
@@ -98,6 +98,7 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.alerts.value.map((alert) => alert.key)).toEqual([
       "health",
       "sync-failed",
+      "sync-gap",
       "backtests-failed",
       "trading-failed",
       "notifications-failed",
@@ -155,6 +156,7 @@ function task(id: string, status: string, updatedAt: string, overrides: Record<s
     symbol: "BTCUSDT",
     interval: "1m",
     status,
+    dataHealth: "ok",
     updatedAt,
     createdAt: updatedAt,
     realtimeEnabled: false,

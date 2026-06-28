@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1290"
+    :scroll-x="1400"
     size="small"
   />
 </template>
@@ -17,10 +17,12 @@ import {
   NButton,
   NDataTable,
   NSpace,
+  NTag,
   NText,
   NTooltip,
   type DataTableColumns,
   type DataTableRowKey,
+  type TagProps,
 } from "naive-ui";
 import { computed, h } from "vue";
 import { useI18n } from "vue-i18n";
@@ -48,6 +50,15 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     key: "latestSyncedAt",
     minWidth: 150,
     render: (row) => row.latestSyncedAt ?? "-",
+  },
+  {
+    title: t("research.dataHealth"),
+    key: "dataHealth",
+    width: 104,
+    render: (row) =>
+      h(NTag, { bordered: false, size: "small", type: dataHealthTagType(row.dataHealth) }, () =>
+        t(`research.dataHealth.${row.dataHealth}`),
+      ),
   },
   {
     title: t("research.realtime"),
@@ -150,6 +161,14 @@ function summarizeError(value: string) {
     return normalized;
   }
   return `${normalized.slice(0, 87)}...`;
+}
+
+function dataHealthTagType(health: DataSyncTask["dataHealth"]): TagProps["type"] {
+  if (health === "ok") return "success";
+  if (health === "gap" || health === "retrying") return "warning";
+  if (health === "failed") return "error";
+  if (health === "syncing") return "info";
+  return "default";
 }
 
 function rowKey(row: DataSyncTask): DataTableRowKey {

@@ -142,9 +142,11 @@ export type CreateTradingTask = {
   symbol: string;
   type: string;
 };
+export type DataSyncHealth = "ok" | "syncing" | "gap" | "failed" | "paused" | "retrying" | "insufficient";
 export type DataSyncTask = {
   attemptCount: number;
   createdAt: string;
+  dataHealth: DataSyncHealth;
   endTime?: string;
   exchange: string;
   id: string;
