@@ -14,6 +14,7 @@ import type {
   MarketCandleGapScan,
   RepairDataSyncTaskGapRequest,
   RepairMarketCandleGapRequest,
+  RepairMarketCandleGapsRequest,
 } from "@/types/app";
 import { sanitizeExternalError } from "@/utils/errorText";
 
@@ -106,6 +107,11 @@ export const dataApi = {
 
   async repairMarketCandleGap(request: RepairMarketCandleGapRequest): Promise<DataSyncGapRepairResult> {
     const response = await apiClient.post<DataSyncGapRepairResult>("/market/candle-gaps/repair", request);
+    return normalizeGapRepairResult(response);
+  },
+
+  async repairMarketCandleGaps(request: RepairMarketCandleGapsRequest): Promise<DataSyncGapRepairResult> {
+    const response = await apiClient.post<DataSyncGapRepairResult>("/market/candle-gaps/repair-batch", request);
     return normalizeGapRepairResult(response);
   },
 

@@ -61,6 +61,62 @@ func (store *Store) RepairMarketCandleGap(
 	return result, nil
 }
 
+func (store *Store) RepairMarketCandleGaps(
+	ctx context.Context,
+	request data.RepairMarketCandleGapsRequest,
+) (data.DataSyncGapRepairResult, error) {
+	intervalDuration, err := data.IntervalDuration(request.Interval)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("begin repair market candle gaps: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	result := data.DataSyncGapRepairResult{
+		CreatedTasks: []data.DataSyncTask{},
+		TotalCount:   len(request.Gaps),
+		RepairLimit:  data.MaxMarketCandleGapScanLimit,
+	}
+	for _, gap := range request.Gaps {
+		gapRequest := data.RepairMarketCandleGapRequest{
+			Exchange: request.Exchange,
+			Symbol:   request.Symbol,
+			Interval: request.Interval,
+			From:     gap.From.UTC(),
+			To:       gap.To.UTC(),
+		}
+		window, ok, err := marketCandleRepairWindow(ctx, tx, gapRequest, intervalDuration)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		if !ok {
+			return data.DataSyncGapRepairResult{}, data.ErrNotFound
+		}
+		exists, err := marketCandleRepairTaskExists(ctx, tx, gapRequest, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		if exists {
+			result.SkippedExisting += 1
+			continue
+		}
+		task, err := insertMarketCandleRepairTask(ctx, tx, gapRequest, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		result.CreatedTasks = append(result.CreatedTasks, task)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("commit repair market candle gaps: %w", err)
+	}
+	return result, nil
+}
+
 func marketCandleRepairWindow(
 	ctx context.Context,
 	tx pgx.Tx,

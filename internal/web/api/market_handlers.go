@@ -18,6 +18,8 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 		server.handleMarketCandleGaps(w, r)
 	case "/api/market/candle-gaps/repair":
 		server.repairMarketCandleGap(w, r)
+	case "/api/market/candle-gaps/repair-batch":
+		server.repairMarketCandleGaps(w, r)
 	case "/api/market/instruments":
 		server.handleMarketInstruments(w, r)
 	case "/api/market/instruments/sync":
@@ -62,6 +64,29 @@ func (server *Server) repairMarketCandleGap(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	result, err := server.repository.RepairMarketCandleGap(r.Context(), request)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
+func (server *Server) repairMarketCandleGaps(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+
+	var request data.RepairMarketCandleGapsRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateRepairMarketCandleGapsRequest(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := server.repository.RepairMarketCandleGaps(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -189,6 +214,34 @@ func validateRepairMarketCandleGapRequest(request *data.RepairMarketCandleGapReq
 		return fmt.Errorf("from and to are required and from must be before to")
 	}
 	return nil
+}
+
+func validateRepairMarketCandleGapsRequest(request *data.RepairMarketCandleGapsRequest) error {
+	request.Exchange = strings.TrimSpace(request.Exchange)
+	request.Symbol = strings.ToUpper(strings.TrimSpace(request.Symbol))
+	request.Interval = strings.TrimSpace(request.Interval)
+	if request.Exchange == "" || request.Symbol == "" || request.Interval == "" {
+		return fmt.Errorf("exchange, symbol and interval are required")
+	}
+	if len(request.Gaps) == 0 {
+		return fmt.Errorf("gaps are required")
+	}
+	if len(request.Gaps) > data.MaxMarketCandleGapScanLimit {
+		return fmt.Errorf("gaps must contain at most %d items", data.MaxMarketCandleGapScanLimit)
+	}
+	for index := range request.Gaps {
+		gap := &request.Gaps[index]
+		if gap.From.IsZero() || gap.To.IsZero() || !gap.From.Before(gap.To) {
+			return fmt.Errorf("gap from and to are required and from must be before to")
+		}
+	}
+	return validateRepairMarketCandleGapRequest(&data.RepairMarketCandleGapRequest{
+		Exchange: request.Exchange,
+		Symbol:   request.Symbol,
+		Interval: request.Interval,
+		From:     request.Gaps[0].From,
+		To:       request.Gaps[0].To,
+	})
 }
 
 func parseMarketInstrumentSyncQuery(r *http.Request) (data.MarketInstrumentQuery, error) {

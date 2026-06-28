@@ -145,6 +145,61 @@ func TestIntegrationRepairMarketCandleGapCreatesSyncTask(t *testing.T) {
 	}
 }
 
+func TestIntegrationRepairMarketCandleGapsCreatesSyncTasks(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCB")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+	for _, minute := range []int{0, 1, 3, 6} {
+		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
+	}
+
+	request := data.RepairMarketCandleGapsRequest{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		Gaps: []data.RepairMarketCandleGapWindow{
+			{From: start.Add(2 * time.Minute), To: start.Add(3 * time.Minute)},
+			{From: start.Add(4 * time.Minute), To: start.Add(6 * time.Minute)},
+		},
+	}
+	result, err := store.RepairMarketCandleGaps(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceTaskID != "" || result.SkippedExisting != 0 || result.TotalCount != 2 ||
+		result.RepairLimit != data.MaxMarketCandleGapScanLimit || result.Limited {
+		t.Fatalf("unexpected batch repair metadata: %#v", result)
+	}
+	if len(result.CreatedTasks) != 2 {
+		t.Fatalf("created repair task count = %d, want 2: %#v", len(result.CreatedTasks), result.CreatedTasks)
+	}
+	assertRepairTaskWindow(t, result.CreatedTasks[0], "", request.Gaps[0].From, request.Gaps[0].To)
+	assertRepairTaskWindow(t, result.CreatedTasks[1], "", request.Gaps[1].From, request.Gaps[1].To)
+
+	duplicate, err := store.RepairMarketCandleGaps(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicate.CreatedTasks) != 0 || duplicate.SkippedExisting != 2 {
+		t.Fatalf("duplicate batch repair result = %#v, want skipped existing", duplicate)
+	}
+
+	notGapRequest := request
+	notGapRequest.Gaps = []data.RepairMarketCandleGapWindow{{From: start.Add(time.Minute), To: start.Add(2 * time.Minute)}}
+	if _, err := store.RepairMarketCandleGaps(ctx, notGapRequest); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("non-gap batch repair error = %v, want ErrNotFound", err)
+	}
+}
+
 func cleanupMarketCandles(t *testing.T, store *Store, symbol string) {
 	t.Helper()
 	t.Cleanup(func() {

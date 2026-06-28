@@ -279,6 +279,8 @@ export const zhCNMessages: Record<string, string> = {
     "research.marketGapDetailsEmpty": "当前数据源全历史未检测到缺口。",
     "research.marketGapDetailsLimited": "已显示 {returned}/{total} 个全历史缺口",
     "research.marketGapRepair": "修复",
+    "research.marketGapRepairReturned": "修复当前 {count} 个",
+    "research.marketGapRepairReturnedQueued": "已排队 {created} 个全历史缺口修复任务，跳过 {skipped} 个已存在任务。",
     "research.marketGapRepairFirst": "修复首个缺口",
     "research.marketGapRepairQueued": "已排队 {count} 个全历史缺口修复任务。",
     "research.marketGapRepairFailed": "创建全历史缺口修复失败。",

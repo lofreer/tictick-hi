@@ -9,6 +9,7 @@ import { dataApi } from "@/services/api/data";
 
 const dataApiMocks = vi.hoisted(() => ({
   repairMarketCandleGap: vi.fn(),
+  repairMarketCandleGaps: vi.fn(),
   scanMarketCandleGaps: vi.fn(),
 }));
 
@@ -50,6 +51,27 @@ describe("MarketCandleGapTag", () => {
       limited: false,
       totalCount: 1,
       repairLimit: 1,
+    });
+    dataApiMocks.repairMarketCandleGaps.mockResolvedValue({
+      sourceTaskId: "",
+      createdTasks: [
+        {
+          id: "dst_market_repair_1",
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          startTime: "2026-06-27T03:02:00Z",
+          endTime: "2026-06-27T03:03:00Z",
+          syncEnabled: true,
+          realtimeEnabled: false,
+          status: "pending",
+          dataHealth: "syncing",
+        },
+      ],
+      skippedExisting: 1,
+      limited: false,
+      totalCount: 2,
+      repairLimit: 100,
     });
   });
 
@@ -94,6 +116,46 @@ describe("MarketCandleGapTag", () => {
       interval: "1m",
       from: "2026-06-27T03:02:00Z",
       to: "2026-06-27T03:03:00Z",
+    });
+    expect(wrapper.findComponent(MarketCandleGapTag).emitted("repaired")).toHaveLength(1);
+    expect(dataApi.scanMarketCandleGaps).toHaveBeenCalledTimes(2);
+  });
+
+  it("repairs all returned full-history gaps", async () => {
+    dataApiMocks.scanMarketCandleGaps.mockResolvedValue({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      window: { count: 8 },
+      gaps: [
+        { from: "2026-06-27T03:02:00Z", to: "2026-06-27T03:03:00Z", missingCandles: 1 },
+        { from: "2026-06-27T03:05:00Z", to: "2026-06-27T03:07:00Z", missingCandles: 2 },
+      ],
+      limited: false,
+      totalCount: 2,
+      returnedCount: 2,
+    });
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+
+    const repairReturnedButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("修复当前 2 个"),
+    );
+    expect(repairReturnedButton).toBeDefined();
+    repairReturnedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+
+    expect(dataApi.repairMarketCandleGaps).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      gaps: [
+        { from: "2026-06-27T03:02:00Z", to: "2026-06-27T03:03:00Z" },
+        { from: "2026-06-27T03:05:00Z", to: "2026-06-27T03:07:00Z" },
+      ],
     });
     expect(wrapper.findComponent(MarketCandleGapTag).emitted("repaired")).toHaveLength(1);
     expect(dataApi.scanMarketCandleGaps).toHaveBeenCalledTimes(2);

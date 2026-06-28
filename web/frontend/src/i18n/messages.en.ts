@@ -279,6 +279,8 @@ export const enUSMessages: Record<string, string> = {
     "research.marketGapDetailsEmpty": "No full-history gaps detected for this source.",
     "research.marketGapDetailsLimited": "Showing {returned}/{total} full-history gaps",
     "research.marketGapRepair": "Repair",
+    "research.marketGapRepairReturned": "Repair {count} shown",
+    "research.marketGapRepairReturnedQueued": "{created} full-history gap repair tasks queued; {skipped} existing skipped.",
     "research.marketGapRepairFirst": "Repair first gap",
     "research.marketGapRepairQueued": "{count} full-history gap repair tasks queued.",
     "research.marketGapRepairFailed": "Failed to repair full-history gap.",

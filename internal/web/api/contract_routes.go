@@ -118,6 +118,10 @@ func addMarketContractPaths(paths map[string]apiPathItem) {
 		"market", "repairMarketCandleGap", "Create a sync task for one persisted market gap", http.StatusOK, schemaRef("DataSyncGapRepairResult"),
 		withCSRF(), withRequest(schemaRef("RepairMarketCandleGapRequest")), withErrors(http.StatusBadRequest, http.StatusNotFound),
 	))
+	addOperation(paths, "/api/market/candle-gaps/repair-batch", http.MethodPost, operation(
+		"market", "repairMarketCandleGaps", "Create sync tasks for persisted market gaps", http.StatusOK, schemaRef("DataSyncGapRepairResult"),
+		withCSRF(), withRequest(schemaRef("RepairMarketCandleGapsRequest")), withErrors(http.StatusBadRequest, http.StatusNotFound),
+	))
 	addOperation(paths, "/api/market/instruments", http.MethodGet, operation(
 		"market", "listMarketInstruments", "Search market instruments", http.StatusOK, arraySchema(schemaRef("MarketInstrument")),
 		withParameters(

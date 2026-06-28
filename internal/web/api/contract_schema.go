@@ -106,6 +106,8 @@ func buildContractSchemas() map[string]map[string]any {
 		{"DataSyncGapRepairResult", data.DataSyncGapRepairResult{}},
 		{"RepairDataSyncTaskGapRequest", data.RepairDataSyncTaskGapRequest{}},
 		{"RepairMarketCandleGapRequest", data.RepairMarketCandleGapRequest{}},
+		{"RepairMarketCandleGapWindow", data.RepairMarketCandleGapWindow{}},
+		{"RepairMarketCandleGapsRequest", data.RepairMarketCandleGapsRequest{}},
 		{"DataSyncTask", data.DataSyncTask{}},
 		{"CreateDataSyncTask", data.CreateDataSyncTask{}},
 		{"Candle", data.Candle{}},

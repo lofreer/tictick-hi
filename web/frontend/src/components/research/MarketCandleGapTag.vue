@@ -26,6 +26,15 @@
         </NTag>
         <NButton
           v-if="scan?.gaps.length"
+          :loading="repairingAll"
+          secondary
+          type="warning"
+          @click="repairReturnedGaps"
+        >
+          {{ t("research.marketGapRepairReturned", { count: scan.gaps.length }) }}
+        </NButton>
+        <NButton
+          v-if="scan?.gaps.length"
           :loading="repairingKey === gapKey(scan.gaps[0])"
           secondary
           type="warning"
@@ -60,6 +69,7 @@ const loading = ref(false);
 const error = ref("");
 const scan = ref<MarketCandleGapScan | null>(null);
 const detailsOpen = ref(false);
+const repairingAll = ref(false);
 const repairingKey = ref("");
 let requestSeq = 0;
 
@@ -137,6 +147,7 @@ async function loadScan() {
 
 async function repairGap(gap: CandleGap) {
   const key = gapKey(gap);
+  if (repairingAll.value) return;
   repairingKey.value = key;
   try {
     const result = await dataApi.repairMarketCandleGap({
@@ -157,6 +168,33 @@ async function repairGap(gap: CandleGap) {
     message.error(t("research.marketGapRepairFailed"));
   } finally {
     repairingKey.value = "";
+  }
+}
+
+async function repairReturnedGaps() {
+  if (!scan.value?.gaps.length || repairingKey.value) return;
+  repairingAll.value = true;
+  try {
+    const result = await dataApi.repairMarketCandleGaps({
+      exchange: props.exchange,
+      symbol: props.symbol,
+      interval: props.interval,
+      gaps: scan.value.gaps.map((gap) => ({ from: gap.from, to: gap.to })),
+    });
+    if (result.createdTasks.length > 0) {
+      message.success(t("research.marketGapRepairReturnedQueued", {
+        created: result.createdTasks.length,
+        skipped: result.skippedExisting,
+      }));
+      emit("repaired");
+    } else {
+      message.success(t("research.taskGapRepairAlreadyQueued"));
+    }
+    await loadScan();
+  } catch (repairError) {
+    message.error(t("research.marketGapRepairFailed"));
+  } finally {
+    repairingAll.value = false;
   }
 }
 

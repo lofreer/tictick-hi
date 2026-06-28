@@ -407,6 +407,7 @@ type Repository interface {
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 	ScanMarketCandleGaps(ctx context.Context, query MarketCandleGapScanQuery) (MarketCandleGapScan, error)
 	RepairMarketCandleGap(ctx context.Context, request RepairMarketCandleGapRequest) (DataSyncGapRepairResult, error)
+	RepairMarketCandleGaps(ctx context.Context, request RepairMarketCandleGapsRequest) (DataSyncGapRepairResult, error)
 	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
 	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
 	GetBacktestTask(ctx context.Context, id string) (BacktestTask, error)

@@ -160,6 +160,62 @@ func (repository *fakeRepository) RepairMarketCandleGap(
 	return result, nil
 }
 
+func (repository *fakeRepository) RepairMarketCandleGaps(
+	_ context.Context,
+	request data.RepairMarketCandleGapsRequest,
+) (data.DataSyncGapRepairResult, error) {
+	result := data.DataSyncGapRepairResult{
+		CreatedTasks: []data.DataSyncTask{},
+		TotalCount:   len(request.Gaps),
+		RepairLimit:  data.MaxMarketCandleGapScanLimit,
+	}
+	gaps := make([]data.CandleGap, 0, len(request.Gaps))
+	for _, gapRequest := range request.Gaps {
+		gap, ok, err := repository.fakeMarketCandleGap(data.RepairMarketCandleGapRequest{
+			Exchange: request.Exchange,
+			Symbol:   request.Symbol,
+			Interval: request.Interval,
+			From:     gapRequest.From,
+			To:       gapRequest.To,
+		})
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		if !ok {
+			return data.DataSyncGapRepairResult{}, data.ErrNotFound
+		}
+		gaps = append(gaps, gap)
+	}
+
+	source := data.DataSyncTask{Exchange: request.Exchange, Symbol: request.Symbol, Interval: request.Interval}
+	for _, gap := range gaps {
+		if repository.fakeRepairTaskExists(source, gap) {
+			result.SkippedExisting += 1
+			continue
+		}
+		now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		startTime := gap.From
+		endTime := gap.To
+		repairTask := data.DataSyncTask{
+			ID:              "dst_market_repair_" + strconv.Itoa(len(repository.tasks)+1),
+			Exchange:        request.Exchange,
+			Symbol:          request.Symbol,
+			Interval:        request.Interval,
+			StartTime:       &startTime,
+			EndTime:         &endTime,
+			SyncEnabled:     true,
+			RealtimeEnabled: false,
+			Status:          data.TaskStatusPending,
+			DataHealth:      data.DataSyncHealthSyncing,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		repository.tasks = append(repository.tasks, repairTask)
+		result.CreatedTasks = append(result.CreatedTasks, repairTask)
+	}
+	return result, nil
+}
+
 func (repository *fakeRepository) fakeMarketCandleGap(
 	request data.RepairMarketCandleGapRequest,
 ) (data.CandleGap, bool, error) {

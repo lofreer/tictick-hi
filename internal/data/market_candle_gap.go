@@ -27,3 +27,15 @@ type RepairMarketCandleGapRequest struct {
 	From     time.Time `json:"from"`
 	To       time.Time `json:"to"`
 }
+
+type RepairMarketCandleGapWindow struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
+type RepairMarketCandleGapsRequest struct {
+	Exchange string                        `json:"exchange"`
+	Symbol   string                        `json:"symbol"`
+	Interval string                        `json:"interval"`
+	Gaps     []RepairMarketCandleGapWindow `json:"gaps"`
+}
