@@ -20,6 +20,7 @@ import type {
   ExchangeAccount as APIExchangeAccount,
   Execution as APIExecution,
   LoginRequest as APILoginRequest,
+  MarketInstrument as APIMarketInstrument,
   Notification as APINotification,
   NotificationChannel as APINotificationChannel,
   Operator as APIOperator,
@@ -134,6 +135,8 @@ export type CreateNotificationChannel = APICreateNotificationChannel;
 export type ExchangeAccount = APIExchangeAccount;
 
 export type CreateExchangeAccount = APICreateExchangeAccount;
+
+export type MarketInstrument = APIMarketInstrument;
 
 export type Operator = APIOperator;
 

@@ -23,6 +23,7 @@ func apiContractPaths() map[string]apiPathItem {
 	addHealthContractPaths(paths)
 	addAuthContractPaths(paths)
 	addDataContractPaths(paths)
+	addMarketContractPaths(paths)
 	addStrategyContractPaths(paths)
 	addBacktestContractPaths(paths)
 	addTradingContractPaths(paths)
@@ -99,6 +100,18 @@ func addDataContractPaths(paths map[string]apiPathItem) {
 	addOperation(paths, "/api/candles", http.MethodGet, operation(
 		"data", "getCandles", "Read candles with source and health metadata", http.StatusOK, schemaRef("CandleResult"),
 		withParameters(candleQueryParameters()...), withErrors(http.StatusBadRequest),
+	))
+}
+
+func addMarketContractPaths(paths map[string]apiPathItem) {
+	addOperation(paths, "/api/market/instruments", http.MethodGet, operation(
+		"market", "listMarketInstruments", "Search market instruments", http.StatusOK, arraySchema(schemaRef("MarketInstrument")),
+		withParameters(
+			queryParam("exchange", true, "Exchange id", map[string]any{"type": "string", "enum": []string{"binance", "okx"}}),
+			queryParam("q", false, "Search text", map[string]any{"type": "string"}),
+			queryParam("limit", false, "Maximum number of instruments", map[string]any{"type": "integer", "minimum": 1, "maximum": 50}),
+		),
+		withErrors(http.StatusBadRequest),
 	))
 }
 

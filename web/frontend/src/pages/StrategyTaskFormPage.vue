@@ -27,7 +27,7 @@
                 <NSelect v-model:value="form.exchange" class="task-control" :options="exchangeOptions" />
               </NFormItem>
               <NFormItem :label="t('research.symbol')">
-                <NAutoComplete v-model:value="form.symbol" class="task-control" :options="symbolOptions" clearable />
+                <MarketSymbolAutoComplete v-model:value="form.symbol" class="task-control" :exchange="form.exchange" />
               </NFormItem>
               <NFormItem :label="t('research.interval')">
                 <NSelect v-model:value="form.interval" class="task-control" :options="intervalOptions" />
@@ -162,7 +162,6 @@
 <script setup lang="ts">
 import { FlaskConical, Play } from "@lucide/vue";
 import {
-  NAutoComplete,
   NButton,
   NDatePicker,
   NForm,
@@ -181,6 +180,7 @@ import { useI18n } from "vue-i18n";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
 import StrategyParamForm from "@/components/strategy/StrategyParamForm.vue";
 import { useStrategyTaskForm, type StrategyTaskMode } from "@/composables/useStrategyTaskForm";
 import type { StrategyParamValue } from "@/types/app";
@@ -203,7 +203,6 @@ const {
   strategyOptions,
   submit,
   submitLoading,
-  symbolOptions,
 } = useStrategyTaskForm(props.mode);
 
 const isBacktest = computed(() => props.mode === "backtest");

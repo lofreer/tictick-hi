@@ -10,20 +10,21 @@ import (
 )
 
 type fakeRepository struct {
-	backtestOrders  map[string][]data.BacktestOrder
-	backtestIntents map[string][]data.StrategyIntent
-	backtests       []data.BacktestTask
-	channels        []data.NotificationChannel
-	notifications   []data.Notification
-	accounts        []data.ExchangeAccount
-	auditEvents     []data.AuditEvent
-	operators       []data.Operator
-	passwords       map[string]string
-	sessions        map[string]data.OperatorSession
-	tradingTasks    []data.TradingTask
-	tasks           []data.DataSyncTask
-	taskGapDetails  map[string]data.DataSyncGapList
-	candles         []data.Candle
+	backtestOrders    map[string][]data.BacktestOrder
+	backtestIntents   map[string][]data.StrategyIntent
+	backtests         []data.BacktestTask
+	channels          []data.NotificationChannel
+	notifications     []data.Notification
+	accounts          []data.ExchangeAccount
+	auditEvents       []data.AuditEvent
+	marketInstruments []data.MarketInstrument
+	operators         []data.Operator
+	passwords         map[string]string
+	sessions          map[string]data.OperatorSession
+	tradingTasks      []data.TradingTask
+	tasks             []data.DataSyncTask
+	taskGapDetails    map[string]data.DataSyncGapList
+	candles           []data.Candle
 }
 
 type failingListRepository struct {

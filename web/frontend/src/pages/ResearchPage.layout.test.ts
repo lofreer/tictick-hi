@@ -25,17 +25,12 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain('class="research-chart-body" data-chart-viewport="fixed"');
   });
 
-  it("uses exchange-specific symbol suggestions without locking the symbol input to a select", () => {
-    expect(source).toContain('import { symbolOptionsForExchange } from "@/utils/marketSymbols";');
-    expect(source).toContain(
-      "const symbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(exchange.value));",
-    );
-    expect(source).toContain(
-      "const createSymbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(createForm.exchange));",
-    );
-    expect(source).toContain('<NAutoComplete v-model:value="symbol"');
-    expect(source).toContain('<NAutoComplete v-model:value="createForm.symbol"');
-    expect(source).toContain(':options="createSymbolOptions"');
+  it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {
+    expect(source).toContain('import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";');
+    expect(source).toContain('<MarketSymbolAutoComplete v-model:value="symbol"');
+    expect(source).toContain(':exchange="exchange"');
+    expect(source).toContain('<MarketSymbolAutoComplete v-model:value="createForm.symbol"');
+    expect(source).toContain(':exchange="createForm.exchange"');
     expect(source).not.toContain('<NSelect v-model:value="symbol"');
     expect(source).not.toContain('<NSelect v-model:value="createForm.symbol"');
     expect(source).not.toContain(':options="symbolOptions" filterable tag');

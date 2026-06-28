@@ -229,6 +229,16 @@ export type LoginRequest = {
   password: string;
   username: string;
 };
+export type MarketInstrument = {
+  baseAsset: string;
+  exchange: string;
+  instrumentType: string;
+  quoteAsset: string;
+  searchPriority: number;
+  status: string;
+  symbol: string;
+  syncedAt?: string;
+};
 export type Notification = {
   attemptCount: number;
   body: string;

@@ -44,7 +44,7 @@
         <div class="research-toolbar">
           <div class="toolbar-row">
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
-            <NAutoComplete v-model:value="symbol" class="research-symbol-input" :options="symbolOptions" clearable />
+            <MarketSymbolAutoComplete v-model:value="symbol" class="research-symbol-input" :exchange="exchange" />
             <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
             <ResearchWindowControls
               :can-load-next="canLoadNextCandles"
@@ -114,7 +114,7 @@
           <NSelect v-model:value="createForm.exchange" :options="exchangeOptions" />
         </NFormItem>
         <NFormItem :label="t('research.symbol')">
-          <NAutoComplete v-model:value="createForm.symbol" :options="createSymbolOptions" clearable />
+          <MarketSymbolAutoComplete v-model:value="createForm.symbol" :exchange="createForm.exchange" />
         </NFormItem>
         <NFormItem :label="t('research.interval')">
           <NSelect v-model:value="createForm.interval" :options="intervalOptions" />
@@ -191,7 +191,6 @@
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
 import {
-  NAutoComplete,
   NButton,
   NDataTable,
   NDatePicker,
@@ -202,7 +201,6 @@ import {
   NSpace,
   NTag,
   NText,
-  type AutoCompleteOption,
   type DataTableColumns,
   type SelectOption,
   type TagProps,
@@ -214,11 +212,11 @@ import TradingViewChart from "@/components/chart/TradingViewChart.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleGap } from "@/types/app";
-import { symbolOptionsForExchange } from "@/utils/marketSymbols";
 
 const { t } = useI18n();
 const {
@@ -266,9 +264,6 @@ const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "Binance", value: "binance" },
   { label: "OKX", value: "okx" },
 ]);
-
-const symbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(exchange.value));
-const createSymbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(createForm.exchange));
 
 const intervalOptions = computed<SelectOption[]>(() => [
   { label: "1m", value: "1m" },
