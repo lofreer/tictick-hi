@@ -14,6 +14,12 @@ import type {
   StrategyParamValue,
   StrategyParamValues,
 } from "@/types/app";
+import {
+  coerceSymbolForExchange,
+  isSymbolFormatForExchange,
+  normalizeSymbolInput,
+  symbolOptionsForExchange,
+} from "@/utils/marketSymbols";
 
 export type StrategyTaskMode = "backtest" | "trading";
 
@@ -86,10 +92,12 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       form.exchange !== "" &&
       form.symbol !== "" &&
       form.interval !== "" &&
+      isSymbolFormatForExchange(form.exchange, form.symbol) &&
       selectedStrategy.value !== undefined &&
       taskFieldsValid() &&
       selectedStrategy.value.params.every((param) => isStrategyParamValueValid(param, paramValues.value[param.key])),
   );
+  const symbolOptions = computed(() => symbolOptionsForExchange(form.exchange));
 
   const supportedIntervals = computed(() => {
     const intervals = selectedStrategy.value?.supportedIntervals ?? [];
@@ -106,6 +114,23 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     }
     paramValues.value = defaultParamValues(strategy.params);
   });
+
+  watch(
+    () => form.exchange,
+    (exchange) => {
+      form.symbol = coerceSymbolForExchange(exchange, form.symbol);
+    },
+  );
+
+  watch(
+    () => form.symbol,
+    (symbol) => {
+      const normalized = normalizeSymbolInput(symbol);
+      if (normalized !== symbol) {
+        form.symbol = normalized;
+      }
+    },
+  );
 
   watch(
     () => form.executionMode,
@@ -143,7 +168,11 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
 
   async function submit() {
     if (!canSubmit.value || selectedStrategy.value === undefined) {
-      message.error(t("strategy.requiredFields"));
+      message.error(
+        form.exchange && form.symbol && form.interval && !isSymbolFormatForExchange(form.exchange, form.symbol)
+          ? t("research.invalidSymbolFormat")
+          : t("strategy.requiredFields"),
+      );
       return;
     }
 
@@ -153,7 +182,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
         const created = await backtestsApi.createBacktest({
           name: form.name,
           exchange: form.exchange,
-          symbol: form.symbol,
+          symbol: normalizeSymbolInput(form.symbol),
           interval: form.interval,
           startTime: toISOString(form.startTime),
           endTime: toISOString(form.endTime),
@@ -172,7 +201,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
           type: form.executionMode,
           exchange: form.exchange,
           accountId: form.accountId,
-          symbol: form.symbol,
+          symbol: normalizeSymbolInput(form.symbol),
           interval: form.interval,
           strategyId: selectedStrategy.value.id,
           strategyParams: compactParamValues(paramValues.value),
@@ -229,6 +258,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     strategyOptions,
     submit,
     submitLoading,
+    symbolOptions,
     supportedIntervals,
   };
 }

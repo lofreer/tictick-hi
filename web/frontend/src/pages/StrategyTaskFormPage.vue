@@ -27,7 +27,7 @@
                 <NSelect v-model:value="form.exchange" class="task-control" :options="exchangeOptions" />
               </NFormItem>
               <NFormItem :label="t('research.symbol')">
-                <NSelect v-model:value="form.symbol" class="task-control" :options="symbolOptions" filterable tag />
+                <NAutoComplete v-model:value="form.symbol" class="task-control" :options="symbolOptions" clearable />
               </NFormItem>
               <NFormItem :label="t('research.interval')">
                 <NSelect v-model:value="form.interval" class="task-control" :options="intervalOptions" />
@@ -162,6 +162,7 @@
 <script setup lang="ts">
 import { FlaskConical, Play } from "@lucide/vue";
 import {
+  NAutoComplete,
   NButton,
   NDatePicker,
   NForm,
@@ -202,6 +203,7 @@ const {
   strategyOptions,
   submit,
   submitLoading,
+  symbolOptions,
 } = useStrategyTaskForm(props.mode);
 
 const isBacktest = computed(() => props.mode === "backtest");
@@ -214,13 +216,6 @@ const ctaKey = computed(() => (isBacktest.value ? "strategy.createBacktest" : "s
 const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "Binance", value: "binance" },
   { label: "OKX", value: "okx" },
-]);
-
-const symbolOptions = computed<SelectOption[]>(() => [
-  { label: "BTCUSDT", value: "BTCUSDT" },
-  { label: "ETHUSDT", value: "ETHUSDT" },
-  { label: "BTC-USDT", value: "BTC-USDT" },
-  { label: "ETH-USDT", value: "ETH-USDT" },
 ]);
 
 const executionModeOptions = computed<SelectOption[]>(() => [

@@ -91,6 +91,9 @@ func validateCreateBacktest(task data.CreateBacktestTask, definition strategy.De
 	if task.Name == "" || task.Exchange == "" || task.Symbol == "" || task.Interval == "" || task.StrategyID == "" {
 		return errors.New("name, exchange, symbol, interval and strategyId are required")
 	}
+	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
+		return err
+	}
 	if task.StartTime == nil || task.EndTime == nil {
 		return errors.New("startTime and endTime are required")
 	}
@@ -137,6 +140,9 @@ func normalizeCreateTradingTask(task *data.CreateTradingTask) {
 func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.Definition) error {
 	if task.Name == "" || task.Type == "" || task.Exchange == "" || task.Symbol == "" || task.Interval == "" || task.StrategyID == "" {
 		return errors.New("name, type, exchange, symbol, interval and strategyId are required")
+	}
+	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
+		return err
 	}
 	if task.Type != "paper" && task.Type != "live" {
 		return errors.New("type must be paper or live")
