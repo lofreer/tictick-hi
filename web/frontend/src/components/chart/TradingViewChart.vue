@@ -51,8 +51,13 @@ let fixedViewportHeightSnapshot: number | null = null;
 let pendingFixedViewportHeightRefresh = false;
 const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
+const maxInitialVisibleBars = 360;
+const minInitialVisibleBars = 80;
+const targetInitialBarSpacingPixels = 3;
 const minTimeAxisEdgePaddingBars = 6;
-const timeAxisEdgePaddingPixels = 72;
+const minTimeAxisEdgePaddingPixels = 24;
+const maxTimeAxisEdgePaddingPixels = 48;
+const timeAxisEdgePaddingRatio = 0.06;
 const volumePriceScaleId = "";
 const volumeUpColor = "rgba(14, 203, 129, 0.28)";
 const volumeDownColor = "rgba(246, 70, 93, 0.28)";
@@ -64,13 +69,10 @@ onMounted(() => {
   lastSize = { width: initialSize.width, height: initialSize.height };
   lockRenderedViewport(lastSize);
   chart = createChart(containerRef.value, {
-    ...chartTheme(themeStore.mode),
+    ...responsiveChartOptions(),
     autoSize: false,
     width: initialSize.width,
     height: initialSize.height,
-    localization: {
-      priceFormatter: (price: number) => price.toFixed(2),
-    },
   });
   series = chart.addSeries(CandlestickSeries, {
     upColor: appColors.success,
@@ -136,7 +138,7 @@ watch(
 watch(
   () => themeStore.mode,
   (mode) => {
-    chart?.applyOptions(chartTheme(mode));
+    chart?.applyOptions(responsiveChartOptions(mode));
     configurePriceScales();
   },
 );
@@ -189,15 +191,67 @@ function fitChartContent(dataLength: number) {
   if (!timeScale) return;
   timeScale.fitContent();
   if (dataLength === 0) return;
-  const edgePadding = timeAxisEdgePaddingBars(dataLength);
+  const visibleBars = initialVisibleBars(dataLength);
+  const edgePadding = timeAxisEdgePaddingBars(visibleBars);
+  const left = dataLength > visibleBars ? dataLength - visibleBars - edgePadding : -edgePadding;
   timeScale.setVisibleLogicalRange({
-    from: -edgePadding,
+    from: left,
     to: dataLength - 1 + edgePadding,
   });
 }
 
-function timeAxisEdgePaddingBars(dataLength: number) {
-  return Math.max(minTimeAxisEdgePaddingBars, Math.ceil((timeAxisEdgePaddingPixels / Math.max(1, lastSize.width)) * dataLength));
+function initialVisibleBars(dataLength: number) {
+  if (dataLength <= minInitialVisibleBars) return dataLength;
+  const barsForWidth = Math.floor(chartPlotWidth() / targetInitialBarSpacingPixels);
+  return Math.min(dataLength, Math.max(minInitialVisibleBars, Math.min(maxInitialVisibleBars, barsForWidth)));
+}
+
+function timeAxisEdgePaddingBars(visibleBars: number) {
+  const plotWidth = chartPlotWidth();
+  const paddingPixels = Math.min(
+    maxTimeAxisEdgePaddingPixels,
+    Math.max(minTimeAxisEdgePaddingPixels, plotWidth * timeAxisEdgePaddingRatio),
+  );
+  return Math.max(minTimeAxisEdgePaddingBars, Math.ceil((paddingPixels / plotWidth) * visibleBars));
+}
+
+function chartPlotWidth() {
+  return Math.max(1, lastSize.width - rightPriceScaleMinimumWidth(lastSize.width));
+}
+
+function responsiveChartOptions(mode = themeStore.mode) {
+  const theme = chartTheme(mode);
+  return {
+    ...theme,
+    localization: {
+      priceFormatter: formatChartPrice,
+    },
+    rightPriceScale: {
+      ...theme.rightPriceScale,
+      minimumWidth: rightPriceScaleMinimumWidth(lastSize.width),
+    },
+  };
+}
+
+function rightPriceScaleMinimumWidth(width: number) {
+  if (width < 520) return 96;
+  if (width < 900) return 112;
+  return 128;
+}
+
+function formatChartPrice(price: number) {
+  if (!Number.isFinite(price)) return "";
+  const absolutePrice = Math.abs(price);
+  if (absolutePrice === 0) return "0";
+  if (absolutePrice >= 1000) return price.toFixed(0);
+  if (absolutePrice >= 100) return trimTrailingZeros(price.toFixed(1));
+  if (absolutePrice >= 1) return trimTrailingZeros(price.toFixed(2));
+  if (absolutePrice >= 0.01) return trimTrailingZeros(price.toFixed(4));
+  return price.toPrecision(4);
+}
+
+function trimTrailingZeros(value: string) {
+  return value.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
 function handleObservedResize(entries: ResizeObserverEntry[]) {
@@ -242,7 +296,9 @@ function resizeChart() {
 
   lastSize = { width: nextMeasurement.width, height: nextMeasurement.height };
   lockRenderedViewport(lastSize);
+  chart.applyOptions(responsiveChartOptions());
   chart.resize(nextMeasurement.width, nextMeasurement.height);
+  fitChartContent(props.data.length);
 }
 
 function lockRenderedViewport(size: { width: number; height: number }) {

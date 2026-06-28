@@ -299,28 +299,38 @@ function sampleExpression() {
       };
       const body = read('.research-chart-body');
       const tv = read('.tv-lightweight-charts');
-      const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas')).map((canvas) => {
+      const canvasEntries = Array.from(document.querySelectorAll('.trading-chart__canvas canvas')).map((canvas, index) => {
         const rect = canvas.getBoundingClientRect();
         const style = getComputedStyle(canvas);
         return {
-          rectWidth: Math.round(rect.width),
-          rectHeight: Math.round(rect.height),
-          top: Math.round(rect.top),
-          bottom: Math.round(rect.bottom),
-          left: Math.round(rect.left),
-          right: Math.round(rect.right),
-          styleWidth: style.width,
-          styleHeight: style.height
+          canvas,
+          metrics: {
+            index,
+            rectWidth: Math.round(rect.width),
+            rectHeight: Math.round(rect.height),
+            top: Math.round(rect.top),
+            bottom: Math.round(rect.bottom),
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            styleWidth: style.width,
+            styleHeight: style.height
+          }
         };
       });
+      const canvases = canvasEntries.map((entry) => entry.metrics);
       const rightAxisCanvas = canvases
         .filter((canvas) => canvas.rectWidth >= 72 && canvas.rectWidth <= 180)
         .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
         .sort((left, right) => right.right - left.right)[0] ?? null;
-      const mainPaneCanvas = canvases
+      const mainPaneCanvases = canvases
         .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
-        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
-        .sort((left, right) => left.left - right.left)[0] ?? null;
+        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true);
+      const mainPaneCanvas = mainPaneCanvases.sort((left, right) => left.left - right.left)[0] ?? null;
+      const mainPaneColorStats = marketColorStats(
+        canvasEntries
+          .filter((entry) => mainPaneCanvases.some((canvas) => canvas.index === entry.metrics.index))
+          .map((entry) => entry.canvas)
+      );
       const bottomTimeAxisCanvas = canvases
         .filter((canvas) => canvas.rectHeight >= 16 && canvas.rectHeight <= 80)
         .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
@@ -339,10 +349,43 @@ function sampleExpression() {
         tv,
         canvases,
         mainPaneCanvas,
+        mainPaneColorStats,
         rightAxisCanvas,
         bottomTimeAxisCanvas,
         chartCount: document.querySelectorAll('.tv-lightweight-charts').length
       };
+
+      function marketColorStats(canvasElements) {
+        const rows = new Set();
+        const columns = new Set();
+        let coloredPixels = 0;
+        for (const canvas of canvasElements) {
+          const width = canvas.width;
+          const height = canvas.height;
+          if (width <= 0 || height <= 0) continue;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          if (!context) continue;
+          const pixels = context.getImageData(0, 0, width, height).data;
+          for (let index = 0; index < pixels.length; index += 4) {
+            const red = pixels[index];
+            const green = pixels[index + 1];
+            const blue = pixels[index + 2];
+            const alpha = pixels[index + 3];
+            const up = alpha > 40 && green > 120 && red < 110 && blue < 190;
+            const down = alpha > 40 && red > 180 && green < 150 && blue < 170;
+            if (!up && !down) continue;
+            const pixel = index / 4;
+            coloredPixels += 1;
+            rows.add(Math.floor(pixel / width));
+            columns.add(pixel % width);
+          }
+        }
+        return {
+          coloredColumns: columns.size,
+          coloredPixels,
+          coloredRows: rows.size
+        };
+      }
     })()`;
 }
 
@@ -445,6 +488,21 @@ function assertChartLayout(label, sample) {
         body,
         tv,
         mainPaneCanvas,
+      })}`,
+    );
+  }
+  if (
+    !sample.mainPaneColorStats ||
+    sample.mainPaneColorStats.coloredPixels < 80 ||
+    sample.mainPaneColorStats.coloredRows < 12 ||
+    sample.mainPaneColorStats.coloredColumns < 12
+  ) {
+    throw new Error(
+      `${label} main pane has no visible candle pixels: ${JSON.stringify({
+        body,
+        tv,
+        mainPaneCanvas,
+        mainPaneColorStats: sample.mainPaneColorStats,
       })}`,
     );
   }

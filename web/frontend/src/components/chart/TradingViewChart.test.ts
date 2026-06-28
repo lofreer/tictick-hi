@@ -179,7 +179,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("reserves enough right price scale width for visible price labels", () => {
+  it("reserves responsive right price scale width for visible price labels", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 
@@ -187,10 +187,44 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 156,
+          minimumWidth: 128,
         }),
       }),
     );
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("uses a compact right price scale on narrow chart viewports", () => {
+    viewportSize = { width: 390, height: 500 };
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        rightPriceScale: expect.objectContaining({
+          minimumWidth: 96,
+        }),
+      }),
+    );
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("formats large price labels without trailing decimal noise", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+    const options = mockedCreateChart.mock.calls[0]?.[1] as {
+      localization: { priceFormatter: (price: number) => string };
+    };
+
+    expect(options.localization.priceFormatter(60_664.22)).toBe("60664");
+    expect(options.localization.priceFormatter(248.5)).toBe("248.5");
+    expect(options.localization.priceFormatter(99.123)).toBe("99.12");
+    expect(options.localization.priceFormatter(0.012_3)).toBe("0.0123");
 
     wrapper.unmount();
     host.panel.remove();
@@ -218,7 +252,7 @@ describe("TradingViewChart", () => {
       volume: 1000 + index,
     })));
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: -62, to: 1061 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 634, to: 1015 });
 
     wrapper.unmount();
     host.panel.remove();
