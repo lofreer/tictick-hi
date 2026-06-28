@@ -99,7 +99,7 @@
             @retry="loadCandles"
           />
           <LoadingState v-else-if="candlesLoading" />
-          <TradingViewChart v-else :data="candles" :empty-title="t('research.chartEmpty')" />
+          <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('research.chartEmpty')" />
         </div>
       </section>
     </div>
@@ -231,6 +231,7 @@ const {
   candles,
   candlesError,
   candlesLoading,
+  chartMarkers,
   createForm,
   createLoading,
   createModalOpen,

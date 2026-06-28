@@ -254,6 +254,7 @@ export const enUSMessages: Record<string, string> = {
     "research.dataHealth.insufficient": "Insufficient",
     "research.baseInterval": "Base interval",
     "research.gapCount": "{count} gaps",
+    "research.chartGapMarker": "Gap {missing}",
     "research.gapSummary": "Gap summary",
     "research.gapSummaryFirst": "{count} gaps, first {from} to {to}, missing {missing}",
     "research.gapSummaryCountOnly": "{count} gaps",

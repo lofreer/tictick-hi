@@ -108,6 +108,11 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("formatWindowTime");
   });
 
+  it("passes candle gap markers into the chart renderer", () => {
+    expect(source).toContain("chartMarkers");
+    expect(source).toContain(':markers="chartMarkers"');
+  });
+
   it("shows full-history market gap scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";');
     expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />');

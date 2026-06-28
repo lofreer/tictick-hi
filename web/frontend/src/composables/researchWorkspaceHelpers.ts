@@ -15,6 +15,16 @@ export type ResearchForm = {
   endTime: number | null;
 };
 
+export function initialResearchForm(exchange: string, symbol: string, interval: string): ResearchForm {
+  return {
+    exchange,
+    symbol,
+    interval,
+    startTime: null,
+    endTime: null,
+  };
+}
+
 export function readQuery(value: unknown, fallback: string) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }

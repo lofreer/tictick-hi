@@ -254,6 +254,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.dataHealth.insufficient": "数据不足",
     "research.baseInterval": "基础周期",
     "research.gapCount": "缺口 {count} 处",
+    "research.chartGapMarker": "缺 {missing} 根",
     "research.gapSummary": "缺口摘要",
     "research.gapSummaryFirst": "缺口 {count} 处，首个 {from} 到 {to}，缺 {missing} 根",
     "research.gapSummaryCountOnly": "缺口 {count} 处",

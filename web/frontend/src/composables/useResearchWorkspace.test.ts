@@ -125,6 +125,57 @@ describe("useResearchWorkspace", () => {
     expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
   });
 
+  it("marks candle gaps on the first visible candle after the gap", async () => {
+    dataApiMocks.getCandles.mockResolvedValue(
+      candleResult({
+        candles: [
+          chartCandle("2026-06-28T00:00:00Z"),
+          chartCandle("2026-06-28T00:03:00Z"),
+        ],
+        gaps: [{ from: "2026-06-28T00:01:00Z", to: "2026-06-28T00:03:00Z", missingCandles: 2 }],
+      }),
+    );
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    expect(workspace.chartMarkers.value).toEqual([
+      {
+        id: "candle-gap-2026-06-28T00:01:00Z-2026-06-28T00:03:00Z-0",
+        time: utcSeconds("2026-06-28T00:03:00Z"),
+        position: "aboveBar",
+        shape: "square",
+        color: "#f7a600",
+        text: "缺 2 根",
+        size: 1.1,
+      },
+    ]);
+  });
+
+  it("anchors boundary candle gaps to the nearest visible candle", async () => {
+    dataApiMocks.getCandles.mockResolvedValue(
+      candleResult({
+        candles: [
+          chartCandle("2026-06-28T00:00:00Z"),
+          chartCandle("2026-06-28T00:05:00Z"),
+        ],
+        gaps: [
+          { from: "2026-06-27T23:58:00Z", to: "2026-06-28T00:00:00Z", missingCandles: 2 },
+          { from: "2026-06-28T00:06:00Z", to: "2026-06-28T00:08:00Z", missingCandles: 2 },
+        ],
+      }),
+    );
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    expect(workspace.chartMarkers.value.map((marker) => marker.time)).toEqual([
+      utcSeconds("2026-06-28T00:00:00Z"),
+      utcSeconds("2026-06-28T00:05:00Z"),
+    ]);
+    expect(workspace.chartMarkers.value.map((marker) => marker.text)).toEqual(["缺 2 根", "缺 2 根"]);
+  });
+
   it("repairs the first chart gap through the selected source task", async () => {
     dataApiMocks.getCandles.mockResolvedValue(
       candleResult({
@@ -485,6 +536,21 @@ function candleResult(overrides: Record<string, unknown>) {
     },
     ...overrides,
   };
+}
+
+function chartCandle(time: string) {
+  return {
+    time: utcSeconds(time),
+    open: 100,
+    high: 110,
+    low: 95,
+    close: 104,
+    volume: 1200,
+  };
+}
+
+function utcSeconds(value: string) {
+  return Math.floor(Date.parse(value) / 1000);
 }
 
 function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {

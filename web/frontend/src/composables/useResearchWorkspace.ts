@@ -8,6 +8,7 @@ import {
   canLoadNextCandleWindow,
   canLoadPreviousCandleWindow,
   errorMessage,
+  initialResearchForm,
   nextCandleWindow,
   previousCandleWindow,
   readOptionalQuery,
@@ -15,8 +16,8 @@ import {
   repairSourceTask,
   researchQuery,
   selectedTaskMatchesMarket,
-  type ResearchForm,
 } from "@/composables/researchWorkspaceHelpers";
+import { researchChartGapMarkers } from "@/composables/researchChartGapMarkers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
 import { dataApi } from "@/services/api/data";
@@ -55,13 +56,7 @@ export function useResearchWorkspace() {
   const candlesError = ref("");
   const createModalOpen = ref(false);
   const selectedChartTask = ref<DataSyncTask | null>(null);
-  const createForm = reactive<ResearchForm>({
-    exchange: exchange.value,
-    symbol: symbol.value,
-    interval: interval.value,
-    startTime: null,
-    endTime: null,
-  });
+  const createForm = reactive(initialResearchForm(exchange.value, symbol.value, interval.value));
   const canCreateTask = computed(
     () =>
       createForm.exchange !== "" &&
@@ -71,6 +66,7 @@ export function useResearchWorkspace() {
   );
   const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
   const canRepairGap = computed(() => firstRepairableGap.value !== null);
+  const chartMarkers = computed(() => researchChartGapMarkers(candles.value, candleResult.value, t));
   const selectedRepairSourceTask = computed(() => {
     return repairSourceTask(
       selectedChartTask.value,
@@ -362,6 +358,7 @@ export function useResearchWorkspace() {
     candles,
     candlesError,
     candlesLoading,
+    chartMarkers,
     canLoadNextCandles,
     canLoadPreviousCandles,
     createForm,
