@@ -89,6 +89,133 @@ func TestRunnerCompletesOneShotTaskAlreadySyncedThroughEndWithoutExchangeClient(
 	}
 }
 
+func TestRunnerDoesNotAdvanceCursorPastFetchedGap(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(5 * time.Minute)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:          "dst_1",
+			Exchange:    "binance",
+			Symbol:      "BTCUSDT",
+			Interval:    "1m",
+			StartTime:   &start,
+			EndTime:     &end,
+			SyncEnabled: true,
+			Status:      data.TaskStatusRunning,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{
+		candles: []data.Candle{
+			syncTestCandle(start),
+			syncTestCandle(start.Add(time.Minute)),
+			syncTestCandle(start.Add(3 * time.Minute)),
+			syncTestCandle(start.Add(4 * time.Minute)),
+		},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+	runner.now = func() time.Time { return end }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	wantCursor := start.Add(time.Minute)
+	if repository.saved.LastOpenTime == nil || !repository.saved.LastOpenTime.Equal(wantCursor) {
+		t.Fatalf("cursor = %v, want %v", repository.saved.LastOpenTime, wantCursor)
+	}
+	if repository.saved.Completed {
+		t.Fatalf("gapped batch should not complete task: %#v", repository.saved)
+	}
+}
+
+func TestRunnerDoesNotAdvanceCursorWhenOverlapGapRemains(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(6 * time.Minute)
+	latest := start.Add(3 * time.Minute)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:                   "dst_1",
+			Exchange:             "binance",
+			Symbol:               "BTCUSDT",
+			Interval:             "1m",
+			StartTime:            &start,
+			EndTime:              &end,
+			SyncEnabled:          true,
+			Status:               data.TaskStatusRunning,
+			LatestSyncedOpenTime: &latest,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{
+		candles: []data.Candle{
+			syncTestCandle(start.Add(time.Minute)),
+			syncTestCandle(start.Add(3 * time.Minute)),
+			syncTestCandle(start.Add(4 * time.Minute)),
+			syncTestCandle(start.Add(5 * time.Minute)),
+		},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10, OverlapCandles: 2})
+	runner.now = func() time.Time { return end }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.saved.LastOpenTime != nil {
+		t.Fatalf("cursor should not advance across overlap gap: %#v", repository.saved)
+	}
+	if repository.saved.Completed {
+		t.Fatalf("overlap gap should not complete task: %#v", repository.saved)
+	}
+}
+
+func TestRunnerAdvancesCursorAfterOverlapGapIsFilled(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(6 * time.Minute)
+	latest := start.Add(3 * time.Minute)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:                   "dst_1",
+			Exchange:             "binance",
+			Symbol:               "BTCUSDT",
+			Interval:             "1m",
+			StartTime:            &start,
+			EndTime:              &end,
+			SyncEnabled:          true,
+			Status:               data.TaskStatusRunning,
+			LatestSyncedOpenTime: &latest,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{
+		candles: []data.Candle{
+			syncTestCandle(start.Add(time.Minute)),
+			syncTestCandle(start.Add(2 * time.Minute)),
+			syncTestCandle(start.Add(3 * time.Minute)),
+			syncTestCandle(start.Add(4 * time.Minute)),
+			syncTestCandle(start.Add(5 * time.Minute)),
+		},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10, OverlapCandles: 2})
+	runner.now = func() time.Time { return end }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	wantCursor := start.Add(5 * time.Minute)
+	if repository.saved.LastOpenTime == nil || !repository.saved.LastOpenTime.Equal(wantCursor) {
+		t.Fatalf("cursor = %v, want %v", repository.saved.LastOpenTime, wantCursor)
+	}
+	if !repository.saved.Completed {
+		t.Fatalf("filled overlap should complete through end: %#v", repository.saved)
+	}
+}
+
 func TestRunnerMarksFailedTask(t *testing.T) {
 	repository := &fakeSyncRepository{
 		task: data.DataSyncTask{
@@ -515,4 +642,20 @@ func (client *cancelingMarketClient) FetchCandles(
 	client.cancel()
 	<-ctx.Done()
 	return nil, ctx.Err()
+}
+
+func syncTestCandle(openTime time.Time) data.Candle {
+	return data.Candle{
+		Exchange:  "binance",
+		Symbol:    "BTCUSDT",
+		Interval:  "1m",
+		OpenTime:  openTime,
+		CloseTime: openTime.Add(time.Minute),
+		Open:      "1",
+		High:      "2",
+		Low:       "1",
+		Close:     "2",
+		Volume:    "10",
+		IsClosed:  true,
+	}
 }

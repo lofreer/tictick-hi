@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -196,15 +197,15 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		return err
 	}
 
-	lastOpenTime := latestOpenTime(candles)
+	cursorOpenTime := nextCursorOpenTime(task, duration, candles)
 	if err := runner.repository.HeartbeatDataSyncTask(ctx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
 		return err
 	}
 	return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       task.ID,
 		Candles:      candles,
-		LastOpenTime: lastOpenTime,
-		Completed:    runner.isCompleted(task, duration, candles, window.to),
+		LastOpenTime: cursorOpenTime,
+		Completed:    runner.isCompleted(task, duration, cursorOpenTime),
 	})
 }
 
@@ -307,8 +308,7 @@ func (runner *Runner) syncWindow(task data.DataSyncTask, interval time.Duration)
 func (runner *Runner) isCompleted(
 	task data.DataSyncTask,
 	interval time.Duration,
-	candles []data.Candle,
-	targetEnd time.Time,
+	cursorOpenTime *time.Time,
 ) bool {
 	if task.RealtimeEnabled {
 		return false
@@ -316,16 +316,11 @@ func (runner *Runner) isCompleted(
 	if task.EndTime == nil {
 		return true
 	}
-	if len(candles) < runner.config.BatchLimit {
-		return true
+	if cursorOpenTime == nil {
+		return false
 	}
-
-	lastOpen := latestOpenTime(candles)
-	if lastOpen == nil {
-		return true
-	}
-	nextOpen := lastOpen.Add(interval)
-	return !nextOpen.Before(targetEnd)
+	nextOpen := cursorOpenTime.Add(interval)
+	return !nextOpen.Before(task.EndTime.UTC())
 }
 
 func isAlreadySyncedThroughEnd(task data.DataSyncTask, interval time.Duration) bool {
@@ -336,13 +331,56 @@ func isAlreadySyncedThroughEnd(task data.DataSyncTask, interval time.Duration) b
 	return !nextOpen.Before(task.EndTime.UTC())
 }
 
-func latestOpenTime(candles []data.Candle) *time.Time {
-	var latest *time.Time
-	for _, candle := range candles {
-		openTime := candle.OpenTime
-		if latest == nil || openTime.After(*latest) {
-			latest = &openTime
-		}
+func nextCursorOpenTime(
+	task data.DataSyncTask,
+	interval time.Duration,
+	candles []data.Candle,
+) *time.Time {
+	ordered := uniqueSortedOpenTimes(candles)
+	if len(ordered) == 0 {
+		return nil
 	}
-	return latest
+
+	chainStart := ordered[0]
+	chainTip := chainStart
+	for _, openTime := range ordered[1:] {
+		expected := chainTip.Add(interval)
+		if !openTime.Equal(expected) {
+			break
+		}
+		chainTip = openTime
+	}
+
+	if task.LatestSyncedOpenTime == nil {
+		return ptrTime(chainTip)
+	}
+	current := task.LatestSyncedOpenTime.UTC()
+	if !chainTip.After(current) {
+		return nil
+	}
+	if chainStart.After(current.Add(interval)) {
+		return nil
+	}
+	return ptrTime(chainTip)
+}
+
+func uniqueSortedOpenTimes(candles []data.Candle) []time.Time {
+	openTimes := make([]time.Time, 0, len(candles))
+	seen := make(map[time.Time]struct{}, len(candles))
+	for _, candle := range candles {
+		openTime := candle.OpenTime.UTC()
+		if _, exists := seen[openTime]; exists {
+			continue
+		}
+		seen[openTime] = struct{}{}
+		openTimes = append(openTimes, openTime)
+	}
+	sort.Slice(openTimes, func(left int, right int) bool {
+		return openTimes[left].Before(openTimes[right])
+	})
+	return openTimes
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }
