@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -62,152 +61,173 @@ func main() {
 }
 
 func runNotify(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("notify", flag.ContinueOnError)
-	once := flags.Bool("once", false, "run one claim cycle and exit")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-
-	databaseURL, err := requiredEnv("DATABASE_URL")
+	config, err := loadNotifyCommandConfig(args)
 	if err != nil {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, databaseURL)
+	store, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
 	runner := notification.NewRunner(store, notification.DefaultProviders(), notification.Config{
-		WorkerID:      envOrDefault("NOTIFY_WORKER_ID", defaultWorkerID()),
-		LeaseTTL:      durationEnv("NOTIFY_LEASE_TTL", 30*time.Second),
-		PollInterval:  durationEnv("NOTIFY_POLL_INTERVAL", 10*time.Second),
-		RetryDelay:    durationEnv("NOTIFY_RETRY_DELAY", 30*time.Second),
-		MaxRetryDelay: durationEnv("NOTIFY_MAX_RETRY_DELAY", 5*time.Minute),
+		WorkerID:      config.WorkerID,
+		LeaseTTL:      config.LeaseTTL,
+		PollInterval:  config.PollInterval,
+		RetryDelay:    config.RetryDelay,
+		MaxRetryDelay: config.MaxRetryDelay,
 	})
 
-	if *once {
+	slog.Info("starting notify", safeConfigSummary(
+		"worker_id", config.WorkerID,
+		"once", config.Once,
+		"lease_ttl", config.LeaseTTL,
+		"poll_interval", config.PollInterval,
+		"retry_delay", config.RetryDelay,
+		"max_retry_delay", config.MaxRetryDelay,
+	)...)
+
+	if config.Once {
 		return runner.RunOnce(ctx)
 	}
 	return runner.Run(ctx)
 }
 
 func runTrading(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("trading", flag.ContinueOnError)
-	once := flags.Bool("once", false, "run one claim cycle and exit")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-
-	databaseURL, err := requiredEnv("DATABASE_URL")
+	config, err := loadTradingCommandConfig(args)
 	if err != nil {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, databaseURL)
+	store, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
 	runner := trading.NewRunner(store, strategy.BuiltinRegistry(), trading.Config{
-		WorkerID:     envOrDefault("TRADING_WORKER_ID", defaultWorkerID()),
-		LeaseTTL:     durationEnv("TRADING_LEASE_TTL", 30*time.Second),
-		PollInterval: durationEnv("TRADING_POLL_INTERVAL", 10*time.Second),
-		CandleLimit:  intEnv("TRADING_CANDLE_LIMIT", 500),
+		WorkerID:     config.WorkerID,
+		LeaseTTL:     config.LeaseTTL,
+		PollInterval: config.PollInterval,
+		CandleLimit:  config.CandleLimit,
 	})
 
-	if *once {
+	slog.Info("starting trading", safeConfigSummary(
+		"worker_id", config.WorkerID,
+		"once", config.Once,
+		"lease_ttl", config.LeaseTTL,
+		"poll_interval", config.PollInterval,
+		"candle_limit", config.CandleLimit,
+	)...)
+
+	if config.Once {
 		return runner.RunOnce(ctx)
 	}
 	return runner.Run(ctx)
 }
 
 func runBacktest(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("backtest", flag.ContinueOnError)
-	once := flags.Bool("once", false, "run one claim cycle and exit")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-
-	databaseURL, err := requiredEnv("DATABASE_URL")
+	config, err := loadBacktestCommandConfig(args)
 	if err != nil {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, databaseURL)
+	store, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
 	runner := backtest.NewRunner(store, strategy.BuiltinRegistry(), backtest.Config{
-		WorkerID:     envOrDefault("BACKTEST_WORKER_ID", defaultWorkerID()),
-		LeaseTTL:     durationEnv("BACKTEST_LEASE_TTL", 30*time.Second),
-		PollInterval: durationEnv("BACKTEST_POLL_INTERVAL", 10*time.Second),
-		CandleLimit:  intEnv("BACKTEST_CANDLE_LIMIT", 5000),
+		WorkerID:     config.WorkerID,
+		LeaseTTL:     config.LeaseTTL,
+		PollInterval: config.PollInterval,
+		CandleLimit:  config.CandleLimit,
 	})
 
-	if *once {
+	slog.Info("starting backtest", safeConfigSummary(
+		"worker_id", config.WorkerID,
+		"once", config.Once,
+		"lease_ttl", config.LeaseTTL,
+		"poll_interval", config.PollInterval,
+		"candle_limit", config.CandleLimit,
+	)...)
+
+	if config.Once {
 		return runner.RunOnce(ctx)
 	}
 	return runner.Run(ctx)
 }
 
 func runSync(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("sync", flag.ContinueOnError)
-	once := flags.Bool("once", false, "run one claim cycle and exit")
-	if err := flags.Parse(args); err != nil {
+	config, err := loadSyncCommandConfig(args)
+	if err != nil {
 		return err
 	}
-
-	databaseURL, err := requiredEnv("DATABASE_URL")
+	exchangeConfig, err := loadExchangeClientConfig()
 	if err != nil {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, databaseURL)
+	store, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
-	binanceClient := newBinanceMarketClient()
-	okxClient := newOKXMarketClient()
+	binanceClient := newBinanceMarketClient(exchangeConfig)
+	okxClient := newOKXMarketClient(exchangeConfig)
 	runner := datasync.NewRunner(store, exchange.NewRegistry(map[string]exchange.MarketDataClient{
 		"binance": binanceClient,
 		"okx":     okxClient,
 	}), datasync.Config{
-		WorkerID: envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
-		LeaseTTL: durationEnv("SYNC_LEASE_TTL", 30*time.Second),
-		HeartbeatInterval: durationEnv(
-			"SYNC_HEARTBEAT_INTERVAL",
-			durationEnv("SYNC_LEASE_TTL", 30*time.Second)/3,
-		),
-		PollInterval:   durationEnv("SYNC_POLL_INTERVAL", 10*time.Second),
-		BatchLimit:     intEnv("SYNC_BATCH_LIMIT", 500),
-		OverlapCandles: intEnv("SYNC_OVERLAP_CANDLES", 2),
-		DefaultLookback: durationEnv(
-			"SYNC_DEFAULT_LOOKBACK",
-			500*time.Minute,
-		),
-		FetchRetries:    intEnv("SYNC_FETCH_RETRIES", 2),
-		RetryDelay:      durationEnv("SYNC_RETRY_DELAY", 250*time.Millisecond),
-		RetryBackoff:    durationEnv("SYNC_RETRY_BACKOFF", 30*time.Second),
-		MaxRetryBackoff: durationEnv("SYNC_MAX_RETRY_BACKOFF", 5*time.Minute),
+		WorkerID:          config.WorkerID,
+		LeaseTTL:          config.LeaseTTL,
+		HeartbeatInterval: config.HeartbeatInterval,
+		PollInterval:      config.PollInterval,
+		BatchLimit:        config.BatchLimit,
+		OverlapCandles:    config.OverlapCandles,
+		DefaultLookback:   config.DefaultLookback,
+		FetchRetries:      config.FetchRetries,
+		RetryDelay:        config.RetryDelay,
+		RetryBackoff:      config.RetryBackoff,
+		MaxRetryBackoff:   config.MaxRetryBackoff,
 	})
 
-	if *once {
+	slog.Info("starting sync", safeConfigSummary(
+		"worker_id", config.WorkerID,
+		"once", config.Once,
+		"lease_ttl", config.LeaseTTL,
+		"heartbeat_interval", config.HeartbeatInterval,
+		"poll_interval", config.PollInterval,
+		"batch_limit", config.BatchLimit,
+		"overlap_candles", config.OverlapCandles,
+		"default_lookback", config.DefaultLookback,
+		"fetch_retries", config.FetchRetries,
+		"retry_delay", config.RetryDelay,
+		"retry_backoff", config.RetryBackoff,
+		"max_retry_backoff", config.MaxRetryBackoff,
+		"market_instrument_sync_enabled", config.MarketInstrumentSyncEnabled,
+		"market_instrument_sync_interval", config.MarketInstrumentSyncInterval,
+		"market_instrument_sync_on_start", config.MarketInstrumentSyncOnStart,
+		"binance_request_weight_limit", exchangeConfig.BinanceRequestWeightLimit,
+		"binance_request_weight_window", exchangeConfig.BinanceRequestWeightWindow,
+		"okx_market_request_limit", exchangeConfig.OKXMarketRequestLimit,
+		"okx_market_request_window", exchangeConfig.OKXMarketRequestWindow,
+	)...)
+
+	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if boolEnv("MARKET_INSTRUMENT_SYNC_ENABLED", true) {
+	if config.MarketInstrumentSyncEnabled {
 		instrumentRunner := marketsync.NewRunner(store, map[string]exchange.InstrumentClient{
 			"binance": binanceClient,
 			"okx":     okxClient,
 		}, marketsync.Config{
-			Interval:    durationEnv("MARKET_INSTRUMENT_SYNC_INTERVAL", 6*time.Hour),
-			SyncOnStart: boolEnv("MARKET_INSTRUMENT_SYNC_ON_START", true),
+			Interval:    config.MarketInstrumentSyncInterval,
+			SyncOnStart: config.MarketInstrumentSyncOnStart,
 		})
 		go func() {
 			if err := instrumentRunner.Run(ctx); err != nil {
@@ -219,12 +239,16 @@ func runSync(ctx context.Context, args []string) error {
 }
 
 func runAPI(ctx context.Context) error {
-	databaseURL, err := requiredEnv("DATABASE_URL")
+	config, err := loadAPICommandConfig()
+	if err != nil {
+		return err
+	}
+	exchangeConfig, err := loadExchangeClientConfig()
 	if err != nil {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, databaseURL)
+	store, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -234,17 +258,15 @@ func runAPI(ctx context.Context) error {
 		return err
 	}
 
-	addr := envOrDefault("HTTP_ADDR", "127.0.0.1:8080")
-	staticRoot := envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist")
 	server := &http.Server{
-		Addr: addr,
+		Addr: config.Addr,
 		Handler: webapi.NewServerWithConfig(store, webapi.Config{
-			StaticRoot:   staticRoot,
-			SessionTTL:   durationEnv("AUTH_SESSION_TTL", 12*time.Hour),
-			CookieSecure: boolEnv("AUTH_COOKIE_SECURE", false),
+			StaticRoot:   config.StaticRoot,
+			SessionTTL:   config.SessionTTL,
+			CookieSecure: config.CookieSecure,
 			InstrumentClients: map[string]exchange.InstrumentClient{
-				"binance": newBinanceMarketClient(),
-				"okx":     newOKXMarketClient(),
+				"binance": newBinanceMarketClient(exchangeConfig),
+				"okx":     newOKXMarketClient(exchangeConfig),
 			},
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -259,7 +281,16 @@ func runAPI(ctx context.Context) error {
 		}
 	}()
 
-	slog.Info("starting api", "addr", addr, "static_root", staticRoot)
+	slog.Info("starting api", safeConfigSummary(
+		"addr", config.Addr,
+		"static_root", config.StaticRoot,
+		"session_ttl", config.SessionTTL,
+		"cookie_secure", config.CookieSecure,
+		"binance_request_weight_limit", exchangeConfig.BinanceRequestWeightLimit,
+		"binance_request_weight_window", exchangeConfig.BinanceRequestWeightWindow,
+		"okx_market_request_limit", exchangeConfig.OKXMarketRequestLimit,
+		"okx_market_request_window", exchangeConfig.OKXMarketRequestWindow,
+	)...)
 	err = server.ListenAndServe()
 	if err == nil || err == http.ErrServerClosed {
 		return nil
@@ -325,60 +356,21 @@ func envOrDefault(key string, fallback string) string {
 	return value
 }
 
-func durationEnv(key string, fallback time.Duration) time.Duration {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-	parsed, err := time.ParseDuration(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func intEnv(key string, fallback int) int {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-	var parsed int
-	if _, err := fmt.Sscanf(value, "%d", &parsed); err != nil || parsed <= 0 {
-		return fallback
-	}
-	return parsed
-}
-
-func boolEnv(key string, fallback bool) bool {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
-	}
-	switch strings.ToLower(value) {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return fallback
-	}
-}
-
-func newBinanceMarketClient() *binance.MarketClient {
+func newBinanceMarketClient(config exchangeClientConfig) *binance.MarketClient {
 	return binance.NewMarketClientWithOptions(binance.MarketClientOptions{
-		BaseURLs: stringListEnv("BINANCE_BASE_URLS"),
+		BaseURLs: config.BinanceBaseURLs,
 		RateLimiter: exchange.NewFixedWindowRateLimiter(
-			intEnv("BINANCE_REQUEST_WEIGHT_LIMIT", 1200),
-			durationEnv("BINANCE_REQUEST_WEIGHT_WINDOW", time.Minute),
+			config.BinanceRequestWeightLimit,
+			config.BinanceRequestWeightWindow,
 		),
 	})
 }
 
-func newOKXMarketClient() *okx.MarketClient {
+func newOKXMarketClient(config exchangeClientConfig) *okx.MarketClient {
 	return okx.NewMarketClientWithOptions(okx.MarketClientOptions{
 		RateLimiter: exchange.NewFixedWindowRateLimiter(
-			intEnv("OKX_MARKET_REQUEST_LIMIT", 20),
-			durationEnv("OKX_MARKET_REQUEST_WINDOW", 2*time.Second),
+			config.OKXMarketRequestLimit,
+			config.OKXMarketRequestWindow,
 		),
 	})
 }

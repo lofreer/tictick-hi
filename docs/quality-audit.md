@@ -30,7 +30,7 @@ done            用户确认关闭
 | 模块 | 当前等级 | 处理 | 主要问题 |
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
-| Go 子命令 | scaffold | 保留后收敛 | 入口可用，但配置、日志、错误边界粗 |
+| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；仍缺完整运行手册、结构化日志/trace、子命令级健康探针和更完整优雅停止证据 |
 | Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active`，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary` 和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
@@ -3251,7 +3251,7 @@ Definition of Done：
 | 模块 | 重审计等级 | 可用证据 | usable 阻断项 |
 | --- | --- | --- | --- |
 | 架构文档 | usable | 主计划、交付协议和质量审计能约束实现顺序与等级声明 | 需要随实现持续校准，不阻断阶段 8 |
-| Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用 | 日志、配置错误边界、运行手册和优雅停止证据不足 |
+| Go 子命令 | scaffold | `hi api/sync/backtest/trading/notify/migrate` 可由 compose 和 smoke 调用；API / sync / backtest / trading / notify 的 env 配置严格解析和脱敏启动摘要已有 `cmd/hi` 单测覆盖 | 仍缺完整运行手册、结构化日志/trace、子命令级健康探针和更完整优雅停止证据 |
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充 data sync repair source FK / 非自引用 CHECK；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、状态流转 trigger、repair source、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整统一状态机、全量历史数据验证、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；数据同步 retry / command 状态冲突已有领域错误码；`DataSyncTask` 暴露 `repairSourceTaskId` 用于补同步任务来源追踪；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、错误码 catalog、session cookie 和 CSRF header；`web/frontend/src/types/api.generated.ts` 已从该 contract 生成；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段、generated DTO staleness、external OpenAPI validator 和 candle query 参数漂移 | 跨领域错误语义细分和生产级审计边界不足 |
@@ -4533,6 +4533,46 @@ Definition of Done：
 
 - 本轮修复的是研究页 K 线固定槽裁切/缩图问题，不是完整像素回归体系。
 - 图表交互工具、指标层、移动端信息密度和全路由视觉基线仍不足，研究页和整体项目仍不能升级为 usable。
+
+### 阶段 8 Go 子命令配置错误边界补充
+
+目标等级：scaffold
+
+触发问题：
+
+- Stage 8 readiness 重审计将 Go 子命令维持为 `scaffold`，其中一个明确 blocker 是配置错误边界和启动日志粗糙。
+- `hi sync` / `hi backtest` / `hi trading` / `hi notify` / `hi api` 之前直接在入口内读取 env，`durationEnv` / `intEnv` / `boolEnv` 对非法值静默回退，容易让容器以非预期配置运行。
+- 交易所 public client 限流配置也由同一类静默回退函数读取，非法配置不能在启动前暴露。
+
+修复范围：
+
+- 新增 `cmd/hi/config.go`，把 API / sync / backtest / trading / notify 的 env 和 `--once` flag 配置构建收敛为可单测函数。
+- 对关键 duration / int / bool 配置执行严格解析；非法值返回包含 env 名的错误，非正 duration、低于下限的 int、非法 bool 都不再静默回退。
+- `SYNC_HEARTBEAT_INTERVAL` 默认由 `SYNC_LEASE_TTL / 3` 推导，并拒绝大于 lease TTL 的配置。
+- Binance / OKX public market client 限流配置改为复用严格解析后的 `exchangeClientConfig`。
+- API / sync / backtest / trading / notify 启动时输出非敏感配置摘要，摘要会过滤 `database_url`、password、secret、token、API key、private key、`ENCRYPTION_KEY`、credential 和 DSN 类 key。
+- 移除 `cmd/hi/main.go` 中旧的静默回退 `durationEnv` / `intEnv` / `boolEnv`。
+- 新增 `cmd/hi/config_test.go` 覆盖缺失 `DATABASE_URL`、非法 duration / int / bool、sync heartbeat 默认值、heartbeat 大于 lease、交易所限流非法值、脱敏摘要和未知 flag 错误。
+
+验证：
+
+- `go test ./cmd/hi` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，21 个测试文件 / 100 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `git diff --check` 通过。
+
+失败：
+
+- 无。
+
+剩余风险：
+
+- 本轮只补配置解析、脱敏启动摘要和单测证据，不补完整运行手册、结构化日志/trace、子命令级健康探针或容器级优雅停止新 smoke。
+- Go 子命令仍保持 `scaffold`；整体项目仍不能升级为 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
