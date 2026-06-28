@@ -49,6 +49,124 @@ func dataSyncTaskEmptyGapSummarySQL() string {
 		0 AS first_gap_missing_candles`
 }
 
+func dataSyncTaskCandleStateLateralSQL() string {
+	return fmt.Sprintf(`
+		WITH %s
+		SELECT (SELECT candle_count FROM candle_stats) AS candle_count,
+		       COUNT(*) AS gap_count,
+		       (ARRAY_AGG(gap_from ORDER BY gap_from, gap_to))[1] AS first_gap_from,
+		       (ARRAY_AGG(gap_to ORDER BY gap_from, gap_to))[1] AS first_gap_to,
+		       (ARRAY_AGG(missing_candles ORDER BY gap_from, gap_to))[1] AS first_gap_missing_candles,
+		       COUNT(*) > 0 AS has_gap
+		  FROM gaps`,
+		dataSyncTaskWindowGapCTESQL(`SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time`),
+	)
+}
+
+func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
+	return fmt.Sprintf(`
+		task_source AS (
+			%s
+		),
+		task_base AS (
+			SELECT task_source.*,
+			       %s AS interval_duration,
+			       COALESCE(task_source.end_time, task_source.last_synced_open_time, now()) AS scan_end,
+			       COALESCE(task_source.end_time, task_source.last_synced_open_time) AS gap_window_end
+			  FROM task_source
+		),
+		task_aligned AS (
+			SELECT task_base.*,
+			       date_bin(task_base.interval_duration, task_base.start_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS start_floor,
+			       date_bin(task_base.interval_duration, task_base.gap_window_end, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS end_floor
+			  FROM task_base
+		),
+		task_window AS (
+			SELECT task_aligned.*,
+			       CASE
+			         WHEN task_aligned.start_time IS NULL OR task_aligned.interval_duration IS NULL THEN NULL
+			         WHEN task_aligned.start_floor < task_aligned.start_time THEN task_aligned.start_floor + task_aligned.interval_duration
+			         ELSE task_aligned.start_floor
+			       END AS first_expected_open,
+			       task_aligned.end_floor AS last_expected_open
+			  FROM task_aligned
+		),
+		ordered_candles AS (
+			SELECT c.open_time,
+			       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
+			       task_window.interval_duration
+			  FROM task_window
+			  JOIN market_candles AS c
+			    ON c.exchange = task_window.exchange
+			   AND c.symbol = task_window.symbol
+			   AND c.interval = task_window.interval
+			 WHERE (task_window.start_time IS NULL OR c.open_time >= task_window.start_time)
+			   AND c.open_time <= task_window.scan_end
+		),
+		candle_stats AS (
+			SELECT COUNT(*)::int AS candle_count,
+			       MIN(open_time) AS first_open,
+			       MAX(open_time) AS last_open
+			  FROM ordered_candles
+		),
+		gaps AS (
+			SELECT task_window.first_expected_open AS gap_from,
+			       candle_stats.first_open AS gap_to,
+			       GREATEST(
+			         (EXTRACT(EPOCH FROM (candle_stats.first_open - task_window.first_expected_open))
+			          / NULLIF(EXTRACT(EPOCH FROM task_window.interval_duration), 0))::int,
+			         1
+			       ) AS missing_candles
+			  FROM task_window
+			  CROSS JOIN candle_stats
+			 WHERE task_window.first_expected_open IS NOT NULL
+			   AND candle_stats.first_open IS NOT NULL
+			   AND candle_stats.first_open > task_window.first_expected_open
+			UNION ALL
+			SELECT ordered_candles.previous_open_time + ordered_candles.interval_duration AS gap_from,
+			       ordered_candles.open_time AS gap_to,
+			       GREATEST(
+			         (EXTRACT(EPOCH FROM (ordered_candles.open_time - (ordered_candles.previous_open_time + ordered_candles.interval_duration)))
+			          / NULLIF(EXTRACT(EPOCH FROM ordered_candles.interval_duration), 0))::int,
+			         1
+			       ) AS missing_candles
+			  FROM ordered_candles
+			 WHERE ordered_candles.previous_open_time IS NOT NULL
+			   AND ordered_candles.interval_duration IS NOT NULL
+			   AND ordered_candles.open_time - ordered_candles.previous_open_time > ordered_candles.interval_duration
+			UNION ALL
+			SELECT candle_stats.last_open + task_window.interval_duration AS gap_from,
+			       task_window.last_expected_open + task_window.interval_duration AS gap_to,
+			       GREATEST(
+			         (EXTRACT(EPOCH FROM ((task_window.last_expected_open + task_window.interval_duration) - (candle_stats.last_open + task_window.interval_duration)))
+			          / NULLIF(EXTRACT(EPOCH FROM task_window.interval_duration), 0))::int,
+			         1
+			       ) AS missing_candles
+			  FROM task_window
+			  CROSS JOIN candle_stats
+			 WHERE task_window.last_expected_open IS NOT NULL
+			   AND candle_stats.last_open IS NOT NULL
+			   AND task_window.last_expected_open >= candle_stats.last_open + task_window.interval_duration
+			UNION ALL
+			SELECT task_window.first_expected_open AS gap_from,
+			       task_window.last_expected_open + task_window.interval_duration AS gap_to,
+			       GREATEST(
+			         (EXTRACT(EPOCH FROM ((task_window.last_expected_open + task_window.interval_duration) - task_window.first_expected_open))
+			          / NULLIF(EXTRACT(EPOCH FROM task_window.interval_duration), 0))::int,
+			         1
+			       ) AS missing_candles
+			  FROM task_window
+			  CROSS JOIN candle_stats
+			 WHERE candle_stats.candle_count = 0
+			   AND task_window.first_expected_open IS NOT NULL
+			   AND task_window.last_expected_open IS NOT NULL
+			   AND task_window.last_expected_open >= task_window.first_expected_open
+		)`,
+		taskSourceSQL,
+		dataSyncTaskIntervalDurationSQL("task_source"),
+	)
+}
+
 func dataSyncTaskColumnList(alias string, columns ...string) string {
 	result := ""
 	for index, column := range columns {

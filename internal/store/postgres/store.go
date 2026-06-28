@@ -42,42 +42,11 @@ func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask,
 		SELECT %s
 		  FROM data_sync_tasks AS t
 		  LEFT JOIN LATERAL (
-			SELECT COUNT(*) AS candle_count,
-			       COUNT(*) FILTER (WHERE is_gap) AS gap_count,
-			       (ARRAY_AGG(expected_open_time ORDER BY open_time) FILTER (WHERE is_gap))[1] AS first_gap_from,
-			       (ARRAY_AGG(open_time ORDER BY open_time) FILTER (WHERE is_gap))[1] AS first_gap_to,
-			       (ARRAY_AGG(missing_candles ORDER BY open_time) FILTER (WHERE is_gap))[1] AS first_gap_missing_candles,
-			       COALESCE(BOOL_OR(is_gap), false) AS has_gap
-			  FROM (
-				SELECT open_time,
-				       previous_open_time + interval_duration AS expected_open_time,
-				       CASE
-				         WHEN previous_open_time IS NULL OR interval_duration IS NULL THEN 0
-				         ELSE GREATEST(
-				           (EXTRACT(EPOCH FROM (open_time - previous_open_time))
-				            / NULLIF(EXTRACT(EPOCH FROM interval_duration), 0))::int - 1,
-				           0
-				         )
-				       END AS missing_candles,
-				       previous_open_time IS NOT NULL
-				       AND interval_duration IS NOT NULL
-				       AND open_time - previous_open_time > interval_duration AS is_gap
-				  FROM (
-					SELECT c.open_time,
-					       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
-					       %s AS interval_duration
-					  FROM market_candles AS c
-					 WHERE c.exchange = t.exchange
-					   AND c.symbol = t.symbol
-					   AND c.interval = t.interval
-					   AND (t.start_time IS NULL OR c.open_time >= t.start_time)
-					   AND c.open_time <= COALESCE(t.end_time, t.last_synced_open_time, now())
-				  ) ordered_candles
-			 ) gap_candidates
+			%s
 		  ) candle_state ON true
 		 ORDER BY t.created_at DESC`,
 		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL()),
-		dataSyncTaskIntervalDurationSQL("t"),
+		dataSyncTaskCandleStateLateralSQL(),
 	))
 	if err != nil {
 		return nil, fmt.Errorf("list data sync tasks: %w", err)

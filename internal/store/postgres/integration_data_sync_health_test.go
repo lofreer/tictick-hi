@@ -162,7 +162,7 @@ func TestIntegrationListDataSyncTaskGapsReportsWindows(t *testing.T) {
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
 	})
 
-	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(6*time.Minute)), nil, "")
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, nil, ptrTime(start.Add(6*time.Minute)), nil, "")
 	for _, minute := range []int{0, 1, 3, 6} {
 		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
 	}
@@ -185,6 +185,120 @@ func TestIntegrationListDataSyncTaskGapsReportsWindows(t *testing.T) {
 	}
 }
 
+func TestIntegrationDataSyncTaskGapsReportRequestedWindowBoundaries(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 6, 30, 0, 0, time.UTC)
+	end := start.Add(4 * time.Minute)
+	symbol := integrationSymbol("DHWB")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, &end, ptrTime(end), nil, "")
+	for _, minute := range []int{1, 2, 3} {
+		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
+	}
+
+	tasks, err := store.ListDataSyncTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed *data.DataSyncTask
+	for index := range tasks {
+		if tasks[index].ID == taskID {
+			listed = &tasks[index]
+			break
+		}
+	}
+	if listed == nil {
+		t.Fatal("boundary gap task not listed")
+	}
+	if listed.DataHealth != data.DataSyncHealthGap || listed.GapSummary == nil || listed.GapSummary.Count != 2 {
+		t.Fatalf("unexpected boundary gap summary: %#v", listed)
+	}
+	if listed.GapSummary.FirstGap == nil {
+		t.Fatal("boundary gap summary should expose first gap")
+	}
+	assertTaskGap(t, *listed.GapSummary.FirstGap, start, start.Add(time.Minute), 1)
+
+	gaps, err := store.ListDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gaps.TotalCount != 2 || gaps.ReturnedCount != 2 || len(gaps.Gaps) != 2 {
+		t.Fatalf("unexpected boundary gap list: %#v", gaps)
+	}
+	assertTaskGap(t, gaps.Gaps[0], start, start.Add(time.Minute), 1)
+	assertTaskGap(t, gaps.Gaps[1], start.Add(4*time.Minute), start.Add(5*time.Minute), 1)
+
+	result, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.TotalCount != 2 || len(result.CreatedTasks) != 2 || result.SkippedExisting != 0 {
+		t.Fatalf("unexpected boundary repair result: %#v", result)
+	}
+	assertRepairTaskWindow(t, result.CreatedTasks[0], taskID, start, start.Add(time.Minute))
+	assertRepairTaskWindow(t, result.CreatedTasks[1], taskID, start.Add(4*time.Minute), start.Add(5*time.Minute))
+}
+
+func TestIntegrationDataSyncTaskGapsReportWholeRequestedWindow(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 7, 30, 0, 0, time.UTC)
+	end := start.Add(2 * time.Minute)
+	symbol := integrationSymbol("DHWE")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, &end, nil, nil, "")
+
+	tasks, err := store.ListDataSyncTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed *data.DataSyncTask
+	for index := range tasks {
+		if tasks[index].ID == taskID {
+			listed = &tasks[index]
+			break
+		}
+	}
+	if listed == nil {
+		t.Fatal("empty window task not listed")
+	}
+	if listed.DataHealth != data.DataSyncHealthGap || listed.GapSummary == nil || listed.GapSummary.Count != 1 {
+		t.Fatalf("unexpected empty window summary: %#v", listed)
+	}
+	if listed.GapSummary.FirstGap == nil {
+		t.Fatal("empty window summary should expose first gap")
+	}
+	assertTaskGap(t, *listed.GapSummary.FirstGap, start, start.Add(3*time.Minute), 3)
+
+	gaps, err := store.ListDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gaps.TotalCount != 1 || gaps.ReturnedCount != 1 || len(gaps.Gaps) != 1 {
+		t.Fatalf("unexpected empty window gap list: %#v", gaps)
+	}
+	assertTaskGap(t, gaps.Gaps[0], start, start.Add(3*time.Minute), 3)
+}
+
 func TestIntegrationListDataSyncTaskGapsReportsLimitedTotal(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -200,7 +314,7 @@ func TestIntegrationListDataSyncTaskGapsReportsLimitedTotal(t *testing.T) {
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
 	})
 
-	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(44*time.Minute)), nil, "")
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, nil, ptrTime(start.Add(44*time.Minute)), nil, "")
 	for minute := 0; minute <= 44; minute += 2 {
 		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
 	}
@@ -234,7 +348,7 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
 	})
 
-	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(6*time.Minute)), nil, "")
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, nil, ptrTime(start.Add(6*time.Minute)), nil, "")
 	for _, minute := range []int{0, 1, 3, 6} {
 		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
 	}
@@ -369,7 +483,26 @@ func insertDataHealthTask(
 	lastError string,
 ) {
 	t.Helper()
+	start := time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC)
+	insertDataHealthTaskWindow(t, ctx, store, id, symbol, status, syncEnabled, realtimeEnabled, &start, nil, latestSyncedAt, nextAttemptAt, lastError)
+}
 
+func insertDataHealthTaskWindow(
+	t *testing.T,
+	ctx context.Context,
+	store *Store,
+	id string,
+	symbol string,
+	status data.TaskStatus,
+	syncEnabled bool,
+	realtimeEnabled bool,
+	startTime *time.Time,
+	endTime *time.Time,
+	latestSyncedAt *time.Time,
+	nextAttemptAt *time.Time,
+	lastError string,
+) {
+	t.Helper()
 	var finishedAt any
 	if status == data.TaskStatusSucceeded || status == data.TaskStatusFailed || status == data.TaskStatusCancelled {
 		finishedAt = time.Now().UTC()
@@ -377,14 +510,15 @@ func insertDataHealthTask(
 
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO data_sync_tasks (
-			id, exchange, symbol, interval, start_time, sync_enabled, realtime_enabled, status,
+			id, exchange, symbol, interval, start_time, end_time, sync_enabled, realtime_enabled, status,
 			last_synced_open_time, next_attempt_at, last_error, finished_at, created_at, updated_at
 		)
-		VALUES ($1, 'binance', $2, '1m', $3, $4, $5, $6, $7, $8, NULLIF($9, ''),
-		        $10, '2000-01-01T00:00:00Z'::timestamptz, now())`,
+		VALUES ($1, 'binance', $2, '1m', $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''),
+		        $11, '2000-01-01T00:00:00Z'::timestamptz, now())`,
 		id,
 		symbol,
-		time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC),
+		startTime,
+		endTime,
 		syncEnabled,
 		realtimeEnabled,
 		status,

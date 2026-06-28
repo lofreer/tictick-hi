@@ -178,43 +178,15 @@ func listDataSyncRepairWindows(
 	id string,
 ) ([]dataSyncGapRepairWindow, int, bool, error) {
 	rows, err := queryer.Query(ctx, fmt.Sprintf(`
-		WITH gaps AS (
-			SELECT expected_open_time, open_time, missing_candles
-			  FROM (
-			SELECT open_time,
-			       previous_open_time + interval_duration AS expected_open_time,
-			       CASE
-			         WHEN previous_open_time IS NULL OR interval_duration IS NULL THEN 0
-			         ELSE GREATEST(
-			           (EXTRACT(EPOCH FROM (open_time - previous_open_time))
-			            / NULLIF(EXTRACT(EPOCH FROM interval_duration), 0))::int - 1,
-			           0
-			         )
-			       END AS missing_candles,
-			       previous_open_time IS NOT NULL
-			       AND interval_duration IS NOT NULL
-			       AND open_time - previous_open_time > interval_duration AS is_gap
-			  FROM (
-				SELECT c.open_time,
-				       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
-				       %s AS interval_duration
-				  FROM data_sync_tasks AS t
-				  JOIN market_candles AS c
-				    ON c.exchange = t.exchange
-				   AND c.symbol = t.symbol
-				   AND c.interval = t.interval
-				 WHERE t.id = $1
-				   AND (t.start_time IS NULL OR c.open_time >= t.start_time)
-				   AND c.open_time <= COALESCE(t.end_time, t.last_synced_open_time, now())
-			  ) ordered_candles
-			  ) gap_candidates
-			 WHERE is_gap
-		)
-		SELECT expected_open_time, open_time, missing_candles, COUNT(*) OVER () AS total_count
+		WITH %s
+		SELECT gap_from, gap_to, missing_candles, COUNT(*) OVER () AS total_count
 		  FROM gaps
-		 ORDER BY open_time
+		 ORDER BY gap_from, gap_to
 		 LIMIT $2`,
-		dataSyncTaskIntervalDurationSQL("t"),
+		dataSyncTaskWindowGapCTESQL(`
+			SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time
+			  FROM data_sync_tasks AS t
+			 WHERE t.id = $1`),
 	), id, maxDataSyncGapRepairTasks)
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("list data sync repair windows: %w", err)
