@@ -1,0 +1,196 @@
+package postgres
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/datasync"
+	"github.com/lofreer/tictick-hi/internal/exchange"
+)
+
+func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	clearIntegrationExchangeBackoff(t, ctx, store, "binance")
+
+	id := integrationID("dst")
+	symbol := integrationSymbol("RS")
+	latest := time.Now().UTC().Add(-10 * time.Minute).Truncate(time.Minute)
+	resumeFrom := latest.Add(-2 * time.Minute)
+	wantCursor := latest.Add(2 * time.Minute)
+	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, true, "crashed-worker")
+	for minute := -2; minute <= 0; minute++ {
+		insertIntegrationCandle(t, ctx, store, integrationResumeCandle(symbol, latest.Add(time.Duration(minute)*time.Minute), "old"))
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = 'binance'`)
+	})
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET last_synced_open_time = $2,
+		       locked_until = now() - interval '1 second',
+		       heartbeat_at = now() - interval '5 minutes',
+		       created_at = '1999-01-01T00:00:00Z'::timestamptz
+		 WHERE id = $1`,
+		id,
+		latest,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &recordingIntegrationMarketClient{
+		candles: []data.Candle{
+			integrationResumeCandle(symbol, latest.Add(-2*time.Minute), "new"),
+			integrationResumeCandle(symbol, latest.Add(-1*time.Minute), "new"),
+			integrationResumeCandle(symbol, latest, "new"),
+			integrationResumeCandle(symbol, latest.Add(time.Minute), "new"),
+			integrationResumeCandle(symbol, wantCursor, "new"),
+		},
+	}
+	runner := datasync.NewRunner(
+		store,
+		exchange.NewRegistry(map[string]exchange.MarketDataClient{"binance": client}),
+		datasync.Config{
+			WorkerID:          "restart-worker",
+			LeaseTTL:          time.Minute,
+			HeartbeatInterval: time.Millisecond,
+			BatchLimit:        10,
+			OverlapCandles:    2,
+		},
+	)
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if client.calls != 1 {
+		t.Fatalf("fetch calls = %d, want 1", client.calls)
+	}
+	if !client.request.From.Equal(resumeFrom) {
+		t.Fatalf("resume request from = %s, want %s", client.request.From, resumeFrom)
+	}
+	if client.request.Symbol != symbol || client.request.Interval != "1m" || client.request.Limit != 10 {
+		t.Fatalf("unexpected resume request: %#v", client.request)
+	}
+
+	row := readIntegrationSyncTask(t, ctx, store, id)
+	if row.status != data.TaskStatusRunning || !row.syncEnabled || !row.realtimeEnabled {
+		t.Fatalf("realtime task should remain running and enabled after resume: %#v", row)
+	}
+	if row.lockedBy.Valid || row.lockedUntil.Valid || row.heartbeatAt.Valid {
+		t.Fatalf("saved realtime result should release the claimed lease: %#v", row)
+	}
+	if row.nextAttemptAt.Valid || row.lastError != "" {
+		t.Fatalf("successful resume should clear retry/error state: %#v", row)
+	}
+
+	var lastSynced time.Time
+	if err := store.pool.QueryRow(ctx, `
+		SELECT last_synced_open_time
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		id,
+	).Scan(&lastSynced); err != nil {
+		t.Fatal(err)
+	}
+	if !lastSynced.Equal(wantCursor) {
+		t.Fatalf("last synced cursor = %s, want %s", lastSynced, wantCursor)
+	}
+
+	var candleCount, distinctOpenCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)::int, count(DISTINCT open_time)::int
+		  FROM market_candles
+		 WHERE exchange = 'binance'
+		   AND symbol = $1
+		   AND interval = '1m'`,
+		symbol,
+	).Scan(&candleCount, &distinctOpenCount); err != nil {
+		t.Fatal(err)
+	}
+	if candleCount != 5 || distinctOpenCount != 5 {
+		t.Fatalf("upsert should leave five unique candles, count=%d distinct=%d", candleCount, distinctOpenCount)
+	}
+	candles, err := store.ListNativeCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOpenTimes(
+		t,
+		candles,
+		latest.Add(-2*time.Minute),
+		latest.Add(-time.Minute),
+		latest,
+		latest.Add(time.Minute),
+		wantCursor,
+	)
+	for _, candle := range candles {
+		if candle.Close != "new" {
+			t.Fatalf("overlap candle should be updated by upsert, got %#v", candle)
+		}
+	}
+
+	tasks, err := store.ListDataSyncTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed *data.DataSyncTask
+	for index := range tasks {
+		if tasks[index].ID == id {
+			listed = &tasks[index]
+			break
+		}
+	}
+	if listed == nil {
+		t.Fatal("resumed task should be visible in data sync task list")
+	}
+	if listed.LatestSyncedOpenTime == nil || !listed.LatestSyncedOpenTime.Equal(wantCursor) {
+		t.Fatalf("listed task cursor = %#v, want %s", listed.LatestSyncedOpenTime, wantCursor)
+	}
+	if listed.DataHealth != data.DataSyncHealthSyncing {
+		t.Fatalf("listed data health = %q, want syncing", listed.DataHealth)
+	}
+}
+
+type recordingIntegrationMarketClient struct {
+	candles []data.Candle
+	request exchange.CandleRequest
+	calls   int
+}
+
+func (client *recordingIntegrationMarketClient) FetchCandles(
+	_ context.Context,
+	request exchange.CandleRequest,
+) ([]data.Candle, error) {
+	client.calls++
+	client.request = request
+	return client.candles, nil
+}
+
+func integrationResumeCandle(symbol string, openTime time.Time, close string) data.Candle {
+	return data.Candle{
+		Exchange:  "binance",
+		Symbol:    symbol,
+		Interval:  "1m",
+		OpenTime:  openTime,
+		CloseTime: openTime.Add(time.Minute),
+		Open:      "1",
+		High:      "2",
+		Low:       "1",
+		Close:     close,
+		Volume:    "10",
+		IsClosed:  true,
+	}
+}
