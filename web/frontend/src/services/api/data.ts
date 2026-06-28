@@ -12,6 +12,7 @@ import type {
   DataSyncGapRepairResult,
   DataSyncTask,
 } from "@/types/app";
+import { sanitizeExternalError } from "@/utils/errorText";
 
 export type CandleQuery = {
   exchange: string;
@@ -103,7 +104,7 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     status: response.status,
     dataHealth: response.dataHealth,
     gapSummary: response.gapSummary,
-    lastError: response.lastError,
+    lastError: sanitizeExternalError(response.lastError),
     attemptCount: response.attemptCount,
     nextAttemptAt: response.nextAttemptAt,
     createdAt: response.createdAt,

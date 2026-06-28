@@ -4,10 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
+
+var externalErrorURLPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
 func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 	parts := pathParts(r.URL.Path)
@@ -70,7 +75,7 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, tasks)
+		writeJSON(w, http.StatusOK, sanitizeDataSyncTasks(tasks))
 	case http.MethodPost:
 		var request data.CreateDataSyncTask
 		if err := readJSON(r, &request); err != nil {
@@ -86,7 +91,7 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusCreated, task)
+		writeJSON(w, http.StatusCreated, sanitizeDataSyncTask(task))
 	default:
 		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
@@ -116,7 +121,7 @@ func (server *Server) handleTaskCommand(w http.ResponseWriter, r *http.Request, 
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, task)
+	writeJSON(w, http.StatusOK, sanitizeDataSyncTask(task))
 }
 
 func (server *Server) deleteDataTask(w http.ResponseWriter, r *http.Request, id string) {
@@ -133,7 +138,7 @@ func (server *Server) retryDataTask(w http.ResponseWriter, r *http.Request, id s
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, task)
+	writeJSON(w, http.StatusOK, sanitizeDataSyncTask(task))
 }
 
 func (server *Server) listDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
@@ -151,7 +156,47 @@ func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request,
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
+func sanitizeDataSyncTasks(tasks []data.DataSyncTask) []data.DataSyncTask {
+	result := make([]data.DataSyncTask, len(tasks))
+	for index, task := range tasks {
+		result[index] = sanitizeDataSyncTask(task)
+	}
+	return result
+}
+
+func sanitizeDataSyncGapRepairResult(result data.DataSyncGapRepairResult) data.DataSyncGapRepairResult {
+	for index, task := range result.CreatedTasks {
+		result.CreatedTasks[index] = sanitizeDataSyncTask(task)
+	}
+	return result
+}
+
+func sanitizeDataSyncTask(task data.DataSyncTask) data.DataSyncTask {
+	task.LastError = sanitizeExternalError(task.LastError)
+	return task
+}
+
+func sanitizeExternalError(value string) string {
+	normalized := strings.Join(strings.Fields(value), " ")
+	if normalized == "" {
+		return ""
+	}
+	sanitized := externalErrorURLPattern.ReplaceAllStringFunc(normalized, func(raw string) string {
+		parsed, err := url.Parse(raw)
+		if err == nil && parsed.Host != "" {
+			return parsed.Host
+		}
+		return "[external-url]"
+	})
+	const maxRunes = 500
+	runes := []rune(sanitized)
+	if len(runes) <= maxRunes {
+		return sanitized
+	}
+	return string(runes[:maxRunes-3]) + "..."
 }
 
 func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {

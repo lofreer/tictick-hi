@@ -31,9 +31,11 @@ describe("DataSyncTaskTable", () => {
     expect(table.props("scrollX")).toBe(1700);
 
     const errorText = wrapper.get(".task-error-text");
-    expect(errorText.attributes("title")).toBe(longError);
-    expect(errorText.text()).toHaveLength(90);
-    expect(errorText.text().endsWith("...")).toBe(true);
+    expect(errorText.attributes("title")).not.toContain("/api/v3/klines");
+    expect(errorText.attributes("title")).not.toContain("symbol=BTCUSDT");
+    expect(errorText.attributes("title")).toContain("api.binance.com");
+    expect(errorText.text()).toContain("api.binance.com");
+    expect(errorText.text()).toContain("EOF");
   });
 
   it("shows scheduled retry time for temporary sync errors", () => {

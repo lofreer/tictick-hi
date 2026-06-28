@@ -1149,6 +1149,45 @@ scripts/quality-gate.sh
 - 数据同步 worker 仍没有统一 lease 包和运行中 heartbeat loop，本补充不把数据同步升级为 usable。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
+### 阶段 1 数据同步错误展示脱敏补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- 研究页同步任务历史 `last_error` 中可能已经存在完整 Binance / OKX 请求 URL。
+- 旧错误虽然不再由新 adapter 产生，但 `/api/data/tasks` 直接返回存量 `last_error`，前端表格 tooltip / title 也会保留原文，仍可能泄露请求 path、query 参数并撑坏错误列阅读体验。
+
+修复范围：
+
+- API server 在返回 `DataSyncTask` 前统一清理 `lastError`，覆盖列表、创建、retry、sync/realtime command 和 repair result 中的 created tasks。
+- 清理规则将 `http/https` 外部 URL 替换为 host，保留交易所域名和错误原因，但移除 `/api/v3/klines`、`symbol`、时间窗口、limit 等 query。
+- 前端 API wrapper 和 `DataSyncTaskTable` 使用同一类脱敏规则作为保底，避免测试注入或未来绕过 service 的原始错误进入 title / tooltip。
+- 研究页错误列仍保持单行省略，tooltip 展示脱敏后的完整错误摘要。
+
+验证：
+
+- `go test ./internal/web/api -run 'TestDataSyncTaskRoutes|TestAPIContract|TestFrontendAPI'`
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.test.ts src/components/tables/DataSyncTaskTable.test.ts`
+- `go test ./...`
+- `go vet ./...`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+
+失败：
+
+- 无硬失败。
+
+剩余风险：
+
+- 本轮不修改数据库历史 `last_error` 原文，只在 API 和前端展示边界脱敏；后续若增加导出或审计页面，需要复用同类脱敏边界。
+- 这不是交易所精确限流或真实网络长期压测。
+
 ### 阶段 1 数据同步完成边界补充
 
 执行时间：2026-06-28

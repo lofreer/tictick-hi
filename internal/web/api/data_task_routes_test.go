@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,5 +167,68 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		!repairResult.CreatedTasks[0].StartTime.Equal(gapFrom) ||
 		!repairResult.CreatedTasks[0].SyncEnabled {
 		t.Fatalf("unexpected repair result: %#v", repairResult)
+	}
+}
+
+func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.tasks = []data.DataSyncTask{
+		{
+			ID:           "dst_legacy_error",
+			Exchange:     "binance",
+			Symbol:       "BTCUSDT",
+			Interval:     "1m",
+			Status:       data.TaskStatusPending,
+			SyncEnabled:  true,
+			LastError:    `binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF`,
+			DataHealth:   data.DataSyncHealthSyncing,
+			AttemptCount: 1,
+			CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	listRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/data/tasks", "")
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
+	}
+	var tasks []data.DataSyncTask
+	if err := json.NewDecoder(listRecorder.Body).Decode(&tasks); err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("tasks length = %d, want 1", len(tasks))
+	}
+	assertSanitizedTaskError(t, tasks[0].LastError)
+
+	startRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/dst_legacy_error/realtime/start",
+		"",
+	)
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start status = %d body = %s", startRecorder.Code, startRecorder.Body.String())
+	}
+	var started data.DataSyncTask
+	if err := json.NewDecoder(startRecorder.Body).Decode(&started); err != nil {
+		t.Fatal(err)
+	}
+	assertSanitizedTaskError(t, started.LastError)
+}
+
+func assertSanitizedTaskError(t *testing.T, value string) {
+	t.Helper()
+	if value == "" {
+		t.Fatal("expected sanitized error")
+	}
+	for _, forbidden := range []string{"/api/v3/klines", "symbol=BTCUSDT", "endTime=", "startTime=", "https://"} {
+		if strings.Contains(value, forbidden) {
+			t.Fatalf("error leaks %q: %s", forbidden, value)
+		}
+	}
+	if !strings.Contains(value, "api.binance.com") || !strings.Contains(value, "EOF") {
+		t.Fatalf("sanitized error lost useful context: %s", value)
 	}
 }

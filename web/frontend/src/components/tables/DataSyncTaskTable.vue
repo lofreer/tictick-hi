@@ -29,6 +29,7 @@ import { useI18n } from "vue-i18n";
 
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import type { DataSyncTask } from "@/types/app";
+import { sanitizeExternalError } from "@/utils/errorText";
 
 const props = defineProps<{ tasks: DataSyncTask[]; repairingTaskId?: string }>();
 const emit = defineEmits<{
@@ -193,10 +194,11 @@ function gapSummaryCell(row: DataSyncTask) {
 }
 
 function lastErrorCell(row: DataSyncTask) {
-  if (!row.lastError) {
+  const detail = sanitizeExternalError(row.lastError);
+  if (!detail) {
     return h(NText, { depth: 3 }, () => "-");
   }
-  const summary = summarizeError(row.lastError);
+  const summary = summarizeError(detail);
   return h(
     NTooltip,
     { trigger: "hover", width: 420 },
@@ -206,7 +208,7 @@ function lastErrorCell(row: DataSyncTask) {
           "span",
           {
             class: "task-error-text",
-            title: row.lastError,
+            title: detail,
           },
           summary,
         ),
@@ -220,7 +222,7 @@ function lastErrorCell(row: DataSyncTask) {
               overflowWrap: "anywhere",
             },
           },
-          row.lastError,
+          detail,
         ),
     },
   );

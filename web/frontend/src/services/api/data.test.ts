@@ -142,7 +142,8 @@ describe("data api", () => {
                   missingCandles: 1,
                 },
               },
-              lastError: "temporary EOF",
+              lastError:
+                'binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF',
               attemptCount: 3,
               nextAttemptAt: "2026-06-28T01:30:00Z",
             },
@@ -165,7 +166,7 @@ describe("data api", () => {
             missingCandles: 1,
           },
         },
-        lastError: "temporary EOF",
+        lastError: 'binance klines: Get "api.binance.com": EOF',
         nextAttemptAt: "2026-06-28T01:30:00Z",
       },
     ]);
