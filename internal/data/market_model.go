@@ -19,6 +19,7 @@ type MarketInstrumentQuery struct {
 	Exchange string
 	Query    string
 	Limit    int
+	Status   string
 }
 
 type MarketInstrumentSyncResult struct {

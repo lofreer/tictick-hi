@@ -460,7 +460,7 @@ describe("useResearchWorkspace", () => {
     await workspace.createTask();
     await flushPromises();
 
-    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT" });
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT", status: "all" });
     expect(dataApi.createTask).toHaveBeenCalledWith({
       exchange: "binance",
       symbol: "SOLUSDT",
@@ -483,7 +483,7 @@ describe("useResearchWorkspace", () => {
     await workspace.createTask();
     await flushPromises();
 
-    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT" });
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT", status: "all" });
     expect(dataApi.createTask).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledWith("交易对不在当前交易所可用目录中，请先刷新交易对或更换标的。");
   });

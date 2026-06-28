@@ -127,6 +127,7 @@ func addMarketContractPaths(paths map[string]apiPathItem) {
 		withParameters(
 			queryParam("exchange", true, "Exchange id", map[string]any{"type": "string", "enum": []string{"binance", "okx"}}),
 			queryParam("q", false, "Search text", map[string]any{"type": "string"}),
+			queryParam("status", false, "Instrument status filter", map[string]any{"type": "string", "enum": []string{"active", "inactive", "all"}}),
 			queryParam("limit", false, "Maximum number of instruments", map[string]any{"type": "integer", "minimum": 1, "maximum": 50}),
 		),
 		withErrors(http.StatusBadRequest),

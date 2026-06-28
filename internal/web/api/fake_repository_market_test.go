@@ -42,13 +42,20 @@ func (repository *fakeRepository) ListMarketInstruments(
 	query data.MarketInstrumentQuery,
 ) ([]data.MarketInstrument, error) {
 	search := strings.ToUpper(strings.TrimSpace(query.Query))
+	status := strings.ToLower(strings.TrimSpace(query.Status))
+	if status == "" {
+		status = "active"
+	}
 	limit := query.Limit
 	if limit <= 0 || limit > 50 {
 		limit = 50
 	}
 	var results []data.MarketInstrument
 	for _, instrument := range repository.marketInstruments {
-		if instrument.Exchange != query.Exchange || instrument.Status != "active" {
+		if instrument.Exchange != query.Exchange {
+			continue
+		}
+		if status != "all" && instrument.Status != status {
 			continue
 		}
 		if search != "" &&

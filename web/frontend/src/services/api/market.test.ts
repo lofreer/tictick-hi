@@ -28,11 +28,11 @@ describe("market api", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(marketApi.listInstruments({ exchange: "binance", q: "SOL", limit: 20 })).resolves.toMatchObject([
+    await expect(marketApi.listInstruments({ exchange: "binance", q: "SOL", limit: 20, status: "all" })).resolves.toMatchObject([
       { exchange: "binance", symbol: "SOLUSDT", baseAsset: "SOL" },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/market/instruments?exchange=binance&q=SOL&limit=20",
+      "/api/market/instruments?exchange=binance&q=SOL&limit=20&status=all",
       expect.objectContaining({ method: "GET" }),
     );
   });

@@ -5,6 +5,7 @@ export type MarketInstrumentQuery = {
   exchange: string;
   limit?: number;
   q?: string;
+  status?: "active" | "inactive" | "all";
 };
 
 export const marketApi = {
@@ -15,6 +16,9 @@ export const marketApi = {
     }
     if (query.limit) {
       params.set("limit", String(query.limit));
+    }
+    if (query.status) {
+      params.set("status", query.status);
     }
     return apiClient.get<MarketInstrument[]>(`/market/instruments?${params.toString()}`);
   },

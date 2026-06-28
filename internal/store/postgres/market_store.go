@@ -57,6 +57,7 @@ func (store *Store) ListMarketInstruments(
 ) ([]data.MarketInstrument, error) {
 	limit := normalizeMarketInstrumentLimit(query.Limit)
 	search := strings.ToUpper(strings.TrimSpace(query.Query))
+	status := normalizeMarketInstrumentStatusFilter(query.Status)
 	prefix := search + "%"
 	contains := "%" + search + "%"
 
@@ -65,7 +66,7 @@ func (store *Store) ListMarketInstruments(
 		       search_priority, synced_at, created_at, updated_at
 		  FROM market_instruments
 		 WHERE exchange = $1
-		   AND status = 'active'
+		   AND ($5 = 'all' OR status = $5)
 		   AND (
 		     $2 = ''
 		     OR symbol LIKE $3
@@ -82,13 +83,15 @@ func (store *Store) ListMarketInstruments(
 		     WHEN quote_asset LIKE $3 THEN 3
 		     ELSE 4
 		   END,
+		   CASE WHEN status = 'active' THEN 0 ELSE 1 END,
 		   search_priority,
 		   symbol
-		 LIMIT $5`,
+		 LIMIT $6`,
 		query.Exchange,
 		search,
 		prefix,
 		contains,
+		status,
 		limit,
 	)
 	if err != nil {
@@ -216,6 +219,14 @@ func normalizeMarketInstrumentLimit(limit int) int {
 		return maxMarketInstrumentLimit
 	}
 	return limit
+}
+
+func normalizeMarketInstrumentStatusFilter(status string) string {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status == "inactive" || status == "all" {
+		return status
+	}
+	return "active"
 }
 
 func normalizedInstrumentStatus(status string) string {

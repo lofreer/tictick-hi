@@ -321,6 +321,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.requiredFields": "请填写交易所、交易对和周期。",
     "research.invalidSymbolFormat": "交易对格式不符合当前交易所。",
     "research.instrumentNotInCatalog": "交易对不在当前交易所可用目录中，请先刷新交易对或更换标的。",
+    "research.instrumentInactive": "交易对已不在当前交易所 active 目录中，请刷新交易对或选择仍可用的标的。",
     "research.instrumentValidationFailed": "校验交易对目录失败，请稍后重试。",
     "research.taskCreated": "数据同步任务已创建。",
     "research.taskDeleted": "数据同步任务已删除。",

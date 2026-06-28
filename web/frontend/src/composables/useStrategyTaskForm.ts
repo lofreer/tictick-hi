@@ -14,6 +14,7 @@ import type {
   StrategyParamValue,
   StrategyParamValues,
 } from "@/types/app";
+import { readMarketInstrumentCatalogStatus } from "@/utils/marketInstrumentCatalog";
 import {
   coerceSymbolForExchange,
   isSymbolFormatForExchange,
@@ -173,6 +174,22 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
           ? t("research.invalidSymbolFormat")
           : t("strategy.requiredFields"),
       );
+      return;
+    }
+
+    let instrumentStatus: "active" | "inactive" | "missing";
+    try {
+      instrumentStatus = await readMarketInstrumentCatalogStatus(form.exchange, normalizeSymbolInput(form.symbol));
+    } catch {
+      message.error(t("research.instrumentValidationFailed"));
+      return;
+    }
+    if (instrumentStatus === "inactive") {
+      message.error(t("research.instrumentInactive"));
+      return;
+    }
+    if (instrumentStatus === "missing") {
+      message.error(t("research.instrumentNotInCatalog"));
       return;
     }
 

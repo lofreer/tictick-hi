@@ -1,7 +1,7 @@
 import { errorMessage, toISOString, type ResearchForm } from "@/composables/researchWorkspaceHelpers";
 import { dataApi } from "@/services/api/data";
-import { marketApi } from "@/services/api/market";
 import type { CreateDataSyncTask } from "@/types/app";
+import { readMarketInstrumentCatalogStatus } from "@/utils/marketInstrumentCatalog";
 import { normalizeSymbolInput } from "@/utils/marketSymbols";
 
 type ResearchTaskCreateOptions = {
@@ -17,14 +17,18 @@ type ResearchTaskCreateOptions = {
 
 export async function createResearchDataSyncTask(options: ResearchTaskCreateOptions) {
   const request = createDataSyncTaskRequest(options.form);
-  let instrumentExists = false;
+  let instrumentStatus: "active" | "inactive" | "missing";
   try {
-    instrumentExists = await activeCatalogInstrumentExists(request.exchange, request.symbol);
+    instrumentStatus = await readMarketInstrumentCatalogStatus(request.exchange, request.symbol);
   } catch {
     options.message.error(options.t("research.instrumentValidationFailed"));
     return;
   }
-  if (!instrumentExists) {
+  if (instrumentStatus === "inactive") {
+    options.message.error(options.t("research.instrumentInactive"));
+    return;
+  }
+  if (instrumentStatus === "missing") {
     options.message.error(options.t("research.instrumentNotInCatalog"));
     return;
   }
@@ -47,9 +51,4 @@ function createDataSyncTaskRequest(form: ResearchForm): CreateDataSyncTask {
     startTime: toISOString(form.startTime),
     endTime: toISOString(form.endTime),
   };
-}
-
-async function activeCatalogInstrumentExists(exchangeID: string, symbolValue: string) {
-  const instruments = await marketApi.listInstruments({ exchange: exchangeID, limit: 1, q: symbolValue });
-  return instruments.some((instrument) => instrument.exchange === exchangeID && instrument.symbol === symbolValue);
 }

@@ -47,6 +47,30 @@ func TestMarketInstrumentRoutesSearchCatalog(t *testing.T) {
 	if len(instruments) != 1 || instruments[0].Symbol != "SOLUSDT" {
 		t.Fatalf("instruments = %#v, want SOLUSDT only", instruments)
 	}
+
+	allRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/market/instruments?exchange=binance&q=solbtc&status=all&limit=1", "")
+	if allRecorder.Code != http.StatusOK {
+		t.Fatalf("all status = %d body = %s", allRecorder.Code, allRecorder.Body.String())
+	}
+	var allInstruments []data.MarketInstrument
+	if err := json.NewDecoder(allRecorder.Body).Decode(&allInstruments); err != nil {
+		t.Fatal(err)
+	}
+	if len(allInstruments) != 1 || allInstruments[0].Symbol != "SOLBTC" || allInstruments[0].Status != "inactive" {
+		t.Fatalf("all instruments = %#v, want inactive SOLBTC", allInstruments)
+	}
+
+	inactiveRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/market/instruments?exchange=binance&q=sol&status=inactive", "")
+	if inactiveRecorder.Code != http.StatusOK {
+		t.Fatalf("inactive status = %d body = %s", inactiveRecorder.Code, inactiveRecorder.Body.String())
+	}
+	var inactiveInstruments []data.MarketInstrument
+	if err := json.NewDecoder(inactiveRecorder.Body).Decode(&inactiveInstruments); err != nil {
+		t.Fatal(err)
+	}
+	if len(inactiveInstruments) != 1 || inactiveInstruments[0].Symbol != "SOLBTC" {
+		t.Fatalf("inactive instruments = %#v, want SOLBTC only", inactiveInstruments)
+	}
 }
 
 func TestMarketCandleGapRouteScansPersistedHistory(t *testing.T) {
@@ -286,6 +310,7 @@ func TestMarketInstrumentRoutesRejectInvalidQuery(t *testing.T) {
 		"/api/market/instruments?exchange=coinbase",
 		"/api/market/instruments?exchange=binance&limit=zero",
 		"/api/market/instruments?exchange=binance&limit=0",
+		"/api/market/instruments?exchange=binance&status=delisted",
 		"/api/market/candle-gaps",
 		"/api/market/candle-gaps?exchange=binance&symbol=BTCUSDT&interval=tick",
 		"/api/market/candle-gaps?exchange=binance&symbol=BTC-USDT&interval=1m",

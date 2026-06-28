@@ -9,6 +9,7 @@ import {
 } from "@/composables/useStrategyTaskForm";
 import { i18n } from "@/i18n";
 import { backtestsApi } from "@/services/api/backtests";
+import { marketApi } from "@/services/api/market";
 import { strategiesApi } from "@/services/api/strategies";
 import { tradingApi } from "@/services/api/trading";
 import type { StrategyDefinition, StrategyParamSpec } from "@/types/app";
@@ -16,6 +17,7 @@ import type { StrategyDefinition, StrategyParamSpec } from "@/types/app";
 const apiMocks = vi.hoisted(() => ({
   createBacktest: vi.fn(),
   createTradingTask: vi.fn(),
+  listInstruments: vi.fn(),
   listStrategies: vi.fn(),
 }));
 
@@ -30,6 +32,10 @@ const routerMocks = vi.hoisted(() => ({
 
 vi.mock("@/services/api/backtests", () => ({
   backtestsApi: { createBacktest: apiMocks.createBacktest },
+}));
+
+vi.mock("@/services/api/market", () => ({
+  marketApi: { listInstruments: apiMocks.listInstruments },
 }));
 
 vi.mock("@/services/api/strategies", () => ({
@@ -54,6 +60,35 @@ describe("strategy task form", () => {
     apiMocks.listStrategies.mockResolvedValue([strategyDefinition()]);
     apiMocks.createBacktest.mockResolvedValue({ id: "bt_1" });
     apiMocks.createTradingTask.mockResolvedValue({ id: "tt_1" });
+    apiMocks.listInstruments.mockResolvedValue([
+      {
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        baseAsset: "BTC",
+        quoteAsset: "USDT",
+        instrumentType: "spot",
+        status: "active",
+        searchPriority: 1,
+      },
+      {
+        exchange: "binance",
+        symbol: "SOLUSDT",
+        baseAsset: "SOL",
+        quoteAsset: "USDT",
+        instrumentType: "spot",
+        status: "active",
+        searchPriority: 20,
+      },
+      {
+        exchange: "okx",
+        symbol: "SOL-USDT",
+        baseAsset: "SOL",
+        quoteAsset: "USDT",
+        instrumentType: "spot",
+        status: "active",
+        searchPriority: 20,
+      },
+    ]);
   });
 
   it("creates defaults from strategy parameter specs", () => {
@@ -132,6 +167,7 @@ describe("strategy task form", () => {
         symbol: "SOLUSDT",
       }),
     );
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT", status: "all" });
   });
 
   it("blocks backtest submit when the symbol format does not match the exchange", async () => {
@@ -180,6 +216,32 @@ describe("strategy task form", () => {
         symbol: "SOL-USDT",
       }),
     );
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "okx", limit: 1, q: "SOL-USDT", status: "all" });
+  });
+
+  it("blocks backtest submit when the catalog symbol is inactive", async () => {
+    apiMocks.listInstruments.mockResolvedValueOnce([
+      {
+        exchange: "binance",
+        symbol: "SOLUSDT",
+        baseAsset: "SOL",
+        quoteAsset: "USDT",
+        instrumentType: "spot",
+        status: "inactive",
+        searchPriority: 20,
+      },
+    ]);
+    const taskForm = mountTaskForm("backtest");
+    await flushPromises();
+
+    taskForm.form.symbol = "SOLUSDT";
+    await flushPromises();
+
+    await taskForm.submit();
+    await flushPromises();
+
+    expect(backtestsApi.createBacktest).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("交易对已不在当前交易所 active 目录中，请刷新交易对或选择仍可用的标的。");
   });
 });
 

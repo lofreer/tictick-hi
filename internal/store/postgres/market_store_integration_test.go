@@ -50,6 +50,32 @@ func TestIntegrationListMarketInstrumentsSearchesActiveCatalog(t *testing.T) {
 	if instruments[0].BaseAsset != "ITCAT" || instruments[0].QuoteAsset != "USDT" {
 		t.Fatalf("unexpected instrument metadata: %#v", instruments[0])
 	}
+
+	allInstruments, err := store.ListMarketInstruments(ctx, data.MarketInstrumentQuery{
+		Exchange: "binance",
+		Query:    "itcat",
+		Limit:    10,
+		Status:   "all",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(allInstruments) != 2 || allInstruments[0].Symbol != activeSymbol || allInstruments[1].Symbol != inactiveSymbol {
+		t.Fatalf("all instruments = %#v, want active then inactive", allInstruments)
+	}
+
+	inactiveInstruments, err := store.ListMarketInstruments(ctx, data.MarketInstrumentQuery{
+		Exchange: "binance",
+		Query:    "itcat",
+		Limit:    10,
+		Status:   "inactive",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inactiveInstruments) != 1 || inactiveInstruments[0].Symbol != inactiveSymbol {
+		t.Fatalf("inactive instruments = %#v, want only inactive %s", inactiveInstruments, inactiveSymbol)
+	}
 }
 
 func TestIntegrationGetActiveMarketInstrumentRequiresExactActiveSymbol(t *testing.T) {

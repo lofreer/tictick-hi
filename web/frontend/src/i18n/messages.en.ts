@@ -321,6 +321,7 @@ export const enUSMessages: Record<string, string> = {
     "research.requiredFields": "Fill exchange, symbol, and interval.",
     "research.invalidSymbolFormat": "Symbol format does not match the selected exchange.",
     "research.instrumentNotInCatalog": "The symbol is not in the active catalog for this exchange. Refresh instruments or choose another symbol.",
+    "research.instrumentInactive": "The symbol exists in the catalog but is not active. Refresh instruments or choose an active market.",
     "research.instrumentValidationFailed": "Failed to validate the instrument catalog. Try again later.",
     "research.taskCreated": "Data sync task created.",
     "research.taskDeleted": "Data sync task deleted.",

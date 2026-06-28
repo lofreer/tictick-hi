@@ -147,6 +147,7 @@ func parseMarketInstrumentQuery(r *http.Request) (data.MarketInstrumentQuery, er
 		Exchange: strings.TrimSpace(values.Get("exchange")),
 		Query:    strings.ToUpper(strings.TrimSpace(values.Get("q"))),
 		Limit:    20,
+		Status:   "active",
 	}
 	if query.Exchange == "" {
 		return data.MarketInstrumentQuery{}, fmt.Errorf("exchange is required")
@@ -163,6 +164,12 @@ func parseMarketInstrumentQuery(r *http.Request) (data.MarketInstrumentQuery, er
 			limit = maxMarketInstrumentQueryLimit
 		}
 		query.Limit = limit
+	}
+	if rawStatus := strings.ToLower(strings.TrimSpace(values.Get("status"))); rawStatus != "" {
+		if rawStatus != "active" && rawStatus != "inactive" && rawStatus != "all" {
+			return data.MarketInstrumentQuery{}, fmt.Errorf("status must be active, inactive or all")
+		}
+		query.Status = rawStatus
 	}
 	return query, nil
 }
