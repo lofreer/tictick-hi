@@ -135,6 +135,8 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     lastError: sanitizeExternalError(response.lastError),
     attemptCount: response.attemptCount,
     nextAttemptAt: response.nextAttemptAt,
+    exchangeBackoffUntil: response.exchangeBackoffUntil,
+    exchangeBackoffLastError: sanitizeExternalError(response.exchangeBackoffLastError),
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   };

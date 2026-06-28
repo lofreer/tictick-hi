@@ -210,6 +210,7 @@ func sanitizeDataSyncGapRepairResult(result data.DataSyncGapRepairResult) data.D
 
 func sanitizeDataSyncTask(task data.DataSyncTask) data.DataSyncTask {
 	task.LastError = sanitizeExternalError(task.LastError)
+	task.ExchangeBackoffError = sanitizeExternalError(task.ExchangeBackoffError)
 	return task
 }
 

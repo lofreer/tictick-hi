@@ -241,17 +241,18 @@ func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 	repository, server, cookie := newAuthenticatedTestServer(t)
 	repository.tasks = []data.DataSyncTask{
 		{
-			ID:           "dst_legacy_error",
-			Exchange:     "binance",
-			Symbol:       "BTCUSDT",
-			Interval:     "1m",
-			Status:       data.TaskStatusPending,
-			SyncEnabled:  true,
-			LastError:    `binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF`,
-			DataHealth:   data.DataSyncHealthSyncing,
-			AttemptCount: 1,
-			CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-			UpdatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			ID:                   "dst_legacy_error",
+			Exchange:             "binance",
+			Symbol:               "BTCUSDT",
+			Interval:             "1m",
+			Status:               data.TaskStatusPending,
+			SyncEnabled:          true,
+			LastError:            `binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF`,
+			ExchangeBackoffError: `binance klines temporary unavailable: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF`,
+			DataHealth:           data.DataSyncHealthSyncing,
+			AttemptCount:         1,
+			CreatedAt:            time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			UpdatedAt:            time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -267,6 +268,7 @@ func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 		t.Fatalf("tasks length = %d, want 1", len(tasks))
 	}
 	assertSanitizedTaskError(t, tasks[0].LastError)
+	assertSanitizedTaskError(t, tasks[0].ExchangeBackoffError)
 
 	startRecorder := serveAuthenticated(
 		server,
@@ -283,6 +285,7 @@ func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSanitizedTaskError(t, started.LastError)
+	assertSanitizedTaskError(t, started.ExchangeBackoffError)
 }
 
 func assertSanitizedTaskError(t *testing.T, value string) {

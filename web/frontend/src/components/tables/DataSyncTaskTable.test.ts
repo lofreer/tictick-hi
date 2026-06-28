@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(1900);
+    expect(table.props("scrollX")).toBe(2060);
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).not.toContain("/api/v3/klines");
@@ -57,6 +57,34 @@ describe("DataSyncTaskTable", () => {
     });
 
     expect(wrapper.text()).toContain("2026-06-28T01:30:00Z");
+  });
+
+  it("shows exchange-level backoff without leaking request URLs", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            exchange: "binance",
+            symbol: "BTCUSDT",
+            interval: "1m",
+            status: "pending",
+            dataHealth: "retrying",
+            exchangeBackoffUntil: "2026-06-28T01:45:00Z",
+            exchangeBackoffLastError:
+              'binance klines temporary unavailable: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF',
+          }),
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain("交易所退避");
+    const backoff = wrapper.get(".task-exchange-backoff");
+    expect(backoff.text()).toBe("2026-06-28T01:45:00Z");
+    expect(backoff.attributes("title")).toContain("api.binance.com");
+    expect(backoff.attributes("title")).not.toContain("/api/v3/klines");
+    expect(backoff.attributes("title")).not.toContain("symbol=BTCUSDT");
   });
 
   it("shows backend-derived data health", () => {

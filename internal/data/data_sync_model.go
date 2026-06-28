@@ -31,6 +31,8 @@ type DataSyncTask struct {
 	LastError            string              `json:"lastError,omitempty"`
 	AttemptCount         int                 `json:"attemptCount"`
 	NextAttemptAt        *time.Time          `json:"nextAttemptAt,omitempty"`
+	ExchangeBackoffUntil *time.Time          `json:"exchangeBackoffUntil,omitempty"`
+	ExchangeBackoffError string              `json:"exchangeBackoffLastError,omitempty"`
 	CreatedAt            time.Time           `json:"createdAt"`
 	UpdatedAt            time.Time           `json:"updatedAt"`
 }

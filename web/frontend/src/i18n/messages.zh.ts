@@ -299,6 +299,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.sync": "同步",
     "research.lastError": "最近错误",
     "research.nextAttemptAt": "下次重试",
+    "research.exchangeBackoffUntil": "交易所退避",
     "research.actions": "操作",
     "research.startRealtime": "开启实时",
     "research.stopRealtime": "停止实时",

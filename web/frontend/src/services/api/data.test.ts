@@ -147,6 +147,9 @@ describe("data api", () => {
                 'binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF',
               attemptCount: 3,
               nextAttemptAt: "2026-06-28T01:30:00Z",
+              exchangeBackoffUntil: "2026-06-28T01:45:00Z",
+              exchangeBackoffLastError:
+                'binance klines temporary unavailable: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF',
             },
           ]),
           { status: 200 },
@@ -170,6 +173,8 @@ describe("data api", () => {
         },
         lastError: 'binance klines: Get "api.binance.com": EOF',
         nextAttemptAt: "2026-06-28T01:30:00Z",
+        exchangeBackoffUntil: "2026-06-28T01:45:00Z",
+        exchangeBackoffLastError: 'binance klines temporary unavailable: Get "api.binance.com": EOF',
       },
     ]);
   });

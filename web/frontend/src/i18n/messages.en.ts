@@ -299,6 +299,7 @@ export const enUSMessages: Record<string, string> = {
     "research.sync": "Sync",
     "research.lastError": "Last error",
     "research.nextAttemptAt": "Next retry",
+    "research.exchangeBackoffUntil": "Exchange backoff",
     "research.actions": "Actions",
     "research.startRealtime": "Start realtime",
     "research.stopRealtime": "Stop realtime",

@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1900"
+    :scroll-x="2060"
     size="small"
   />
 </template>
@@ -98,6 +98,12 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     key: "nextAttemptAt",
     minWidth: 150,
     render: (row) => row.nextAttemptAt ?? "-",
+  },
+  {
+    title: t("research.exchangeBackoffUntil"),
+    key: "exchangeBackoffUntil",
+    minWidth: 160,
+    render: exchangeBackoffCell,
   },
   {
     title: t("research.actions"),
@@ -286,6 +292,43 @@ function lastErrorCell(row: DataSyncTask) {
   );
 }
 
+function exchangeBackoffCell(row: DataSyncTask) {
+  if (!row.exchangeBackoffUntil) {
+    return h(NText, { depth: 3 }, () => "-");
+  }
+  const detail = sanitizeExternalError(row.exchangeBackoffLastError);
+  if (!detail) {
+    return row.exchangeBackoffUntil;
+  }
+  return h(
+    NTooltip,
+    { trigger: "hover", width: 420 },
+    {
+      trigger: () =>
+        h(
+          "span",
+          {
+            class: "task-exchange-backoff",
+            title: detail,
+          },
+          row.exchangeBackoffUntil,
+        ),
+      default: () =>
+        h(
+          "span",
+          {
+            style: {
+              display: "block",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            },
+          },
+          detail,
+        ),
+    },
+  );
+}
+
 function summarizeError(value: string) {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= 90) {
@@ -331,6 +374,15 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
   max-width: 100%;
   overflow: hidden;
   color: var(--tt-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-exchange-backoff {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--tt-warning);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

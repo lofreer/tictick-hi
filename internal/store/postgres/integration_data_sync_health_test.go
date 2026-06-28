@@ -14,6 +14,8 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 	ctx, cancel := testContext(t)
 	defer cancel()
 
+	clearIntegrationExchangeBackoff(t, ctx, store, "binance")
+
 	start := time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC)
 	taskSymbols := map[string]string{
 		"gap":     integrationSymbol("DHG"),
@@ -91,6 +93,57 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 	}
 	if gapSummaryByID[taskIDs["ok"]] != nil {
 		t.Fatalf("ok task gap summary = %#v, want nil", gapSummaryByID[taskIDs["ok"]])
+	}
+}
+
+func TestIntegrationListDataSyncTasksReportsExchangeBackoff(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	clearIntegrationExchangeBackoff(t, ctx, store, "binance")
+
+	taskID := integrationID("dst")
+	symbol := integrationSymbol("DHB")
+	backoffUntil := time.Now().UTC().Add(time.Hour)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = 'binance'`)
+	})
+	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusPending, true, false, nil, nil, "")
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_exchange_backoffs (exchange, next_attempt_at, last_error, updated_at)
+		VALUES ('binance', $1, $2, now())`,
+		backoffUntil,
+		`binance klines temporary unavailable: api.binance.com: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF`,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	tasks, err := store.ListDataSyncTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *data.DataSyncTask
+	for index := range tasks {
+		if tasks[index].ID == taskID {
+			found = &tasks[index]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("backoff task not listed")
+	}
+	if found.DataHealth != data.DataSyncHealthRetrying {
+		t.Fatalf("data health = %q, want retrying", found.DataHealth)
+	}
+	if found.ExchangeBackoffUntil == nil || found.ExchangeBackoffUntil.Sub(backoffUntil).Abs() > time.Second {
+		t.Fatalf("exchange backoff until = %#v, want %s", found.ExchangeBackoffUntil, backoffUntil)
+	}
+	if found.ExchangeBackoffError == "" {
+		t.Fatal("exchange backoff error should be exposed before API sanitization")
 	}
 }
 
@@ -342,4 +395,16 @@ func insertDataHealthTask(
 	); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func clearIntegrationExchangeBackoff(t *testing.T, ctx context.Context, store *Store, exchange string) {
+	t.Helper()
+	if _, err := store.pool.Exec(ctx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = $1`, exchange); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = $1`, exchange)
+	})
 }
