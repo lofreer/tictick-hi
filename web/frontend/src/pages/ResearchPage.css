@@ -102,6 +102,9 @@
 }
 
 .research-chart-body {
+  --tt-chart-fixed-inline-end-gutter: 12px;
+  --tt-chart-fixed-block-end-gutter: 12px;
+
   position: relative;
   display: block;
   flex: 0 0 var(--research-chart-viewport-height);

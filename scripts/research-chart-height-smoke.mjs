@@ -14,6 +14,8 @@ const samplesPerViewport = parsePositiveInt(process.env.SMOKE_SAMPLES, 30);
 const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
+const axisInsetTolerance = parsePositiveInt(process.env.SMOKE_AXIS_INSET_TOLERANCE, 6);
+const maxAxisInset = parsePositiveInt(process.env.SMOKE_MAX_AXIS_INSET, 48);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -419,12 +421,30 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
+  if (body.right - rightAxisCanvas.right < axisInsetTolerance) {
+    throw new Error(
+      `${label} chart right price axis is flush with the clipped body edge: ${JSON.stringify({
+        minInset: axisInsetTolerance,
+        body,
+        rightAxisCanvas,
+      })}`,
+    );
+  }
   if (!bottomTimeAxisCanvas) {
     throw new Error(
       `${label} missing bounded bottom time-axis canvas: ${JSON.stringify({
         body,
         tv,
         canvases: sample.canvases,
+      })}`,
+    );
+  }
+  if (body.bottom - bottomTimeAxisCanvas.bottom < axisInsetTolerance) {
+    throw new Error(
+      `${label} chart bottom time axis is flush with the clipped body edge: ${JSON.stringify({
+        minInset: axisInsetTolerance,
+        body,
+        bottomTimeAxisCanvas,
       })}`,
     );
   }
@@ -506,10 +526,22 @@ function assertStable(result) {
 
   const fixedBodyHeight = result.last.body;
   for (const key of ["chart", "canvas", "tv"]) {
-    const drift = Math.abs(result.last[key] - fixedBodyHeight);
-    if (drift > heightTolerance) {
+    const overflow = result.last[key] - fixedBodyHeight;
+    if (overflow > heightTolerance) {
       throw new Error(
-        `${result.label} ${key} height drifted from fixed body by ${drift}px: ${JSON.stringify({
+        `${result.label} ${key} height overflowed fixed body by ${overflow}px: ${JSON.stringify({
+          body: fixedBodyHeight,
+          last: result.last,
+          min: result.min,
+          max: result.max,
+        })}`,
+      );
+    }
+    const inset = fixedBodyHeight - result.last[key];
+    if (inset > maxAxisInset) {
+      throw new Error(
+        `${result.label} ${key} left too much unused fixed body height: ${JSON.stringify({
+          maxInset: maxAxisInset,
           body: fixedBodyHeight,
           last: result.last,
           min: result.min,

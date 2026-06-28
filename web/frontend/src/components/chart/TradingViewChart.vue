@@ -50,6 +50,7 @@ const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
 const minTimeAxisEdgePaddingBars = 6;
 const timeAxisEdgePaddingPixels = 64;
+const maxFixedViewportGutter = 48;
 
 onMounted(() => {
   if (!rootRef.value || !containerRef.value) return;
@@ -77,7 +78,7 @@ onMounted(() => {
 
   observedResizeHost = readResizeHost();
   if (observedResizeHost) {
-    lastObservedHostWidth = initialSize.width;
+    lastObservedHostWidth = readHostWidth(observedResizeHost) ?? initialSize.width;
     resizeObserver = new ResizeObserver(handleObservedResize);
     resizeObserver.observe(observedResizeHost);
   }
@@ -233,11 +234,27 @@ function readHostSize(refreshFixedViewportHeight = false) {
   const measuredHeight = fixedViewport
     ? readFixedViewportHeight(host, bounds, refreshFixedViewportHeight)
     : readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
-  const width = measuredWidth ?? fallbackSize.width;
-  const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
+  const rawWidth = measuredWidth ?? fallbackSize.width;
+  const rawHeight = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
+  const gutter = fixedViewport ? readFixedViewportGutter(host) : { inlineEnd: 0, blockEnd: 0 };
+  const width = subtractSafeGutter(rawWidth, gutter.inlineEnd);
+  const height = subtractSafeGutter(rawHeight, gutter.blockEnd);
   if (width <= 0 || height <= 0) return null;
 
   return { width, height, fixedViewport };
+}
+
+function readFixedViewportGutter(element: HTMLElement) {
+  return {
+    inlineEnd: readCSSPixelVariable(element, "--tt-chart-fixed-inline-end-gutter"),
+    blockEnd: readCSSPixelVariable(element, "--tt-chart-fixed-block-end-gutter"),
+  };
+}
+
+function subtractSafeGutter(size: number, gutter: number) {
+  const flooredSize = Math.floor(size);
+  const flooredGutter = Math.min(Math.floor(gutter), Math.max(0, flooredSize - 1));
+  return Math.max(1, flooredSize - flooredGutter);
 }
 
 function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect, refresh: boolean) {
@@ -298,6 +315,12 @@ function readResizeEntryWidth(entry: ResizeObserverEntry) {
 function readPixelSize(element: HTMLElement, property: "width" | "height" | "maxHeight") {
   const value = Number.parseFloat(window.getComputedStyle(element)[property]);
   if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
+function readCSSPixelVariable(element: HTMLElement, name: string) {
+  const value = Number.parseFloat(window.getComputedStyle(element).getPropertyValue(name));
+  if (!Number.isFinite(value) || value < 0 || value > maxFixedViewportGutter) return 0;
   return value;
 }
 

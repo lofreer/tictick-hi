@@ -57,7 +57,7 @@ export function chartTheme(mode: ThemeMode) {
     },
     rightPriceScale: {
       borderColor: dark ? "#2b3139" : "#eaecef",
-      minimumWidth: 112,
+      minimumWidth: 132,
     },
     timeScale: {
       borderColor: dark ? "#2b3139" : "#eaecef",

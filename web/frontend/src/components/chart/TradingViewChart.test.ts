@@ -22,6 +22,12 @@ vi.mock("lightweight-charts", () => ({
 }));
 
 const mockedCreateChart = vi.mocked(createChart);
+const researchViewportSize = { width: 1180, height: 640 };
+const researchViewportGutter = { inlineEnd: 12, blockEnd: 12 };
+const researchRenderSize = {
+  width: researchViewportSize.width - researchViewportGutter.inlineEnd,
+  height: researchViewportSize.height - researchViewportGutter.blockEnd,
+};
 
 function mockChartApi() {
   chartMocks.createChart.mockReturnValue({
@@ -153,8 +159,8 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         autoSize: false,
-        width: 1180,
-        height: 640,
+        width: researchRenderSize.width,
+        height: researchRenderSize.height,
       }),
     );
 
@@ -170,7 +176,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 112,
+          minimumWidth: 132,
         }),
       }),
     );
@@ -215,8 +221,8 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: 1180,
-        height: 603,
+        width: researchRenderSize.width,
+        height: 591,
       }),
     );
 
@@ -230,7 +236,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
+    expect(chartMocks.resize).toHaveBeenCalledWith(researchRenderSize.width, 592);
 
     wrapper.unmount();
     host.panel.remove();
@@ -247,8 +253,8 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: 1180,
-        height: 603,
+        width: researchRenderSize.width,
+        height: 591,
       }),
     );
 
@@ -263,7 +269,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
+    expect(chartMocks.resize).toHaveBeenCalledWith(researchRenderSize.width, 592);
 
     wrapper.unmount();
     host.panel.remove();
@@ -314,7 +320,7 @@ describe("TradingViewChart", () => {
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1190, 640);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1178, researchRenderSize.height);
 
     wrapper.unmount();
     host.panel.remove();
@@ -332,7 +338,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1190, 640);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1178, researchRenderSize.height);
 
     wrapper.unmount();
     host.panel.remove();
@@ -366,8 +372,8 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: 1000,
-        height: 580,
+        width: 988,
+        height: 568,
       }),
     );
 
@@ -385,7 +391,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 560);
+    expect(chartMocks.resize).toHaveBeenCalledWith(988, 548);
 
     wrapper.unmount();
     host.panel.remove();
@@ -399,8 +405,8 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: 1180,
-        height: 360,
+        width: researchRenderSize.width,
+        height: 348,
       }),
     );
 
@@ -414,8 +420,8 @@ describe("TradingViewChart", () => {
     const root = wrapper.get<HTMLElement>(".trading-chart").element;
     const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
 
-    expectLockedSize(root, { width: 1180, height: 640 });
-    expectLockedSize(canvasHost, { width: 1180, height: 640 });
+    expectLockedSize(root, researchRenderSize);
+    expectLockedSize(canvasHost, researchRenderSize);
 
     wrapper.unmount();
     host.panel.remove();
@@ -438,8 +444,8 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).not.toHaveBeenCalled();
-    expectLockedSize(root, { width: 1180, height: 640 });
-    expectLockedSize(canvasHost, { width: 1180, height: 640 });
+    expectLockedSize(root, researchRenderSize);
+    expectLockedSize(canvasHost, researchRenderSize);
 
     wrapper.unmount();
     host.panel.remove();
@@ -451,9 +457,11 @@ function createResearchHost(options: { declareViewportSize?: boolean; markViewpo
   panel.className = "chart-panel";
   const body = document.createElement("div");
   body.className = "research-chart-body";
+  body.style.setProperty("--tt-chart-fixed-inline-end-gutter", `${researchViewportGutter.inlineEnd}px`);
+  body.style.setProperty("--tt-chart-fixed-block-end-gutter", `${researchViewportGutter.blockEnd}px`);
   if (options.declareViewportSize !== false) {
-    body.style.width = "1180px";
-    body.style.height = "640px";
+    body.style.width = `${researchViewportSize.width}px`;
+    body.style.height = `${researchViewportSize.height}px`;
   }
   if (options.markViewport !== false) {
     body.setAttribute("data-chart-viewport", "fixed");
