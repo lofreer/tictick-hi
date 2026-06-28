@@ -52,6 +52,7 @@
               :loading="candlesLoading"
               @next="loadNextCandles"
               @previous="loadPreviousCandles"
+              @range="applyTimeRange"
             />
           </div>
           <div class="research-context">
@@ -238,6 +239,7 @@ const {
   createTask,
   deleteTask,
   exchange,
+  applyTimeRange,
   gapDetails,
   gapDetailsError,
   gapDetailsLoading,

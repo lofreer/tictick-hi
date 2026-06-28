@@ -93,6 +93,21 @@ export function nextCandleWindow(result: CandleResult | null) {
   return null;
 }
 
+export type ResearchTimeRangePreset = "latest" | "1h" | "6h" | "1d";
+
+export function candleWindowForTimeRange(preset: ResearchTimeRangePreset, now = new Date()) {
+  if (preset === "latest") return {};
+  const durationMs = {
+    "1h": 60 * 60 * 1000,
+    "6h": 6 * 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+  }[preset];
+  return {
+    from: new Date(now.getTime() - durationMs).toISOString(),
+    to: now.toISOString(),
+  };
+}
+
 export function toISOString(value: number | null) {
   return value === null ? undefined : new Date(value).toISOString();
 }

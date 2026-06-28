@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import {
   candleQuery,
+  candleWindowForTimeRange,
   canLoadNextCandleWindow,
   canLoadPreviousCandleWindow,
   errorMessage,
@@ -16,6 +17,7 @@ import {
   repairSourceTask,
   researchQuery,
   selectedTaskMatchesMarket,
+  type ResearchTimeRangePreset,
 } from "@/composables/researchWorkspaceHelpers";
 import { researchChartGapMarkers } from "@/composables/researchChartGapMarkers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
@@ -81,7 +83,6 @@ export function useResearchWorkspace() {
   watch(exchange, (nextExchange) => {
     symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
   });
-
   watch(symbol, (nextSymbol) => {
     const normalized = normalizeSymbolInput(nextSymbol);
     if (normalized !== nextSymbol) {
@@ -219,12 +220,14 @@ export function useResearchWorkspace() {
     selectedChartTask.value = task;
   }
 
-  function loadPreviousCandles() {
-    applyCandleWindow(previousCandleWindow(candleResult.value));
-  }
+  function loadPreviousCandles() { applyCandleWindow(previousCandleWindow(candleResult.value)); }
 
-  function loadNextCandles() {
-    applyCandleWindow(nextCandleWindow(candleResult.value));
+  function loadNextCandles() { applyCandleWindow(nextCandleWindow(candleResult.value)); }
+
+  function applyTimeRange(preset: ResearchTimeRangePreset, now = new Date()) {
+    const previousWindow = `${candleWindowCursor.value}|${candleWindowFrom.value}|${candleWindowTo.value}`;
+    applyCandleWindow(candleWindowForTimeRange(preset, now));
+    if (previousWindow === `${candleWindowCursor.value}|${candleWindowFrom.value}|${candleWindowTo.value}`) void loadCandles();
   }
 
   function applyCandleWindow(window: { cursor?: string; from?: string; to?: string } | null) {
@@ -367,6 +370,7 @@ export function useResearchWorkspace() {
     createTask,
     deleteTask,
     exchange,
+    applyTimeRange,
     gapDetails,
     gapDetailsError,
     gapDetailsLoading,

@@ -96,10 +96,13 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("ResearchWindowControls");
     expect(source).toContain("canLoadPreviousCandles");
     expect(source).toContain("canLoadNextCandles");
+    expect(source).toContain('@range="applyTimeRange"');
     expect(source).toContain('@previous="loadPreviousCandles"');
     expect(source).toContain('@next="loadNextCandles"');
     expect(windowControlsSource).toContain("research.previousWindow");
     expect(windowControlsSource).toContain("research.nextWindow");
+    expect(windowControlsSource).toContain("timeRangePresets");
+    expect(windowControlsSource).toContain("research.timeRange");
   });
 
   it("shows the current candle window metadata", () => {

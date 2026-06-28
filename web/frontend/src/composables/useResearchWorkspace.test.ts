@@ -350,6 +350,62 @@ describe("useResearchWorkspace", () => {
     });
   });
 
+  it("loads a fixed time range through from and to query parameters", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.getCandles.mockClear();
+
+    workspace.applyTimeRange("6h", new Date("2026-06-28T12:00:00.000Z"));
+    await flushPromises();
+
+    expect(routerMocks.replace).toHaveBeenLastCalledWith({
+      name: "research",
+      query: {
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "5m",
+        from: "2026-06-28T06:00:00.000Z",
+        to: "2026-06-28T12:00:00.000Z",
+      },
+    });
+    expect(dataApi.getCandles).toHaveBeenLastCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      from: "2026-06-28T06:00:00.000Z",
+      to: "2026-06-28T12:00:00.000Z",
+    });
+  });
+
+  it("returns to the latest candle window from an opaque cursor", async () => {
+    routerMocks.query = {
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+      cursor: "window_cursor",
+    };
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.getCandles.mockClear();
+
+    workspace.applyTimeRange("latest", new Date("2026-06-28T12:00:00.000Z"));
+    await flushPromises();
+
+    expect(routerMocks.replace).toHaveBeenLastCalledWith({
+      name: "research",
+      query: {
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "5m",
+      },
+    });
+    expect(dataApi.getCandles).toHaveBeenLastCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "5m",
+    });
+  });
+
   it("does not call the candles API for a symbol that does not match the selected exchange", async () => {
     const workspace = mountWorkspace();
     await flushPromises();
