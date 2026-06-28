@@ -27,7 +27,13 @@ func (store *Store) ClaimDataSyncTask(
 			resource: dataSyncTaskLease,
 			where: `(sync_enabled = true OR realtime_enabled = true)
 				   AND status IN ($1, $2)
-				   AND (next_attempt_at IS NULL OR next_attempt_at <= now())`,
+				   AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+				   AND NOT EXISTS (
+				     SELECT 1
+				       FROM data_sync_exchange_backoffs
+				      WHERE data_sync_exchange_backoffs.exchange = data_sync_tasks.exchange
+				        AND data_sync_exchange_backoffs.next_attempt_at > now()
+				   )`,
 			orderBy: "realtime_enabled DESC, created_at ASC",
 			args: []any{
 				data.TaskStatusPending,
@@ -199,7 +205,14 @@ func (store *Store) RecordDataSyncRetry(
 	taskErr error,
 	nextAttemptAt *time.Time,
 ) error {
-	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin record data sync retry: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	normalizedError := normalizeTaskError(taskErr)
+	_, err = tx.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
 		resource: dataSyncTaskLease,
 		assignments: []string{
 			`status = CASE
@@ -214,11 +227,41 @@ func (store *Store) RecordDataSyncRetry(
 		taskID,
 		data.TaskStatusRunning,
 		data.TaskStatusPending,
-		normalizeTaskError(taskErr),
+		normalizedError,
 		nextAttemptAt,
 	)
 	if err != nil {
 		return fmt.Errorf("record data sync retry: %w", err)
+	}
+
+	if nextAttemptAt != nil {
+		var exchangeName string
+		if err := tx.QueryRow(ctx, `
+			SELECT exchange
+			  FROM data_sync_tasks
+			 WHERE id = $1`,
+			taskID,
+		).Scan(&exchangeName); err != nil {
+			return fmt.Errorf("read data sync retry exchange: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO data_sync_exchange_backoffs (exchange, next_attempt_at, last_error, updated_at)
+			VALUES ($1, $2, $3, now())
+			ON CONFLICT (exchange)
+			DO UPDATE SET
+				next_attempt_at = GREATEST(data_sync_exchange_backoffs.next_attempt_at, EXCLUDED.next_attempt_at),
+				last_error = EXCLUDED.last_error,
+				updated_at = now()`,
+			exchangeName,
+			nextAttemptAt,
+			normalizedError,
+		); err != nil {
+			return fmt.Errorf("record data sync exchange backoff: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit record data sync retry: %w", err)
 	}
 	return nil
 }

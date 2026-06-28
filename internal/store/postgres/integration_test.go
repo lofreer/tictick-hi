@@ -229,12 +229,16 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	defer cancel()
 
 	id := integrationID("dst")
+	siblingID := integrationID("dst")
 	symbol := integrationSymbol("RT")
+	siblingSymbol := integrationSymbol("RB")
 	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, true, "retry-worker")
+	insertIntegrationSyncTask(t, ctx, store, siblingID, siblingSymbol, data.TaskStatusPending, true, false, "")
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := testContext(t)
 		defer cleanupCancel()
-		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id IN ($1, $2)`, id, siblingID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = 'binance'`)
 	})
 
 	if err := store.RecordDataSyncRetry(
@@ -259,6 +263,21 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	if !row.nextAttemptAt.Valid || !row.nextAttemptAt.Time.After(time.Now().UTC()) {
 		t.Fatalf("retry should schedule a future next attempt: %#v", row)
 	}
+	backoff := readIntegrationExchangeBackoff(t, ctx, store, "binance")
+	if !backoff.Valid || !backoff.Time.After(time.Now().UTC()) {
+		t.Fatalf("retry should schedule exchange backoff: %#v", backoff)
+	}
+	health, err := store.SystemHealth(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncHealth := findIntegrationServiceHealth(health, "sync-worker")
+	if syncHealth.ExchangeBackoffCount == nil || *syncHealth.ExchangeBackoffCount < 1 {
+		t.Fatalf("system health should expose active exchange backoff: %#v", syncHealth)
+	}
+	if syncHealth.NextExchangeAttemptAt == nil || !syncHealth.NextExchangeAttemptAt.After(time.Now().UTC()) {
+		t.Fatalf("system health should expose next exchange attempt: %#v", syncHealth)
+	}
 
 	claimed, ok, err := store.ClaimDataSyncTask(ctx, "retry-worker-2", time.Minute)
 	if err != nil {
@@ -273,6 +292,22 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 		   SET next_attempt_at = now() - INTERVAL '1 second'
 		 WHERE id = $1`,
 		id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	claimed, ok, err = store.ClaimDataSyncTask(ctx, "retry-worker-2", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatalf("same exchange task should not be claimed while exchange backoff is active, task=%#v", claimed)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_exchange_backoffs
+		   SET next_attempt_at = now() - INTERVAL '1 second'
+		 WHERE exchange = 'binance'`,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -605,6 +640,35 @@ func readIntegrationSyncTask(
 		t.Fatal(err)
 	}
 	return row
+}
+
+func readIntegrationExchangeBackoff(
+	t *testing.T,
+	ctx context.Context,
+	store *Store,
+	exchangeName string,
+) sql.NullTime {
+	t.Helper()
+
+	var nextAttemptAt sql.NullTime
+	if err := store.pool.QueryRow(ctx, `
+		SELECT next_attempt_at
+		  FROM data_sync_exchange_backoffs
+		 WHERE exchange = $1`,
+		exchangeName,
+	).Scan(&nextAttemptAt); err != nil {
+		t.Fatal(err)
+	}
+	return nextAttemptAt
+}
+
+func findIntegrationServiceHealth(health data.SystemHealth, name string) data.ServiceHealth {
+	for _, service := range health.Services {
+		if service.Name == name {
+			return service
+		}
+	}
+	return data.ServiceHealth{}
 }
 
 func ptrTime(value time.Time) *time.Time {

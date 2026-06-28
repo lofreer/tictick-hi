@@ -264,10 +264,12 @@ export type Position = {
 };
 export type ServiceHealth = {
   detail?: string;
+  exchangeBackoffCount?: number;
   lastHeartbeatAt?: string;
   lockedCount?: number;
   lockedUntil?: string;
   name: string;
+  nextExchangeAttemptAt?: string;
   pendingCount?: number;
   runningCount?: number;
   staleLeaseCount?: number;

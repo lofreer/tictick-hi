@@ -318,15 +318,17 @@ type SystemHealth struct {
 }
 
 type ServiceHealth struct {
-	Name            string     `json:"name"`
-	Status          string     `json:"status"`
-	Detail          string     `json:"detail,omitempty"`
-	PendingCount    *int       `json:"pendingCount,omitempty"`
-	RunningCount    *int       `json:"runningCount,omitempty"`
-	LockedCount     *int       `json:"lockedCount,omitempty"`
-	StaleLeaseCount *int       `json:"staleLeaseCount,omitempty"`
-	LastHeartbeatAt *time.Time `json:"lastHeartbeatAt,omitempty"`
-	LockedUntil     *time.Time `json:"lockedUntil,omitempty"`
+	Name                  string     `json:"name"`
+	Status                string     `json:"status"`
+	Detail                string     `json:"detail,omitempty"`
+	PendingCount          *int       `json:"pendingCount,omitempty"`
+	RunningCount          *int       `json:"runningCount,omitempty"`
+	LockedCount           *int       `json:"lockedCount,omitempty"`
+	StaleLeaseCount       *int       `json:"staleLeaseCount,omitempty"`
+	ExchangeBackoffCount  *int       `json:"exchangeBackoffCount,omitempty"`
+	NextExchangeAttemptAt *time.Time `json:"nextExchangeAttemptAt,omitempty"`
+	LastHeartbeatAt       *time.Time `json:"lastHeartbeatAt,omitempty"`
+	LockedUntil           *time.Time `json:"lockedUntil,omitempty"`
 }
 
 type Candle struct {

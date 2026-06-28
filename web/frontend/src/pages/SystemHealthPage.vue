@@ -46,6 +46,14 @@
                   <dt>{{ t("system.staleLease") }}</dt>
                   <dd>{{ service.staleLeaseCount ?? 0 }}</dd>
                 </div>
+                <div v-if="service.exchangeBackoffCount !== undefined">
+                  <dt>{{ t("system.exchangeBackoff") }}</dt>
+                  <dd>{{ service.exchangeBackoffCount }}</dd>
+                </div>
+                <div v-if="service.nextExchangeAttemptAt !== undefined">
+                  <dt>{{ t("system.nextExchangeAttempt") }}</dt>
+                  <dd>{{ formatDate(service.nextExchangeAttemptAt) }}</dd>
+                </div>
                 <div>
                   <dt>{{ t("system.lastHeartbeat") }}</dt>
                   <dd>{{ formatDate(service.lastHeartbeatAt) }}</dd>
@@ -108,6 +116,8 @@ function hasWorkerStats(service: ServiceHealth) {
     service.runningCount !== undefined ||
     service.lockedCount !== undefined ||
     service.staleLeaseCount !== undefined ||
+    service.exchangeBackoffCount !== undefined ||
+    service.nextExchangeAttemptAt !== undefined ||
     service.lastHeartbeatAt !== undefined ||
     service.lockedUntil !== undefined
   );
