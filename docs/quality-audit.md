@@ -36,7 +36,7 @@ done            用户确认关闭
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active`，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary` 和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按连续 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口；PostgreSQL + runner 集成测试已覆盖重启遗留过期 running realtime lease 后重新 claim、按持久化游标 overlap 拉取、upsert 去重、推进游标并回到研究页任务列表可观察；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康和数据同步任务 API / 研究页任务表可观察 active exchange backoff 数量、最近重试时间、任务级 `exchangeBackoffUntil` 和脱敏错误；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；Binance / OKX public market 请求已有本地固定窗口限流，`hi sync` 中 K 线同步和 instrument catalog 同一进程共享 client 限流器；已提供基于 `market_candles` 的全历史相邻缺口扫描入口，并可从研究页为单个真实缺口排补同步任务，但不会自动批量补全；仍缺完整统一状态机、分布式多实例限流和真实外部交易所恢复压测 |
-| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，显式 `from/to` 窗口会把起点到首根 K 线、末根 K 线到终点和整窗无数据识别为缺口，聚合 fallback 会返回 coverage 并标记基础窗口受限，基础 `1m` 聚合窗口已支持最多 12 页 / 60000 根的有界分页读取，默认最新聚合窗口会按尾部裁剪保留最新 K 线，`/api/candles` 返回窗口级 pagination metadata、opaque `previousCursor/nextCursor` 和当前实际窗口 `from/to/count`，PostgreSQL 集成测试覆盖基础聚合、缺口、请求窗口边界缺口、默认最新窗口查询、latest-before 查询、上一/下一窗口 metadata、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、超过 60000 根基础 K 线的缓存/分段策略和更多异常数据边界 |
+| CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，显式 `from/to` 窗口会把起点到首根 K 线、末根 K 线到终点和整窗无数据识别为缺口，聚合 fallback 会返回 coverage 并标记基础窗口受限，基础 `1m` 聚合窗口已支持最多 12 页 / 60000 根的有界分页读取，默认最新聚合窗口会按尾部裁剪保留最新 K 线，`scripts/stage1-candle-provider-perf-smoke.sh` 已用真实 PostgreSQL 验证 60000 根 `1m` 聚合成 1000 根 `1h` 的查询边界，`/api/candles` 返回窗口级 pagination metadata、opaque `previousCursor/nextCursor` 和当前实际窗口 `from/to/count`，PostgreSQL 集成测试覆盖基础聚合、缺口、请求窗口边界缺口、默认最新窗口查询、latest-before 查询、上一/下一窗口 metadata、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺长期/并发性能压测、超过 60000 根基础 K 线的缓存/分段策略和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；Binance K 线请求按 weight=2、exchangeInfo 按 weight=20 进入本地固定窗口限流，OKX history-candles 和 public instruments 按 20 次/2s 本地限流；仍缺动态读取交易所 `rateLimits`、多实例共享额度、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary`、同步窗口和交易所退避窗口，可区分正常、同步中、有缺口、失败、暂停、重试中和数据不足，并显示任务窗口内（含头尾边界）缺口数量与首个缺口范围；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时也可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先调用后端单缺口 repair API 并写入 `repairSourceTaskId`；任务表格错误列、下次重试列、交易所退避列、failed retry 操作和图表高度已有前端约束，任务表外层改为可滚动视口且操作列固定在右侧，避免窄宽度裁掉关键操作；研究页图表面板不再继承全局 `.chart-panel` fixed height / size containment，图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠，并在 761-980px 窄桌面断点降低固定图表高度预算，避免应用头部换行后首屏截掉底部时间轴；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度；root/canvas 写入由固定槽派生的完整受控 CSS 变量和 inline 尺寸锁，但不再读取这些节点作为尺寸来源；lightweight-charts 外层和内部 table 受固定 viewport 尺寸约束，图表 root/canvas/lightweight-charts 外层使用明确 `top/left` 和 JS 写入尺寸，不再用 `inset: 0` 与显式尺寸共同参与定位，内部 canvas 不再被全局强制为整图宽高，右侧价格轴通过 `rightPriceScale.minimumWidth=156` 保留标签空间，时间轴在 `fitContent()` 后按当前渲染宽度折算约 72px 的左右 logical padding，避免首尾时间标签被 canvas 边界裁掉；headless Chrome 桌面、812x1320 窄桌面和移动连续采样会先验证右侧价格轴和底部时间轴 canvas 均在固定图表槽内、图表 root/canvas/tv 与固定槽等高且不留下人为缩图留白，窄桌面还会验证初始首屏不截掉底部时间轴，再污染内部高度并验证 document、panel、chart body、chart 高度不增长且不超过 viewport 上限；显示 source / health / base interval / 当前窗口范围和当前数据源全历史缺口扫描摘要，摘要可打开详情弹窗并为单个全历史缺口排补同步任务，可通过上一/下一窗口按钮显式请求相邻 K 线窗口并在 URL 优先保留 opaque cursor，旧 `from/to` URL 仍兼容；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；`hi sync` 长运行模式会按配置后台定时同步 Binance / OKX instrument catalog 并写入 `market_instruments`；创建数据同步任务会先在前端校验 exact active catalog 命中，后端 `POST /api/data/tasks` 也会强制查询 PostgreSQL `market_instruments` active 记录，不命中返回 `market_instrument_not_active`；但仍缺退市/停牌状态的完整操作语义，图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
@@ -189,7 +189,7 @@ scripts/quality-gate.sh
 - `/api/candles` 已校验 interval、`from <= to`，并按闭区间语义限制 `from/to` 最大跨度为 `(MaxCandleLimit - 1) * interval`；倒置或超大时间范围返回 `400`。
 - CandleProvider 返回 `coverage` 元数据；高周期从 `1m` 聚合且基础窗口被 `MaxCandleLimit` 截断时，`limitedByBaseWindow=true`，研究页显示窗口受限，避免静默冒充完整窗口。
 - CandleProvider 返回窗口级 `pagination` 元数据和 opaque `previousCursor/nextCursor`；研究页可显式请求上一/下一窗口并把 cursor 保留在 URL，旧 `from/to` URL 仍兼容。
-- 仍缺大范围性能压测、超过 60000 根基础 K 线的缓存/分段策略和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
+- 已有 `scripts/stage1-candle-provider-perf-smoke.sh` 覆盖 60000 根基础 `1m` 到 1000 根 `1h` 的 PostgreSQL 查询边界；仍缺长期/并发性能压测、超过 60000 根基础 K 线的缓存/分段策略和更多异常数据边界；闭合周期信号已有 runner 侧基础过滤，未闭合 K 线不再进入策略输入。
 
 关闭条件：
 
@@ -3257,7 +3257,7 @@ Definition of Done：
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；数据同步 retry / command 状态冲突已有领域错误码；`DataSyncTask` 暴露 `repairSourceTaskId` 用于补同步任务来源追踪；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、错误码 catalog、session cookie 和 CSRF header；`web/frontend/src/types/api.generated.ts` 已从该 contract 生成；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段、generated DTO staleness、external OpenAPI validator 和 candle query 参数漂移 | 跨领域错误语义细分和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、批次内连续 open_time 游标推进、临时错误任务级 `next_attempt_at` 持久化退避、交易所级 `data_sync_exchange_backoffs` 冷却、失败后 UI retry、公开 market 请求本地固定窗口限流、全历史相邻缺口扫描和单缺口补同步排队、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、分布式多实例限流、完整状态机和批量自动修复 |
-| CandleProvider | demo | native/aggregated/gap/coverage/pagination/window metadata、opaque adjacent-window cursor、最多 60000 根基础 `1m` 的聚合分页读取、runner 健康门禁和集成测试已覆盖 | 大范围性能压测、超过 60000 根基础 K 线的缓存/分段策略、异常数据修复策略不足 |
+| CandleProvider | demo | native/aggregated/gap/coverage/pagination/window metadata、opaque adjacent-window cursor、最多 60000 根基础 `1m` 的聚合分页读取、60000 根 PostgreSQL 性能 smoke、runner 健康门禁和集成测试已覆盖 | 长期/并发性能压测、超过 60000 根基础 K 线的缓存/分段策略、异常数据修复策略不足 |
 | Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码、URL 脱敏、交易所级冷却和本地固定窗口限流有测试 | 缺动态读取交易所限流元数据、真实网络压测、代理/地域策略和完整业务码审计 |
 | 研究页 | demo | 数据源 metadata、当前窗口范围、全历史缺口摘要与单缺口修复入口、列表在上图表在下、图表高度稳定且轴线 canvas 完整落在固定槽内、opaque cursor 上一/下一窗口、失败任务 retry、缺口详情、补同步窗口和 repair source 展示已覆盖 | 生产级 instrument 搜索、图表工具薄、缺指标和完整批量缺口修复工作流 |
 | 策略 registry / runtime | demo | schema 驱动参数、intent 输出和策略边界门禁已覆盖 | 缺策略沙箱、版本迁移、权限隔离和真实策略库 |
@@ -4730,7 +4730,7 @@ Definition of Done：
 剩余风险：
 
 - 60000 根基础 K 线是有界读取上限，不是无限历史查询方案；`4h/1d` 大窗口仍可能因为超过上限而返回 `limitedByBaseWindow=true`。
-- 未做大范围 PostgreSQL 性能压测、聚合缓存、预取、虚拟化或批量异常数据修复策略。
+- 已有 60000 根基础 K 线的单次 PostgreSQL 性能 smoke；仍未做长期/并发性能压测、聚合缓存、预取、虚拟化或批量异常数据修复策略。
 - CandleProvider 和研究页仍保持 `demo` 模块评级；项目整体仍是 `scaffold`。
 
 ### 阶段 1 CandleProvider 异常 K 线边界补充
@@ -4768,7 +4768,44 @@ Definition of Done：
 
 - 本轮没有新增 API 级错误码；底层异常仍会作为服务端错误被 API 层统一处理。
 - 未覆盖 OHLCV 业务合法性、异常尖刺、交易所修正数据审计或坏数据自动修复策略。
-- 未做大范围 PostgreSQL 性能压测、聚合缓存或超过 60000 根基础 K 线的分段策略。
+- 已有 60000 根基础 K 线的单次 PostgreSQL 性能 smoke；仍未做长期/并发性能压测、聚合缓存或超过 60000 根基础 K 线的分段策略。
+
+### 阶段 1 CandleProvider 大窗口性能 smoke 补充
+
+目标等级：scaffold
+
+触发问题：
+
+- CandleProvider 已支持最多 60000 根基础 `1m` 的聚合分页读取，但之前缺少真实 PostgreSQL 大窗口查询证据。
+- 阶段 1 审计仍保留“大范围性能压测”风险，无法区分单次 60000 根查询边界和后续长期/并发压测风险。
+
+修复范围：
+
+- 新增 `TestIntegrationCandleProviderLargeAggregationWindowPerformance`，在真实 PostgreSQL 中写入 60000 根 `1m` K 线，通过 `Store.GetCandles` 请求 `1h limit=1000`，验证 `source=aggregated`、`health=ok`、coverage 完整且不受限。
+- 新增 `scripts/stage1-candle-provider-perf-smoke.sh`，启动 compose PostgreSQL 后在 Docker 网络内运行单个集成测试；无 `.env` 或 `.env` 变量为空时可回退 `.env.example` 的本地默认值。
+- smoke 默认阈值为 `TICTICK_CANDLE_PERF_MAX_MS=10000`，可通过环境变量调整。
+
+验证：
+
+- `go test ./internal/store/postgres -run TestIntegrationCandleProviderLargeAggregationWindowPerformance -count=1 -v` 在未设置 `TICTICK_TEST_DATABASE_URL` 时按集成测试约定跳过。
+- `scripts/stage1-candle-provider-perf-smoke.sh` 通过；实测写入 60000 根基础 K 线后，聚合查询读取 60000 根并返回 1000 根 `1h` K 线，耗时 `412.778167ms`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，21 个测试文件 / 102 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+
+失败：
+
+- 首次 `scripts/stage1-candle-provider-perf-smoke.sh` 失败：脚本只读取 `.env`，当前本地缺少可用 `ENCRYPTION_KEY`。
+- 修复方式：脚本先读取 `.env.example`，再读取 `.env` 覆盖，并对必需变量逐项回退到 `.env.example` 默认值；重跑通过。
+
+剩余风险：
+
+- 该 smoke 是单次本地 PostgreSQL 查询证据，不是长期、并发、冷缓存或真实生产数据分布压测。
+- 超过 60000 根基础 K 线仍需要聚合缓存、分段查询或预取策略。
+- CandleProvider 和研究页仍保持 `demo` 模块评级；项目整体仍是 `scaffold`。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
