@@ -335,6 +335,7 @@ function sampleExpression() {
         .filter((canvas) => canvas.rectHeight >= 16 && canvas.rectHeight <= 80)
         .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
         .sort((left, right) => right.bottom - left.bottom)[0] ?? null;
+      const bottomTimeAxisElement = canvasEntries.find((entry) => entry.metrics.index === bottomTimeAxisCanvas?.index)?.canvas ?? null;
       return {
         href: location.href,
         viewportWidth: innerWidth,
@@ -352,6 +353,7 @@ function sampleExpression() {
         mainPaneColorStats,
         rightAxisCanvas,
         bottomTimeAxisCanvas,
+        bottomTimeAxisEdgeInk: edgeInkStats(bottomTimeAxisElement),
         chartCount: document.querySelectorAll('.tv-lightweight-charts').length
       };
 
@@ -385,6 +387,32 @@ function sampleExpression() {
           coloredPixels,
           coloredRows: rows.size
         };
+      }
+
+      function edgeInkStats(canvas, edgeWidth = 8) {
+        if (!canvas || canvas.width <= edgeWidth * 2 || canvas.height <= 0) {
+          return null;
+        }
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return null;
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        let leftDarkPixels = 0;
+        let rightDarkPixels = 0;
+        for (let y = 0; y < canvas.height; y += 1) {
+          for (let x = 0; x < edgeWidth; x += 1) {
+            if (isDarkInk(pixels, (y * canvas.width + x) * 4)) leftDarkPixels += 1;
+            if (isDarkInk(pixels, (y * canvas.width + (canvas.width - 1 - x)) * 4)) rightDarkPixels += 1;
+          }
+        }
+        return { edgeWidth, leftDarkPixels, rightDarkPixels };
+      }
+
+      function isDarkInk(pixels, index) {
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        const alpha = pixels[index + 3];
+        return alpha > 40 && red < 180 && green < 180 && blue < 190;
       }
     })()`;
 }
@@ -540,6 +568,19 @@ function assertChartLayout(label, sample) {
         body,
         tv,
         canvases: sample.canvases,
+      })}`,
+    );
+  }
+  if (
+    !sample.bottomTimeAxisEdgeInk ||
+    sample.bottomTimeAxisEdgeInk.leftDarkPixels > 0 ||
+    sample.bottomTimeAxisEdgeInk.rightDarkPixels > 0
+  ) {
+    throw new Error(
+      `${label} time-axis label touches fixed body edge: ${JSON.stringify({
+        body,
+        bottomTimeAxisCanvas,
+        bottomTimeAxisEdgeInk: sample.bottomTimeAxisEdgeInk,
       })}`,
     );
   }

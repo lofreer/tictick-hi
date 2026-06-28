@@ -54,10 +54,10 @@ const maxRenderedChartHeight = 1200;
 const maxInitialVisibleBars = 360;
 const minInitialVisibleBars = 80;
 const targetInitialBarSpacingPixels = 3;
-const minTimeAxisEdgePaddingBars = 6;
-const minTimeAxisEdgePaddingPixels = 24;
-const maxTimeAxisEdgePaddingPixels = 48;
-const timeAxisEdgePaddingRatio = 0.06;
+const minTimeAxisEdgePaddingBars = 12;
+const minTimeAxisEdgePaddingPixels = 48;
+const maxTimeAxisEdgePaddingPixels = 96;
+const timeAxisEdgePaddingRatio = 0.12;
 const volumePriceScaleId = "";
 const volumeUpColor = "rgba(14, 203, 129, 0.28)";
 const volumeDownColor = "rgba(246, 70, 93, 0.28)";
@@ -234,9 +234,9 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function rightPriceScaleMinimumWidth(width: number) {
-  if (width < 520) return 96;
-  if (width < 900) return 112;
-  return 128;
+  if (width < 520) return 104;
+  if (width < 900) return 128;
+  return 144;
 }
 
 function formatChartPrice(price: number) {

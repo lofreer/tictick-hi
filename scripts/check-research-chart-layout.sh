@@ -119,6 +119,7 @@ require_contains "$CHART_SMOKE" "chart main pane canvas is clipped by fixed body
 require_contains "$CHART_SMOKE" "main pane has no visible candle pixels"
 require_contains "$CHART_SMOKE" "research chart panel must not inherit the global chart-panel sizing contract"
 require_contains "$CHART_SMOKE" "chart bottom axis is clipped from the initial viewport"
+require_contains "$CHART_SMOKE" "time-axis label touches fixed body edge"
 require_contains "$CHART_SMOKE" "left too much unused fixed body height"
 
 echo "research chart layout check passed"

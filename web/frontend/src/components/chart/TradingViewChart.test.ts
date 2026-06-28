@@ -187,7 +187,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 128,
+          minimumWidth: 144,
         }),
       }),
     );
@@ -205,7 +205,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 96,
+          minimumWidth: 104,
         }),
       }),
     );
@@ -235,7 +235,7 @@ describe("TradingViewChart", () => {
     const wrapper = mountChart(host.body);
 
     expect(chartMocks.fitContent).toHaveBeenCalled();
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -6, to: 6 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -12, to: 12 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -252,7 +252,7 @@ describe("TradingViewChart", () => {
       volume: 1000 + index,
     })));
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 634, to: 1015 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 623, to: 1031 });
 
     wrapper.unmount();
     host.panel.remove();
