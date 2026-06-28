@@ -18,6 +18,7 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/datasync"
 	"github.com/lofreer/tictick-hi/internal/exchange"
+	"github.com/lofreer/tictick-hi/internal/marketsync"
 	"github.com/lofreer/tictick-hi/internal/notification"
 	"github.com/lofreer/tictick-hi/internal/store/postgres"
 	"github.com/lofreer/tictick-hi/internal/strategy"
@@ -172,9 +173,11 @@ func runSync(ctx context.Context, args []string) error {
 	}
 	defer store.Close()
 
+	binanceClient := binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil)
+	okxClient := okx.NewMarketClient(nil)
 	runner := datasync.NewRunner(store, exchange.NewRegistry(map[string]exchange.MarketDataClient{
-		"binance": binance.NewMarketClientWithBaseURLs(stringListEnv("BINANCE_BASE_URLS"), nil),
-		"okx":     okx.NewMarketClient(nil),
+		"binance": binanceClient,
+		"okx":     okxClient,
 	}), datasync.Config{
 		WorkerID: envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
 		LeaseTTL: durationEnv("SYNC_LEASE_TTL", 30*time.Second),
@@ -197,6 +200,20 @@ func runSync(ctx context.Context, args []string) error {
 
 	if *once {
 		return runner.RunOnce(ctx)
+	}
+	if boolEnv("MARKET_INSTRUMENT_SYNC_ENABLED", true) {
+		instrumentRunner := marketsync.NewRunner(store, map[string]exchange.InstrumentClient{
+			"binance": binanceClient,
+			"okx":     okxClient,
+		}, marketsync.Config{
+			Interval:    durationEnv("MARKET_INSTRUMENT_SYNC_INTERVAL", 6*time.Hour),
+			SyncOnStart: boolEnv("MARKET_INSTRUMENT_SYNC_ON_START", true),
+		})
+		go func() {
+			if err := instrumentRunner.Run(ctx); err != nil {
+				slog.Error("market instrument sync runner stopped", "error", err)
+			}
+		}()
 	}
 	return runner.Run(ctx)
 }
