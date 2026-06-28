@@ -11,6 +11,7 @@ import type {
   DataSyncGapList,
   DataSyncGapRepairResult,
   DataSyncTask,
+  MarketCandleGapScan,
   RepairDataSyncTaskGapRequest,
 } from "@/types/app";
 import { sanitizeExternalError } from "@/utils/errorText";
@@ -85,6 +86,16 @@ export const dataApi = {
     }
     const response = await apiClient.get<CandleResultResponse>(`/candles?${params.toString()}`);
     return normalizeCandleResult(response, query.interval);
+  },
+
+  async scanMarketCandleGaps(query: CandleQuery): Promise<MarketCandleGapScan> {
+    const params = new URLSearchParams({
+      exchange: query.exchange,
+      symbol: query.symbol,
+      interval: query.interval,
+      limit: String(query.limit ?? 20),
+    });
+    return apiClient.get<MarketCandleGapScan>(`/market/candle-gaps?${params.toString()}`);
   },
 
   async listCandles(query: CandleQuery) {

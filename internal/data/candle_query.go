@@ -8,6 +8,9 @@ import (
 const (
 	DefaultCandleLimit = 1000
 	MaxCandleLimit     = 5000
+
+	DefaultMarketCandleGapScanLimit = 20
+	MaxMarketCandleGapScanLimit     = 100
 )
 
 func NormalizeCandleLimit(limit int) int {
@@ -16,6 +19,16 @@ func NormalizeCandleLimit(limit int) int {
 	}
 	if limit > MaxCandleLimit {
 		return MaxCandleLimit
+	}
+	return limit
+}
+
+func NormalizeMarketCandleGapScanLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultMarketCandleGapScanLimit
+	}
+	if limit > MaxMarketCandleGapScanLimit {
+		return MaxMarketCandleGapScanLimit
 	}
 	return limit
 }

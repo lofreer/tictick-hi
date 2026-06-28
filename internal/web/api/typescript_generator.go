@@ -55,7 +55,7 @@ func typeScriptObjectDefinition(name string, schema map[string]any) (string, err
 	var builder strings.Builder
 	builder.WriteString("export type ")
 	builder.WriteString(name)
-	builder.WriteString(" = {\n")
+	builder.WriteString(" = { ")
 	for _, propertyName := range names {
 		propertySchema, ok := properties[propertyName].(map[string]any)
 		if !ok {
@@ -65,14 +65,13 @@ func typeScriptObjectDefinition(name string, schema map[string]any) (string, err
 		if err != nil {
 			return "", fmt.Errorf("%s.%s: %w", name, propertyName, err)
 		}
-		builder.WriteString("  ")
 		builder.WriteString(typeScriptPropertyName(propertyName))
 		if !required[propertyName] {
 			builder.WriteString("?")
 		}
 		builder.WriteString(": ")
 		builder.WriteString(propertyType)
-		builder.WriteString(";\n")
+		builder.WriteString("; ")
 	}
 	builder.WriteString("};\n")
 	return builder.String(), nil

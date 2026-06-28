@@ -10,6 +10,7 @@ const chartMocks = vi.hoisted(() => ({
   fitContent: vi.fn(),
   remove: vi.fn(),
   resize: vi.fn(),
+  setVisibleLogicalRange: vi.fn(),
   setData: vi.fn(),
   setMarkers: vi.fn(),
 }));
@@ -28,7 +29,10 @@ function mockChartApi() {
     applyOptions: vi.fn(),
     remove: chartMocks.remove,
     resize: chartMocks.resize,
-    timeScale: vi.fn(() => ({ fitContent: chartMocks.fitContent })),
+    timeScale: vi.fn(() => ({
+      fitContent: chartMocks.fitContent,
+      setVisibleLogicalRange: chartMocks.setVisibleLogicalRange,
+    })),
   });
 }
 
@@ -166,10 +170,37 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 88,
+          minimumWidth: 112,
         }),
       }),
     );
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("pads the visible logical range so edge time labels are not clipped", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+
+    expect(chartMocks.fitContent).toHaveBeenCalled();
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -6, to: 6 });
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("scales the logical edge padding with dense candle windows", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body, Array.from({ length: 1000 }, (_, index) => ({
+      time: index + 1,
+      open: 100,
+      high: 110,
+      low: 95,
+      close: 104,
+    })));
+
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: -55, to: 1054 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -443,13 +474,13 @@ function createFixedPanelHost() {
   return { panel };
 }
 
-function mountChart(host: HTMLElement) {
+function mountChart(host: HTMLElement, data = [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }]) {
   const mountPoint = document.createElement("div");
   host.append(mountPoint);
   return mount(TradingViewChart, {
     attachTo: mountPoint,
     props: {
-      data: [{ time: 1_788_220_800, open: 100, high: 110, low: 95, close: 104 }],
+      data,
       emptyTitle: "No candles",
     },
   });

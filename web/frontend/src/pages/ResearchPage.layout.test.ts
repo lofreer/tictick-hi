@@ -33,8 +33,8 @@ describe("ResearchPage chart layout contract", () => {
 
   it("reduces the fixed chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(source).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 760px), 560px);");
-    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 760px), 560px);");
+    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px);");
+    expect(source).toContain("--research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px);");
   });
 
   it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {
@@ -62,6 +62,11 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("windowLabel");
     expect(source).toContain("research.candleWindow");
     expect(source).toContain("formatWindowTime");
+  });
+
+  it("shows full-history market gap scan metadata for the selected chart source", () => {
+    expect(source).toContain('import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";');
+    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" />');
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {

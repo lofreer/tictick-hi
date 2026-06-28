@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/exchange"
@@ -45,6 +46,51 @@ func TestMarketInstrumentRoutesSearchCatalog(t *testing.T) {
 	}
 	if len(instruments) != 1 || instruments[0].Symbol != "SOLUSDT" {
 		t.Fatalf("instruments = %#v, want SOLUSDT only", instruments)
+	}
+}
+
+func TestMarketCandleGapRouteScansPersistedHistory(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC)
+	for _, minute := range []int{0, 1, 3, 6} {
+		openTime := start.Add(time.Duration(minute) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		})
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodGet,
+		"/api/market/candle-gaps?exchange=binance&symbol=BTCUSDT&interval=1m&limit=1",
+		"",
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+
+	var scan data.MarketCandleGapScan
+	if err := json.NewDecoder(recorder.Body).Decode(&scan); err != nil {
+		t.Fatal(err)
+	}
+	if scan.Exchange != "binance" || scan.Symbol != "BTCUSDT" || scan.Interval != "1m" {
+		t.Fatalf("unexpected scan identity: %#v", scan)
+	}
+	if scan.Window.Count != 4 || scan.Window.From == nil || !scan.Window.From.Equal(start) ||
+		scan.Window.To == nil || !scan.Window.To.Equal(start.Add(6*time.Minute)) {
+		t.Fatalf("unexpected scan window: %#v", scan.Window)
+	}
+	if !scan.Limited || scan.TotalCount != 2 || scan.ReturnedCount != 1 || len(scan.Gaps) != 1 {
+		t.Fatalf("unexpected gap metadata: %#v", scan)
+	}
+	if !scan.Gaps[0].From.Equal(start.Add(2*time.Minute)) ||
+		!scan.Gaps[0].To.Equal(start.Add(3*time.Minute)) ||
+		scan.Gaps[0].MissingCandles != 1 {
+		t.Fatalf("unexpected first gap: %#v", scan.Gaps[0])
 	}
 }
 
@@ -114,6 +160,10 @@ func TestMarketInstrumentRoutesRejectInvalidQuery(t *testing.T) {
 		"/api/market/instruments?exchange=coinbase",
 		"/api/market/instruments?exchange=binance&limit=zero",
 		"/api/market/instruments?exchange=binance&limit=0",
+		"/api/market/candle-gaps",
+		"/api/market/candle-gaps?exchange=binance&symbol=BTCUSDT&interval=tick",
+		"/api/market/candle-gaps?exchange=binance&symbol=BTC-USDT&interval=1m",
+		"/api/market/candle-gaps?exchange=binance&symbol=BTCUSDT&interval=1m&limit=101",
 	}
 	for _, path := range cases {
 		t.Run(path, func(t *testing.T) {

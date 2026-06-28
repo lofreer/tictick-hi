@@ -53,6 +53,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 		{"DataSyncGapSummary", "DataSyncGapSummary"},
 		{"DataSyncGapList", "DataSyncGapList"},
 		{"DataSyncGapRepairResult", "DataSyncGapRepairResult"},
+		{"MarketCandleGapScan", "MarketCandleGapScan"},
 		{"CandleGap", "CandleGap"},
 		{"CandleCoverage", "CandleCoverage"},
 		{"CandleResult", "CandleResult"},
@@ -98,6 +99,7 @@ func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
 		`from "@/types/api.generated"`,
 		"export type DataSyncTask = APIDataSyncTask;",
 		"export type DataSyncGapList = APIDataSyncGapList;",
+		"export type MarketCandleGapScan = APIMarketCandleGapScan;",
 		"export type CreateDataSyncTask = APICreateDataSyncTask;",
 		"export type BacktestTask = APIBacktestTask;",
 		"export type TradingTask = Omit<APITradingTask",
@@ -146,8 +148,8 @@ func parseTSTypes(content string) (map[string]tsObjectType, error) {
 	for _, match := range matches {
 		name := match[1]
 		fields := map[string]tsField{}
-		for _, line := range strings.Split(match[2], "\n") {
-			trimmed := strings.TrimSpace(line)
+		for _, field := range strings.Split(match[2], ";") {
+			trimmed := strings.TrimSpace(field)
 			if trimmed == "" {
 				continue
 			}
@@ -166,8 +168,8 @@ func parseTSTypes(content string) (map[string]tsObjectType, error) {
 	return types, nil
 }
 
-var tsObjectTypeExpression = regexp.MustCompile(`(?s)(?:export\s+)?type\s+([A-Za-z][A-Za-z0-9]*)\s*=\s*\{(.*?)\n\};`)
-var tsFieldExpression = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)(\?)?:\s*.+;$`)
+var tsObjectTypeExpression = regexp.MustCompile(`(?s)(?:export\s+)?type\s+([A-Za-z][A-Za-z0-9]*)\s*=\s*\{(.*?)\};`)
+var tsFieldExpression = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)(\?)?:\s*.+$`)
 
 func assertTSFieldsEqualSchema(t *testing.T, tsType tsObjectType, schemaName string, schema map[string]any) {
 	t.Helper()

@@ -104,6 +104,16 @@ func addDataContractPaths(paths map[string]apiPathItem) {
 }
 
 func addMarketContractPaths(paths map[string]apiPathItem) {
+	addOperation(paths, "/api/market/candle-gaps", http.MethodGet, operation(
+		"market", "scanMarketCandleGaps", "Scan persisted market candle gaps", http.StatusOK, schemaRef("MarketCandleGapScan"),
+		withParameters(
+			queryParam("exchange", true, "Exchange id", map[string]any{"type": "string", "enum": []string{"binance", "okx"}}),
+			queryParam("symbol", true, "Market symbol", map[string]any{"type": "string"}),
+			queryParam("interval", true, "Candle interval", map[string]any{"type": "string", "enum": []string{"1m", "5m", "15m", "1h", "4h", "1d"}}),
+			queryParam("limit", false, "Maximum returned gaps", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxMarketCandleGapScanLimit}),
+		),
+		withErrors(http.StatusBadRequest),
+	))
 	addOperation(paths, "/api/market/instruments", http.MethodGet, operation(
 		"market", "listMarketInstruments", "Search market instruments", http.StatusOK, arraySchema(schemaRef("MarketInstrument")),
 		withParameters(

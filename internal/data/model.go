@@ -402,6 +402,7 @@ type Repository interface {
 	SetRealtimeEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
+	ScanMarketCandleGaps(ctx context.Context, query MarketCandleGapScanQuery) (MarketCandleGapScan, error)
 	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
 	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
 	GetBacktestTask(ctx context.Context, id string) (BacktestTask, error)

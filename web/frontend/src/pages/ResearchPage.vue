@@ -74,6 +74,7 @@
               <NTag v-if="candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
+              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" />
               <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
                 {{ coverageLabel }}
               </NTag>
@@ -213,6 +214,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
+import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
@@ -274,11 +276,7 @@ const intervalOptions = computed<SelectOption[]>(() => [
   { label: "1d", value: "1d" },
 ]);
 
-const gapDetailColumns = computed<DataTableColumns<CandleGap>>(() => [
-  { title: t("research.gapFrom"), key: "from", minWidth: 180 },
-  { title: t("research.gapTo"), key: "to", minWidth: 180 },
-  { title: t("research.missingCandles"), key: "missingCandles", width: 120 },
-]);
+const gapDetailColumns = computed<DataTableColumns<CandleGap>>(() => [{ title: t("research.gapFrom"), key: "from", minWidth: 180 }, { title: t("research.gapTo"), key: "to", minWidth: 180 }, { title: t("research.missingCandles"), key: "missingCandles", width: 120 }]);
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));
@@ -445,6 +443,6 @@ function formatWindowTime(value: string) {
   }
 }
 @media (min-width: 761px) and (max-width: 980px) {
-  .research-chart-panel { --research-chart-viewport-height: clamp(300px, calc(100vh - 760px), 560px); --research-chart-viewport-height: clamp(300px, calc(100dvh - 760px), 560px); }
+  .research-chart-panel { --research-chart-viewport-height: clamp(300px, calc(100vh - 820px), 500px); --research-chart-viewport-height: clamp(300px, calc(100dvh - 820px), 500px); }
 }
 </style>

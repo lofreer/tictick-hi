@@ -246,6 +246,55 @@ describe("data api", () => {
     );
   });
 
+  it("scans persisted market candle gaps", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          window: {
+            from: "2026-06-27T03:00:00Z",
+            to: "2026-06-27T03:06:00Z",
+            count: 4,
+          },
+          gaps: [
+            {
+              from: "2026-06-27T03:02:00Z",
+              to: "2026-06-27T03:03:00Z",
+              missingCandles: 1,
+            },
+          ],
+          limited: true,
+          totalCount: 2,
+          returnedCount: 1,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.scanMarketCandleGaps({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      limit: 1,
+    })).resolves.toMatchObject({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      totalCount: 2,
+      returnedCount: 1,
+      limited: true,
+      window: { count: 4 },
+      gaps: [{ missingCandles: 1 }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/market/candle-gaps?exchange=binance&symbol=BTCUSDT&interval=1m&limit=1",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("queues repair tasks for data sync gaps", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(

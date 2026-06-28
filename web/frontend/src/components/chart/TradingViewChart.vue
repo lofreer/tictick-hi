@@ -48,6 +48,8 @@ let fixedViewportHeightSnapshot: number | null = null;
 let pendingFixedViewportHeightRefresh = false;
 const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
+const minTimeAxisEdgePaddingBars = 6;
+const timeAxisEdgePaddingPixels = 64;
 
 onMounted(() => {
   if (!rootRef.value || !containerRef.value) return;
@@ -131,7 +133,7 @@ function syncData() {
 
   series?.setData(candleData);
   syncMarkers();
-  chart?.timeScale().fitContent();
+  fitChartContent(candleData.length);
 }
 
 function syncMarkers() {
@@ -140,6 +142,22 @@ function syncMarkers() {
     time: marker.time as Time,
   }));
   markerPlugin?.setMarkers(markerData);
+}
+
+function fitChartContent(dataLength: number) {
+  const timeScale = chart?.timeScale();
+  if (!timeScale) return;
+  timeScale.fitContent();
+  if (dataLength === 0) return;
+  const edgePadding = timeAxisEdgePaddingBars(dataLength);
+  timeScale.setVisibleLogicalRange({
+    from: -edgePadding,
+    to: dataLength - 1 + edgePadding,
+  });
+}
+
+function timeAxisEdgePaddingBars(dataLength: number) {
+  return Math.max(minTimeAxisEdgePaddingBars, Math.ceil((timeAxisEdgePaddingPixels / Math.max(1, lastSize.width)) * dataLength));
 }
 
 function handleObservedResize(entries: ResizeObserverEntry[]) {
