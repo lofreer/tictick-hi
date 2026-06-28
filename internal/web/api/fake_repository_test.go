@@ -54,6 +54,7 @@ func newFakeRepository() *fakeRepository {
 	}
 	repository.operators = append(repository.operators, operator)
 	repository.passwords[operator.ID] = testPassword
+	repository.marketInstruments = defaultFakeMarketInstruments(now)
 	return repository
 }
 

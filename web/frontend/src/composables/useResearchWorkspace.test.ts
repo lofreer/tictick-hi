@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
+import { marketApi } from "@/services/api/market";
 import type { DataSyncTask } from "@/types/app";
 
 const dataApiMocks = vi.hoisted(() => ({
@@ -24,6 +25,10 @@ const messageMocks = vi.hoisted(() => ({
   success: vi.fn(),
 }));
 
+const marketApiMocks = vi.hoisted(() => ({
+  listInstruments: vi.fn(),
+}));
+
 const routerMocks = vi.hoisted(() => ({
   replace: vi.fn(),
   query: {} as Record<string, string>,
@@ -31,6 +36,10 @@ const routerMocks = vi.hoisted(() => ({
 
 vi.mock("@/services/api/data", () => ({
   dataApi: dataApiMocks,
+}));
+
+vi.mock("@/services/api/market", () => ({
+  marketApi: marketApiMocks,
 }));
 
 vi.mock("naive-ui", () => ({
@@ -75,6 +84,17 @@ describe("useResearchWorkspace", () => {
       repairLimit: 20,
     });
     dataApiMocks.setSync.mockResolvedValue({ id: "dst_repair" });
+    marketApiMocks.listInstruments.mockResolvedValue([
+      {
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        baseAsset: "BTC",
+        quoteAsset: "USDT",
+        instrumentType: "spot",
+        status: "active",
+        searchPriority: 1,
+      },
+    ]);
   });
 
   it("queues a sync task for the first chart gap using the base interval", async () => {
@@ -258,7 +278,18 @@ describe("useResearchWorkspace", () => {
     expect(messageMocks.error).toHaveBeenCalledWith("交易对格式不符合当前交易所。");
   });
 
-  it("creates data sync tasks for arbitrary valid normalized symbols", async () => {
+  it("creates data sync tasks for normalized symbols that exactly match the active catalog", async () => {
+    marketApiMocks.listInstruments.mockResolvedValueOnce([
+      {
+        exchange: "binance",
+        symbol: "SOLUSDT",
+        baseAsset: "SOL",
+        quoteAsset: "USDT",
+        instrumentType: "spot",
+        status: "active",
+        searchPriority: 20,
+      },
+    ]);
     const workspace = mountWorkspace();
     await flushPromises();
     dataApiMocks.createTask.mockClear();
@@ -270,6 +301,7 @@ describe("useResearchWorkspace", () => {
     await workspace.createTask();
     await flushPromises();
 
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT" });
     expect(dataApi.createTask).toHaveBeenCalledWith({
       exchange: "binance",
       symbol: "SOLUSDT",
@@ -277,6 +309,40 @@ describe("useResearchWorkspace", () => {
       startTime: undefined,
       endTime: undefined,
     });
+  });
+
+  it("blocks data sync task creation when the normalized symbol is missing from the active catalog", async () => {
+    marketApiMocks.listInstruments.mockResolvedValueOnce([]);
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.createTask.mockClear();
+
+    workspace.openCreateTask();
+    workspace.createForm.symbol = "SOLUSDT";
+    await flushPromises();
+
+    await workspace.createTask();
+    await flushPromises();
+
+    expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 1, q: "SOLUSDT" });
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("交易对不在当前交易所可用目录中，请先刷新交易对或更换标的。");
+  });
+
+  it("blocks data sync task creation when the active catalog cannot be validated", async () => {
+    marketApiMocks.listInstruments.mockRejectedValueOnce(new Error("network"));
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.createTask.mockClear();
+
+    workspace.openCreateTask();
+    await flushPromises();
+
+    await workspace.createTask();
+    await flushPromises();
+
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("校验交易对目录失败，请稍后重试。");
   });
 
   it("does not create a repair task when the current chart has no gaps", async () => {

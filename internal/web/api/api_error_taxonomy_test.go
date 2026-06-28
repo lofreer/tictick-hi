@@ -49,6 +49,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorMethodNotAllowed,
 		apiErrorConflict,
 		apiErrorInvalidState,
+		apiErrorMarketInstrumentNotActive,
 		apiErrorDataSyncRetryRequiresFailed,
 		apiErrorDataSyncCommandInvalidState,
 		apiErrorTooManyRequests,

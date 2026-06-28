@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -48,6 +49,49 @@ func TestIntegrationListMarketInstrumentsSearchesActiveCatalog(t *testing.T) {
 	}
 	if instruments[0].BaseAsset != "ITCAT" || instruments[0].QuoteAsset != "USDT" {
 		t.Fatalf("unexpected instrument metadata: %#v", instruments[0])
+	}
+}
+
+func TestIntegrationGetActiveMarketInstrumentRequiresExactActiveSymbol(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := time.Now().UTC().Format("150405000000000")
+	activeSymbol := "ITEXACT" + suffix + "USDT"
+	inactiveSymbol := "ITEXACTOLD" + suffix + "USDT"
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol IN ($1, $2)`, activeSymbol, inactiveSymbol)
+	})
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_instruments (
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+		)
+		VALUES
+			('binance', $1, 'ITEXACT', 'USDT', 'spot', 'active', 0, now()),
+			('binance', $2, 'ITEXACTOLD', 'USDT', 'spot', 'inactive', 0, now())`,
+		activeSymbol,
+		inactiveSymbol,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	instrument, err := store.GetActiveMarketInstrument(ctx, "binance", activeSymbol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if instrument.Symbol != activeSymbol || instrument.Status != "active" {
+		t.Fatalf("instrument = %#v, want active %s", instrument, activeSymbol)
+	}
+
+	if _, err := store.GetActiveMarketInstrument(ctx, "binance", inactiveSymbol); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("inactive lookup error = %v, want ErrNotFound", err)
+	}
+	if _, err := store.GetActiveMarketInstrument(ctx, "binance", "ITEXACT"); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("partial lookup error = %v, want ErrNotFound", err)
 	}
 }
 

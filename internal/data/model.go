@@ -422,6 +422,7 @@ type Repository interface {
 	CreateNotificationChannel(ctx context.Context, channel CreateNotificationChannel) (NotificationChannel, error)
 	ListExchangeAccounts(ctx context.Context) ([]ExchangeAccount, error)
 	GetExchangeAccount(ctx context.Context, exchange string, accountID string) (ExchangeAccount, error)
+	GetActiveMarketInstrument(ctx context.Context, exchange string, symbol string) (MarketInstrument, error)
 	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
 	ListMarketInstruments(ctx context.Context, query MarketInstrumentQuery) ([]MarketInstrument, error)
 	ReplaceMarketInstruments(ctx context.Context, exchange string, instruments []MarketInstrument, syncedAt time.Time) (MarketInstrumentSyncResult, error)

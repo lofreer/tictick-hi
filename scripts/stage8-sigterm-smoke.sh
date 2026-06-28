@@ -58,6 +58,24 @@ psql_exec() {
     "$@"
 }
 
+seed_sigterm_instrument() {
+  psql_exec -v symbol="$SYMBOL" <<'SQL' >/dev/null
+INSERT INTO market_instruments (
+  exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+)
+VALUES (
+  'binance', :'symbol', regexp_replace(:'symbol', 'USDT$', ''), 'USDT', 'spot', 'active', 910, now()
+)
+ON CONFLICT (exchange, symbol) DO UPDATE
+   SET base_asset = EXCLUDED.base_asset,
+       quote_asset = EXCLUDED.quote_asset,
+       instrument_type = EXCLUDED.instrument_type,
+       status = 'active',
+       synced_at = EXCLUDED.synced_at,
+       updated_at = now();
+SQL
+}
+
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   if [ -n "$TASK_ID" ]; then
@@ -859,6 +877,7 @@ wait_for_mock
 log "login and create controlled sync task"
 login
 pause_existing_sigterm_tasks
+seed_sigterm_instrument
 api_post "/api/data/tasks" \
   "{\"exchange\":\"binance\",\"symbol\":\"$SYMBOL\",\"interval\":\"1m\",\"startTime\":\"$START_TIME\",\"endTime\":\"$END_TIME\"}" \
   201

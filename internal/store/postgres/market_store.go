@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
@@ -13,6 +14,42 @@ const (
 	defaultMarketInstrumentLimit = 20
 	maxMarketInstrumentLimit     = 50
 )
+
+func (store *Store) GetActiveMarketInstrument(
+	ctx context.Context,
+	exchange string,
+	symbol string,
+) (data.MarketInstrument, error) {
+	var instrument data.MarketInstrument
+	err := store.pool.QueryRow(ctx, `
+		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status,
+		       search_priority, synced_at, created_at, updated_at
+		  FROM market_instruments
+		 WHERE exchange = $1
+		   AND symbol = $2
+		   AND status = 'active'`,
+		exchange,
+		strings.ToUpper(strings.TrimSpace(symbol)),
+	).Scan(
+		&instrument.Exchange,
+		&instrument.Symbol,
+		&instrument.BaseAsset,
+		&instrument.QuoteAsset,
+		&instrument.InstrumentType,
+		&instrument.Status,
+		&instrument.SearchPriority,
+		&instrument.SyncedAt,
+		&instrument.CreatedAt,
+		&instrument.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return data.MarketInstrument{}, data.ErrNotFound
+		}
+		return data.MarketInstrument{}, fmt.Errorf("get active market instrument: %w", err)
+	}
+	return instrument, nil
+}
 
 func (store *Store) ListMarketInstruments(
 	ctx context.Context,

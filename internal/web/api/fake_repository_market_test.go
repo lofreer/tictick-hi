@@ -2,11 +2,40 @@ package api
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
+
+func defaultFakeMarketInstruments(now time.Time) []data.MarketInstrument {
+	return []data.MarketInstrument{{
+		Exchange:       "binance",
+		Symbol:         "BTCUSDT",
+		BaseAsset:      "BTC",
+		QuoteAsset:     "USDT",
+		InstrumentType: "spot",
+		Status:         "active",
+		SearchPriority: 1,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}}
+}
+
+func (repository *fakeRepository) GetActiveMarketInstrument(
+	_ context.Context,
+	exchange string,
+	symbol string,
+) (data.MarketInstrument, error) {
+	index := slices.IndexFunc(repository.marketInstruments, func(instrument data.MarketInstrument) bool {
+		return instrument.Exchange == exchange && instrument.Symbol == symbol && instrument.Status == "active"
+	})
+	if index < 0 {
+		return data.MarketInstrument{}, data.ErrNotFound
+	}
+	return repository.marketInstruments[index], nil
+}
 
 func (repository *fakeRepository) ListMarketInstruments(
 	_ context.Context,

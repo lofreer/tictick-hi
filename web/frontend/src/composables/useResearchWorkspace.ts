@@ -14,11 +14,11 @@ import {
   researchQuery,
   type ResearchForm,
   selectedTaskMatchesMarket,
-  toISOString,
 } from "@/composables/researchWorkspaceHelpers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
+import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
 import { dataApi } from "@/services/api/data";
-import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncGapList, DataSyncTask } from "@/types/app";
+import type { CandleResult, ChartCandle, DataSyncGapList, DataSyncTask } from "@/types/app";
 import {
   coerceSymbolForExchange,
   isSymbolFormatForExchange,
@@ -195,22 +195,17 @@ export function useResearchWorkspace() {
       return;
     }
 
-    const request: CreateDataSyncTask = {
-      exchange: createForm.exchange,
-      symbol: normalizeSymbolInput(createForm.symbol),
-      interval: createForm.interval,
-      startTime: toISOString(createForm.startTime),
-      endTime: toISOString(createForm.endTime),
-    };
-
     createLoading.value = true;
     try {
-      await dataApi.createTask(request);
-      createModalOpen.value = false;
-      message.success(t("research.taskCreated"));
-      await loadTasks();
-    } catch (error) {
-      message.error(errorMessage(error, t("research.taskCreateFailed")));
+      await createResearchDataSyncTask({
+        closeCreateModal: () => {
+          createModalOpen.value = false;
+        },
+        form: createForm,
+        loadTasks,
+        message,
+        t,
+      });
     } finally {
       createLoading.value = false;
     }

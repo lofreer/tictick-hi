@@ -111,6 +111,24 @@ psql_exec() {
     "$@"
 }
 
+seed_stage8_instruments() {
+  psql_exec -v symbol="$SYMBOL" -v lock_symbol="$LOCK_SYMBOL" <<'SQL' >/dev/null
+INSERT INTO market_instruments (
+  exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+)
+VALUES
+  ('binance', :'symbol', regexp_replace(:'symbol', 'USDT$', ''), 'USDT', 'spot', 'active', 900, now()),
+  ('binance', :'lock_symbol', regexp_replace(:'lock_symbol', 'USDT$', ''), 'USDT', 'spot', 'active', 901, now())
+ON CONFLICT (exchange, symbol) DO UPDATE
+   SET base_asset = EXCLUDED.base_asset,
+       quote_asset = EXCLUDED.quote_asset,
+       instrument_type = EXCLUDED.instrument_type,
+       status = 'active',
+       synced_at = EXCLUDED.synced_at,
+       updated_at = now();
+SQL
+}
+
 pause_existing_stage8_tasks() {
   psql_exec -c "
     UPDATE trading_tasks
@@ -356,6 +374,7 @@ fi
 
 log "cleanup old stage8 runners"
 pause_existing_stage8_tasks
+seed_stage8_instruments
 
 log "strategy registry"
 api_get "/api/strategies"

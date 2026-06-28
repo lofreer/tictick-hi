@@ -94,6 +94,14 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if _, err := server.repository.GetActiveMarketInstrument(r.Context(), request.Exchange, request.Symbol); err != nil {
+			if errors.Is(err, data.ErrNotFound) {
+				writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentNotActive, "market instrument is not active in catalog")
+				return
+			}
+			writeStoreError(w, err)
+			return
+		}
 		task, err := server.repository.CreateDataSyncTask(r.Context(), request)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

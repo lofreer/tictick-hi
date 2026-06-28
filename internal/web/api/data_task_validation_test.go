@@ -2,7 +2,10 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func TestDataSyncTaskRoutesRejectExchangeSymbolMismatch(t *testing.T) {
@@ -45,5 +48,62 @@ func TestDataSyncTaskRoutesRejectExchangeSymbolMismatch(t *testing.T) {
 				t.Fatalf("invalid task was persisted: %#v", repository.tasks)
 			}
 		})
+	}
+}
+
+func TestDataSyncTaskRoutesRequireActiveMarketInstrument(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.marketInstruments = append(repository.marketInstruments, marketInstrumentForTest("binance", "SOLUSDT", "inactive"))
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"SOLUSDT","interval":"1m"}`,
+	)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "market_instrument_not_active" ||
+		response.Message != "market instrument is not active in catalog" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+	if len(repository.tasks) != 0 {
+		t.Fatalf("invalid task was persisted: %#v", repository.tasks)
+	}
+}
+
+func TestDataSyncTaskRoutesCreateActiveMarketInstrument(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.marketInstruments = append(repository.marketInstruments, marketInstrumentForTest("binance", "SOLUSDT", "active"))
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"binance","symbol":"SOLUSDT","interval":"1m"}`,
+	)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(repository.tasks) != 1 || repository.tasks[0].Symbol != "SOLUSDT" {
+		t.Fatalf("active task was not persisted: %#v", repository.tasks)
+	}
+}
+
+func marketInstrumentForTest(exchange string, symbol string, status string) data.MarketInstrument {
+	return data.MarketInstrument{
+		Exchange:       exchange,
+		Symbol:         symbol,
+		BaseAsset:      strings.TrimSuffix(symbol, "USDT"),
+		QuoteAsset:     "USDT",
+		InstrumentType: "spot",
+		Status:         status,
+		SearchPriority: 20,
 	}
 }

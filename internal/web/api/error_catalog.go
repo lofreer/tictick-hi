@@ -14,6 +14,7 @@ const (
 	apiErrorMethodNotAllowed            apiErrorCode = "method_not_allowed"
 	apiErrorConflict                    apiErrorCode = "conflict"
 	apiErrorInvalidState                apiErrorCode = "invalid_state"
+	apiErrorMarketInstrumentNotActive   apiErrorCode = "market_instrument_not_active"
 	apiErrorDataSyncRetryRequiresFailed apiErrorCode = "data_sync_retry_requires_failed"
 	apiErrorDataSyncCommandInvalidState apiErrorCode = "data_sync_command_invalid_state"
 	apiErrorTooManyRequests             apiErrorCode = "too_many_requests"
@@ -38,6 +39,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorMethodNotAllowed), HTTPStatus: http.StatusMethodNotAllowed, Description: "The route exists but does not accept this HTTP method."},
 	{Code: string(apiErrorConflict), HTTPStatus: http.StatusConflict, Description: "The request conflicts with the current resource state."},
 	{Code: string(apiErrorInvalidState), HTTPStatus: http.StatusConflict, Description: "The resource state does not allow the requested transition."},
+	{Code: string(apiErrorMarketInstrumentNotActive), HTTPStatus: http.StatusBadRequest, Description: "The requested market instrument is missing or not active in the local catalog."},
 	{Code: string(apiErrorDataSyncRetryRequiresFailed), HTTPStatus: http.StatusConflict, Description: "The data sync task must be failed before it can be retried."},
 	{Code: string(apiErrorDataSyncCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The data sync task state does not allow the requested command."},
 	{Code: string(apiErrorTooManyRequests), HTTPStatus: http.StatusTooManyRequests, Description: "The caller has exceeded the accepted request rate.", Retryable: true},
