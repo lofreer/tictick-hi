@@ -192,16 +192,31 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("uses ResizeObserver content size when the viewport has no client size yet", () => {
+  it("ignores observed fixed viewport height when client size is unavailable", () => {
     viewportSize = { width: 0, height: 0 };
     const host = createResearchHost();
+    host.body.style.width = "1000px";
+    host.body.style.height = "580px";
     const wrapper = mountChart(host.body);
-    chartMocks.resize.mockClear();
 
-    resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 580 })], {} as ResizeObserver);
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1000,
+        height: 580,
+      }),
+    );
+
+    chartMocks.resize.mockClear();
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 9000 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    host.body.style.height = "560px";
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 9000 })], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 580);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 560);
 
     wrapper.unmount();
     host.panel.remove();

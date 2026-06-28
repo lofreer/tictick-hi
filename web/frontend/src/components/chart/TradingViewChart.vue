@@ -170,9 +170,12 @@ function readHostSize() {
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
-  const measuredWidth = readClientWidth(host) ?? readObservedWidth(host) ?? positiveFloor(bounds.width);
-  const measuredHeight =
-    readClientHeight(host) ?? readObservedHeight(host) ?? readPixelHeight(host) ?? positiveFloor(bounds.height);
+  const fixedViewport = isFixedViewportHost(host);
+  const measuredWidth =
+    readClientWidth(host) ?? readPixelSize(host, "width") ?? readObservedWidth(host) ?? positiveFloor(bounds.width);
+  const measuredHeight = fixedViewport
+    ? readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height)
+    : readClientHeight(host) ?? readObservedHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
   const width = measuredWidth ?? fallbackSize.width;
   const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
   if (width <= 0 || height <= 0) return null;
@@ -194,8 +197,8 @@ function readClientHeight(element: HTMLElement) {
   return element.clientHeight > 0 ? element.clientHeight : null;
 }
 
-function readPixelHeight(element: HTMLElement) {
-  const value = Number.parseFloat(window.getComputedStyle(element).height);
+function readPixelSize(element: HTMLElement, property: "width" | "height") {
+  const value = Number.parseFloat(window.getComputedStyle(element)[property]);
   if (!Number.isFinite(value) || value <= 0) return null;
   return value;
 }
@@ -229,6 +232,10 @@ function readResizeHost() {
   if (!parent) return root;
   if (parent.hasAttribute("data-v-app") && parent.parentElement) return parent.parentElement;
   return parent;
+}
+
+function isFixedViewportHost(element: HTMLElement) {
+  return element.getAttribute("data-chart-viewport") === "fixed";
 }
 
 function positiveFloor(value: number) {
