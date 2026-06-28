@@ -342,6 +342,18 @@ function assertStable(result) {
       );
     }
   }
+
+  const viewportCap = result.lastFull.viewportHeight + heightTolerance;
+  for (const key of ["panel", "body", "chart", "canvas", "tv"]) {
+    if (result.max[key] > viewportCap) {
+      throw new Error(
+        `${result.label} ${key} height exceeded viewport cap: ${JSON.stringify({
+          viewportHeight: result.lastFull.viewportHeight,
+          max: result.max,
+        })}`,
+      );
+    }
+  }
 }
 
 function formatConsoleArgs(args) {

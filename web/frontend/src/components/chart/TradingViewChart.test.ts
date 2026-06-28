@@ -57,6 +57,7 @@ describe("TradingViewChart", () => {
       return 0;
     }) as typeof window.requestAnimationFrame;
     window.cancelAnimationFrame = vi.fn() as typeof window.cancelAnimationFrame;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 });
 
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
@@ -175,11 +176,26 @@ describe("TradingViewChart", () => {
 
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
     host.body.style.height = "604px";
     resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9000 })], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("blocks fixed viewport height growth when the window and width are unchanged", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+    chartMocks.resize.mockClear();
+
+    viewportSize = { width: 1180, height: 641 };
+    resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
 
     wrapper.unmount();
     host.panel.remove();
@@ -251,16 +267,18 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("caps an anomalous direct viewport height to the safe render maximum", () => {
+  it("caps an anomalous initial direct viewport height to the safe render maximum", () => {
+    viewportSize = { width: 1180, height: 5000 };
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
-    chartMocks.resize.mockClear();
 
-    viewportSize = { width: 1180, height: 5000 };
-    resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
-
-    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 768);
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1180,
+        height: 768,
+      }),
+    );
 
     wrapper.unmount();
     host.panel.remove();

@@ -43,14 +43,16 @@ let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
+let lastWindowSize = readWindowSize();
 const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
 
 onMounted(() => {
   if (!rootRef.value || !containerRef.value) return;
 
-  const initialSize = readHostSize() ?? fallbackSize;
-  lastSize = initialSize;
+  const initialSize = readHostSize() ?? { ...fallbackSize, fixedViewport: false };
+  lastSize = { width: initialSize.width, height: initialSize.height };
+  lastWindowSize = readWindowSize();
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
     width: initialSize.width,
@@ -148,11 +150,15 @@ function resizeChart() {
   resizeFrame = 0;
   if (!chart) return;
 
-  const nextSize = readHostSize();
-  if (!nextSize) return;
+  const nextMeasurement = readHostSize();
+  if (!nextMeasurement) return;
+
+  const nextWindowSize = readWindowSize();
+  const nextSize = guardFixedViewportSize(nextMeasurement, nextWindowSize);
   if (nextSize.width === lastSize.width && nextSize.height === lastSize.height) return;
 
   lastSize = nextSize;
+  lastWindowSize = nextWindowSize;
   chart.resize(nextSize.width, nextSize.height);
 }
 
@@ -171,7 +177,24 @@ function readHostSize() {
   const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
   if (width <= 0 || height <= 0) return null;
 
-  return { width, height };
+  return { width, height, fixedViewport };
+}
+
+function guardFixedViewportSize(
+  nextSize: { width: number; height: number; fixedViewport: boolean },
+  nextWindowSize: { width: number; height: number },
+) {
+  if (
+    nextSize.fixedViewport &&
+    nextSize.width === lastSize.width &&
+    nextSize.height > lastSize.height &&
+    nextWindowSize.width === lastWindowSize.width &&
+    nextWindowSize.height === lastWindowSize.height
+  ) {
+    return { width: nextSize.width, height: lastSize.height };
+  }
+
+  return { width: nextSize.width, height: nextSize.height };
 }
 
 function clampRenderedHeight(height: number) {
@@ -207,6 +230,13 @@ function readResizeHost() {
 
 function isFixedViewportHost(element: HTMLElement) {
   return element.getAttribute("data-chart-viewport") === "fixed";
+}
+
+function readWindowSize() {
+  return {
+    width: window.innerWidth > 0 ? window.innerWidth : 0,
+    height: window.innerHeight > 0 ? window.innerHeight : 0,
+  };
 }
 
 function positiveFloor(value: number) {
