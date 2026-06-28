@@ -44,7 +44,7 @@
         <div class="research-toolbar">
           <div class="toolbar-row">
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
-            <NSelect v-model:value="symbol" class="research-select" :options="symbolOptions" />
+            <NAutoComplete v-model:value="symbol" class="research-symbol-input" :options="symbolOptions" clearable />
             <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
           </div>
           <div class="research-context">
@@ -104,7 +104,7 @@
           <NSelect v-model:value="createForm.exchange" :options="exchangeOptions" />
         </NFormItem>
         <NFormItem :label="t('research.symbol')">
-          <NSelect v-model:value="createForm.symbol" :options="createSymbolOptions" />
+          <NAutoComplete v-model:value="createForm.symbol" :options="createSymbolOptions" clearable />
         </NFormItem>
         <NFormItem :label="t('research.interval')">
           <NSelect v-model:value="createForm.interval" :options="intervalOptions" />
@@ -175,6 +175,7 @@
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
 import {
+  NAutoComplete,
   NButton,
   NDataTable,
   NDatePicker,
@@ -185,6 +186,7 @@ import {
   NSpace,
   NTag,
   NText,
+  type AutoCompleteOption,
   type DataTableColumns,
   type SelectOption,
   type TagProps,
@@ -244,8 +246,8 @@ const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "OKX", value: "okx" },
 ]);
 
-const symbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(exchange.value));
-const createSymbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(createForm.exchange));
+const symbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(exchange.value));
+const createSymbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(createForm.exchange));
 
 const intervalOptions = computed<SelectOption[]>(() => [
   { label: "1m", value: "1m" },
@@ -377,6 +379,10 @@ const healthTagType = computed<TagProps["type"]>(() => {
 
 .research-select {
   width: 136px;
+}
+
+.research-symbol-input {
+  width: 172px;
 }
 
 .research-select--compact {

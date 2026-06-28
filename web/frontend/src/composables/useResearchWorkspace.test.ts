@@ -91,6 +91,71 @@ describe("useResearchWorkspace", () => {
     expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
   });
 
+  it("loads arbitrary valid symbols from the route after normalizing input", async () => {
+    routerMocks.query = { exchange: "binance", symbol: "solusdt", interval: "5m" };
+
+    mountWorkspace();
+    await flushPromises();
+
+    expect(dataApi.getCandles).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "SOLUSDT",
+      interval: "5m",
+    });
+  });
+
+  it("does not call the candles API for a symbol that does not match the selected exchange", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.getCandles.mockClear();
+
+    workspace.symbol.value = "BTC-USDT";
+    await flushPromises();
+
+    expect(dataApi.getCandles).not.toHaveBeenCalled();
+    expect(workspace.candlesError.value).toBe("交易对格式不符合当前交易所。");
+  });
+
+  it("blocks data sync task creation when the symbol format does not match the exchange", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.createTask.mockClear();
+
+    workspace.openCreateTask();
+    workspace.createForm.exchange = "okx";
+    await flushPromises();
+    workspace.createForm.symbol = "BTCUSDT";
+    await flushPromises();
+
+    expect(workspace.canCreateTask.value).toBe(false);
+
+    await workspace.createTask();
+
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("交易对格式不符合当前交易所。");
+  });
+
+  it("creates data sync tasks for arbitrary valid normalized symbols", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+    dataApiMocks.createTask.mockClear();
+
+    workspace.openCreateTask();
+    workspace.createForm.symbol = " solusdt ";
+    await flushPromises();
+
+    await workspace.createTask();
+    await flushPromises();
+
+    expect(dataApi.createTask).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "SOLUSDT",
+      interval: "5m",
+      startTime: undefined,
+      endTime: undefined,
+    });
+  });
+
   it("does not create a repair task when the current chart has no gaps", async () => {
     const workspace = mountWorkspace();
     await flushPromises();

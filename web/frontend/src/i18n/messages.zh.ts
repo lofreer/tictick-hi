@@ -289,6 +289,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.startTime": "开始时间",
     "research.endTime": "结束时间",
     "research.requiredFields": "请填写交易所、交易对和周期。",
+    "research.invalidSymbolFormat": "交易对格式不符合当前交易所。",
     "research.taskCreated": "数据同步任务已创建。",
     "research.taskDeleted": "数据同步任务已删除。",
     "research.taskRetried": "数据同步任务已重新排队。",

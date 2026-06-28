@@ -24,13 +24,19 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain('class="research-chart-body" data-chart-viewport="fixed"');
   });
 
-  it("uses exchange-specific symbol options for chart and create form", () => {
+  it("uses exchange-specific symbol suggestions without locking the symbol input to a select", () => {
     expect(source).toContain('import { symbolOptionsForExchange } from "@/utils/marketSymbols";');
-    expect(source).toContain("const symbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(exchange.value));");
     expect(source).toContain(
-      "const createSymbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(createForm.exchange));",
+      "const symbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(exchange.value));",
     );
+    expect(source).toContain(
+      "const createSymbolOptions = computed<AutoCompleteOption[]>(() => symbolOptionsForExchange(createForm.exchange));",
+    );
+    expect(source).toContain('<NAutoComplete v-model:value="symbol"');
+    expect(source).toContain('<NAutoComplete v-model:value="createForm.symbol"');
     expect(source).toContain(':options="createSymbolOptions"');
+    expect(source).not.toContain('<NSelect v-model:value="symbol"');
+    expect(source).not.toContain('<NSelect v-model:value="createForm.symbol"');
     expect(source).not.toContain(':options="symbolOptions" filterable tag');
   });
 });

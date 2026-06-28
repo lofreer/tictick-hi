@@ -289,6 +289,7 @@ export const enUSMessages: Record<string, string> = {
     "research.startTime": "Start time",
     "research.endTime": "End time",
     "research.requiredFields": "Fill exchange, symbol, and interval.",
+    "research.invalidSymbolFormat": "Symbol format does not match the selected exchange.",
     "research.taskCreated": "Data sync task created.",
     "research.taskDeleted": "Data sync task deleted.",
     "research.taskRetried": "Data sync task queued for retry.",

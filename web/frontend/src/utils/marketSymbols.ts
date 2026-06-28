@@ -4,6 +4,8 @@ export type MarketSymbolOption = {
 };
 
 const fallbackExchange = "binance";
+const binanceSymbolPattern = /^[A-Z0-9]{3,30}$/;
+const okxSymbolPattern = /^[A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?$/;
 
 const marketSymbolOptions: Record<string, MarketSymbolOption[]> = {
   binance: [
@@ -25,11 +27,24 @@ export function defaultSymbolForExchange(exchange: string) {
 }
 
 export function isSymbolForExchange(exchange: string, symbol: string) {
-  return optionsForExchange(exchange).some((option) => option.value === symbol);
+  return isSymbolFormatForExchange(exchange, symbol);
+}
+
+export function isSymbolFormatForExchange(exchange: string, symbol: string) {
+  const normalized = normalizeSymbolInput(symbol);
+  if (exchange === "okx") {
+    return okxSymbolPattern.test(normalized);
+  }
+  return binanceSymbolPattern.test(normalized);
 }
 
 export function coerceSymbolForExchange(exchange: string, symbol: string) {
-  return isSymbolForExchange(exchange, symbol) ? symbol : defaultSymbolForExchange(exchange);
+  const normalized = normalizeSymbolInput(symbol);
+  return isSymbolFormatForExchange(exchange, normalized) ? normalized : defaultSymbolForExchange(exchange);
+}
+
+export function normalizeSymbolInput(symbol: string) {
+  return symbol.trim().toUpperCase();
 }
 
 function optionsForExchange(exchange: string) {

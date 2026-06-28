@@ -5,7 +5,11 @@ import { useRoute, useRouter } from "vue-router";
 
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncGapList, DataSyncTask } from "@/types/app";
-import { coerceSymbolForExchange } from "@/utils/marketSymbols";
+import {
+  coerceSymbolForExchange,
+  isSymbolFormatForExchange,
+  normalizeSymbolInput,
+} from "@/utils/marketSymbols";
 
 type ResearchForm = {
   exchange: string;
@@ -50,7 +54,11 @@ export function useResearchWorkspace() {
     endTime: null,
   });
   const canCreateTask = computed(
-    () => createForm.exchange !== "" && createForm.symbol !== "" && createForm.interval !== "",
+    () =>
+      createForm.exchange !== "" &&
+      createForm.symbol !== "" &&
+      createForm.interval !== "" &&
+      isSymbolFormatForExchange(createForm.exchange, createForm.symbol),
   );
   const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
   const canRepairGap = computed(() => firstRepairableGap.value !== null);
@@ -59,10 +67,27 @@ export function useResearchWorkspace() {
     symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
   });
 
+  watch(symbol, (nextSymbol) => {
+    const normalized = normalizeSymbolInput(nextSymbol);
+    if (normalized !== nextSymbol) {
+      symbol.value = normalized;
+    }
+  });
+
   watch(
     () => createForm.exchange,
     (nextExchange) => {
       createForm.symbol = coerceSymbolForExchange(nextExchange, createForm.symbol);
+    },
+  );
+
+  watch(
+    () => createForm.symbol,
+    (nextSymbol) => {
+      const normalized = normalizeSymbolInput(nextSymbol);
+      if (normalized !== nextSymbol) {
+        createForm.symbol = normalized;
+      }
     },
   );
 
@@ -98,9 +123,16 @@ export function useResearchWorkspace() {
     candlesLoading.value = true;
     candlesError.value = "";
     try {
+      if (!isSymbolFormatForExchange(exchange.value, symbol.value)) {
+        candles.value = [];
+        candleResult.value = null;
+        candlesError.value = t("research.invalidSymbolFormat");
+        return;
+      }
+
       const result = await dataApi.getCandles({
         exchange: exchange.value,
-        symbol: symbol.value,
+        symbol: normalizeSymbolInput(symbol.value),
         interval: interval.value,
       });
       candleResult.value = result;
@@ -125,13 +157,17 @@ export function useResearchWorkspace() {
 
   async function createTask() {
     if (!canCreateTask.value) {
-      message.error(t("research.requiredFields"));
+      message.error(
+        createForm.exchange && createForm.symbol && createForm.interval
+          ? t("research.invalidSymbolFormat")
+          : t("research.requiredFields"),
+      );
       return;
     }
 
     const request: CreateDataSyncTask = {
       exchange: createForm.exchange,
-      symbol: createForm.symbol,
+      symbol: normalizeSymbolInput(createForm.symbol),
       interval: createForm.interval,
       startTime: toISOString(createForm.startTime),
       endTime: toISOString(createForm.endTime),
@@ -240,7 +276,7 @@ export function useResearchWorkspace() {
     const repairInterval = candleResult.value?.baseInterval || interval.value;
     const request: CreateDataSyncTask = {
       exchange: exchange.value,
-      symbol: symbol.value,
+      symbol: normalizeSymbolInput(symbol.value),
       interval: repairInterval,
       startTime: gap.from,
       endTime: gap.to,
