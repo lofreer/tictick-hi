@@ -14,7 +14,7 @@ const samplesPerViewport = parsePositiveInt(process.env.SMOKE_SAMPLES, 30);
 const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
-const axisInsetTolerance = parsePositiveInt(process.env.SMOKE_AXIS_INSET_TOLERANCE, 6);
+const axisInsetTolerance = parsePositiveInt(process.env.SMOKE_AXIS_INSET_TOLERANCE, 16);
 const maxAxisInset = parsePositiveInt(process.env.SMOKE_MAX_AXIS_INSET, 48);
 
 const viewports = [

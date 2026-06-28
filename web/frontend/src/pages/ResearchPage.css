@@ -102,8 +102,8 @@
 }
 
 .research-chart-body {
-  --tt-chart-fixed-inline-end-gutter: 12px;
-  --tt-chart-fixed-block-end-gutter: 12px;
+  --tt-chart-fixed-inline-end-gutter: 24px;
+  --tt-chart-fixed-block-end-gutter: 20px;
 
   position: relative;
   display: block;

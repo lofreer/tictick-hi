@@ -49,7 +49,7 @@ let pendingFixedViewportHeightRefresh = false;
 const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
 const minTimeAxisEdgePaddingBars = 6;
-const timeAxisEdgePaddingPixels = 64;
+const timeAxisEdgePaddingPixels = 72;
 const maxFixedViewportGutter = 48;
 
 onMounted(() => {
