@@ -64,6 +64,16 @@
               <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
                 {{ coverageLabel }}
               </NTag>
+              <NButton
+                v-if="canRepairGap"
+                size="tiny"
+                secondary
+                type="warning"
+                :loading="repairGapLoading"
+                @click="repairFirstGap"
+              >
+                {{ t("research.repairFirstGap") }}
+              </NButton>
             </div>
           </div>
         </div>
@@ -149,6 +159,7 @@ import { symbolOptionsForExchange } from "@/utils/marketSymbols";
 const { t } = useI18n();
 const {
   canCreateTask,
+  canRepairGap,
   candleResult,
   candles,
   candlesError,
@@ -163,6 +174,8 @@ const {
   loadCandles,
   loadTasks,
   openCreateTask,
+  repairFirstGap,
+  repairGapLoading,
   retryTask,
   selectTask,
   symbol,

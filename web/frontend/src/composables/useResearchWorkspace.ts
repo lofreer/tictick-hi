@@ -32,6 +32,7 @@ export function useResearchWorkspace() {
   const tasksLoading = ref(false);
   const candlesLoading = ref(false);
   const createLoading = ref(false);
+  const repairGapLoading = ref(false);
   const tasksError = ref("");
   const candlesError = ref("");
   const createModalOpen = ref(false);
@@ -45,6 +46,8 @@ export function useResearchWorkspace() {
   const canCreateTask = computed(
     () => createForm.exchange !== "" && createForm.symbol !== "" && createForm.interval !== "",
   );
+  const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
+  const canRepairGap = computed(() => firstRepairableGap.value !== null);
 
   watch(exchange, (nextExchange) => {
     symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
@@ -185,6 +188,34 @@ export function useResearchWorkspace() {
     });
   }
 
+  async function repairFirstGap() {
+    const gap = firstRepairableGap.value;
+    if (!gap) {
+      message.error(t("research.noRepairableGap"));
+      return;
+    }
+    const repairInterval = candleResult.value?.baseInterval || interval.value;
+    const request: CreateDataSyncTask = {
+      exchange: exchange.value,
+      symbol: symbol.value,
+      interval: repairInterval,
+      startTime: gap.from,
+      endTime: gap.to,
+    };
+
+    repairGapLoading.value = true;
+    try {
+      const task = await dataApi.createTask(request);
+      await dataApi.setSync(task.id, true);
+      message.success(t("research.gapRepairQueued"));
+      await loadTasks();
+    } catch (error) {
+      message.error(errorMessage(error, t("research.gapRepairFailed")));
+    } finally {
+      repairGapLoading.value = false;
+    }
+  }
+
   async function runAction(action: () => Promise<void>) {
     try {
       await action();
@@ -195,6 +226,7 @@ export function useResearchWorkspace() {
 
   return {
     canCreateTask,
+    canRepairGap,
     candleResult,
     candles,
     candlesError,
@@ -209,6 +241,8 @@ export function useResearchWorkspace() {
     loadCandles,
     loadTasks,
     openCreateTask,
+    repairFirstGap,
+    repairGapLoading,
     refreshAll,
     retryTask,
     selectTask,
