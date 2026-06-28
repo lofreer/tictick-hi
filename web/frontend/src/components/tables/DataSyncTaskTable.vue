@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1700"
+    :scroll-x="1900"
     size="small"
   />
 </template>
@@ -48,6 +48,12 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   { title: t("research.exchange"), key: "exchange", width: 92 },
   { title: t("research.symbol"), key: "symbol", width: 110 },
   { title: t("research.interval"), key: "interval", width: 76 },
+  {
+    title: t("research.syncWindow"),
+    key: "syncWindow",
+    width: 220,
+    render: syncWindowCell,
+  },
   {
     title: t("research.latestSyncedAt"),
     key: "latestSyncedAt",
@@ -147,6 +153,50 @@ function iconButton(
 
 function hasRepairableTaskGaps(row: DataSyncTask) {
   return (row.gapSummary?.count ?? 0) > 0;
+}
+
+function syncWindowCell(row: DataSyncTask) {
+  const text = syncWindowText(row);
+  return h(
+    NTooltip,
+    { trigger: "hover", width: 420 },
+    {
+      trigger: () =>
+        h(
+          "span",
+          {
+            class: "task-sync-window",
+            title: text,
+          },
+          text,
+        ),
+      default: () =>
+        h(
+          "span",
+          {
+            style: {
+              display: "block",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            },
+          },
+          text,
+        ),
+    },
+  );
+}
+
+function syncWindowText(row: DataSyncTask) {
+  if (row.startTime && row.endTime) {
+    return t("research.syncWindowRange", { from: row.startTime, to: row.endTime });
+  }
+  if (row.startTime) {
+    return t("research.syncWindowFrom", { from: row.startTime });
+  }
+  if (row.endTime) {
+    return t("research.syncWindowTo", { to: row.endTime });
+  }
+  return t("research.syncWindowContinuous");
 }
 
 function gapSummaryCell(row: DataSyncTask) {
@@ -264,6 +314,15 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
   max-width: 100%;
   overflow: hidden;
   color: var(--tt-warning);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-sync-window {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--tt-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

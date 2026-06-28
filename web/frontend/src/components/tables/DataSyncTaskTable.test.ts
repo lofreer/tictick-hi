@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(1700);
+    expect(table.props("scrollX")).toBe(1900);
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).not.toContain("/api/v3/klines");
@@ -77,6 +77,33 @@ describe("DataSyncTaskTable", () => {
 
     expect(wrapper.text()).toContain("数据健康");
     expect(wrapper.text()).toContain("有缺口");
+  });
+
+  it("shows sync task window boundaries", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "repair_1",
+            startTime: "2026-06-27T03:02:00Z",
+            endTime: "2026-06-27T03:03:00Z",
+          }),
+          dataSyncTask({
+            id: "tail_1",
+            startTime: "2026-06-27T03:02:00Z",
+          }),
+          dataSyncTask({
+            id: "continuous_1",
+          }),
+        ],
+      },
+    });
+
+    const windows = wrapper.findAll(".task-sync-window").map((node) => node.text());
+    expect(windows).toContain("2026-06-27T03:02:00Z 到 2026-06-27T03:03:00Z");
+    expect(windows).toContain("从 2026-06-27T03:02:00Z 开始");
+    expect(windows).toContain("持续同步");
   });
 
   it("shows backend-derived gap summary", () => {
