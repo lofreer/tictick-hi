@@ -25,6 +25,7 @@ vi.mock("lightweight-charts", () => ({
   createChart: chartMocks.createChart,
   createSeriesMarkers: vi.fn(() => ({ setMarkers: chartMocks.setMarkers })),
   HistogramSeries: "HistogramSeries",
+  TickMarkType: { Year: 0, Month: 1, DayOfMonth: 2, Time: 3, TimeWithSeconds: 4 },
 }));
 
 const mockedCreateChart = vi.mocked(createChart);
@@ -230,12 +231,32 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("uses compact UTC tick labels so the time axis does not clip edge text", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+    const options = mockedCreateChart.mock.calls[0]?.[1] as {
+      timeScale: {
+        secondsVisible: boolean;
+        tickMarkMaxCharacterLength: number;
+        tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => string | null;
+      };
+    };
+
+    expect(options.timeScale).toMatchObject({ secondsVisible: false, tickMarkMaxCharacterLength: 8 });
+    const time = Date.UTC(2026, 5, 27, 18, 58) / 1000;
+    for (const [tickMarkType, label] of [[3, "18:58"], [2, "06-27"], [1, "26-06"], [0, "2026"]] as const) {
+      expect(options.timeScale.tickMarkFormatter(time, tickMarkType, "en-US")).toBe(label);
+    }
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("pads the visible logical range so edge time labels are not clipped", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 
     expect(chartMocks.fitContent).toHaveBeenCalled();
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -12, to: 12 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -22.5, to: 22.5 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -252,7 +273,7 @@ describe("TradingViewChart", () => {
       volume: 1000 + index,
     })));
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 623, to: 1031 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 612.5, to: 1041.5 });
 
     wrapper.unmount();
     host.panel.remove();

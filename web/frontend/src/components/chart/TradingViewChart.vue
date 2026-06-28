@@ -13,6 +13,7 @@ import {
   createChart,
   createSeriesMarkers,
   HistogramSeries,
+  TickMarkType,
   type CandlestickData,
   type HistogramData,
   type IChartApi,
@@ -57,6 +58,7 @@ const targetInitialBarSpacingPixels = 3;
 const minTimeAxisEdgePaddingBars = 12;
 const minTimeAxisEdgePaddingPixels = 48;
 const maxTimeAxisEdgePaddingPixels = 96;
+const timeAxisLabelInsetBars = 10.5;
 const timeAxisEdgePaddingRatio = 0.12;
 const volumePriceScaleId = "";
 const volumeUpColor = "rgba(14, 203, 129, 0.28)";
@@ -193,10 +195,11 @@ function fitChartContent(dataLength: number) {
   if (dataLength === 0) return;
   const visibleBars = initialVisibleBars(dataLength);
   const edgePadding = timeAxisEdgePaddingBars(visibleBars);
-  const left = dataLength > visibleBars ? dataLength - visibleBars - edgePadding : -edgePadding;
+  const totalPadding = edgePadding + timeAxisLabelInsetBars;
+  const left = dataLength > visibleBars ? dataLength - visibleBars - totalPadding : -totalPadding;
   timeScale.setVisibleLogicalRange({
     from: left,
-    to: dataLength - 1 + edgePadding,
+    to: dataLength - 1 + totalPadding,
   });
 }
 
@@ -230,6 +233,12 @@ function responsiveChartOptions(mode = themeStore.mode) {
       ...theme.rightPriceScale,
       minimumWidth: rightPriceScaleMinimumWidth(lastSize.width),
     },
+    timeScale: {
+      ...theme.timeScale,
+      secondsVisible: false,
+      tickMarkMaxCharacterLength: 8,
+      tickMarkFormatter: formatChartTickMark,
+    },
   };
 }
 
@@ -252,6 +261,28 @@ function formatChartPrice(price: number) {
 
 function trimTrailingZeros(value: string) {
   return value.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+}
+
+function formatChartTickMark(time: Time, tickMarkType: TickMarkType) {
+  const date = chartTimeToDate(time);
+  if (!date) return null;
+  if (tickMarkType === TickMarkType.Year) return `${date.getUTCFullYear()}`;
+  if (tickMarkType === TickMarkType.Month) return `${date.getUTCFullYear().toString().slice(2)}-${pad2(date.getUTCMonth() + 1)}`;
+  if (tickMarkType === TickMarkType.DayOfMonth) return `${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+  return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
+}
+
+function chartTimeToDate(time: Time) {
+  if (typeof time === "number") return new Date(time * 1000);
+  if (typeof time === "string") {
+    const parsed = new Date(time);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return new Date(Date.UTC(time.year, time.month - 1, time.day));
+}
+
+function pad2(value: number) {
+  return value.toString().padStart(2, "0");
 }
 
 function handleObservedResize(entries: ResizeObserverEntry[]) {

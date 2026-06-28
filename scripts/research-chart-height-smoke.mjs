@@ -15,6 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
+const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -289,6 +290,8 @@ function sampleExpression() {
           scrollWidth: element.scrollWidth,
           rectWidth: Math.round(rect.width),
           rectHeight: Math.round(rect.height),
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
           left: Math.round(rect.left),
           right: Math.round(rect.right),
           styleHeight: style.height,
@@ -573,11 +576,12 @@ function assertChartLayout(label, sample) {
   }
   if (
     !sample.bottomTimeAxisEdgeInk ||
-    sample.bottomTimeAxisEdgeInk.leftDarkPixels > 0 ||
-    sample.bottomTimeAxisEdgeInk.rightDarkPixels > 0
+    sample.bottomTimeAxisEdgeInk.leftDarkPixels > maxTimeAxisEdgeInkPixels ||
+    sample.bottomTimeAxisEdgeInk.rightDarkPixels > maxTimeAxisEdgeInkPixels
   ) {
     throw new Error(
       `${label} time-axis label touches fixed body edge: ${JSON.stringify({
+        maxTimeAxisEdgeInkPixels,
         body,
         bottomTimeAxisCanvas,
         bottomTimeAxisEdgeInk: sample.bottomTimeAxisEdgeInk,

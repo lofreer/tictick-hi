@@ -5143,6 +5143,33 @@ Definition of Done：
 - 仍未建立人工视觉基线截图审批、全主题/全语言矩阵或长期浏览器 soak；研究页图表能力仍是阶段 1 scaffold 增量。
 - 图表仍缺指标层、十字线增强、绘图工具、完整缩放/拖拽 UX 和自定义时间范围。
 
+### 阶段 1 研究页 K 线图表边缘裁切二次修正
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户在本地继续观察到研究页 K 线固定容器内的内容被截掉，且前一版运行态 smoke 把时间轴边界线 / 刻度线也计入文字贴边像素，容易产生误判。
+
+修复范围：
+
+- `TradingViewChart` 为 lightweight-charts 时间轴增加短 UTC `tickMarkFormatter`，年 / 月 / 日 / 分钟刻度均控制在 8 字符以内。
+- `TradingViewChart` 的初始可见逻辑范围增加半整数 K 线内边距，避免首个时间刻度坐标落在 canvas 物理 0 像素边界。
+- `scripts/research-chart-height-smoke.mjs` 补齐所有布局节点的 `top/bottom` 几何采样，并把时间轴边缘深色像素检查改为阈值判断，允许轴线 / 刻度线但仍拦截明显文字贴边。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- 使用当前源码构建的本地预览服务 `BASE_URL=http://127.0.0.1:5174 node scripts/research-chart-height-smoke.mjs` 通过：desktop `body/chart/tv 603->603`，812x1320 窄桌面 `500->500`，mobile `457->457`，内部高度污染后无增长。
+
+剩余风险：
+
+- 本轮修复的是图表固定容器、轴标签边界和 smoke 误判，不是完整像素快照基线。
+- 当前 8080 Docker API 容器尚未重建为本轮前端产物；本轮先用临时预览服务验证当前源码构建。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ### 阶段 1 instrument catalog 同步后自动停用非 active 数据同步任务补充
 
 目标等级：scaffold
