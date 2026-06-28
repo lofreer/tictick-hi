@@ -44,7 +44,7 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；仍缺系统性桌面/移动/主题视觉回归，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；`scripts/stage8-visual-smoke.mjs` 已覆盖核心页面桌面/移动与浅/深主题的 runtime error、横向溢出和主内容存在性；仍缺像素快照基线、全路由/全语言覆盖和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
@@ -3265,7 +3265,7 @@ Definition of Done：
 | 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通；通知 intent 可进入 email / Telegram / 飞书 provider 基础发送路径 | 风控、PnL 可信度、通知 provider 生产启用边界、统一状态机和实盘隔离不足 |
 | 实盘安全 | demo | 凭据 AES-GCM、本地 live 任务创建护栏和 live execute 禁用已验证 | testnet/sandbox executor、订单先落库再提交、幂等 retry、KMS/轮换未完成 |
 | 通知 | demo | outbox、local/webhook-demo/webhook/email/Telegram/飞书 provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实第三方账号联网验收、模板、限流、审计和通道管理不足 |
-| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告；概览页已接入真实 API 聚合 | 缺系统性桌面/移动/主题视觉回归 |
+| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告；概览页已接入真实 API 聚合；Stage 8 visual smoke 已覆盖核心页面桌面/移动与浅/深主题 | 缺像素快照基线、全路由/全语言覆盖和 CI 硬门禁 |
 | 概览页 | demo | 从现有 API 聚合系统健康、data sync、backtest、trading 和 notification，展示关键计数、异常提醒、worker 状态和最近活动；`useOverviewWorkspace` 单测覆盖聚合契约 | 缺时间窗口筛选、趋势图、关键操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员 session 管理、基础操作审计页、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 通用门禁、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator gate、stage8 smoke、data sync/backtest/trading/notify SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、视觉回归和安全审计纳入硬门禁 |
@@ -3334,6 +3334,47 @@ Definition of Done：
 剩余风险：
 
 - 前端基础设施仍为 `scaffold`；缺系统性桌面 / 移动 / 主题视觉回归，不能因 code split 声明 usable。
+
+### 阶段 8 前端视觉 smoke gate 补充
+
+执行时间：2026-06-29
+
+目标等级：scaffold
+
+触发问题：
+
+- Stage 8 readiness 重审计将前端基础设施列为 `scaffold`，其中一个明确 blocker 是缺系统性桌面 / 移动 / 主题视觉回归。
+- 既有 `research-chart-height-smoke.mjs` 只覆盖研究页图表高度，不覆盖概览、列表页、系统健康页、浅色 / 深色主题和整体横向溢出。
+
+修复范围：
+
+- 新增 `scripts/stage8-visual-smoke.mjs`，复用本地 8080、登录态和 Chrome DevTools Protocol，不引入新浏览器依赖。
+- smoke 覆盖 `/overview`、`/research`、`/backtests`、`/trading`、`/system/health` 五个核心页面。
+- 每个页面在 desktop `1440x900`、mobile `390x844` 和 light / dark 主题下验证 app shell、page title、主内容节点存在且有非零尺寸。
+- 每个页面验证无 JS runtime error / console error，`documentWidth` 不超过 viewport 容差，主页面容器不逃出 viewport。
+- 研究页额外验证 `.research-chart-body`、`.trading-chart` 和 `.tv-lightweight-charts` 存在且高度不超过 viewport，避免把通用视觉 smoke 与图表专项 smoke 脱节。
+- README 增加 Stage 8 visual smoke 本地运行入口。
+
+范围外：
+
+- 不做像素快照 diff 或截图基线。
+- 不覆盖所有系统管理子页面、详情页、中文/英文双语言矩阵。
+- 不把该脚本加入轻量 `scripts/quality-gate.sh`，因为它依赖本地 8080 和可用 Chrome。
+- 不把前端基础设施升级为 `demo` 或 `usable`。
+
+验证：
+
+- `node scripts/stage8-visual-smoke.mjs` 通过：desktop light/dark 与 mobile light/dark 各覆盖 5 个页面，最大 document width 分别为 `1440 / 1440 / 390 / 390`。
+- `node scripts/research-chart-height-smoke.mjs` 通过：desktop、narrow desktop、mobile 图表高度稳定，内部高度污染后不增长。
+
+失败：
+
+- 无当前硬失败。
+
+剩余风险：
+
+- 前端基础设施仍为 `scaffold`；当前只是核心页面的 DOM/layout smoke，不是完整像素级视觉回归体系。
+- 该 smoke 依赖本机 Chrome 和已启动本地 8080；无 Chrome 的 CI/主机需要设置 `CHROME_PATH` 或跳过本地视觉检查。
 
 ### 阶段 8 概览页真实聚合补充
 
