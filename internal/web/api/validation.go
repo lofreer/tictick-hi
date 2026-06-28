@@ -2,15 +2,40 @@ package api
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
+var (
+	binanceSymbolPattern = regexp.MustCompile(`^[A-Z0-9]{3,30}$`)
+	okxSymbolPattern     = regexp.MustCompile(`^[A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?$`)
+)
+
 func validateCreateTask(task data.CreateDataSyncTask) error {
 	if task.Exchange == "" || task.Symbol == "" || task.Interval == "" {
 		return errors.New("exchange, symbol and interval are required")
+	}
+	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateExchangeSymbol(exchange string, symbol string) error {
+	switch exchange {
+	case "binance":
+		if !binanceSymbolPattern.MatchString(symbol) {
+			return errors.New("binance symbol must use uppercase compact format such as BTCUSDT")
+		}
+	case "okx":
+		if !okxSymbolPattern.MatchString(symbol) {
+			return errors.New("okx symbol must use uppercase instrument format such as BTC-USDT")
+		}
+	default:
+		return errors.New("exchange must be binance or okx")
 	}
 	return nil
 }

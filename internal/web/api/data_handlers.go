@@ -156,6 +156,9 @@ func parseCandleQuery(r *http.Request) (data.CandleQuery, error) {
 	if query.Exchange == "" || query.Symbol == "" || query.Interval == "" {
 		return data.CandleQuery{}, errors.New("exchange, symbol and interval are required")
 	}
+	if err := validateExchangeSymbol(query.Exchange, query.Symbol); err != nil {
+		return data.CandleQuery{}, err
+	}
 	if rawLimit := values.Get("limit"); rawLimit != "" {
 		limit, err := strconv.Atoi(rawLimit)
 		if err != nil || limit <= 0 {

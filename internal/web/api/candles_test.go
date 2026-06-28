@@ -108,6 +108,46 @@ func TestCandlesRouteRejectsUnsupportedInterval(t *testing.T) {
 	}
 }
 
+func TestCandlesRouteRejectsExchangeSymbolMismatch(t *testing.T) {
+	cases := []struct {
+		name    string
+		path    string
+		message string
+	}{
+		{
+			name:    "binance hyphen symbol",
+			path:    "/api/candles?exchange=binance&symbol=BTC-USDT&interval=1m",
+			message: "binance symbol must use uppercase compact format such as BTCUSDT",
+		},
+		{
+			name:    "okx compact symbol",
+			path:    "/api/candles?exchange=okx&symbol=BTCUSDT&interval=1m",
+			message: "okx symbol must use uppercase instrument format such as BTC-USDT",
+		},
+		{
+			name:    "unsupported exchange",
+			path:    "/api/candles?exchange=kraken&symbol=BTCUSDT&interval=1m",
+			message: "exchange must be binance or okx",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, server, cookie := newAuthenticatedTestServer(t)
+
+			recorder := serveAuthenticated(server, cookie, http.MethodGet, testCase.path, "")
+
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Code != "invalid_request" || response.Message != testCase.message {
+				t.Fatalf("unexpected response: %#v", response)
+			}
+		})
+	}
+}
+
 func candlesPath(interval string, from string, to string) string {
 	return fmt.Sprintf(
 		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=%s&from=%s&to=%s",

@@ -22,6 +22,16 @@ describe("ResearchPage chart layout contract", () => {
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
     expect(bodyStyle).toContain("contain: strict;");
   });
+
+  it("uses exchange-specific symbol options for chart and create form", () => {
+    expect(source).toContain('import { symbolOptionsForExchange } from "@/utils/marketSymbols";');
+    expect(source).toContain("const symbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(exchange.value));");
+    expect(source).toContain(
+      "const createSymbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(createForm.exchange));",
+    );
+    expect(source).toContain(':options="createSymbolOptions"');
+    expect(source).not.toContain(':options="symbolOptions" filterable tag');
+  });
 });
 
 function cssBlock(source: string, selector: string) {

@@ -91,7 +91,7 @@
           <NSelect v-model:value="createForm.exchange" :options="exchangeOptions" />
         </NFormItem>
         <NFormItem :label="t('research.symbol')">
-          <NSelect v-model:value="createForm.symbol" :options="symbolOptions" filterable tag />
+          <NSelect v-model:value="createForm.symbol" :options="createSymbolOptions" />
         </NFormItem>
         <NFormItem :label="t('research.interval')">
           <NSelect v-model:value="createForm.interval" :options="intervalOptions" />
@@ -144,6 +144,7 @@ import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
+import { symbolOptionsForExchange } from "@/utils/marketSymbols";
 
 const { t } = useI18n();
 const {
@@ -177,12 +178,8 @@ const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "OKX", value: "okx" },
 ]);
 
-const symbolOptions = computed<SelectOption[]>(() => [
-  { label: "BTCUSDT", value: "BTCUSDT" },
-  { label: "ETHUSDT", value: "ETHUSDT" },
-  { label: "BTC-USDT", value: "BTC-USDT" },
-  { label: "ETH-USDT", value: "ETH-USDT" },
-]);
+const symbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(exchange.value));
+const createSymbolOptions = computed<SelectOption[]>(() => symbolOptionsForExchange(createForm.exchange));
 
 const intervalOptions = computed<SelectOption[]>(() => [
   { label: "1m", value: "1m" },

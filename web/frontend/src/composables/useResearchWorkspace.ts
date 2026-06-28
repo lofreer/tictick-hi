@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncTask } from "@/types/app";
+import { coerceSymbolForExchange } from "@/utils/marketSymbols";
 
 type ResearchForm = {
   exchange: string;
@@ -21,8 +22,9 @@ export function useResearchWorkspace() {
   const message = useMessage();
   const { t } = useI18n();
 
-  const exchange = ref(readQuery(route.query.exchange, "binance"));
-  const symbol = ref(readQuery(route.query.symbol, "BTCUSDT"));
+  const initialExchange = readQuery(route.query.exchange, "binance");
+  const exchange = ref(initialExchange);
+  const symbol = ref(coerceSymbolForExchange(initialExchange, readQuery(route.query.symbol, "BTCUSDT")));
   const interval = ref(readQuery(route.query.interval, "1m"));
   const tasks = ref<DataSyncTask[]>([]);
   const candles = ref<ChartCandle[]>([]);
@@ -42,6 +44,17 @@ export function useResearchWorkspace() {
   });
   const canCreateTask = computed(
     () => createForm.exchange !== "" && createForm.symbol !== "" && createForm.interval !== "",
+  );
+
+  watch(exchange, (nextExchange) => {
+    symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
+  });
+
+  watch(
+    () => createForm.exchange,
+    (nextExchange) => {
+      createForm.symbol = coerceSymbolForExchange(nextExchange, createForm.symbol);
+    },
   );
 
   watch([exchange, symbol, interval], () => {
@@ -94,7 +107,7 @@ export function useResearchWorkspace() {
 
   function openCreateTask() {
     createForm.exchange = exchange.value;
-    createForm.symbol = symbol.value;
+    createForm.symbol = coerceSymbolForExchange(createForm.exchange, symbol.value);
     createForm.interval = interval.value;
     createForm.startTime = null;
     createForm.endTime = null;
