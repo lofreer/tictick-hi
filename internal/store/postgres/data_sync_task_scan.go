@@ -18,10 +18,11 @@ func dataSyncTaskReturningColumns() string {
 }
 
 func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL string) string {
-	return fmt.Sprintf(`%s, %s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s`,
+	return fmt.Sprintf(`%s, %s, %s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s`,
 		dataSyncTaskColumnList(alias, "id", "exchange", "symbol", "interval", "start_time", "end_time",
 			"sync_enabled", "realtime_enabled", "status"),
 		dataSyncTaskMarketStatusSQL(alias),
+		dataSyncTaskMarketStatusDetailSQL(alias),
 		healthSQL,
 		gapSummarySQL,
 		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "repair_source_task_id")),
@@ -33,6 +34,19 @@ func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL strin
 		dataSyncTaskExchangeBackoffLastErrorSQL(alias),
 		dataSyncTaskColumn(alias, "created_at"),
 		dataSyncTaskColumn(alias, "updated_at"),
+	)
+}
+
+func dataSyncTaskMarketStatusDetailSQL(alias string) string {
+	return fmt.Sprintf(`COALESCE((
+		SELECT instrument.exchange_status
+		  FROM market_instruments AS instrument
+		 WHERE instrument.exchange = %s
+		   AND instrument.symbol = %s
+		 LIMIT 1
+	), 'missing') AS market_status_detail`,
+		dataSyncTaskOuterColumn(alias, "exchange"),
+		dataSyncTaskOuterColumn(alias, "symbol"),
 	)
 }
 
@@ -325,6 +339,7 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&task.RealtimeEnabled,
 		&task.Status,
 		&task.MarketStatus,
+		&task.MarketStatusDetail,
 		&task.DataHealth,
 		&gapCount,
 		&firstGapFrom,

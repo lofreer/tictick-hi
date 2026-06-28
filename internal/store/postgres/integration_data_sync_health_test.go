@@ -168,7 +168,7 @@ func TestIntegrationListDataSyncTasksReportsMarketStatus(t *testing.T) {
 	insertDataHealthTask(t, ctx, store, activeID, activeSymbol, data.TaskStatusPaused, false, false, nil, nil, "")
 	insertDataHealthTask(t, ctx, store, inactiveID, inactiveSymbol, data.TaskStatusPaused, false, false, nil, nil, "")
 	insertDataHealthTask(t, ctx, store, missingID, missingSymbol, data.TaskStatusPaused, false, false, nil, nil, "")
-	if _, err := store.pool.Exec(ctx, `UPDATE market_instruments SET status = 'inactive' WHERE exchange = 'binance' AND symbol = $1`, inactiveSymbol); err != nil {
+	if _, err := store.pool.Exec(ctx, `UPDATE market_instruments SET status = 'inactive', exchange_status = 'BREAK' WHERE exchange = 'binance' AND symbol = $1`, inactiveSymbol); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.pool.Exec(ctx, `DELETE FROM market_instruments WHERE exchange = 'binance' AND symbol = $1`, missingSymbol); err != nil {
@@ -180,8 +180,10 @@ func TestIntegrationListDataSyncTasksReportsMarketStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	statusByID := make(map[string]data.DataSyncMarketStatus)
+	detailByID := make(map[string]string)
 	for _, task := range tasks {
 		statusByID[task.ID] = task.MarketStatus
+		detailByID[task.ID] = task.MarketStatusDetail
 	}
 	expected := map[string]data.DataSyncMarketStatus{
 		activeID:   data.DataSyncMarketStatusActive,
@@ -191,6 +193,16 @@ func TestIntegrationListDataSyncTasksReportsMarketStatus(t *testing.T) {
 	for id, want := range expected {
 		if got := statusByID[id]; got != want {
 			t.Fatalf("task %s market status = %q, want %q", id, got, want)
+		}
+	}
+	expectedDetails := map[string]string{
+		activeID:   "active",
+		inactiveID: "BREAK",
+		missingID:  "missing",
+	}
+	for id, want := range expectedDetails {
+		if got := detailByID[id]; got != want {
+			t.Fatalf("task %s market status detail = %q, want %q", id, got, want)
 		}
 	}
 }
@@ -624,11 +636,11 @@ func upsertIntegrationMarketInstrument(
 	t.Helper()
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO market_instruments (
-			exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
 		)
-		VALUES ($1, $2, $3, 'USDT', 'spot', $4, 0, now())
+		VALUES ($1, $2, $3, 'USDT', 'spot', $4, $4, 0, now())
 		ON CONFLICT (exchange, symbol)
-		DO UPDATE SET status = EXCLUDED.status, synced_at = EXCLUDED.synced_at, updated_at = now()`,
+		DO UPDATE SET status = EXCLUDED.status, exchange_status = EXCLUDED.exchange_status, synced_at = EXCLUDED.synced_at, updated_at = now()`,
 		exchange,
 		symbol,
 		symbol,

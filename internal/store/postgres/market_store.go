@@ -22,7 +22,7 @@ func (store *Store) GetActiveMarketInstrument(
 ) (data.MarketInstrument, error) {
 	var instrument data.MarketInstrument
 	err := store.pool.QueryRow(ctx, `
-		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status,
+		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status,
 		       search_priority, synced_at, created_at, updated_at
 		  FROM market_instruments
 		 WHERE exchange = $1
@@ -37,6 +37,7 @@ func (store *Store) GetActiveMarketInstrument(
 		&instrument.QuoteAsset,
 		&instrument.InstrumentType,
 		&instrument.Status,
+		&instrument.ExchangeStatus,
 		&instrument.SearchPriority,
 		&instrument.SyncedAt,
 		&instrument.CreatedAt,
@@ -62,7 +63,7 @@ func (store *Store) ListMarketInstruments(
 	contains := "%" + search + "%"
 
 	rows, err := store.pool.Query(ctx, `
-		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status,
+		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status,
 		       search_priority, synced_at, created_at, updated_at
 		  FROM market_instruments
 		 WHERE exchange = $1
@@ -109,6 +110,7 @@ func (store *Store) ListMarketInstruments(
 			&instrument.QuoteAsset,
 			&instrument.InstrumentType,
 			&instrument.Status,
+			&instrument.ExchangeStatus,
 			&instrument.SearchPriority,
 			&instrument.SyncedAt,
 			&instrument.CreatedAt,
@@ -150,20 +152,22 @@ func (store *Store) ReplaceMarketInstruments(
 		if status == "active" {
 			activeCount++
 		}
+		exchangeStatus := normalizedExchangeStatus(instrument.ExchangeStatus, status)
 		priority := instrument.SearchPriority
 		if priority <= 0 {
 			priority = 100
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO market_instruments (
-				exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+				exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			ON CONFLICT (exchange, symbol) DO UPDATE
 			   SET base_asset = EXCLUDED.base_asset,
 			       quote_asset = EXCLUDED.quote_asset,
 			       instrument_type = EXCLUDED.instrument_type,
 			       status = EXCLUDED.status,
+			       exchange_status = EXCLUDED.exchange_status,
 			       search_priority = LEAST(market_instruments.search_priority, EXCLUDED.search_priority),
 			       synced_at = EXCLUDED.synced_at,
 			       updated_at = now()`,
@@ -173,6 +177,7 @@ func (store *Store) ReplaceMarketInstruments(
 			quoteAsset,
 			normalizedInstrumentType(instrument.InstrumentType),
 			status,
+			exchangeStatus,
 			priority,
 			syncedAt,
 		); err != nil {
@@ -187,6 +192,7 @@ func (store *Store) ReplaceMarketInstruments(
 	tag, err := tx.Exec(ctx, `
 		UPDATE market_instruments
 		   SET status = 'inactive',
+		       exchange_status = 'not_returned',
 		       synced_at = $2,
 		       updated_at = now()
 		 WHERE exchange = $1
@@ -275,6 +281,14 @@ func normalizedInstrumentStatus(status string) string {
 		return "inactive"
 	}
 	return "active"
+}
+
+func normalizedExchangeStatus(exchangeStatus string, fallbackStatus string) string {
+	exchangeStatus = strings.TrimSpace(exchangeStatus)
+	if exchangeStatus != "" {
+		return exchangeStatus
+	}
+	return normalizedInstrumentStatus(fallbackStatus)
 }
 
 func normalizedInstrumentType(instrumentType string) string {

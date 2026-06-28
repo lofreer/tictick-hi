@@ -263,6 +263,10 @@ func (symbol binanceSymbol) toInstrument() (data.MarketInstrument, bool) {
 	if symbol.Status == "TRADING" {
 		status = "active"
 	}
+	exchangeStatus := strings.ToUpper(strings.TrimSpace(symbol.Status))
+	if exchangeStatus == "" {
+		exchangeStatus = status
+	}
 	return data.MarketInstrument{
 		Exchange:       "binance",
 		Symbol:         strings.ToUpper(symbol.Symbol),
@@ -270,6 +274,7 @@ func (symbol binanceSymbol) toInstrument() (data.MarketInstrument, bool) {
 		QuoteAsset:     strings.ToUpper(symbol.QuoteAsset),
 		InstrumentType: "spot",
 		Status:         status,
+		ExchangeStatus: exchangeStatus,
 		SearchPriority: 100,
 	}, true
 }

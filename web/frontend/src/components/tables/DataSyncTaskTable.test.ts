@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(2180);
+    expect(table.props("scrollX")).toBe(2210);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
     expect(columns.find((column) => column.key === "actions")).toMatchObject({ fixed: "right", width: 292 });
 
@@ -117,6 +117,7 @@ describe("DataSyncTaskTable", () => {
           dataSyncTask({
             id: "sync_1",
             marketStatus: "inactive",
+            marketStatusDetail: "BREAK",
             status: "paused",
             syncEnabled: false,
             realtimeEnabled: false,
@@ -127,7 +128,8 @@ describe("DataSyncTaskTable", () => {
     });
 
     expect(wrapper.text()).toContain("市场状态");
-    expect(wrapper.text()).toContain("Inactive");
+    expect(wrapper.text()).toContain("Inactive · BREAK");
+    expect(wrapper.get(".task-market-status").attributes("title")).toBe("Inactive · BREAK");
     expect(wrapper.get('button[title="市场非 active"]').attributes("disabled")).toBeDefined();
     expect(wrapper.emitted("toggle-sync")).toBeUndefined();
     expect(wrapper.emitted("toggle-realtime")).toBeUndefined();

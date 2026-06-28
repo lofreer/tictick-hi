@@ -33,6 +33,7 @@ type DataSyncTask struct {
 	RealtimeEnabled      bool                 `json:"realtimeEnabled"`
 	Status               TaskStatus           `json:"status"`
 	MarketStatus         DataSyncMarketStatus `json:"marketStatus"`
+	MarketStatusDetail   string               `json:"marketStatusDetail,omitempty"`
 	DataHealth           DataSyncHealth       `json:"dataHealth"`
 	GapSummary           *DataSyncGapSummary  `json:"gapSummary,omitempty"`
 	LatestSyncedOpenTime *time.Time           `json:"latestSyncedAt,omitempty"`

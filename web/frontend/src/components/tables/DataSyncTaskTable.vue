@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="2180"
+    :scroll-x="2210"
     size="small"
   />
 </template>
@@ -50,10 +50,10 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.marketStatus"),
     key: "marketStatus",
-    width: 118,
+    width: 148,
     render: (row) =>
       h(NTag, { bordered: false, size: "small", type: marketStatusTagType(row.marketStatus) }, () =>
-        t(`research.marketStatus.${row.marketStatus}`),
+        h("span", { class: "task-market-status", title: marketStatusLabel(row) }, marketStatusLabel(row)),
       ),
   },
   { title: t("research.interval"), key: "interval", width: 76 },
@@ -188,6 +188,15 @@ function syncButtonLabel(row: DataSyncTask) {
 
 function taskMarketActive(row: DataSyncTask) {
   return row.marketStatus === "active";
+}
+
+function marketStatusLabel(row: DataSyncTask) {
+  const base = t(`research.marketStatus.${row.marketStatus}`);
+  const detail = (row.marketStatusDetail ?? "").trim();
+  if (!detail || detail === row.marketStatus || (row.marketStatus === "active" && detail.toLowerCase() === "active")) {
+    return base;
+  }
+  return `${base} · ${detail}`;
 }
 
 function hasRepairableTaskGaps(row: DataSyncTask) {

@@ -81,5 +81,12 @@ func normalizeFakeDataSyncTask(task data.DataSyncTask) data.DataSyncTask {
 	if task.MarketStatus == "" {
 		task.MarketStatus = data.DataSyncMarketStatusActive
 	}
+	if task.MarketStatusDetail == "" {
+		if task.MarketStatus == data.DataSyncMarketStatusMissing {
+			task.MarketStatusDetail = "missing"
+		} else {
+			task.MarketStatusDetail = string(task.MarketStatus)
+		}
+	}
 	return task
 }

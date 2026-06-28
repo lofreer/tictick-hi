@@ -18,6 +18,7 @@ describe("market api", () => {
             quoteAsset: "USDT",
             instrumentType: "spot",
             status: "active",
+            exchangeStatus: "TRADING",
             searchPriority: 3,
             createdAt: "2026-06-28T00:00:00Z",
             updatedAt: "2026-06-28T00:00:00Z",
@@ -29,7 +30,7 @@ describe("market api", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(marketApi.listInstruments({ exchange: "binance", q: "SOL", limit: 20, status: "all" })).resolves.toMatchObject([
-      { exchange: "binance", symbol: "SOLUSDT", baseAsset: "SOL" },
+      { exchange: "binance", symbol: "SOLUSDT", baseAsset: "SOL", exchangeStatus: "TRADING" },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/market/instruments?exchange=binance&q=SOL&limit=20&status=all",

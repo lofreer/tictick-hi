@@ -94,10 +94,11 @@ func TestFetchInstruments(t *testing.T) {
 		instruments[0].Symbol != "BTCUSDT" ||
 		instruments[0].BaseAsset != "BTC" ||
 		instruments[0].QuoteAsset != "USDT" ||
-		instruments[0].Status != "active" {
+		instruments[0].Status != "active" ||
+		instruments[0].ExchangeStatus != "TRADING" {
 		t.Fatalf("unexpected active instrument: %#v", instruments[0])
 	}
-	if instruments[1].Symbol != "OLDUSDT" || instruments[1].Status != "inactive" {
+	if instruments[1].Symbol != "OLDUSDT" || instruments[1].Status != "inactive" || instruments[1].ExchangeStatus != "BREAK" {
 		t.Fatalf("unexpected inactive instrument: %#v", instruments[1])
 	}
 }

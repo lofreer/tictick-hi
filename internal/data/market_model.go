@@ -9,6 +9,7 @@ type MarketInstrument struct {
 	QuoteAsset     string     `json:"quoteAsset"`
 	InstrumentType string     `json:"instrumentType"`
 	Status         string     `json:"status"`
+	ExchangeStatus string     `json:"exchangeStatus"`
 	SearchPriority int        `json:"searchPriority"`
 	SyncedAt       *time.Time `json:"syncedAt,omitempty"`
 	CreatedAt      time.Time  `json:"-"`

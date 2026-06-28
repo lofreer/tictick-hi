@@ -207,6 +207,10 @@ func (instrument okxInstrument) toInstrument() (data.MarketInstrument, bool) {
 	if instrument.State == "live" {
 		status = "active"
 	}
+	exchangeStatus := strings.ToLower(strings.TrimSpace(instrument.State))
+	if exchangeStatus == "" {
+		exchangeStatus = status
+	}
 	return data.MarketInstrument{
 		Exchange:       "okx",
 		Symbol:         strings.ToUpper(instrument.InstrumentID),
@@ -214,6 +218,7 @@ func (instrument okxInstrument) toInstrument() (data.MarketInstrument, bool) {
 		QuoteAsset:     strings.ToUpper(instrument.QuoteCurrency),
 		InstrumentType: "spot",
 		Status:         status,
+		ExchangeStatus: exchangeStatus,
 		SearchPriority: 100,
 	}, true
 }

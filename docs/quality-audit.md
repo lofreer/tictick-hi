@@ -49,7 +49,7 @@ done            用户确认关闭
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat 和 locked_until；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
-注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和交易所业务状态细分。
+注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和完整交易所业务状态处置语义。
 
 ## 3. 必须先修的问题
 
@@ -5199,6 +5199,38 @@ Definition of Done：
 
 - 本轮只自动停用数据同步任务，不自动删除任务、不删除 K 线、不为退市/迁移生成修复任务，也不处理回测 / 交易任务。
 - `inactive` 仍是粗粒度内部状态，没有区分停牌、退市、只撤单、只减仓、迁移窗口等交易所业务语义。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
+### 阶段 1 instrument catalog 交易所原始状态可观察补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页 data sync task 只能看到 `active/inactive/missing`，无法区分 Binance `BREAK`、OKX `suspend`、catalog 中未返回等具体来源状态。
+- `market_instruments` 只保存内部归一化状态，后续排查交易所停牌 / 退市 / catalog 漂移时缺少原始状态证据。
+
+修复范围：
+
+- `market_instruments` 新增 `exchange_status`，迁移会为既有行填充非空状态，后续 catalog upsert 保留 Binance / OKX 返回的原始 instrument 状态。
+- catalog 同步时，新返回的 inactive 交易对保留原始状态；本次 catalog 中不再返回的既有 active 交易对标记为 `exchange_status='not_returned'`。
+- `/api/market/instruments` 返回 `exchangeStatus`；`/api/data/tasks` 返回 `marketStatusDetail`，由后端从 `market_instruments.exchange_status` 派生，缺 catalog 时为 `missing`。
+- 研究页任务表市场状态列展示非 active 细节，例如 `Inactive · BREAK`，让用户能直接分辨粗状态背后的交易所原因。
+
+验证：
+
+- `go test ./internal/adapter/binance ./internal/adapter/okx ./internal/store/postgres ./internal/web/api -run 'TestFetchInstruments|TestDataSyncTaskScanColumns|TestIntegrationListMarketInstruments|TestIntegrationGetActiveMarketInstrument|TestIntegrationReplaceMarketInstruments|TestIntegrationListDataSyncTasksReportsMarketStatus|TestAPIContract|TestFrontendAPI|TestWriteGeneratedFrontendAPITypes' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/market.test.ts src/services/api/data.test.ts src/components/tables/DataSyncTaskTable.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+
+失败：
+
+- 本轮定向检查未出现失败。
+
+剩余风险：
+
+- 本轮只保存和展示交易所原始 instrument 状态，不建立停牌 / 退市 / 只撤单 / 迁移窗口的完整状态机。
+- 不自动删除 K 线、不迁移任务、不处理回测 / 交易任务的历史语义。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后

@@ -26,11 +26,11 @@ func TestIntegrationListMarketInstrumentsSearchesActiveCatalog(t *testing.T) {
 
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO market_instruments (
-			exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
 		)
 		VALUES
-			('binance', $1, 'ITCAT', 'USDT', 'spot', 'active', 0, now()),
-			('binance', $2, 'ITCATOLD', 'USDT', 'spot', 'inactive', 0, now())`,
+			('binance', $1, 'ITCAT', 'USDT', 'spot', 'active', 'TRADING', 0, now()),
+			('binance', $2, 'ITCATOLD', 'USDT', 'spot', 'inactive', 'BREAK', 0, now())`,
 		activeSymbol,
 		inactiveSymbol,
 	); err != nil {
@@ -50,6 +50,9 @@ func TestIntegrationListMarketInstrumentsSearchesActiveCatalog(t *testing.T) {
 	}
 	if instruments[0].BaseAsset != "ITCAT" || instruments[0].QuoteAsset != "USDT" {
 		t.Fatalf("unexpected instrument metadata: %#v", instruments[0])
+	}
+	if instruments[0].ExchangeStatus != "TRADING" {
+		t.Fatalf("active exchange status = %q, want TRADING", instruments[0].ExchangeStatus)
 	}
 
 	allInstruments, err := store.ListMarketInstruments(ctx, data.MarketInstrumentQuery{
@@ -77,6 +80,9 @@ func TestIntegrationListMarketInstrumentsSearchesActiveCatalog(t *testing.T) {
 	if len(inactiveInstruments) != 1 || inactiveInstruments[0].Symbol != inactiveSymbol {
 		t.Fatalf("inactive instruments = %#v, want only inactive %s", inactiveInstruments, inactiveSymbol)
 	}
+	if inactiveInstruments[0].ExchangeStatus != "BREAK" {
+		t.Fatalf("inactive exchange status = %q, want BREAK", inactiveInstruments[0].ExchangeStatus)
+	}
 }
 
 func TestIntegrationGetActiveMarketInstrumentRequiresExactActiveSymbol(t *testing.T) {
@@ -95,11 +101,11 @@ func TestIntegrationGetActiveMarketInstrumentRequiresExactActiveSymbol(t *testin
 
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO market_instruments (
-			exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
 		)
 		VALUES
-			('binance', $1, 'ITEXACT', 'USDT', 'spot', 'active', 0, now()),
-			('binance', $2, 'ITEXACTOLD', 'USDT', 'spot', 'inactive', 0, now())`,
+			('binance', $1, 'ITEXACT', 'USDT', 'spot', 'active', 'TRADING', 0, now()),
+			('binance', $2, 'ITEXACTOLD', 'USDT', 'spot', 'inactive', 'BREAK', 0, now())`,
 		activeSymbol,
 		inactiveSymbol,
 	); err != nil {
@@ -112,6 +118,9 @@ func TestIntegrationGetActiveMarketInstrumentRequiresExactActiveSymbol(t *testin
 	}
 	if instrument.Symbol != activeSymbol || instrument.Status != "active" {
 		t.Fatalf("instrument = %#v, want active %s", instrument, activeSymbol)
+	}
+	if instrument.ExchangeStatus != "TRADING" {
+		t.Fatalf("instrument exchange status = %q, want TRADING", instrument.ExchangeStatus)
 	}
 
 	if _, err := store.GetActiveMarketInstrument(ctx, "binance", inactiveSymbol); !errors.Is(err, data.ErrNotFound) {
@@ -167,16 +176,16 @@ func TestIntegrationReplaceMarketInstrumentsMarksMissingActiveInactive(t *testin
 
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO market_instruments (
-			exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
 		)
-		VALUES ('binance', $1, 'ITREPL', 'OLD', 'spot', 'active', 5, now())`,
+		VALUES ('binance', $1, 'ITREPL', 'OLD', 'spot', 'active', 'TRADING', 5, now())`,
 		oldSymbol,
 	); err != nil {
 		t.Fatal(err)
 	}
 
 	replacement := append(existingActive, data.MarketInstrument{
-		Symbol: newSymbol, BaseAsset: "ITREPL", QuoteAsset: "USDT", InstrumentType: "spot", Status: "active", SearchPriority: 100,
+		Symbol: newSymbol, BaseAsset: "ITREPL", QuoteAsset: "USDT", InstrumentType: "spot", Status: "active", ExchangeStatus: "TRADING", SearchPriority: 100,
 	})
 	result, err := store.ReplaceMarketInstruments(
 		ctx,
@@ -201,6 +210,21 @@ func TestIntegrationReplaceMarketInstrumentsMarksMissingActiveInactive(t *testin
 	}
 	if len(instruments) != 1 || instruments[0].Symbol != newSymbol {
 		t.Fatalf("active instruments = %#v, want only %s", instruments, newSymbol)
+	}
+
+	allInstruments, err := store.ListMarketInstruments(ctx, data.MarketInstrumentQuery{
+		Exchange: "binance",
+		Query:    "ITREPL",
+		Limit:    10,
+		Status:   "all",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, instrument := range allInstruments {
+		if instrument.Symbol == oldSymbol && instrument.ExchangeStatus != "not_returned" {
+			t.Fatalf("stale exchange status = %q, want not_returned", instrument.ExchangeStatus)
+		}
 	}
 }
 
@@ -233,6 +257,7 @@ func TestIntegrationReplaceMarketInstrumentsPausesDataSyncTasksForInactiveMarket
 			QuoteAsset:     "USDT",
 			InstrumentType: "spot",
 			Status:         "inactive",
+			ExchangeStatus: "BREAK",
 			SearchPriority: 100,
 		}),
 		time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC),
@@ -270,7 +295,7 @@ func TestIntegrationReplaceMarketInstrumentsPausesDataSyncTasksForInactiveMarket
 
 func listAllIntegrationActiveInstruments(ctx context.Context, store *Store, exchange string) ([]data.MarketInstrument, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+		SELECT exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
 		  FROM market_instruments
 		 WHERE exchange = $1
 		   AND status = 'active'`,
@@ -291,6 +316,7 @@ func listAllIntegrationActiveInstruments(ctx context.Context, store *Store, exch
 			&instrument.QuoteAsset,
 			&instrument.InstrumentType,
 			&instrument.Status,
+			&instrument.ExchangeStatus,
 			&instrument.SearchPriority,
 			&instrument.SyncedAt,
 		); err != nil {

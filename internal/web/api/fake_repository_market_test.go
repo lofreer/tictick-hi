@@ -17,6 +17,7 @@ func defaultFakeMarketInstruments(now time.Time) []data.MarketInstrument {
 		QuoteAsset:     "USDT",
 		InstrumentType: "spot",
 		Status:         "active",
+		ExchangeStatus: "TRADING",
 		SearchPriority: 1,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -82,6 +83,8 @@ func (repository *fakeRepository) ReplaceMarketInstruments(
 	incoming := map[string]data.MarketInstrument{}
 	for _, instrument := range instruments {
 		instrument.Exchange = exchangeID
+		instrument.Status = normalizedFakeInstrumentStatus(instrument.Status)
+		instrument.ExchangeStatus = normalizedFakeExchangeStatus(instrument.ExchangeStatus, instrument.Status)
 		instrument.SyncedAt = &syncedAt
 		incoming[instrument.Symbol] = instrument
 		if instrument.Status == "active" {
@@ -101,6 +104,7 @@ func (repository *fakeRepository) ReplaceMarketInstruments(
 		}
 		if instrument.Status == "active" {
 			instrument.Status = "inactive"
+			instrument.ExchangeStatus = "not_returned"
 			instrument.SyncedAt = &syncedAt
 			inactive++
 		}
@@ -135,14 +139,39 @@ func (repository *fakeRepository) pauseDataSyncTasksForInactiveMarkets(exchangeI
 		task.RealtimeEnabled = false
 		task.Status = data.TaskStatusPaused
 		task.MarketStatus = data.DataSyncMarketStatusInactive
+		task.MarketStatusDetail = repository.fakeMarketStatusDetail(task.Exchange, task.Symbol)
 		task.UpdatedAt = time.Now().UTC()
 		paused++
 	}
 	return paused
 }
 
+func (repository *fakeRepository) fakeMarketStatusDetail(exchangeID string, symbol string) string {
+	for _, instrument := range repository.marketInstruments {
+		if instrument.Exchange == exchangeID && instrument.Symbol == symbol {
+			return normalizedFakeExchangeStatus(instrument.ExchangeStatus, instrument.Status)
+		}
+	}
+	return "missing"
+}
+
 func (repository *fakeRepository) hasActiveMarketInstrument(exchangeID string, symbol string) bool {
 	return slices.ContainsFunc(repository.marketInstruments, func(instrument data.MarketInstrument) bool {
 		return instrument.Exchange == exchangeID && instrument.Symbol == symbol && instrument.Status == "active"
 	})
+}
+
+func normalizedFakeInstrumentStatus(status string) string {
+	if strings.EqualFold(strings.TrimSpace(status), "inactive") {
+		return "inactive"
+	}
+	return "active"
+}
+
+func normalizedFakeExchangeStatus(exchangeStatus string, fallbackStatus string) string {
+	exchangeStatus = strings.TrimSpace(exchangeStatus)
+	if exchangeStatus != "" {
+		return exchangeStatus
+	}
+	return normalizedFakeInstrumentStatus(fallbackStatus)
 }
