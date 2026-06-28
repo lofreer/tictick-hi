@@ -250,6 +250,7 @@ export const enUSMessages: Record<string, string> = {
     "research.realtime": "Realtime",
     "research.sync": "Sync",
     "research.lastError": "Last error",
+    "research.nextAttemptAt": "Next retry",
     "research.actions": "Actions",
     "research.startRealtime": "Start realtime",
     "research.stopRealtime": "Stop realtime",

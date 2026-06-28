@@ -30,6 +30,7 @@ type DataSyncTask struct {
 	LatestSyncedOpenTime *time.Time `json:"latestSyncedAt,omitempty"`
 	LastError            string     `json:"lastError,omitempty"`
 	AttemptCount         int        `json:"attemptCount"`
+	NextAttemptAt        *time.Time `json:"nextAttemptAt,omitempty"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
 }
@@ -444,7 +445,7 @@ type SyncRepository interface {
 	ClaimDataSyncTask(ctx context.Context, workerID string, leaseTTL time.Duration) (DataSyncTask, bool, error)
 	HeartbeatDataSyncTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveDataSyncResult(ctx context.Context, result DataSyncResult) error
-	RecordDataSyncRetry(ctx context.Context, taskID string, err error) error
+	RecordDataSyncRetry(ctx context.Context, taskID string, err error, nextAttemptAt *time.Time) error
 	MarkDataSyncFailed(ctx context.Context, taskID string, err error) error
 	ReleaseDataSyncTask(ctx context.Context, taskID string) error
 }

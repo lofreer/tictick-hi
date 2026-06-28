@@ -250,6 +250,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.realtime": "实时",
     "research.sync": "同步",
     "research.lastError": "最近错误",
+    "research.nextAttemptAt": "下次重试",
     "research.actions": "操作",
     "research.startRealtime": "开启实时",
     "research.stopRealtime": "停止实时",

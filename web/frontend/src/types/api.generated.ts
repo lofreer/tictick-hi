@@ -151,6 +151,7 @@ export type DataSyncTask = {
   interval: string;
   lastError?: string;
   latestSyncedAt?: string;
+  nextAttemptAt?: string;
   realtimeEnabled: boolean;
   startTime?: string;
   status: TaskStatus;

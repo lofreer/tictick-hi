@@ -89,6 +89,7 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     status: response.status,
     lastError: response.lastError,
     attemptCount: response.attemptCount,
+    nextAttemptAt: response.nextAttemptAt,
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   };

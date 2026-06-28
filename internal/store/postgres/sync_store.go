@@ -26,7 +26,8 @@ func (store *Store) ClaimDataSyncTask(
 		leaseClaimQuery{
 			resource: dataSyncTaskLease,
 			where: `(sync_enabled = true OR realtime_enabled = true)
-				   AND status IN ($1, $2)`,
+				   AND status IN ($1, $2)
+				   AND (next_attempt_at IS NULL OR next_attempt_at <= now())`,
 			orderBy: "realtime_enabled DESC, created_at ASC",
 			args: []any{
 				data.TaskStatusPending,
@@ -40,10 +41,11 @@ func (store *Store) ClaimDataSyncTask(
 			ttlArg:           "$4",
 			extraAssignments: []string{
 				"started_at = COALESCE(started_at, now())",
+				"next_attempt_at = NULL",
 			},
 			returningColumns: `id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
 		},
 		data.TaskStatusRunning,
 		workerID,
@@ -148,6 +150,7 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 			         ELSE finished_at
 			       END`,
 			"last_error = NULL",
+			"next_attempt_at = NULL",
 		},
 		where: "id = $1",
 	}),
@@ -175,6 +178,7 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 			"sync_enabled = false",
 			"realtime_enabled = false",
 			"last_error = $3",
+			"next_attempt_at = NULL",
 			"finished_at = now()",
 		},
 		where: "id = $1",
@@ -189,7 +193,12 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 	return nil
 }
 
-func (store *Store) RecordDataSyncRetry(ctx context.Context, taskID string, taskErr error) error {
+func (store *Store) RecordDataSyncRetry(
+	ctx context.Context,
+	taskID string,
+	taskErr error,
+	nextAttemptAt *time.Time,
+) error {
 	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
 		resource: dataSyncTaskLease,
 		assignments: []string{
@@ -198,6 +207,7 @@ func (store *Store) RecordDataSyncRetry(ctx context.Context, taskID string, task
 			         ELSE $3
 			       END`,
 			"last_error = $4",
+			"next_attempt_at = $5",
 		},
 		where: "id = $1",
 	}),
@@ -205,6 +215,7 @@ func (store *Store) RecordDataSyncRetry(ctx context.Context, taskID string, task
 		data.TaskStatusRunning,
 		data.TaskStatusPending,
 		normalizeTaskError(taskErr),
+		nextAttemptAt,
 	)
 	if err != nil {
 		return fmt.Errorf("record data sync retry: %w", err)

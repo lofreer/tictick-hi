@@ -69,6 +69,8 @@ services:
       SYNC_POLL_INTERVAL: ${SYNC_POLL_INTERVAL:-10s}
       SYNC_FETCH_RETRIES: ${SYNC_FETCH_RETRIES:-2}
       SYNC_RETRY_DELAY: ${SYNC_RETRY_DELAY:-250ms}
+      SYNC_RETRY_BACKOFF: ${SYNC_RETRY_BACKOFF:-30s}
+      SYNC_MAX_RETRY_BACKOFF: ${SYNC_MAX_RETRY_BACKOFF:-5m}
     depends_on:
       postgres:
         condition: service_healthy

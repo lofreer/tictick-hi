@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1140"
+    :scroll-x="1290"
     size="small"
   />
 </template>
@@ -66,6 +66,12 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     key: "lastError",
     width: 300,
     render: lastErrorCell,
+  },
+  {
+    title: t("research.nextAttemptAt"),
+    key: "nextAttemptAt",
+    minWidth: 150,
+    render: (row) => row.nextAttemptAt ?? "-",
   },
   {
     title: t("research.actions"),

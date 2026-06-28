@@ -28,12 +28,33 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(1140);
+    expect(table.props("scrollX")).toBe(1290);
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).toBe(longError);
     expect(errorText.text()).toHaveLength(90);
     expect(errorText.text().endsWith("...")).toBe(true);
+  });
+
+  it("shows scheduled retry time for temporary sync errors", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            exchange: "binance",
+            symbol: "BTCUSDT",
+            interval: "1m",
+            status: "running",
+            lastError: "temporary EOF",
+            nextAttemptAt: "2026-06-28T01:30:00Z",
+          }),
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain("2026-06-28T01:30:00Z");
   });
 
   it("emits retry for failed tasks", async () => {

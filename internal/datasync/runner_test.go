@@ -158,12 +158,14 @@ func TestRunnerRetriesTemporaryFetchError(t *testing.T) {
 }
 
 func TestRunnerRecordsTemporaryFetchErrorForRetry(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 10, 0, 0, time.UTC)
 	repository := &fakeSyncRepository{
 		task: data.DataSyncTask{
-			ID:       "dst_1",
-			Exchange: "binance",
-			Symbol:   "BTCUSDT",
-			Interval: "1m",
+			ID:           "dst_1",
+			Exchange:     "binance",
+			Symbol:       "BTCUSDT",
+			Interval:     "1m",
+			AttemptCount: 2,
 		},
 		claimed: true,
 	}
@@ -172,7 +174,15 @@ func TestRunnerRecordsTemporaryFetchErrorForRetry(t *testing.T) {
 	}
 	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
 		"binance": fetcher,
-	}), Config{WorkerID: "test", BatchLimit: 10, FetchRetries: 1, RetryDelay: time.Nanosecond})
+	}), Config{
+		WorkerID:        "test",
+		BatchLimit:      10,
+		FetchRetries:    1,
+		RetryDelay:      time.Nanosecond,
+		RetryBackoff:    30 * time.Second,
+		MaxRetryBackoff: 5 * time.Minute,
+	})
+	runner.now = func() time.Time { return now }
 
 	if err := runner.RunOnce(context.Background()); err != nil {
 		t.Fatal(err)
@@ -183,8 +193,26 @@ func TestRunnerRecordsTemporaryFetchErrorForRetry(t *testing.T) {
 	if repository.retry == nil {
 		t.Fatal("expected retry to be recorded")
 	}
+	if repository.nextAttemptAt == nil || !repository.nextAttemptAt.Equal(now.Add(time.Minute)) {
+		t.Fatalf("nextAttemptAt = %v, want %v", repository.nextAttemptAt, now.Add(time.Minute))
+	}
 	if repository.failed != nil {
 		t.Fatalf("temporary error should not mark task failed: %v", repository.failed)
+	}
+}
+
+func TestBoundedExponentialBackoffCapsDelay(t *testing.T) {
+	base := 30 * time.Second
+	maxDelay := 2 * time.Minute
+
+	if delay := boundedExponentialBackoff(base, maxDelay, 1); delay != 30*time.Second {
+		t.Fatalf("attempt 1 delay = %s", delay)
+	}
+	if delay := boundedExponentialBackoff(base, maxDelay, 3); delay != 2*time.Minute {
+		t.Fatalf("attempt 3 delay = %s", delay)
+	}
+	if delay := boundedExponentialBackoff(base, maxDelay, 8); delay != 2*time.Minute {
+		t.Fatalf("attempt 8 delay = %s", delay)
 	}
 }
 
@@ -340,6 +368,7 @@ type fakeSyncRepository struct {
 	saved                data.DataSyncResult
 	failed               error
 	retry                error
+	nextAttemptAt        *time.Time
 	released             bool
 	heartbeats           int
 	heartbeatSignals     chan<- struct{}
@@ -405,8 +434,10 @@ func (repository *fakeSyncRepository) RecordDataSyncRetry(
 	_ context.Context,
 	_ string,
 	err error,
+	nextAttemptAt *time.Time,
 ) error {
 	repository.retry = err
+	repository.nextAttemptAt = nextAttemptAt
 	return nil
 }
 

@@ -109,6 +109,7 @@ describe("data api", () => {
               status: "running",
               lastError: "temporary EOF",
               attemptCount: 3,
+              nextAttemptAt: "2026-06-28T01:30:00Z",
             },
           ]),
           { status: 200 },
@@ -121,6 +122,7 @@ describe("data api", () => {
         id: "dst_1",
         attemptCount: 3,
         lastError: "temporary EOF",
+        nextAttemptAt: "2026-06-28T01:30:00Z",
       },
     ]);
   });

@@ -41,7 +41,7 @@ func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask,
 	rows, err := store.pool.Query(ctx, `
 		SELECT id, exchange, symbol, interval, start_time, end_time,
 		       sync_enabled, realtime_enabled, status, last_synced_open_time,
-		       COALESCE(last_error, ''), attempt_count, created_at, updated_at
+		       COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at
 		  FROM data_sync_tasks
 		 ORDER BY created_at DESC`)
 	if err != nil {
@@ -66,7 +66,7 @@ func (store *Store) CreateDataSyncTask(
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
 		id, task.Exchange, task.Symbol, task.Interval, task.StartTime, task.EndTime,
 	)
 
@@ -94,6 +94,7 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 		   SET sync_enabled = true,
 		       status = $2,
 		       %s,
+		       next_attempt_at = NULL,
 		       finished_at = NULL,
 		       last_error = NULL,
 		       updated_at = now()
@@ -101,7 +102,7 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 		   AND status = $3
 		RETURNING id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
 		clearLeaseAssignments(dataSyncTaskLease)),
 		id,
 		data.TaskStatusPending,
@@ -247,6 +248,7 @@ func (store *Store) updateTaskFlag(
 		   SET %s = $2,
 		       status = $3,
 		       %s,
+		       next_attempt_at = CASE WHEN $2::boolean THEN NULL ELSE next_attempt_at END,
 		       finished_at = CASE WHEN $2::boolean THEN finished_at ELSE now() END,
 		       updated_at = now()
 		 WHERE id = $1
@@ -256,7 +258,7 @@ func (store *Store) updateTaskFlag(
 		   )
 		RETURNING id, exchange, symbol, interval, start_time, end_time,
 		          sync_enabled, realtime_enabled, status, last_synced_open_time,
-		          COALESCE(last_error, ''), attempt_count, created_at, updated_at`,
+		          COALESCE(last_error, ''), attempt_count, next_attempt_at, created_at, updated_at`,
 		column,
 		clearLeaseCaseAssignments(dataSyncTaskLease, "NOT $2::boolean")),
 		id,
@@ -305,6 +307,7 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&task.LatestSyncedOpenTime,
 		&task.LastError,
 		&task.AttemptCount,
+		&task.NextAttemptAt,
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	)

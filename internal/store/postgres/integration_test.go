@@ -241,6 +241,7 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 		ctx,
 		id,
 		exchange.NewTemporaryError("binance klines temporary unavailable: api.binance.com: Get EOF", nil),
+		ptrTime(time.Now().UTC().Add(time.Hour)),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -255,8 +256,28 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	if !strings.Contains(row.lastError, "temporary unavailable") || strings.Contains(row.lastError, "\n") {
 		t.Fatalf("retry should store normalized error: %q", row.lastError)
 	}
+	if !row.nextAttemptAt.Valid || !row.nextAttemptAt.Time.After(time.Now().UTC()) {
+		t.Fatalf("retry should schedule a future next attempt: %#v", row)
+	}
 
 	claimed, ok, err := store.ClaimDataSyncTask(ctx, "retry-worker-2", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatalf("task should not be reclaimed before next attempt, task=%#v", claimed)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET next_attempt_at = now() - INTERVAL '1 second'
+		 WHERE id = $1`,
+		id,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	claimed, ok, err = store.ClaimDataSyncTask(ctx, "retry-worker-2", time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,6 +287,9 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	row = readIntegrationSyncTask(t, ctx, store, id)
 	if row.status != data.TaskStatusRunning || !row.lockedBy.Valid || row.lockedBy.String != "retry-worker-2" {
 		t.Fatalf("unexpected reclaimed row: %#v", row)
+	}
+	if row.nextAttemptAt.Valid {
+		t.Fatalf("claim should clear next attempt: %#v", row)
 	}
 }
 
@@ -361,6 +385,9 @@ func TestIntegrationRetryDataSyncTaskRestoresFailedTask(t *testing.T) {
 	}
 	if row.lastError != "" {
 		t.Fatalf("retry should clear stored error: %q", row.lastError)
+	}
+	if row.nextAttemptAt.Valid {
+		t.Fatalf("retry should clear next attempt: %#v", row)
 	}
 
 	claimable := false
@@ -547,6 +574,7 @@ type integrationSyncTaskRow struct {
 	lockedUntil     sql.NullTime
 	heartbeatAt     sql.NullTime
 	lastError       string
+	nextAttemptAt   sql.NullTime
 }
 
 func readIntegrationSyncTask(
@@ -560,7 +588,7 @@ func readIntegrationSyncTask(
 	var row integrationSyncTaskRow
 	if err := store.pool.QueryRow(ctx, `
 		SELECT status, sync_enabled, realtime_enabled, locked_by, locked_until,
-		       heartbeat_at, COALESCE(last_error, '')
+		       heartbeat_at, COALESCE(last_error, ''), next_attempt_at
 		  FROM data_sync_tasks
 		 WHERE id = $1`,
 		id,
@@ -572,8 +600,13 @@ func readIntegrationSyncTask(
 		&row.lockedUntil,
 		&row.heartbeatAt,
 		&row.lastError,
+		&row.nextAttemptAt,
 	); err != nil {
 		t.Fatal(err)
 	}
 	return row
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }

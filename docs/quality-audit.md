@@ -35,10 +35,10 @@ done            用户确认关闭
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
-| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误和 lease；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络限流和真实恢复压测 |
+| 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，claim 会跳过未到期任务；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、外部网络全局限流和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、分页/游标和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，错误摘要不泄露完整请求 URL；仍缺全局限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取最近的声明式固定图表槽（`.research-chart-body` / `.chart-panel`），不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；研究页交易所切换会收敛到对应 Binance / OKX 交易对选项；但交易对仍是固定白名单、图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格错误列、下次重试列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取最近的声明式固定图表槽（`.research-chart-body` / `.chart-panel`），不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，且不向 root/canvas 写 inline 高度；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长；显示 source / health / base interval；研究页交易所切换会收敛到对应 Binance / OKX 交易对选项；但交易对仍是固定白名单、图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -1117,6 +1117,46 @@ scripts/quality-gate.sh
 - 本轮没有删除历史本地测试残留；旧 `S8...` running 任务会被新 sync worker 逐条转为 `succeeded`，不是一次性批量清库。
 - 真实交易所网络限流和全局退避仍未达到 usable；研究页 / 数据同步入口的 symbol 合法性预校验已在后续补充中收敛，但交易对仍是固定白名单。
 
+### 阶段 1 数据同步持久化退避补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 临时 market data 错误此前只释放 lease 并等待下一轮 worker 轮询；如果外部交易所持续 EOF / 429 / 5xx，任务会被频繁重新领取，缺少跨 worker / 重启可见的退避时间。
+- 研究页只能看到最近错误，不能看到临时错误下一次会何时重试。
+
+修复范围：
+
+- `data_sync_tasks` 新增 `next_attempt_at`，用于持久化单任务退避时间，并增加按 `status,next_attempt_at,locked_until` 的 claim 辅助索引。
+- `hi sync` 增加 `SYNC_RETRY_BACKOFF` 和 `SYNC_MAX_RETRY_BACKOFF`，默认 `30s` / `5m`；临时错误耗尽短重试后按 attempt count 做有上限指数退避。
+- `ClaimDataSyncTask` 跳过 `next_attempt_at > now()` 的任务，重新 claim 到期任务时清理 `next_attempt_at`。
+- `SaveDataSyncResult`、`MarkDataSyncFailed`、手动 retry、重新启用 sync / realtime 均清理过期退避时间。
+- `/api/data/tasks` 返回 `nextAttemptAt`，前端研究页任务表新增“下次重试 / Next retry”列。
+- Docker Compose 和 `.env.example` 暴露同步退避配置。
+
+验证：
+
+- `go test ./internal/datasync ./internal/store/postgres ./internal/web/api`
+- `go test ./...`
+- `go vet ./...`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- `docker compose up -d --build api sync`
+- `docker inspect` 显示 `tictick-hi-api-1` healthy，`docker compose ps` 显示 `api` / `sync` running。
+- 本地 PostgreSQL `information_schema.columns` 确认 `data_sync_tasks.next_attempt_at` 为 `timestamp with time zone`。
+- 本地 PostgreSQL `pg_indexes` 确认 `idx_data_sync_tasks_next_attempt` 已存在。
+- `docker compose exec -T sync ...` 确认 `SYNC_RETRY_BACKOFF=30s`、`SYNC_MAX_RETRY_BACKOFF=5m`。
+- `curl -I http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`。
+- `SMOKE_SAMPLES=30 SMOKE_INTERVAL_MS=150 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1256->1256, panel 624->624, body 457->457, chart 457->457, tv 457->457`。
+
+剩余风险：
+
+- 这是单任务持久化退避，不是交易所级 / 集群级全局限流器；真实网络长期恢复压测仍未关闭。
+
 ### 阶段 1 数据源 symbol 前门校验补充
 
 执行时间：2026-06-28
@@ -2041,7 +2081,7 @@ Definition of Done：
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、状态流转 trigger、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整统一状态机、全量历史数据验证、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；数据同步 retry / command 状态冲突已有领域错误码；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、错误码 catalog、session cookie 和 CSRF header；`web/frontend/src/types/api.generated.ts` 已从该 contract 生成；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段、generated DTO staleness、external OpenAPI validator 和 candle query 参数漂移 | 跨领域错误语义细分和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
-| 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、全局限流和完整状态机 |
+| 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、临时错误 `next_attempt_at` 持久化退避、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、交易所级全局限流和完整状态机 |
 | CandleProvider | demo | native/aggregated/gap/coverage metadata、runner 健康门禁和集成测试已覆盖 | 大范围分页/游标、性能压测、异常数据修复策略不足 |
 | Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码和 URL 脱敏有测试 | 无全局限流器、真实网络压测、代理/地域策略和完整业务码审计 |
 | 研究页 | demo | 数据源 metadata、列表在上图表在下、图表高度稳定、失败任务 retry 已覆盖 | 交易对硬编码、图表工具薄、缺时间范围/指标/缺口修复工作流 |

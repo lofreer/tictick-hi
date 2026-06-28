@@ -28,6 +28,8 @@ type Config struct {
 	DefaultLookback   time.Duration
 	FetchRetries      int
 	RetryDelay        time.Duration
+	RetryBackoff      time.Duration
+	MaxRetryBackoff   time.Duration
 }
 
 func NewRunner(repository data.SyncRepository, registry exchange.Registry, config Config) *Runner {
@@ -57,6 +59,15 @@ func NewRunner(repository data.SyncRepository, registry exchange.Registry, confi
 	}
 	if config.RetryDelay <= 0 {
 		config.RetryDelay = 250 * time.Millisecond
+	}
+	if config.RetryBackoff <= 0 {
+		config.RetryBackoff = 30 * time.Second
+	}
+	if config.MaxRetryBackoff <= 0 {
+		config.MaxRetryBackoff = 5 * time.Minute
+	}
+	if config.MaxRetryBackoff < config.RetryBackoff {
+		config.MaxRetryBackoff = config.RetryBackoff
 	}
 	if config.WorkerID == "" {
 		config.WorkerID = "sync-worker"
@@ -109,8 +120,14 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			return nil
 		}
 		if exchange.IsTemporaryError(err) {
-			slog.Warn("data sync task will retry after temporary market data error", "task_id", task.ID, "error", err)
-			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, err); retryErr != nil {
+			nextAttemptAt := runner.nextAttemptAt(task)
+			slog.Warn(
+				"data sync task will retry after temporary market data error",
+				"task_id", task.ID,
+				"next_attempt_at", nextAttemptAt,
+				"error", err,
+			)
+			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, err, &nextAttemptAt); retryErr != nil {
 				return fmt.Errorf("record data sync retry: %w", retryErr)
 			}
 			return nil
@@ -222,6 +239,32 @@ func (runner *Runner) fetchCandles(
 		}
 	}
 	return nil, lastErr
+}
+
+func (runner *Runner) nextAttemptAt(task data.DataSyncTask) time.Time {
+	attempt := task.AttemptCount
+	if attempt < 1 {
+		attempt = 1
+	}
+	delay := boundedExponentialBackoff(runner.config.RetryBackoff, runner.config.MaxRetryBackoff, attempt)
+	return runner.now().Add(delay)
+}
+
+func boundedExponentialBackoff(base time.Duration, maxDelay time.Duration, attempt int) time.Duration {
+	if attempt <= 1 {
+		return base
+	}
+	delay := base
+	for current := 1; current < attempt; current++ {
+		if delay >= maxDelay/2 {
+			return maxDelay
+		}
+		delay *= 2
+	}
+	if delay > maxDelay {
+		return maxDelay
+	}
+	return delay
 }
 
 func waitForRetry(ctx context.Context, delay time.Duration) error {
