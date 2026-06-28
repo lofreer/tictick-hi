@@ -171,13 +171,26 @@ function readHostSize() {
   const measuredWidth =
     readClientWidth(host) ?? readPixelSize(host, "width") ?? positiveFloor(bounds.width);
   const measuredHeight = fixedViewport
-    ? readPixelSize(host, "height") ?? readClientHeight(host) ?? positiveFloor(bounds.height)
+    ? readFixedViewportHeight(host, bounds)
     : readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
   const width = measuredWidth ?? fallbackSize.width;
   const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
   if (width <= 0 || height <= 0) return null;
 
   return { width, height, fixedViewport };
+}
+
+function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect) {
+  const declaredHeight = readPixelSize(element, "height");
+  if (declaredHeight) return declaredHeight;
+
+  const declaredMaxHeight = readPixelSize(element, "maxHeight");
+  if (declaredMaxHeight) return declaredMaxHeight;
+
+  const boundedHeight = positiveFloor(bounds.height);
+  if (boundedHeight && boundedHeight <= fixedViewportHeightCap()) return boundedHeight;
+
+  return fallbackSize.height;
 }
 
 function guardFixedViewportSize(
@@ -198,9 +211,12 @@ function guardFixedViewportSize(
 }
 
 function clampRenderedHeight(height: number) {
+  return Math.min(Math.floor(height), fixedViewportHeightCap());
+}
+
+function fixedViewportHeightCap() {
   const viewportHeight = window.innerHeight > 0 ? window.innerHeight : fallbackSize.height;
-  const safeMaxHeight = Math.min(maxRenderedChartHeight, Math.max(fallbackSize.height, viewportHeight));
-  return Math.min(Math.floor(height), safeMaxHeight);
+  return Math.min(maxRenderedChartHeight, Math.max(fallbackSize.height, viewportHeight));
 }
 
 function readClientWidth(element: HTMLElement) {
@@ -211,7 +227,7 @@ function readClientHeight(element: HTMLElement) {
   return element.clientHeight > 0 ? element.clientHeight : null;
 }
 
-function readPixelSize(element: HTMLElement, property: "width" | "height") {
+function readPixelSize(element: HTMLElement, property: "width" | "height" | "maxHeight") {
   const value = Number.parseFloat(window.getComputedStyle(element)[property]);
   if (!Number.isFinite(value) || value <= 0) return null;
   return value;

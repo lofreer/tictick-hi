@@ -210,6 +210,7 @@ describe("TradingViewChart", () => {
     expect(chartMocks.resize).not.toHaveBeenCalled();
 
     viewportSize = { width: 1180, height: 603 };
+    host.body.style.height = "603px";
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
@@ -267,16 +268,16 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("caps an anomalous initial direct viewport height to the safe render maximum", () => {
+  it("falls back when a fixed viewport exposes only an inflated direct height", () => {
     viewportSize = { width: 1180, height: 5000 };
-    const host = createResearchHost();
+    const host = createResearchHost({ declareViewportSize: false });
     const wrapper = mountChart(host.body);
 
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
         width: 1180,
-        height: 768,
+        height: 360,
       }),
     );
 
@@ -300,11 +301,15 @@ describe("TradingViewChart", () => {
   });
 });
 
-function createResearchHost(options: { markViewport?: boolean } = {}) {
+function createResearchHost(options: { declareViewportSize?: boolean; markViewport?: boolean } = {}) {
   const panel = document.createElement("section");
   panel.className = "chart-panel";
   const body = document.createElement("div");
   body.className = "research-chart-body";
+  if (options.declareViewportSize !== false) {
+    body.style.width = "1180px";
+    body.style.height = "640px";
+  }
   if (options.markViewport !== false) {
     body.setAttribute("data-chart-viewport", "fixed");
   }

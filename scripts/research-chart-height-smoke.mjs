@@ -91,10 +91,12 @@ async function runViewport(endpoint, viewport) {
 
     await cdp.send("Page.navigate", { url: `${baseUrl}/research` });
     await waitFor(cdp, "!!document.querySelector('.research-chart-body')", 15000);
+    await waitFor(cdp, "!!document.querySelector('.tv-lightweight-charts')", 15000);
     await delay(settleMs);
 
     const samples = [];
     for (let index = 0; index < samplesPerViewport; index += 1) {
+      await polluteInternalChartHeights(cdp);
       samples.push(await evaluate(cdp, sampleExpression()));
       await delay(sampleIntervalMs);
     }
@@ -290,6 +292,25 @@ function sampleExpression() {
   })()`;
 }
 
+async function polluteInternalChartHeights(cdp) {
+  await evaluate(
+    cdp,
+    `(() => {
+      for (const selector of [
+        '.tv-lightweight-charts',
+        '.tv-lightweight-charts table',
+        '.trading-chart__canvas canvas'
+      ]) {
+        const element = document.querySelector(selector);
+        if (element) {
+          element.style.height = '9000px';
+        }
+      }
+      return true;
+    })()`,
+  );
+}
+
 function summarizeSamples(label, samples) {
   const firstSample = samples[0];
   const lastSample = samples[samples.length - 1];
@@ -349,6 +370,21 @@ function assertStable(result) {
       throw new Error(
         `${result.label} ${key} height exceeded viewport cap: ${JSON.stringify({
           viewportHeight: result.lastFull.viewportHeight,
+          max: result.max,
+        })}`,
+      );
+    }
+  }
+
+  const fixedBodyHeight = result.last.body;
+  for (const key of ["chart", "canvas", "tv"]) {
+    const drift = Math.abs(result.last[key] - fixedBodyHeight);
+    if (drift > heightTolerance) {
+      throw new Error(
+        `${result.label} ${key} height drifted from fixed body by ${drift}px: ${JSON.stringify({
+          body: fixedBodyHeight,
+          last: result.last,
+          min: result.min,
           max: result.max,
         })}`,
       );
