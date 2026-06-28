@@ -101,12 +101,21 @@ for selector in ".trading-chart" ".trading-chart__canvas" ".trading-chart__canva
   require_block_not_contains "$CHART_CSS" "$selector" "inset: 0;"
 done
 
+require_not_contains "$CHART_CSS" ".trading-chart__canvas > .tv-lightweight-charts table"
+require_not_contains "$CHART_CSS" ".trading-chart__canvas > .tv-lightweight-charts tbody"
+require_not_contains "$CHART_CSS" ".trading-chart__canvas > .tv-lightweight-charts tr"
+require_not_contains "$CHART_CSS" ".trading-chart__canvas > .tv-lightweight-charts td"
+require_block_not_contains "$CHART_CSS" ".trading-chart__canvas canvas" "--tt-chart-render-width"
+require_block_not_contains "$CHART_CSS" ".trading-chart__canvas canvas" "--tt-chart-render-height"
+
 require_contains "$CHART_SMOKE" "narrow-desktop-812x1320"
 require_contains "$CHART_SMOKE" "requireInitialChartFit: true"
 require_contains "$CHART_SMOKE" "polluteInternalChartHeights"
 require_contains "$CHART_SMOKE" "'.tv-lightweight-charts tbody'"
 require_contains "$CHART_SMOKE" "'.tv-lightweight-charts tr'"
 require_contains "$CHART_SMOKE" "'.tv-lightweight-charts td'"
+require_contains "$CHART_SMOKE" "missing bounded main pane canvas"
+require_contains "$CHART_SMOKE" "chart main pane canvas is clipped by fixed body"
 require_contains "$CHART_SMOKE" "research chart panel must not inherit the global chart-panel sizing contract"
 require_contains "$CHART_SMOKE" "chart bottom axis is clipped from the initial viewport"
 require_contains "$CHART_SMOKE" "left too much unused fixed body height"

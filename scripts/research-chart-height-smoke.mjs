@@ -317,6 +317,10 @@ function sampleExpression() {
         .filter((canvas) => canvas.rectWidth >= 72 && canvas.rectWidth <= 180)
         .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
         .sort((left, right) => right.right - left.right)[0] ?? null;
+      const mainPaneCanvas = canvases
+        .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
+        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
+        .sort((left, right) => left.left - right.left)[0] ?? null;
       const bottomTimeAxisCanvas = canvases
         .filter((canvas) => canvas.rectHeight >= 16 && canvas.rectHeight <= 80)
         .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
@@ -334,6 +338,7 @@ function sampleExpression() {
         canvas: read('.trading-chart__canvas'),
         tv,
         canvases,
+        mainPaneCanvas,
         rightAxisCanvas,
         bottomTimeAxisCanvas,
         chartCount: document.querySelectorAll('.tv-lightweight-charts').length
@@ -402,7 +407,7 @@ function compactSample(sample) {
 }
 
 function assertChartLayout(label, sample) {
-  const { body, tv, rightAxisCanvas, bottomTimeAxisCanvas } = sample;
+  const { body, tv, mainPaneCanvas, rightAxisCanvas, bottomTimeAxisCanvas } = sample;
   if (sample.panel?.classList?.includes("chart-panel")) {
     throw new Error(`${label} research chart panel must not inherit the global chart-panel sizing contract`);
   }
@@ -411,6 +416,37 @@ function assertChartLayout(label, sample) {
   }
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
+  }
+  if (tv.left < body.left - 1 || tv.top < body.top - 1) {
+    throw new Error(
+      `${label} chart root is clipped before the fixed body: ${JSON.stringify({
+        body,
+        tv,
+      })}`,
+    );
+  }
+  if (!mainPaneCanvas) {
+    throw new Error(
+      `${label} missing bounded main pane canvas: ${JSON.stringify({
+        body,
+        tv,
+        canvases: sample.canvases,
+      })}`,
+    );
+  }
+  if (
+    mainPaneCanvas.left < body.left - 1 ||
+    mainPaneCanvas.top < body.top - 1 ||
+    mainPaneCanvas.right > body.right + 1 ||
+    mainPaneCanvas.bottom > body.bottom + 1
+  ) {
+    throw new Error(
+      `${label} chart main pane canvas is clipped by fixed body: ${JSON.stringify({
+        body,
+        tv,
+        mainPaneCanvas,
+      })}`,
+    );
   }
   if (!rightAxisCanvas) {
     throw new Error(

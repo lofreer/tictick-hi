@@ -71,6 +71,16 @@ describe("ResearchPage chart layout contract", () => {
     }
   });
 
+  it("does not override lightweight-charts internal table geometry", () => {
+    expect(chartStyles).not.toContain(".trading-chart__canvas > .tv-lightweight-charts table");
+    expect(chartStyles).not.toContain(".trading-chart__canvas > .tv-lightweight-charts tbody");
+    expect(chartStyles).not.toContain(".trading-chart__canvas > .tv-lightweight-charts tr");
+    expect(chartStyles).not.toContain(".trading-chart__canvas > .tv-lightweight-charts td");
+    const canvasStyle = cssBlock(chartStyles, ".trading-chart__canvas canvas");
+    expect(canvasStyle).not.toContain("--tt-chart-render-width");
+    expect(canvasStyle).not.toContain("--tt-chart-render-height");
+  });
+
   it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {
     expect(source).toContain('import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";');
     expect(source).toContain('<MarketSymbolAutoComplete v-model:value="symbol"');
