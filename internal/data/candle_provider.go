@@ -119,12 +119,25 @@ func candleResult(
 			RequestedLimit:  NormalizeCandleLimit(query.Limit),
 			ReturnedCandles: len(candles),
 		},
+		Window: candleWindow(candles),
 	}
 	if len(candles) == 0 {
 		result.Source = CandleSourceNone
 		result.BaseInterval = ""
 	}
 	return result
+}
+
+func candleWindow(candles []Candle) CandleWindow {
+	window := CandleWindow{Count: len(candles)}
+	if len(candles) == 0 {
+		return window
+	}
+	from := candles[0].OpenTime.UTC()
+	to := candles[len(candles)-1].OpenTime.UTC()
+	window.From = &from
+	window.To = &to
+	return window
 }
 
 func candleHealth(candles []Candle, gaps []CandleGap) CandleHealth {

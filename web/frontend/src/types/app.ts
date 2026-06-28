@@ -6,6 +6,7 @@ import type {
   CandleGap as APICandleGap,
   CandleHealth as APICandleHealth,
   CandlePagination as APICandlePagination,
+  CandleWindow as APICandleWindow,
   CandleSource as APICandleSource,
   CreateBacktestTask as APICreateBacktestTask,
   CreateDataSyncTask as APICreateDataSyncTask,
@@ -75,6 +76,8 @@ export type CandleCoverage = APICandleCoverage;
 
 export type CandlePagination = APICandlePagination;
 
+export type CandleWindow = APICandleWindow;
+
 export type CandleResult = {
   candles: ChartCandle[];
   source: CandleSource;
@@ -83,6 +86,7 @@ export type CandleResult = {
   health: CandleHealth;
   gaps: CandleGap[];
   coverage: CandleCoverage;
+  window: CandleWindow;
   pagination: CandlePagination;
 };
 

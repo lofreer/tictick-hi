@@ -64,6 +64,11 @@ describe("data api", () => {
               returnedBaseCandles: 2000,
               limitedByBaseWindow: true,
             },
+            window: {
+              from: "2026-01-01T00:00:00Z",
+              to: "2026-01-01T00:55:00Z",
+              count: 12,
+            },
             pagination: {
               hasPrevious: true,
               hasNext: true,
@@ -97,6 +102,11 @@ describe("data api", () => {
         baseLimit: 5000,
         returnedBaseCandles: 2000,
         limitedByBaseWindow: true,
+      },
+      window: {
+        from: "2026-01-01T00:00:00Z",
+        to: "2026-01-01T00:55:00Z",
+        count: 12,
       },
       pagination: {
         hasPrevious: true,

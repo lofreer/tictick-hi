@@ -31,6 +31,11 @@ func TestCandleProviderReturnsHealthyNativeCandles(t *testing.T) {
 	if result.Coverage.RequestedLimit != DefaultCandleLimit || result.Coverage.ReturnedCandles != 2 {
 		t.Fatalf("unexpected coverage: %#v", result.Coverage)
 	}
+	if result.Window.Count != 2 {
+		t.Fatalf("unexpected window count: %#v", result.Window)
+	}
+	assertTimePtr(t, result.Window.From, start)
+	assertTimePtr(t, result.Window.To, start.Add(time.Minute))
 }
 
 func TestCandleProviderAggregatesFromOneMinuteCandles(t *testing.T) {
@@ -143,6 +148,11 @@ func TestCandleProviderReportsAggregatedPaginationFromBaseCandles(t *testing.T) 
 	if result.Source != CandleSourceAggregated || len(result.Candles) != 1 {
 		t.Fatalf("unexpected aggregation: %#v", result)
 	}
+	if result.Window.Count != 1 {
+		t.Fatalf("unexpected window count: %#v", result.Window)
+	}
+	assertTimePtr(t, result.Window.From, start.Add(5*time.Minute))
+	assertTimePtr(t, result.Window.To, start.Add(5*time.Minute))
 	if !result.Pagination.HasPrevious || !result.Pagination.HasNext {
 		t.Fatalf("expected previous and next windows: %#v", result.Pagination)
 	}

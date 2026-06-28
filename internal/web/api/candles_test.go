@@ -39,6 +39,9 @@ func TestCandlesRouteReturnsMetadata(t *testing.T) {
 	if result.Source != data.CandleSourceNative || result.Health != data.CandleHealthOK {
 		t.Fatalf("unexpected metadata: %#v", result)
 	}
+	if result.Window.Count != 1 || result.Window.From == nil || !result.Window.From.Equal(now) {
+		t.Fatalf("unexpected window metadata: %#v", result.Window)
+	}
 	if len(result.Candles) != 1 || result.Candles[0].Open != "100.1" {
 		t.Fatalf("unexpected candles: %#v", result.Candles)
 	}

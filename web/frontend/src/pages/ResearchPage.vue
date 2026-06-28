@@ -46,34 +46,13 @@
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
             <NAutoComplete v-model:value="symbol" class="research-symbol-input" :options="symbolOptions" clearable />
             <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
-            <div class="research-window-controls">
-              <NButton
-                circle
-                secondary
-                size="small"
-                :aria-label="t('research.previousWindow')"
-                :disabled="!canLoadPreviousCandles || candlesLoading"
-                :title="t('research.previousWindow')"
-                @click="loadPreviousCandles"
-              >
-                <template #icon>
-                  <ChevronLeft :size="16" />
-                </template>
-              </NButton>
-              <NButton
-                circle
-                secondary
-                size="small"
-                :aria-label="t('research.nextWindow')"
-                :disabled="!canLoadNextCandles || candlesLoading"
-                :title="t('research.nextWindow')"
-                @click="loadNextCandles"
-              >
-                <template #icon>
-                  <ChevronRight :size="16" />
-                </template>
-              </NButton>
-            </div>
+            <ResearchWindowControls
+              :can-load-next="canLoadNextCandles"
+              :can-load-previous="canLoadPreviousCandles"
+              :loading="candlesLoading"
+              @next="loadNextCandles"
+              @previous="loadPreviousCandles"
+            />
           </div>
           <div class="research-context">
             <NText depth="3">
@@ -88,6 +67,9 @@
               </NTag>
               <NTag :bordered="false" size="small">
                 {{ t("research.baseInterval") }}: {{ baseIntervalText }}
+              </NTag>
+              <NTag v-if="windowLabel" :bordered="false" size="small">
+                {{ windowLabel }}
               </NTag>
               <NTag v-if="candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
@@ -201,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight, Plus } from "@lucide/vue";
+import { Plus } from "@lucide/vue";
 import {
   NAutoComplete,
   NButton,
@@ -226,6 +208,7 @@ import TradingViewChart from "@/components/chart/TradingViewChart.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleGap } from "@/types/app";
@@ -307,6 +290,11 @@ const coverageLabel = computed(() =>
     returned: candleResult.value?.coverage.returnedCandles ?? 0,
   }),
 );
+const windowLabel = computed(() => {
+  const window = candleResult.value?.window;
+  if (!window?.from || !window.to || window.count === 0) return "";
+  return t("research.candleWindow", { from: formatWindowTime(window.from), to: formatWindowTime(window.to), count: window.count });
+});
 const sourceTagType = computed<TagProps["type"]>(() => {
   if (candleResult.value?.source === "native") return "success";
   if (candleResult.value?.source === "aggregated") return "info";
@@ -317,6 +305,10 @@ const healthTagType = computed<TagProps["type"]>(() => {
   if (candleResult.value?.health === "gap") return "warning";
   return "default";
 });
+
+function formatWindowTime(value: string) {
+  return value.replace("T", " ").replace(/(?:\.\d+)?Z$/, " UTC");
+}
 </script>
 
 <style scoped>
@@ -420,8 +412,6 @@ const healthTagType = computed<TagProps["type"]>(() => {
 .research-select--compact {
   width: 96px;
 }
-
-.research-window-controls { display: inline-flex; align-items: center; gap: 6px; }
 
 :global(.research-modal) {
   width: min(560px, calc(100vw - 32px));

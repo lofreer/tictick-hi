@@ -99,8 +99,14 @@ export type CandleResult = {
   pagination: CandlePagination;
   requestedInterval: string;
   source: CandleSource;
+  window: CandleWindow;
 };
 export type CandleSource = "native" | "aggregated" | "none";
+export type CandleWindow = {
+  count: number;
+  from?: string;
+  to?: string;
+};
 export type CreateBacktestTask = {
   endTime?: string;
   exchange: string;

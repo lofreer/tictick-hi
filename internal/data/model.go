@@ -359,6 +359,12 @@ type CandleCoverage struct {
 	LimitedByBaseWindow bool `json:"limitedByBaseWindow"`
 }
 
+type CandleWindow struct {
+	From  *time.Time `json:"from,omitempty"`
+	To    *time.Time `json:"to,omitempty"`
+	Count int        `json:"count"`
+}
+
 type CandlePagination struct {
 	HasPrevious  bool       `json:"hasPrevious"`
 	HasNext      bool       `json:"hasNext"`
@@ -376,6 +382,7 @@ type CandleResult struct {
 	Health            CandleHealth     `json:"health"`
 	Gaps              []CandleGap      `json:"gaps,omitempty"`
 	Coverage          CandleCoverage   `json:"coverage"`
+	Window            CandleWindow     `json:"window"`
 	Pagination        CandlePagination `json:"pagination"`
 }
 

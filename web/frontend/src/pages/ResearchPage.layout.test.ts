@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import windowControlsSource from "@/components/research/ResearchWindowControls.vue?raw";
 import source from "./ResearchPage.vue?raw";
 
 describe("ResearchPage chart layout contract", () => {
@@ -41,14 +42,19 @@ describe("ResearchPage chart layout contract", () => {
   });
 
   it("exposes explicit candle window controls", () => {
-    expect(source).toContain("ChevronLeft");
-    expect(source).toContain("ChevronRight");
+    expect(source).toContain("ResearchWindowControls");
     expect(source).toContain("canLoadPreviousCandles");
     expect(source).toContain("canLoadNextCandles");
-    expect(source).toContain("@click=\"loadPreviousCandles\"");
-    expect(source).toContain("@click=\"loadNextCandles\"");
-    expect(source).toContain("research.previousWindow");
-    expect(source).toContain("research.nextWindow");
+    expect(source).toContain('@previous="loadPreviousCandles"');
+    expect(source).toContain('@next="loadNextCandles"');
+    expect(windowControlsSource).toContain("research.previousWindow");
+    expect(windowControlsSource).toContain("research.nextWindow");
+  });
+
+  it("shows the current candle window metadata", () => {
+    expect(source).toContain("windowLabel");
+    expect(source).toContain("research.candleWindow");
+    expect(source).toContain("formatWindowTime");
   });
 });
 

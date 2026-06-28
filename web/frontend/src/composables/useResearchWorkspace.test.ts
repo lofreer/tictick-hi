@@ -289,6 +289,9 @@ function candleResult(overrides: Record<string, unknown>) {
       returnedCandles: 0,
       limitedByBaseWindow: false,
     },
+    window: {
+      count: 0,
+    },
     pagination: {
       hasPrevious: false,
       hasNext: false,

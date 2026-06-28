@@ -1006,6 +1006,40 @@ scripts/quality-gate.sh
 - 这只是窗口级 metadata 和显式翻页，不是完整 cursor pagination；还没有大范围历史查询性能压测、虚拟化、预取或聚合缓存。
 - aggregated 的前后探测基于基础 `1m` 是否存在，不能证明下一整个目标周期窗口完整健康，仍需结合 health/gap/coverage 观察。
 
+### 阶段 1 Candle 当前窗口可观察补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- `/api/candles` 已返回上一/下一窗口游标，但没有返回当前实际窗口范围。
+- 研究页用户点击上一/下一窗口后，只能从 URL 推断窗口，图表 metadata 没有直接显示当前返回数据覆盖的 `from/to/count`。
+
+修复范围：
+
+- `CandleResult` 新增 `window` 元数据，包含当前响应实际 K 线窗口 `from/to/count`。
+- CandleProvider 对 native 和 aggregated 结果统一从返回 K 线的首尾 `openTime` 生成窗口 metadata；空窗口返回 `count=0`。
+- `/api/system/api-contract` 和 `web/frontend/src/types/api.generated.ts` 增加 `CandleWindow`。
+- 前端 API wrapper 保留 `window`；研究页元信息显示当前窗口范围和 K 线数量。
+- 研究页上一/下一窗口按钮提取为 `ResearchWindowControls`，避免页面文件再次超过质量门禁硬上限。
+
+验证：
+
+- `go test ./internal/data ./internal/web/api`
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.test.ts src/composables/useResearchWorkspace.test.ts src/pages/ResearchPage.layout.test.ts`
+- `pnpm --dir web/frontend run typecheck`
+
+失败：
+
+- 无硬失败。
+
+后续风险：
+
+- 当前窗口 metadata 只说明本次响应实际覆盖范围，不证明窗口内无缺口；仍需结合 `health/gaps/coverage` 判断数据质量。
+- 这仍不是完整 cursor pagination 或大范围性能证明。
+
 ### 阶段 1/3/4 策略输入数据健康门禁补充
 
 执行时间：2026-06-27
@@ -2592,9 +2626,9 @@ Definition of Done：
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；数据同步 retry / command 状态冲突已有领域错误码；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、错误码 catalog、session cookie 和 CSRF header；`web/frontend/src/types/api.generated.ts` 已从该 contract 生成；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段、generated DTO staleness、external OpenAPI validator 和 candle query 参数漂移 | 跨领域错误语义细分和生产级审计边界不足 |
 | 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 限流内存态、无密码策略/RBAC、自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、批次内连续 open_time 游标推进、临时错误任务级 `next_attempt_at` 持久化退避、交易所级 `data_sync_exchange_backoffs` 冷却、失败后 UI retry、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、交易所精确权重限流、全历史缺口扫描和完整状态机 |
-| CandleProvider | demo | native/aggregated/gap/coverage/pagination metadata、runner 健康门禁和集成测试已覆盖 | 完整 cursor pagination、大范围性能压测、异常数据修复策略不足 |
+| CandleProvider | demo | native/aggregated/gap/coverage/pagination/window metadata、runner 健康门禁和集成测试已覆盖 | 完整 cursor pagination、大范围性能压测、异常数据修复策略不足 |
 | Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码、URL 脱敏和交易所级冷却有测试 | 无精确权重限流器、真实网络压测、代理/地域策略和完整业务码审计 |
-| 研究页 | demo | 数据源 metadata、列表在上图表在下、图表高度稳定、上一/下一窗口、失败任务 retry 已覆盖 | 生产级 instrument 搜索、图表工具薄、缺指标和完整缺口修复工作流 |
+| 研究页 | demo | 数据源 metadata、当前窗口范围、列表在上图表在下、图表高度稳定、上一/下一窗口、失败任务 retry 已覆盖 | 生产级 instrument 搜索、图表工具薄、缺指标和完整缺口修复工作流 |
 | 策略 registry / runtime | demo | schema 驱动参数、intent 输出和策略边界门禁已覆盖 | 缺策略沙箱、版本迁移、权限隔离和真实策略库 |
 | 回测 | demo | CandleProvider、closed/minute replay、intent/order/result、买卖点展示和容器 SIGTERM release 已走通 | 撮合、费用/滑点曲线、指标体系和结果可信度不足 |
 | 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通；通知 intent 可进入 email / Telegram / 飞书 provider 基础发送路径 | 风控、PnL 可信度、通知 provider 生产启用边界、统一状态机和实盘隔离不足 |

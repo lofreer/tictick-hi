@@ -148,6 +148,9 @@ function normalizeCandleResult(response: CandleResultResponse, requestedInterval
       returnedCandles: candles.length,
       limitedByBaseWindow: false,
     },
+    window: response.window ?? {
+      count: candles.length,
+    },
     pagination: response.pagination ?? {
       hasPrevious: false,
       hasNext: false,

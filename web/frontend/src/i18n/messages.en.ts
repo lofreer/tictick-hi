@@ -269,6 +269,7 @@ export const enUSMessages: Record<string, string> = {
     "research.taskGapRepairFailed": "Failed to repair task gaps.",
     "research.noRepairableTaskGaps": "No repairable gaps to queue for this task.",
     "research.coverageLimited": "Window {returned}/{requested}",
+    "research.candleWindow": "Window {from} - {to} / {count} candles",
     "research.previousWindow": "Previous window",
     "research.nextWindow": "Next window",
     "research.chartEmpty": "Select a data source to load the K-line chart.",
