@@ -1945,11 +1945,40 @@ scripts/quality-gate.sh
 - `docker compose up -d --no-deps api` 后 `docker inspect --format '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
 - 本地 8080 登录后 `POST /api/data/tasks` 创建 `NOTREALUSDT` 返回 HTTP 400，响应 `code=market_instrument_not_active`。
 - 本地 8080 登录后 `POST /api/data/tasks` 创建 active `BTCUSDT` 返回 HTTP 201，并已删除该临时验证任务。
+- `scripts/stage8-smoke.sh` 顺序重跑通过，证明 Stage 8 合成 data sync task seed active catalog 后全链路 smoke 仍可走通。
+- `scripts/stage8-sigterm-smoke.sh` 顺序重跑通过，证明 Stage 8 SIGTERM smoke 的合成 data sync task seed active catalog 后仍可走通。
 
 剩余风险：
 
 - 当前只强制 data sync task 创建命中 active catalog；backtest / trading task 仍只做格式校验，后续应按阶段收敛。
 - active catalog 仍依赖 seed 或用户手动同步，不是后台定时同步，也没有交易所级权重限流、退市/停牌完整操作语义和自动重试队列，因此不能升级为 usable。
+
+### 阶段 8 SIGTERM smoke 状态机兼容补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- 顺序重跑 `scripts/stage8-sigterm-smoke.sh` 时，脚本在证明 backtest worker SIGTERM 释放 lease 后，直接把 backtest 任务从 `pending` 更新为 `cancelled`，触发既有 `backtest_tasks_status_transition_check`。
+- notify 段 seed 的 `notifications.task_id` 使用不存在的 synthetic notify task id，触发 `notifications_trading_task_fk`。
+
+修复范围：
+
+- backtest proof 后清理改为 `pending -> running -> failed`，符合现有 backtest 状态机，不放宽数据库 trigger。
+- 历史 `S8TERM%` backtest 清理按状态分段处理：pending 先转 running，running 转 failed，terminal 状态只清锁。
+- notify seed 改为复用本轮已创建的 trading task id，满足 notifications / outbox 对 trading task 的 FK 约束。
+
+验证：
+
+- `bash -n scripts/stage8-sigterm-smoke.sh` 通过。
+- `scripts/stage8-sigterm-smoke.sh` 顺序重跑通过，输出 `Stage 8 SIGTERM smoke passed`。
+- `scripts/stage8-smoke.sh` 顺序重跑通过，输出 `Stage 8 smoke passed`。
+
+剩余风险：
+
+- 本轮没有把 SIGTERM smoke 并发执行变成受支持场景；这两个 Stage 8 脚本仍应顺序运行，避免共享 compose project 的临时容器名冲突。
 
 ### 阶段 1 数据同步任务健康可观察补充
 

@@ -427,16 +427,24 @@ UPDATE data_sync_tasks
 SQL
 }
 
-cancel_backtest_after_proof() {
+fail_backtest_after_proof() {
   psql_exec -v id="$BACKTEST_TASK_ID" <<'SQL' >/dev/null
 UPDATE backtest_tasks
-   SET status = 'cancelled',
+   SET status = 'running',
+       updated_at = now()
+ WHERE id = :'id'
+   AND status = 'pending';
+
+UPDATE backtest_tasks
+   SET status = 'failed',
        locked_by = NULL,
        locked_until = NULL,
        heartbeat_at = NULL,
+       last_error = 'stage8 sigterm smoke cleanup',
        finished_at = now(),
        updated_at = now()
- WHERE id = :'id';
+ WHERE id = :'id'
+   AND status = 'running';
 SQL
 }
 
@@ -466,13 +474,29 @@ UPDATE data_sync_tasks
  WHERE symbol LIKE 'S8TERM%';
 
 UPDATE backtest_tasks
-   SET status = 'cancelled',
+   SET status = 'running',
+       updated_at = now()
+ WHERE symbol LIKE 'S8TERM%'
+   AND status = 'pending';
+
+UPDATE backtest_tasks
+   SET status = 'failed',
        locked_by = NULL,
        locked_until = NULL,
        heartbeat_at = NULL,
+       last_error = COALESCE(NULLIF(last_error, ''), 'stage8 sigterm smoke cleanup'),
        finished_at = COALESCE(finished_at, now()),
        updated_at = now()
- WHERE symbol LIKE 'S8TERM%';
+ WHERE symbol LIKE 'S8TERM%'
+   AND status = 'running';
+
+UPDATE backtest_tasks
+   SET locked_by = NULL,
+       locked_until = NULL,
+       heartbeat_at = NULL,
+       updated_at = now()
+ WHERE symbol LIKE 'S8TERM%'
+   AND status IN ('succeeded', 'failed', 'cancelled');
 
 UPDATE trading_tasks
    SET status = 'paused',
@@ -494,10 +518,11 @@ SQL
 }
 
 seed_webhook_notification() {
+  local task_id="${TRADING_TASK_ID:-$NOTIFICATION_TASK_ID}"
   psql_exec \
     -v notification_id="$NOTIFICATION_ID" \
     -v outbox_id="$OUTBOX_ID" \
-    -v task_id="$NOTIFICATION_TASK_ID" <<'SQL' >/dev/null
+    -v task_id="$task_id" <<'SQL' >/dev/null
 INSERT INTO notifications (
   id, task_id, intent_id, channel, title, body, status, error,
   created_at, sent_at, provider, target, attempt_count, max_attempts,
@@ -909,7 +934,7 @@ wait_for_backtest_claim
 docker compose "${COMPOSE_ARGS[@]}" stop -t 10 backtest >/dev/null
 assert_backtest_sigterm_release
 release_market_locks
-cancel_backtest_after_proof
+fail_backtest_after_proof
 
 log "trading SIGTERM while candle query is blocked"
 api_post "/api/trading/tasks" \
