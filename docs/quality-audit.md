@@ -4295,6 +4295,39 @@ Definition of Done：
 - 本轮验证的是受控 fake exchange client 下的 PostgreSQL + runner 恢复语义，不是 Docker 级进程崩溃恢复压测。
 - 未覆盖真实 Binance / OKX 网络抖动、交易所限流和多实例并发恢复，不能据此把数据同步提升到 usable。
 
+### 阶段 1 数据同步 Docker 重启恢复 smoke 补强
+
+目标等级：demo
+
+触发问题：
+
+- 上一轮只证明 PostgreSQL store + runner 组合恢复语义，仍缺真实 Docker Compose 运行形态下的 `hi sync` 容器重启恢复证据。
+- 计划要求实时同步任务在系统重启后立即恢复，且恢复时应从持久化游标向前 overlap 拉取并通过 upsert 去重。
+
+修复范围：
+
+- 新增 `scripts/stage1-data-sync-restart-smoke.sh`。
+- 脚本临时生成 Docker Compose override，注入 Docker 网络内的 Binance-compatible `restart-market` mock，不依赖公网 Binance。
+- 脚本先停止并移除当前 `sync` 容器，再 seed 一个 `status=running`、`realtime_enabled=true`、`locked_until` 已过期、`last_synced_open_time=2026-01-01T00:02:00Z` 的任务，模拟旧 sync 进程崩溃遗留 lease。
+- 脚本重启真实 `sync` service，断言新 worker 会 claim 该任务、请求 mock `/api/v3/klines`，并把 overlap 区间内旧 K 线 upsert 为新值。
+- 脚本断言 `last_synced_open_time` 推进到 `2026-01-01T00:04:00Z`，任务保持 `running + realtime_enabled=true`，当前 lease 已释放，且 `/api/data/tasks` 可观察到 `latestSyncedAt` 和 `dataHealth=syncing`。
+- 脚本运行前保存 `binance` 交易所退避行，测试期间临时清空以避免 claim 被冷却窗口挡住，退出时恢复；只暂停 `S1RESTART...` smoke 命名空间任务。
+
+验证：
+
+- `bash -n scripts/stage1-data-sync-restart-smoke.sh` 通过。
+- `scripts/stage1-data-sync-restart-smoke.sh` 通过；证据：`symbol=S1RESTART1782665970USDT`、`task=dst_s1restart_1782665970`、`syncWorker=stage1-restart-1782665970`、`cursor=2026-01-01T00:04:00Z`、`klinesHits=1`。
+- smoke 退出后 `docker inspect` 确认 `tictick-hi-api-1` 和 `tictick-hi-sync-1` 的 `com.docker.compose.project.config_files` 均恢复为 `/Users/xiaobai/Work/TicTick/tictick-hi/docker-compose.yml`，`docker compose ps -a` 未残留 `restart-market`。
+
+失败：
+
+- 无。
+
+剩余风险：
+
+- 本轮是 Docker Compose + 本地 mock exchange 的容器重启 smoke，不是 Docker daemon kill、宿主机断电或 Kubernetes 编排恢复测试。
+- 未覆盖真实 Binance / OKX 网络抖动、长时间限流、多 sync 实例并发 claim 和跨交易所共享限流，不能据此把数据同步提升到 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
