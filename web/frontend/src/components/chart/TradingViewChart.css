@@ -3,16 +3,17 @@
   inset: 0;
   display: block;
   box-sizing: border-box;
-  inline-size: 100%;
-  block-size: 100% !important;
-  width: 100%;
+  inline-size: var(--tt-chart-render-width, 100%) !important;
+  block-size: var(--tt-chart-render-height, 100%) !important;
+  width: var(--tt-chart-render-width, 100%) !important;
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  height: 100% !important;
-  max-width: 100%;
-  max-height: 100% !important;
-  max-block-size: 100% !important;
+  height: var(--tt-chart-render-height, 100%) !important;
+  max-width: var(--tt-chart-render-width, 100%) !important;
+  max-inline-size: var(--tt-chart-render-width, 100%) !important;
+  max-height: var(--tt-chart-render-height, 100%) !important;
+  max-block-size: var(--tt-chart-render-height, 100%) !important;
   overflow: hidden;
   overflow: clip;
   contain: strict;
@@ -24,16 +25,17 @@
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  inline-size: 100%;
-  block-size: 100% !important;
-  width: 100%;
-  height: 100% !important;
+  inline-size: var(--tt-chart-render-width, 100%) !important;
+  block-size: var(--tt-chart-render-height, 100%) !important;
+  width: var(--tt-chart-render-width, 100%) !important;
+  height: var(--tt-chart-render-height, 100%) !important;
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  max-width: 100%;
-  max-height: 100% !important;
-  max-block-size: 100% !important;
+  max-width: var(--tt-chart-render-width, 100%) !important;
+  max-inline-size: var(--tt-chart-render-width, 100%) !important;
+  max-height: var(--tt-chart-render-height, 100%) !important;
+  max-block-size: var(--tt-chart-render-height, 100%) !important;
   overflow: hidden;
   overflow: clip;
   contain: strict;
@@ -43,12 +45,14 @@
   position: absolute !important;
   inset: 0;
   box-sizing: border-box;
-  width: 100% !important;
-  height: 100% !important;
-  block-size: 100% !important;
-  max-width: 100%;
-  max-height: 100%;
-  max-block-size: 100% !important;
+  width: var(--tt-chart-render-width, 100%) !important;
+  inline-size: var(--tt-chart-render-width, 100%) !important;
+  height: var(--tt-chart-render-height, 100%) !important;
+  block-size: var(--tt-chart-render-height, 100%) !important;
+  max-width: var(--tt-chart-render-width, 100%) !important;
+  max-inline-size: var(--tt-chart-render-width, 100%) !important;
+  max-height: var(--tt-chart-render-height, 100%) !important;
+  max-block-size: var(--tt-chart-render-height, 100%) !important;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -58,12 +62,14 @@
 
 .trading-chart__canvas > .tv-lightweight-charts table {
   table-layout: fixed !important;
-  width: 100% !important;
-  height: 100% !important;
-  block-size: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  max-block-size: 100% !important;
+  width: var(--tt-chart-render-width, 100%) !important;
+  inline-size: var(--tt-chart-render-width, 100%) !important;
+  height: var(--tt-chart-render-height, 100%) !important;
+  block-size: var(--tt-chart-render-height, 100%) !important;
+  max-width: var(--tt-chart-render-width, 100%) !important;
+  max-inline-size: var(--tt-chart-render-width, 100%) !important;
+  max-height: var(--tt-chart-render-height, 100%) !important;
+  max-block-size: var(--tt-chart-render-height, 100%) !important;
 }
 
 .trading-chart__canvas > .tv-lightweight-charts tbody,
@@ -78,9 +84,14 @@
 .trading-chart__canvas canvas {
   display: block;
   box-sizing: border-box;
-  max-width: 100%;
-  max-height: 100% !important;
-  max-block-size: 100% !important;
+  width: var(--tt-chart-render-width, 100%) !important;
+  inline-size: var(--tt-chart-render-width, 100%) !important;
+  height: var(--tt-chart-render-height, 100%) !important;
+  block-size: var(--tt-chart-render-height, 100%) !important;
+  max-width: var(--tt-chart-render-width, 100%) !important;
+  max-inline-size: var(--tt-chart-render-width, 100%) !important;
+  max-height: var(--tt-chart-render-height, 100%) !important;
+  max-block-size: var(--tt-chart-render-height, 100%) !important;
 }
 
 .trading-chart__empty {

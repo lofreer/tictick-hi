@@ -38,7 +38,7 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按连续 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康可观察 active exchange backoff 数量和最近重试时间；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；仍缺完整统一状态机、交易所精确权重限流、全历史缺口扫描和真实恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，聚合 fallback 会返回 coverage 并标记基础窗口受限，`/api/candles` 返回窗口级 pagination metadata 和当前实际窗口 `from/to/count`，PostgreSQL 集成测试覆盖基础聚合、缺口、默认最新窗口查询、上一/下一窗口 metadata、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺大范围性能压测、完整 cursor pagination 和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；仍缺精确权重限流、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary` 和同步窗口，可区分正常、同步中、有缺口、失败、暂停、重试中和数据不足，并显示任务窗口内缺口数量与首个缺口范围；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时也可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先调用后端单缺口 repair API 并写入 `repairSourceTaskId`；任务表格错误列、下次重试列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度，且不向 root/canvas 写 inline 高度；lightweight-charts 外层、内部 table 和 canvas 被异常写入大高度时由固定 viewport CSS 裁剪；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长且不超过 viewport 上限；显示 source / health / base interval / 当前窗口范围，可通过上一/下一窗口按钮显式请求相邻 K 线窗口并在 URL 保留 `from/to`；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；但仍缺定时 instrument 同步、创建任务强制 catalog 命中、交易所权重限流和退市/停牌状态的完整操作语义，图表研究能力仍薄 |
+| 研究页 | demo | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary` 和同步窗口，可区分正常、同步中、有缺口、失败、暂停、重试中和数据不足，并显示任务窗口内缺口数量与首个缺口范围；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时也可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先调用后端单缺口 repair API 并写入 `repairSourceTaskId`；任务表格错误列、下次重试列、failed retry 操作和图表高度已有前端约束；研究页图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: strict`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度；root/canvas 写入由固定槽派生的受控 CSS 变量和 inline 尺寸锁，但不再读取这些节点作为尺寸来源；lightweight-charts 外层、内部 table 和 canvas 统一使用受控尺寸变量，即使被异常写入大高度也由固定 viewport CSS 裁剪；headless Chrome 桌面/移动连续采样验证 document、panel、chart body、chart 高度不增长且不超过 viewport 上限；显示 source / health / base interval / 当前窗口范围，可通过上一/下一窗口按钮显式请求相邻 K 线窗口并在 URL 保留 `from/to`；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；但仍缺定时 instrument 同步、创建任务强制 catalog 命中、交易所权重限流和退市/停牌状态的完整操作语义，图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
@@ -1795,6 +1795,42 @@ scripts/quality-gate.sh
 剩余风险：
 
 - 本轮仍未拿到用户可视 Chrome 会话中的原始增长堆栈；当前修复关闭的是固定槽多属性 inline 高度污染和 chart root/canvas host 高度外溢入口，不等于完整桌面 / 移动 / 主题视觉回归体系。
+
+### 阶段 1 K 线图表受控尺寸锁补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- 用户再次反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 既有 smoke 在本地 8080 通过，说明旧验证能证明固定槽污染被裁剪，但没有把组件自身 root / canvas / lightweight-charts 内部节点统一锁到同一份受控像素尺寸。
+
+修复范围：
+
+- `TradingViewChart` 初始化和 resize 时把最近 `data-chart-viewport="fixed"` 固定槽测得的宽高写入 `--tt-chart-render-width` / `--tt-chart-render-height`，并对 root 与 canvas host 设置同尺寸 inline hard lock。
+- `TradingViewChart.css` 将 root、canvas host、`.tv-lightweight-charts`、内部 table 和 canvas 的 width / height / max-size 统一改为受控 CSS 变量，阻断内部 DOM 或运行态 inline height 反向撑开父级。
+- resize 后即使测得尺寸没有变化，也会重新应用上一次受控尺寸，覆盖运行态节点污染后外层尺寸不变的恢复场景。
+- `TradingViewChart.test.ts` 新增受控尺寸锁和运行态污染恢复断言。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts src/components/tables/DataSyncTaskTable.test.ts` 通过：3 个测试文件、26 个测试通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：20 个测试文件、87 个测试通过。
+- `pnpm --dir web/frontend run build` 通过，生产入口为 `/assets/index-Djw7oz3o.js`，图表 CSS 为 `/assets/TradingViewChart-D6RFVE4h.css`。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api` 通过。
+- `docker compose up -d --no-deps api` 后 `docker inspect --format '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
+- `curl http://127.0.0.1:8080/research` 确认页面引用 `/assets/index-Djw7oz3o.js`。
+- `curl http://127.0.0.1:8080/assets/TradingViewChart-D6RFVE4h.css` 确认产物包含 `--tt-chart-render-height`、`.tv-lightweight-charts` 和 canvas 的受控尺寸变量。
+- `SMOKE_SAMPLES=120 SMOKE_INTERVAL_MS=100 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+
+剩余风险：
+
+- 本轮仍未拿到用户可视 Chrome 会话中的原始增长堆栈；当前修复关闭的是 chart root / canvas / lightweight-charts 内部节点与固定槽尺寸不一致导致的高度反馈入口，不等于完整视觉回归体系。
 
 ### 阶段 1 instrument catalog 搜索基础补充
 

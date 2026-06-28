@@ -344,16 +344,38 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("does not write inline size back to root or canvas elements", () => {
+  it("locks root and canvas elements to the measured viewport size", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     const root = wrapper.get<HTMLElement>(".trading-chart").element;
     const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
 
-    expect(root.style.width).toBe("");
-    expect(root.style.height).toBe("");
-    expect(canvasHost.style.width).toBe("");
-    expect(canvasHost.style.height).toBe("");
+    expectLockedSize(root, { width: 1180, height: 640 });
+    expectLockedSize(canvasHost, { width: 1180, height: 640 });
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("restores locked chart dimensions after runtime node height pollution", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+    const root = wrapper.get<HTMLElement>(".trading-chart").element;
+    const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
+    chartMocks.resize.mockClear();
+
+    for (const element of [root, canvasHost]) {
+      element.style.height = "9000px";
+      element.style.maxHeight = "9000px";
+      element.style.blockSize = "9000px";
+      element.style.maxBlockSize = "9000px";
+    }
+
+    window.dispatchEvent(new Event("resize"));
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+    expectLockedSize(root, { width: 1180, height: 640 });
+    expectLockedSize(canvasHost, { width: 1180, height: 640 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -409,6 +431,26 @@ function resizeEntry(target: Element, size: { width: number; height: number }) {
     contentRect: rect({ top: 0, width: size.width, height: size.height }),
     contentBoxSize: [{ inlineSize: size.width, blockSize: size.height }],
   } as unknown as ResizeObserverEntry;
+}
+
+function expectLockedSize(element: HTMLElement, size: { width: number; height: number }) {
+  expect(element.style.getPropertyValue("--tt-chart-render-width")).toBe(`${size.width}px`);
+  expect(element.style.getPropertyValue("--tt-chart-render-height")).toBe(`${size.height}px`);
+  for (const [property, value] of [
+    ["width", `${size.width}px`],
+    ["height", `${size.height}px`],
+    ["max-width", `${size.width}px`],
+    ["max-height", `${size.height}px`],
+    ["inline-size", `${size.width}px`],
+    ["block-size", `${size.height}px`],
+    ["max-inline-size", `${size.width}px`],
+    ["max-block-size", `${size.height}px`],
+  ]) {
+    expect(element.style.getPropertyValue(property)).toBe(value);
+    if (property === "width" || property === "height") {
+      expect(element.style.getPropertyPriority(property)).toBe("important");
+    }
+  }
 }
 
 function restorePrototypeProperty(name: "clientWidth" | "clientHeight", descriptor: PropertyDescriptor | undefined) {

@@ -54,6 +54,7 @@ onMounted(() => {
 
   const initialSize = readHostSize() ?? { ...fallbackSize, fixedViewport: false };
   lastSize = { width: initialSize.width, height: initialSize.height };
+  lockRenderedViewport(lastSize);
   chart = createChart(containerRef.value, {
     ...chartTheme(themeStore.mode),
     autoSize: false,
@@ -176,10 +177,32 @@ function resizeChart() {
   pendingFixedViewportHeightRefresh = false;
   if (!nextMeasurement) return;
 
-  if (nextMeasurement.width === lastSize.width && nextMeasurement.height === lastSize.height) return;
+  if (nextMeasurement.width === lastSize.width && nextMeasurement.height === lastSize.height) {
+    lockRenderedViewport(lastSize);
+    return;
+  }
 
   lastSize = { width: nextMeasurement.width, height: nextMeasurement.height };
+  lockRenderedViewport(lastSize);
   chart.resize(nextMeasurement.width, nextMeasurement.height);
+}
+
+function lockRenderedViewport(size: { width: number; height: number }) {
+  const width = `${Math.max(1, Math.floor(size.width))}px`;
+  const height = `${Math.max(1, Math.floor(size.height))}px`;
+  for (const element of [rootRef.value, containerRef.value]) {
+    if (!element) continue;
+    element.style.setProperty("--tt-chart-render-width", width);
+    element.style.setProperty("--tt-chart-render-height", height);
+    element.style.setProperty("width", width, "important");
+    element.style.setProperty("height", height, "important");
+    element.style.setProperty("max-width", width, "important");
+    element.style.setProperty("max-height", height, "important");
+    element.style.setProperty("inline-size", width, "important");
+    element.style.setProperty("block-size", height, "important");
+    element.style.setProperty("max-inline-size", width, "important");
+    element.style.setProperty("max-block-size", height, "important");
+  }
 }
 
 function readHostSize(refreshFixedViewportHeight = false) {
