@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
+import type { DataSyncTask } from "@/types/app";
 
 const dataApiMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   deleteTask: vi.fn(),
   getCandles: vi.fn(),
   listTasks: vi.fn(),
+  repairTaskGaps: vi.fn(),
   retryTask: vi.fn(),
   setRealtime: vi.fn(),
   setSync: vi.fn(),
@@ -46,6 +48,12 @@ describe("useResearchWorkspace", () => {
     dataApiMocks.listTasks.mockResolvedValue([]);
     dataApiMocks.getCandles.mockResolvedValue(candleResult({ gaps: [] }));
     dataApiMocks.createTask.mockResolvedValue({ id: "dst_repair" });
+    dataApiMocks.repairTaskGaps.mockResolvedValue({
+      sourceTaskId: "dst_1",
+      createdTasks: [{ id: "dst_repair_1" }],
+      skippedExisting: 0,
+      limited: false,
+    });
     dataApiMocks.setSync.mockResolvedValue({ id: "dst_repair" });
   });
 
@@ -89,6 +97,18 @@ describe("useResearchWorkspace", () => {
     expect(dataApi.setSync).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledWith("当前没有可修复缺口。");
   });
+
+  it("queues backend repair tasks for a data sync task gap summary", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    await workspace.repairTaskGaps(dataSyncTask({ id: "dst_1" }));
+    await flushPromises();
+
+    expect(dataApi.repairTaskGaps).toHaveBeenCalledWith("dst_1");
+    expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
+    expect(messageMocks.success).toHaveBeenCalledWith("已排队 1 个缺口修复任务。");
+  });
 });
 
 function mountWorkspace() {
@@ -126,6 +146,31 @@ function candleResult(overrides: Record<string, unknown>) {
       returnedCandles: 0,
       limitedByBaseWindow: false,
     },
+    ...overrides,
+  };
+}
+
+function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
+  return {
+    id: "dst_1",
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    interval: "1m",
+    realtimeEnabled: false,
+    syncEnabled: false,
+    status: "succeeded",
+    dataHealth: "gap",
+    gapSummary: {
+      count: 1,
+      firstGap: {
+        from: "2026-06-27T03:02:00Z",
+        to: "2026-06-27T03:03:00Z",
+        missingCandles: 1,
+      },
+    },
+    attemptCount: 0,
+    createdAt: "2026-06-28T00:00:00Z",
+    updatedAt: "2026-06-28T00:00:00Z",
     ...overrides,
   };
 }

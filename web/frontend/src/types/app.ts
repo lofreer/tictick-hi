@@ -12,6 +12,7 @@ import type {
   CreateNotificationChannel as APICreateNotificationChannel,
   CreateOperator as APICreateOperator,
   CreateTradingTask as APICreateTradingTask,
+  DataSyncGapRepairResult as APIDataSyncGapRepairResult,
   DataSyncTask as APIDataSyncTask,
   ExchangeAccount as APIExchangeAccount,
   Execution as APIExecution,
@@ -39,6 +40,8 @@ export type LocaleCode = "zh-CN" | "en-US";
 export type TaskStatus = APITaskStatus | "gap";
 
 export type DataSyncTask = APIDataSyncTask;
+
+export type DataSyncGapRepairResult = APIDataSyncGapRepairResult;
 
 export type ChartCandle = {
   time: number;

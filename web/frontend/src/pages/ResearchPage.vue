@@ -27,9 +27,11 @@
         />
         <DataSyncTaskTable
           v-else-if="tasks.length > 0"
+          :repairing-task-id="repairTaskGapsLoadingId"
           :tasks="tasks"
           @view="selectTask"
           @delete="deleteTask"
+          @repair-gaps="repairTaskGaps"
           @retry="retryTask"
           @toggle-realtime="toggleRealtime"
           @toggle-sync="toggleSync"
@@ -176,6 +178,8 @@ const {
   openCreateTask,
   repairFirstGap,
   repairGapLoading,
+  repairTaskGaps,
+  repairTaskGapsLoadingId,
   retryTask,
   selectTask,
   symbol,

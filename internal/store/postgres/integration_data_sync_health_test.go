@@ -93,6 +93,60 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 	}
 }
 
+func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 4, 0, 0, 0, time.UTC)
+	symbol := integrationSymbol("DHRP")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(6*time.Minute)), nil, "")
+	for _, minute := range []int{0, 1, 3, 6} {
+		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
+	}
+
+	result, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceTaskID != taskID || result.SkippedExisting != 0 || result.Limited {
+		t.Fatalf("unexpected repair result metadata: %#v", result)
+	}
+	if len(result.CreatedTasks) != 2 {
+		t.Fatalf("created repair task count = %d, want 2: %#v", len(result.CreatedTasks), result.CreatedTasks)
+	}
+	assertRepairTaskWindow(t, result.CreatedTasks[0], start.Add(2*time.Minute), start.Add(3*time.Minute))
+	assertRepairTaskWindow(t, result.CreatedTasks[1], start.Add(4*time.Minute), start.Add(6*time.Minute))
+
+	duplicateResult, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicateResult.CreatedTasks) != 0 || duplicateResult.SkippedExisting != 2 {
+		t.Fatalf("duplicate repair result = %#v, want skipped existing", duplicateResult)
+	}
+}
+
+func assertRepairTaskWindow(t *testing.T, task data.DataSyncTask, from time.Time, to time.Time) {
+	t.Helper()
+	if task.StartTime == nil || !task.StartTime.Equal(from) ||
+		task.EndTime == nil || !task.EndTime.Equal(to) ||
+		!task.SyncEnabled ||
+		task.RealtimeEnabled ||
+		task.Status != data.TaskStatusPending ||
+		task.DataHealth != data.DataSyncHealthSyncing {
+		t.Fatalf("unexpected repair task: %#v", task)
+	}
+}
+
 func integrationDataHealthCandle(symbol string, start time.Time, minute int) data.Candle {
 	openTime := start.Add(time.Duration(minute) * time.Minute)
 	return data.Candle{

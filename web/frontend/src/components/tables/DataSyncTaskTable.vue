@@ -6,13 +6,13 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1580"
+    :scroll-x="1660"
     size="small"
   />
 </template>
 
 <script setup lang="ts">
-import { Eye, Play, RefreshCw, RotateCcw, Square, Trash2 } from "@lucide/vue";
+import { Eye, Play, RefreshCw, RotateCcw, Square, Trash2, Wrench } from "@lucide/vue";
 import {
   NButton,
   NDataTable,
@@ -30,10 +30,11 @@ import { useI18n } from "vue-i18n";
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import type { DataSyncTask } from "@/types/app";
 
-const props = defineProps<{ tasks: DataSyncTask[] }>();
+const props = defineProps<{ tasks: DataSyncTask[]; repairingTaskId?: string }>();
 const emit = defineEmits<{
   view: [task: DataSyncTask];
   delete: [task: DataSyncTask];
+  "repair-gaps": [task: DataSyncTask];
   retry: [task: DataSyncTask];
   "toggle-realtime": [task: DataSyncTask];
   "toggle-sync": [task: DataSyncTask];
@@ -93,10 +94,21 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.actions"),
     key: "actions",
-    width: 232,
+    width: 264,
     render: (row) =>
       h(NSpace, { size: 4, wrap: false }, () => [
         iconButton(Eye, t("research.viewChart"), () => emit("view", row)),
+        ...(hasRepairableTaskGaps(row)
+          ? [
+              iconButton(
+                Wrench,
+                t("research.repairTaskGaps"),
+                () => emit("repair-gaps", row),
+                "warning",
+                props.repairingTaskId === row.id,
+              ),
+            ]
+          : []),
         iconButton(
           row.realtimeEnabled ? Square : Play,
           row.realtimeEnabled ? t("research.stopRealtime") : t("research.startRealtime"),
@@ -118,13 +130,18 @@ function iconButton(
   icon: typeof Eye,
   label: string,
   onClick: () => void,
-  type: "default" | "error" = "default",
+  type: "default" | "error" | "warning" = "default",
+  loading = false,
 ) {
   return h(
     NButton,
-    { size: "tiny", quaternary: true, type, title: label, onClick },
+    { disabled: loading, loading, size: "tiny", quaternary: true, type, title: label, onClick },
     { icon: () => h(icon, { size: 15 }) },
   );
+}
+
+function hasRepairableTaskGaps(row: DataSyncTask) {
+  return (row.gapSummary?.count ?? 0) > 0;
 }
 
 function gapSummaryCell(row: DataSyncTask) {

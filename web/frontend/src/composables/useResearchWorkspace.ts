@@ -33,6 +33,7 @@ export function useResearchWorkspace() {
   const candlesLoading = ref(false);
   const createLoading = ref(false);
   const repairGapLoading = ref(false);
+  const repairTaskGapsLoadingId = ref("");
   const tasksError = ref("");
   const candlesError = ref("");
   const createModalOpen = ref(false);
@@ -188,6 +189,28 @@ export function useResearchWorkspace() {
     });
   }
 
+  async function repairTaskGaps(task: DataSyncTask) {
+    if (repairTaskGapsLoadingId.value) {
+      return;
+    }
+    repairTaskGapsLoadingId.value = task.id;
+    try {
+      const result = await dataApi.repairTaskGaps(task.id);
+      if (result.createdTasks.length > 0) {
+        message.success(t("research.taskGapRepairQueued", { count: result.createdTasks.length }));
+      } else if (result.skippedExisting > 0) {
+        message.success(t("research.taskGapRepairAlreadyQueued"));
+      } else {
+        message.success(t("research.noRepairableTaskGaps"));
+      }
+      await loadTasks();
+    } catch (error) {
+      message.error(errorMessage(error, t("research.taskGapRepairFailed")));
+    } finally {
+      repairTaskGapsLoadingId.value = "";
+    }
+  }
+
   async function repairFirstGap() {
     const gap = firstRepairableGap.value;
     if (!gap) {
@@ -216,11 +239,11 @@ export function useResearchWorkspace() {
     }
   }
 
-  async function runAction(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<void>, fallback = t("research.taskUpdateFailed")) {
     try {
       await action();
     } catch (error) {
-      message.error(errorMessage(error, t("research.taskUpdateFailed")));
+      message.error(errorMessage(error, fallback));
     }
   }
 
@@ -243,6 +266,8 @@ export function useResearchWorkspace() {
     openCreateTask,
     repairFirstGap,
     repairGapLoading,
+    repairTaskGaps,
+    repairTaskGapsLoadingId,
     refreshAll,
     retryTask,
     selectTask,

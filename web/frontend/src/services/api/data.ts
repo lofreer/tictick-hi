@@ -8,6 +8,7 @@ import type {
   CandleResult,
   ChartCandle,
   CreateDataSyncTask,
+  DataSyncGapRepairResult,
   DataSyncTask,
 } from "@/types/app";
 
@@ -38,6 +39,14 @@ export const dataApi = {
   async retryTask(id: string) {
     const response = await apiClient.post<DataSyncTaskResponse>(`/data/tasks/${id}/retry`);
     return normalizeTask(response);
+  },
+
+  async repairTaskGaps(id: string): Promise<DataSyncGapRepairResult> {
+    const response = await apiClient.post<DataSyncGapRepairResult>(`/data/tasks/${id}/repair-gaps`);
+    return {
+      ...response,
+      createdTasks: response.createdTasks.map(normalizeTask),
+    };
   },
 
   async setSync(id: string, enabled: boolean) {

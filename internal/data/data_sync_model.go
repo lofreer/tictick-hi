@@ -39,6 +39,13 @@ type DataSyncGapSummary struct {
 	FirstGap *CandleGap `json:"firstGap,omitempty"`
 }
 
+type DataSyncGapRepairResult struct {
+	SourceTaskID    string         `json:"sourceTaskId"`
+	CreatedTasks    []DataSyncTask `json:"createdTasks"`
+	SkippedExisting int            `json:"skippedExisting"`
+	Limited         bool           `json:"limited"`
+}
+
 type CreateDataSyncTask struct {
 	Exchange  string     `json:"exchange"`
 	Symbol    string     `json:"symbol"`

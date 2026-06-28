@@ -142,6 +142,12 @@ export type CreateTradingTask = {
   symbol: string;
   type: string;
 };
+export type DataSyncGapRepairResult = {
+  createdTasks: DataSyncTask[];
+  limited: boolean;
+  skippedExisting: number;
+  sourceTaskId: string;
+};
 export type DataSyncGapSummary = {
   count: number;
   firstGap?: CandleGap;

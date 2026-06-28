@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(1580);
+    expect(table.props("scrollX")).toBe(1660);
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).toBe(longError);
@@ -105,6 +105,34 @@ describe("DataSyncTaskTable", () => {
     const summary = wrapper.get(".task-gap-summary");
     expect(summary.text()).toContain("缺口 2 处");
     expect(summary.attributes("title")).toContain("2026-06-27T03:02:00Z");
+  });
+
+  it("emits repair for tasks with gap summary", async () => {
+    const gapTask = dataSyncTask({
+      id: "sync_1",
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      dataHealth: "gap",
+      gapSummary: {
+        count: 1,
+        firstGap: {
+          from: "2026-06-27T03:02:00Z",
+          to: "2026-06-27T03:03:00Z",
+          missingCandles: 1,
+        },
+      },
+    });
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [gapTask],
+      },
+    });
+
+    await wrapper.get('button[title="修复缺口"]').trigger("click");
+
+    expect(wrapper.emitted("repair-gaps")).toEqual([[gapTask]]);
   });
 
   it("emits retry for failed tasks", async () => {

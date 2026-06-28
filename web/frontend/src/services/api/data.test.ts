@@ -174,4 +174,50 @@ describe("data api", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("queues repair tasks for data sync gaps", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          sourceTaskId: "dst_1",
+          createdTasks: [
+            {
+              id: "dst_repair_1",
+              exchange: "binance",
+              symbol: "BTCUSDT",
+              interval: "1m",
+              startTime: "2026-06-27T03:02:00Z",
+              endTime: "2026-06-27T03:03:00Z",
+              realtimeEnabled: false,
+              syncEnabled: true,
+              status: "pending",
+              dataHealth: "syncing",
+            },
+          ],
+          skippedExisting: 1,
+          limited: false,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.repairTaskGaps("dst_1")).resolves.toMatchObject({
+      sourceTaskId: "dst_1",
+      createdTasks: [
+        {
+          id: "dst_repair_1",
+          startTime: "2026-06-27T03:02:00Z",
+          syncEnabled: true,
+          dataHealth: "syncing",
+        },
+      ],
+      skippedExisting: 1,
+      limited: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/data/tasks/dst_1/repair-gaps",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
 });

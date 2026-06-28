@@ -106,6 +106,48 @@ func (repository *fakeRepository) RetryDataSyncTask(
 	return data.DataSyncTask{}, data.ErrNotFound
 }
 
+func (repository *fakeRepository) RepairDataSyncTaskGaps(
+	_ context.Context,
+	id string,
+) (data.DataSyncGapRepairResult, error) {
+	for index := range repository.tasks {
+		if repository.tasks[index].ID != id {
+			continue
+		}
+		result := data.DataSyncGapRepairResult{
+			SourceTaskID: repository.tasks[index].ID,
+			CreatedTasks: []data.DataSyncTask{},
+		}
+		summary := repository.tasks[index].GapSummary
+		if summary == nil || summary.FirstGap == nil || summary.Count <= 0 {
+			return result, nil
+		}
+		if repository.fakeRepairTaskExists(repository.tasks[index], *summary.FirstGap) {
+			result.SkippedExisting = 1
+			return result, nil
+		}
+		now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		repairTask := data.DataSyncTask{
+			ID:              "dst_repair_" + strconv.Itoa(len(repository.tasks)+1),
+			Exchange:        repository.tasks[index].Exchange,
+			Symbol:          repository.tasks[index].Symbol,
+			Interval:        repository.tasks[index].Interval,
+			StartTime:       &summary.FirstGap.From,
+			EndTime:         &summary.FirstGap.To,
+			SyncEnabled:     true,
+			RealtimeEnabled: false,
+			Status:          data.TaskStatusPending,
+			DataHealth:      data.DataSyncHealthSyncing,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		repository.tasks = append(repository.tasks, repairTask)
+		result.CreatedTasks = append(result.CreatedTasks, repairTask)
+		return result, nil
+	}
+	return data.DataSyncGapRepairResult{}, data.ErrNotFound
+}
+
 func (repository *fakeRepository) SetSyncEnabled(
 	ctx context.Context,
 	id string,
@@ -569,6 +611,21 @@ func (repository *fakeRepository) updateTask(
 		}
 	}
 	return data.DataSyncTask{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) fakeRepairTaskExists(source data.DataSyncTask, gap data.CandleGap) bool {
+	for _, task := range repository.tasks {
+		if task.Exchange == source.Exchange &&
+			task.Symbol == source.Symbol &&
+			task.Interval == source.Interval &&
+			task.StartTime != nil &&
+			task.EndTime != nil &&
+			task.StartTime.Equal(gap.From) &&
+			task.EndTime.Equal(gap.To) {
+			return true
+		}
+	}
+	return false
 }
 
 func dataSyncTaskCommandAllowed(status data.TaskStatus) bool {

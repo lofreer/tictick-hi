@@ -51,6 +51,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 	}{
 		{"DataSyncTask", "DataSyncTask"},
 		{"DataSyncGapSummary", "DataSyncGapSummary"},
+		{"DataSyncGapRepairResult", "DataSyncGapRepairResult"},
 		{"CandleGap", "CandleGap"},
 		{"CandleCoverage", "CandleCoverage"},
 		{"CandleResult", "CandleResult"},

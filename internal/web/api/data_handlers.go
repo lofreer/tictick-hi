@@ -31,6 +31,14 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		server.retryDataTask(w, r, parts[3])
 		return
 	}
+	if len(parts) == 5 && parts[4] == "repair-gaps" {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
+		server.repairDataTaskGaps(w, r, parts[3])
+		return
+	}
 	if len(parts) == 6 && (parts[4] == "sync" || parts[4] == "realtime") {
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w, http.MethodPost)
@@ -118,6 +126,15 @@ func (server *Server) retryDataTask(w http.ResponseWriter, r *http.Request, id s
 		return
 	}
 	writeJSON(w, http.StatusOK, task)
+}
+
+func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
+	result, err := server.repository.RepairDataSyncTaskGaps(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
