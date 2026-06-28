@@ -1718,6 +1718,45 @@ scripts/quality-gate.sh
 
 - 本轮仍未捕获用户可视 Chrome 会话中的原始无限增长栈；当前修复关闭的是固定槽 ResizeObserver 高度反馈入口和 lightweight-charts autoSize 双通道风险，不代表完整桌面 / 移动 / 主题视觉回归体系。
 
+### 阶段 1 K 线图表污染高度拒绝补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 现有固定槽逻辑已忽略 `ResizeObserver` 的高度 entry，但在 `window.resize` 触发完整重读时，仍可能把被污染成超大值的 host `height` / bounds 当作候选高度再喂给 `chart.resize`。
+
+修复范围：
+
+- `TradingViewChart` 固定 viewport 高度读取新增上限过滤：CSS `max-height`、CSS `height` 和 bounds 只有在大于 0 且不超过当前 viewport 高度上限时才会被接受。
+- 如果固定槽候选高度已被污染到 `9000px` 这类值，组件会忽略该值并沿用上一次固定高度快照；没有快照时回退到安全默认高度。
+- 新增回归测试覆盖 `window.resize` + 宿主宽度变化 + 宿主高度污染为 `9000px` 的场景，要求图表只更新宽度，不吸收污染高度。
+- 本地 Docker API 已重建并重启，`/research` 当前由新前端 dist 提供。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts` 通过：12 个测试通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：20 个测试文件、82 个测试通过。
+- `pnpm --dir web/frontend run build` 通过，生产入口为 `/assets/index-Dr9QVqKa.js`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api` 通过。
+- `docker compose up -d --no-deps api` 后 `docker inspect --format '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
+- `curl -fsSI http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`，`Last-Modified: Sun, 28 Jun 2026 09:02:06 GMT`。
+- `SMOKE_SAMPLES=120 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+- 重新应用新镜像内 migration 后，`0025_market_instruments.sql` 已进入 `schema_migrations`，`GET /api/market/instruments?exchange=binance&q=SOL&limit=5` 返回 `SOLUSDT`。
+- `SMOKE_SAMPLES=60 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 再次通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+
+剩余风险：
+
+- 本轮仍未拿到用户可视 Chrome 会话中的原始增长堆栈；当前关闭的是固定槽超大高度污染被 `window.resize` 重读接受的入口，以及本地 headless Chrome 桌面/移动高度漂移风险，不等于完整视觉回归体系。
+
 ### 阶段 1 数据同步任务健康可观察补充
 
 执行时间：2026-06-28

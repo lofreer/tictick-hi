@@ -256,6 +256,24 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("keeps the fixed viewport snapshot when a window resize sees polluted height", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+    chartMocks.resize.mockClear();
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
+    viewportSize = { width: 1190, height: 9000 };
+    host.body.style.width = "1190px";
+    host.body.style.height = "9000px";
+    window.dispatchEvent(new Event("resize"));
+
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1190, 640);
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("ignores resize entries from internal chart elements", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);

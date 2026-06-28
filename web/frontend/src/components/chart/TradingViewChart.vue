@@ -204,26 +204,33 @@ function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect, refresh:
     return fixedViewportHeightSnapshot;
   }
 
-  const declaredHeight = readDeclaredFixedViewportHeight(element, bounds);
+  const declaredHeight = readDeclaredFixedViewportHeight(element, bounds, fixedViewportHeightSnapshot);
   fixedViewportHeightSnapshot = declaredHeight;
   return declaredHeight;
 }
 
-function readDeclaredFixedViewportHeight(element: HTMLElement, bounds: DOMRect) {
-  const declaredMaxHeight = readPixelSize(element, "maxHeight");
+function readDeclaredFixedViewportHeight(element: HTMLElement, bounds: DOMRect, previousHeight: number | null) {
+  const declaredMaxHeight = readFixedViewportPixelSize(readPixelSize(element, "maxHeight"));
   if (declaredMaxHeight) return declaredMaxHeight;
 
-  const declaredHeight = readPixelSize(element, "height");
+  const declaredHeight = readFixedViewportPixelSize(readPixelSize(element, "height"));
   if (declaredHeight) return declaredHeight;
 
-  const boundedHeight = positiveFloor(bounds.height);
-  if (boundedHeight && boundedHeight <= fixedViewportHeightCap()) return boundedHeight;
+  const boundedHeight = readFixedViewportPixelSize(positiveFloor(bounds.height));
+  if (boundedHeight) return boundedHeight;
 
-  return fallbackSize.height;
+  return previousHeight ?? fallbackSize.height;
 }
 
 function clampRenderedHeight(height: number) {
   return Math.min(Math.floor(height), fixedViewportHeightCap());
+}
+
+function readFixedViewportPixelSize(value: number | null) {
+  if (!value) return null;
+  const height = Math.floor(value);
+  if (height <= 0 || height > fixedViewportHeightCap()) return null;
+  return height;
 }
 
 function fixedViewportHeightCap() {
