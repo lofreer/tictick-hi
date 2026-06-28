@@ -386,10 +386,13 @@ function formatWindowTime(value: string) {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  height: var(--research-chart-viewport-height);
-  max-height: var(--research-chart-viewport-height);
+  height: var(--research-chart-viewport-height) !important;
+  max-height: var(--research-chart-viewport-height) !important;
+  block-size: var(--research-chart-viewport-height) !important;
+  max-block-size: var(--research-chart-viewport-height) !important;
   min-width: 0;
   min-height: 0;
+  min-block-size: 0;
   overflow: hidden;
   overflow: clip;
   contain: strict;
@@ -399,7 +402,11 @@ function formatWindowTime(value: string) {
 .research-chart-body :deep(.trading-chart) {
   width: 100%;
   min-height: 0;
-  height: 100%;
+  min-block-size: 0;
+  height: 100% !important;
+  max-height: 100% !important;
+  block-size: 100% !important;
+  max-block-size: 100% !important;
 }
 
 .research-select {

@@ -305,6 +305,9 @@ async function polluteInternalChartHeights(cdp) {
         const element = document.querySelector(selector);
         if (element) {
           element.style.height = '9000px';
+          element.style.maxHeight = '9000px';
+          element.style.blockSize = '9000px';
+          element.style.maxBlockSize = '9000px';
         }
       }
       return true;

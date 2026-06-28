@@ -1757,6 +1757,45 @@ scripts/quality-gate.sh
 
 - 本轮仍未拿到用户可视 Chrome 会话中的原始增长堆栈；当前关闭的是固定槽超大高度污染被 `window.resize` 重读接受的入口，以及本地 headless Chrome 桌面/移动高度漂移风险，不等于完整视觉回归体系。
 
+### 阶段 1 K 线图表固定槽 CSS 硬边界补充
+
+执行时间：2026-06-28
+
+目标等级：demo
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 现有 headless Chrome 自然采样和高度污染 smoke 都未复现持续增长，但固定图表槽仍只防住普通 `height` 污染；如果运行态或浏览器异常把 `max-height` / `block-size` / `max-block-size` 一起污染，CSS 边界仍不够硬。
+
+修复范围：
+
+- `ResearchPage` 的 `.research-chart-body` 固定槽对 `height`、`max-height`、`block-size`、`max-block-size` 使用声明式固定高度并加 `!important`，阻断运行态 inline 高度污染继续撑开页面。
+- 研究页深层 `.trading-chart`、通用 `TradingViewChart` root 和 canvas host 均改为 `height/max-height/block-size/max-block-size: 100% !important`，继续限制 lightweight-charts 内部 DOM 只能铺满固定宿主。
+- `scripts/research-chart-height-smoke.mjs` 的污染场景从只写 `height=9000px` 升级为同时写 `height/max-height/block-size/max-block-size=9000px`。
+- `ResearchPage.layout.test.ts` 增加固定槽硬边界契约断言。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts` 通过：17 个测试通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：20 个测试文件、84 个测试通过。
+- `pnpm --dir web/frontend run build` 通过，生产入口为 `/assets/index-BOT9mGld.js`。
+- `docker compose build api` 通过。
+- `docker compose up -d --no-deps api` 后 `docker inspect --format '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
+- `curl -fsSI http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`，`Last-Modified: Sun, 28 Jun 2026 09:56:41 GMT`。
+- `curl http://127.0.0.1:8080/assets/ResearchPage-_0E2Tmyj.css` 确认产物包含固定槽 `height/max-height/block-size/max-block-size` 的 `!important` 边界。
+- `curl http://127.0.0.1:8080/assets/TradingViewChart-CAKikaGH.css` 确认产物包含 chart root / canvas host `100% !important` 高度边界。
+- `SMOKE_SAMPLES=80 SMOKE_INTERVAL_MS=100 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮仍未拿到用户可视 Chrome 会话中的原始增长堆栈；当前修复关闭的是固定槽多属性 inline 高度污染和 chart root/canvas host 高度外溢入口，不等于完整桌面 / 移动 / 主题视觉回归体系。
+
 ### 阶段 1 instrument catalog 搜索基础补充
 
 执行时间：2026-06-28
