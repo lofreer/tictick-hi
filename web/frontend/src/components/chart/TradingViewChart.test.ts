@@ -187,6 +187,39 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("prefers fixed max-height over polluted fixed viewport height", () => {
+    viewportSize = { width: 1180, height: 9000 };
+    const host = createResearchHost({ declareViewportSize: false });
+    host.body.style.width = "1180px";
+    host.body.style.height = "9000px";
+    host.body.style.maxHeight = "603px";
+    const wrapper = mountChart(host.body);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        width: 1180,
+        height: 603,
+      }),
+    );
+
+    chartMocks.resize.mockClear();
+    host.body.style.height = "9500px";
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9500 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).not.toHaveBeenCalled();
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
+    host.body.style.maxHeight = "604px";
+    resizeCallback?.([resizeEntry(observedTarget!, { width: 1180, height: 9500 })], {} as ResizeObserver);
+
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 604);
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("blocks fixed viewport height changes while the window is unchanged", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);

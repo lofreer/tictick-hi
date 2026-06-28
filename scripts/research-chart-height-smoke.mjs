@@ -297,6 +297,7 @@ async function polluteInternalChartHeights(cdp) {
     cdp,
     `(() => {
       for (const selector of [
+        '.research-chart-body',
         '.tv-lightweight-charts',
         '.tv-lightweight-charts table',
         '.trading-chart__canvas canvas'

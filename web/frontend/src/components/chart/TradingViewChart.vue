@@ -44,6 +44,7 @@ let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
 let lastWindowSize = readWindowSize();
+let fixedViewportHeightSnapshot: { windowSize: { width: number; height: number }; height: number } | null = null;
 const fallbackSize = { width: 1, height: 360 };
 const maxRenderedChartHeight = 1200;
 
@@ -89,6 +90,7 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
   observedResizeHost = null;
+  fixedViewportHeightSnapshot = null;
   window.removeEventListener("resize", scheduleResize);
   chart?.remove();
   chart = null;
@@ -181,16 +183,34 @@ function readHostSize() {
 }
 
 function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect) {
-  const declaredHeight = readPixelSize(element, "height");
-  if (declaredHeight) return declaredHeight;
+  const windowSize = readWindowSize();
+  if (fixedViewportHeightSnapshot && sameWindowSize(fixedViewportHeightSnapshot.windowSize, windowSize)) {
+    return fixedViewportHeightSnapshot.height;
+  }
 
+  const declaredHeight = readDeclaredFixedViewportHeight(element, bounds);
+  fixedViewportHeightSnapshot = { windowSize, height: declaredHeight };
+  return declaredHeight;
+}
+
+function readDeclaredFixedViewportHeight(element: HTMLElement, bounds: DOMRect) {
   const declaredMaxHeight = readPixelSize(element, "maxHeight");
   if (declaredMaxHeight) return declaredMaxHeight;
+
+  const declaredHeight = readPixelSize(element, "height");
+  if (declaredHeight) return declaredHeight;
 
   const boundedHeight = positiveFloor(bounds.height);
   if (boundedHeight && boundedHeight <= fixedViewportHeightCap()) return boundedHeight;
 
   return fallbackSize.height;
+}
+
+function sameWindowSize(
+  left: { width: number; height: number },
+  right: { width: number; height: number },
+) {
+  return left.width === right.width && left.height === right.height;
 }
 
 function guardFixedViewportSize(

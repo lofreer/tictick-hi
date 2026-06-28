@@ -1648,6 +1648,41 @@ scripts/quality-gate.sh
 
 - 本轮仍未捕获用户可视 Chrome 会话里的原始无限增长栈；当前修复关闭的是固定槽在窗口不变时接受任何高度反馈的入口，不是完整视觉回归体系。
 
+### 阶段 1 K 线图表固定槽 inline 高度污染补充
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 本地 8080 当前构建的 headless Chrome 高度 smoke 未自然复现持续增长，但代码复查发现固定槽高度读取仍优先读取 computed `height`，如果运行态把固定槽本身写入异常 inline height，首次初始化或真实窗口 resize 后仍可能把污染高度送入 `chart.resize()`。
+
+修复范围：
+
+- `TradingViewChart` 对 `data-chart-viewport="fixed"` 宿主改为优先读取 CSS `max-height`，再回退 `height` / bounds，避免运行态 inline `height` 覆盖固定槽声明式高度。
+- 固定槽高度按 `window.innerWidth/innerHeight` 快照缓存；窗口尺寸不变时，后续 ResizeObserver 反馈不会重新读取或接受宿主高度变化。
+- `TradingViewChart.css` 进一步约束 lightweight-charts 外层、table、table cell 和 canvas 的 `block-size/max-block-size/overflow`，防止内部布局高度突破固定 viewport。
+- `scripts/research-chart-height-smoke.mjs` 将 `.research-chart-body` 本身加入污染对象，验证固定槽被写入 `9000px` height 后 document / panel / body / chart / tv 高度仍稳定。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：18 个测试文件、74 个测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api` 通过。
+- `docker compose up -d --no-deps api` 后 `docker inspect --format '{{.State.Health.Status}}' tictick-hi-api-1` 返回 `healthy`。
+- `curl -fsSI http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`，且页面入口已更新为 `/assets/index-5FiAzABM.js`。
+- `SMOKE_SAMPLES=40 SMOKE_INTERVAL_MS=150 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1284->1284, panel 652->652, body 457->457, chart 457->457, tv 457->457`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+
+剩余风险：
+
+- 仍未捕获用户可视 Chrome 会话里的原始无限增长栈；本轮修复关闭的是固定槽 inline height 污染和内部 table/canvas 污染入口，不代表完整视觉回归体系。
+
 ### 阶段 1 数据同步任务健康可观察补充
 
 执行时间：2026-06-28
