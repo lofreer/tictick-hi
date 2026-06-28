@@ -806,6 +806,39 @@ scripts/quality-gate.sh
 - 本轮通过 mock preview 验证了最新前端产物的浏览器布局稳定性，但由于本机 Docker Desktop 存储层 I/O 异常，未能把最终修正版可靠替换到 `127.0.0.1:8080` 真实 API 容器。
 - 用户可见 Chrome 会话仍需在 Docker 恢复后用真实 8080 再做一次确认；当前代码已经移除图表组件向上读取祖先高度的反馈入口。
 
+### 阶段 1 研究页 K 线高度稳定性 8080 复验
+
+执行时间：2026-06-28
+
+触发问题：
+
+- 用户继续反馈前端 K 线图表界面会无限拉高，直到页面崩掉。
+- 上一轮剩余风险中记录 Docker Desktop 存储层 I/O 异常导致真实 `127.0.0.1:8080` 未能作为最终运行验收依据。
+
+修复范围：
+
+- 新增 `scripts/research-chart-height-smoke.mjs`，使用系统 Chrome DevTools Protocol 启动隔离 headless Chrome、登录本地 8080、打开 `/research`，并对桌面与移动 viewport 连续采样。
+- smoke 检查 `document`、`.research-chart-panel`、`.research-chart-body`、`.trading-chart` 和 `.tv-lightweight-charts` 高度；任一高度在采样窗口内增长超过容差即失败。
+- README 增加本地栈启动后的研究页图表高度 smoke 入口。
+
+验证：
+
+- `docker compose ps --format json` 显示 `api` 与 `postgres` healthy，`sync`、`backtest`、`trading`、`notify` running。
+- `curl -I http://127.0.0.1:8080/research` 返回 `HTTP/1.1 200 OK`。
+- `curl http://127.0.0.1:8080/assets/ResearchPage-B18wn4Jg.css` 确认真实 8080 产物包含固定 `--research-chart-viewport-height`、`.research-chart-body` 固定高度和 `.research-chart-panel{...contain:layout paint}`。
+- 临时 headless Chrome 手工采样桌面 `1440x900` 登录并打开 `/research`，30 次 first/last 均为 `documentHeight=1238`、`panel=680`、`chartBody=603`、`chart=603`、`canvas=603`、`tv=603`，无增长。
+- 临时 headless Chrome 手工采样移动 `390x844` 登录并打开 `/research`，30 次 first/last 均为 `documentHeight=1256`、`panel=624`、`chartBody=457`、`chart=457`、`canvas=457`、`tv=457`，无增长。
+- `node scripts/research-chart-height-smoke.mjs` 在真实 8080 上通过：桌面 `doc 1238->1238, panel 680->680, body 603->603, chart 603->603, tv 603->603`；移动 `doc 1256->1256, panel 624->624, body 457->457, chart 457->457, tv 457->457`。
+
+失败：
+
+- 当前真实 8080 未复现高度增长。
+
+剩余风险：
+
+- 该 smoke 依赖本机可用 Chrome；无 Chrome 的 CI/主机需要设置 `CHROME_PATH` 或跳过该本地运行检查。
+- 这次只证明当前真实 8080 构建的研究页图表高度稳定，不关闭研究页交易对硬编码、图表工具薄和外部交易所网络韧性风险。
+
 ### 阶段 1 Candle 查询 limit 边界补充
 
 执行时间：2026-06-27

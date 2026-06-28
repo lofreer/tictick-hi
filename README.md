@@ -69,6 +69,14 @@ curl -fsS http://127.0.0.1:8080/readyz
 docker compose ps
 ```
 
+Run the research chart height smoke after the stack is up:
+
+```bash
+node scripts/research-chart-height-smoke.mjs
+```
+
+This launches an isolated headless Chrome, signs in to the local stack, opens `/research`, and fails if the K-line chart height grows during repeated desktop or mobile sampling.
+
 Stop the stack:
 
 ```bash
