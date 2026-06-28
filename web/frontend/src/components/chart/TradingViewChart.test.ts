@@ -23,11 +23,7 @@ vi.mock("lightweight-charts", () => ({
 
 const mockedCreateChart = vi.mocked(createChart);
 const researchViewportSize = { width: 1180, height: 640 };
-const researchViewportGutter = { inlineEnd: 24, blockEnd: 20 };
-const researchRenderSize = {
-  width: researchViewportSize.width - researchViewportGutter.inlineEnd,
-  height: researchViewportSize.height - researchViewportGutter.blockEnd,
-};
+const researchRenderSize = { ...researchViewportSize };
 
 function mockChartApi() {
   chartMocks.createChart.mockReturnValue({
@@ -206,7 +202,7 @@ describe("TradingViewChart", () => {
       close: 104,
     })));
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: -63, to: 1062 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: -62, to: 1061 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -222,7 +218,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: researchRenderSize.width,
-        height: 583,
+        height: 603,
       }),
     );
 
@@ -236,7 +232,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(researchRenderSize.width, 584);
+    expect(chartMocks.resize).toHaveBeenCalledWith(researchRenderSize.width, 604);
 
     wrapper.unmount();
     host.panel.remove();
@@ -254,7 +250,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: researchRenderSize.width,
-        height: 583,
+        height: 603,
       }),
     );
 
@@ -269,7 +265,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(researchRenderSize.width, 584);
+    expect(chartMocks.resize).toHaveBeenCalledWith(researchRenderSize.width, 604);
 
     wrapper.unmount();
     host.panel.remove();
@@ -320,7 +316,7 @@ describe("TradingViewChart", () => {
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1166, researchRenderSize.height);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1190, researchRenderSize.height);
 
     wrapper.unmount();
     host.panel.remove();
@@ -338,7 +334,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1166, researchRenderSize.height);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1190, researchRenderSize.height);
 
     wrapper.unmount();
     host.panel.remove();
@@ -372,8 +368,8 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: 976,
-        height: 560,
+        width: 1000,
+        height: 580,
       }),
     );
 
@@ -391,7 +387,7 @@ describe("TradingViewChart", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(976, 540);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1000, 560);
 
     wrapper.unmount();
     host.panel.remove();
@@ -406,7 +402,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: researchRenderSize.width,
-        height: 340,
+        height: 360,
       }),
     );
 
@@ -457,8 +453,6 @@ function createResearchHost(options: { declareViewportSize?: boolean; markViewpo
   panel.className = "chart-panel";
   const body = document.createElement("div");
   body.className = "research-chart-body";
-  body.style.setProperty("--tt-chart-fixed-inline-end-gutter", `${researchViewportGutter.inlineEnd}px`);
-  body.style.setProperty("--tt-chart-fixed-block-end-gutter", `${researchViewportGutter.blockEnd}px`);
   if (options.declareViewportSize !== false) {
     body.style.width = `${researchViewportSize.width}px`;
     body.style.height = `${researchViewportSize.height}px`;

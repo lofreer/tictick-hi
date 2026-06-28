@@ -14,8 +14,7 @@ const samplesPerViewport = parsePositiveInt(process.env.SMOKE_SAMPLES, 30);
 const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
-const axisInsetTolerance = parsePositiveInt(process.env.SMOKE_AXIS_INSET_TOLERANCE, 16);
-const maxAxisInset = parsePositiveInt(process.env.SMOKE_MAX_AXIS_INSET, 48);
+const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -431,11 +430,12 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (body.right - rightAxisCanvas.right < axisInsetTolerance) {
+  if (body.right - rightAxisCanvas.right > maxViewportInset || body.right - tv.right > maxViewportInset) {
     throw new Error(
-      `${label} chart right price axis is flush with the clipped body edge: ${JSON.stringify({
-        minInset: axisInsetTolerance,
+      `${label} chart right side leaves unused fixed body space: ${JSON.stringify({
+        maxInset: maxViewportInset,
         body,
+        tv,
         rightAxisCanvas,
       })}`,
     );
@@ -449,11 +449,12 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (body.bottom - bottomTimeAxisCanvas.bottom < axisInsetTolerance) {
+  if (body.bottom - bottomTimeAxisCanvas.bottom > maxViewportInset || body.bottom - tv.bottom > maxViewportInset) {
     throw new Error(
-      `${label} chart bottom time axis is flush with the clipped body edge: ${JSON.stringify({
-        minInset: axisInsetTolerance,
+      `${label} chart bottom side leaves unused fixed body space: ${JSON.stringify({
+        maxInset: maxViewportInset,
         body,
+        tv,
         bottomTimeAxisCanvas,
       })}`,
     );
@@ -548,10 +549,10 @@ function assertStable(result) {
       );
     }
     const inset = fixedBodyHeight - result.last[key];
-    if (inset > maxAxisInset) {
+    if (inset > maxViewportInset) {
       throw new Error(
         `${result.label} ${key} left too much unused fixed body height: ${JSON.stringify({
-          maxInset: maxAxisInset,
+          maxInset: maxViewportInset,
           body: fixedBodyHeight,
           last: result.last,
           min: result.min,

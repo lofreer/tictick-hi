@@ -31,8 +31,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
     expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
-    expect(bodyStyle).toContain("--tt-chart-fixed-inline-end-gutter: 24px;");
-    expect(bodyStyle).toContain("--tt-chart-fixed-block-end-gutter: 20px;");
+    expect(bodyStyle).not.toContain("--tt-chart-fixed-inline-end-gutter");
+    expect(bodyStyle).not.toContain("--tt-chart-fixed-block-end-gutter");
     expect(bodyStyle).toContain("height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("block-size: var(--research-chart-viewport-height) !important;");
