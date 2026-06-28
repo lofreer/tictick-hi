@@ -5301,6 +5301,39 @@ Definition of Done：
 - 任务表在极窄视口下仍依赖自身横向滚动和 sticky 操作列，未重做成响应式列管理。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 数据同步交易所退避成功恢复清理补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 临时交易所错误会写入 `data_sync_exchange_backoffs`，claim 会跳过 active 冷却交易所，但成功同步后此前只清理任务级 `last_error/next_attempt_at`。
+- 过期 exchange backoff 虽不会继续阻断 claim，却会在数据库里残留，恢复闭环不清晰，也不利于后续健康统计和运维排查。
+
+修复范围：
+
+- `SaveDataSyncResult` 在同一 PostgreSQL 事务中成功 upsert K 线并更新任务结果后，删除该任务交易所下 `next_attempt_at <= now()` 的过期 exchange backoff。
+- 清理条件只覆盖已过期 backoff；未来时间的 exchange backoff 保留，避免并发任务刚记录的新冷却被成功任务误删。
+- runner 恢复集成测试插入过期 exchange backoff，验证成功恢复后数据库行被清理。
+- store 直接保存结果的集成测试插入未来 exchange backoff，验证成功保存不会误删未来冷却。
+
+验证：
+
+- `go test ./internal/store/postgres -run 'TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease|TestIntegrationSaveDataSyncResultKeepsFutureExchangeBackoff' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮只补 exchange backoff 成功恢复清理，不证明真实交易所网络长期恢复、分布式限流或完整 data sync 状态机。
+- 不处理历史失败错误迁移、不删除 K 线、不自动批量修复缺口。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ### 阶段 1 数据同步错误 API 出口脱敏补充
 
 目标等级：scaffold

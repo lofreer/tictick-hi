@@ -175,6 +175,19 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 		return fmt.Errorf("update data sync task result: %w", err)
 	}
 
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM data_sync_exchange_backoffs AS exchange_backoff
+		 WHERE exchange_backoff.next_attempt_at <= now()
+		   AND exchange_backoff.exchange = (
+		       SELECT data_sync_tasks.exchange
+		         FROM data_sync_tasks
+		        WHERE data_sync_tasks.id = $1
+		   )`,
+		result.TaskID,
+	); err != nil {
+		return fmt.Errorf("clear data sync exchange backoff: %w", err)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit sync result: %w", err)
 	}

@@ -45,6 +45,11 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 	); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_exchange_backoffs (exchange, next_attempt_at, last_error, updated_at)
+		VALUES ('binance', now() - interval '1 second', 'temporary EOF', now())`); err != nil {
+		t.Fatal(err)
+	}
 
 	client := &recordingIntegrationMarketClient{
 		candles: []data.Candle{
@@ -89,6 +94,9 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 	}
 	if row.nextAttemptAt.Valid || row.lastError != "" {
 		t.Fatalf("successful resume should clear retry/error state: %#v", row)
+	}
+	if count := countIntegrationExchangeBackoffs(t, ctx, store, "binance"); count != 0 {
+		t.Fatalf("successful resume should clear expired exchange backoff, count=%d", count)
 	}
 
 	var lastSynced time.Time
@@ -164,6 +172,38 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 	}
 }
 
+func TestIntegrationSaveDataSyncResultKeepsFutureExchangeBackoff(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	clearIntegrationExchangeBackoff(t, ctx, store, "binance")
+
+	id := integrationID("dst")
+	symbol := integrationSymbol("FB")
+	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, true, "save-worker")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+	})
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_exchange_backoffs (exchange, next_attempt_at, last_error, updated_at)
+		VALUES ('binance', now() + interval '1 hour', 'temporary EOF', now())`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
+		TaskID:       id,
+		LastOpenTime: ptrTime(time.Now().UTC().Truncate(time.Minute)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if count := countIntegrationExchangeBackoffs(t, ctx, store, "binance"); count != 1 {
+		t.Fatalf("successful sync result should keep future exchange backoff, count=%d", count)
+	}
+}
+
 type recordingIntegrationMarketClient struct {
 	candles []data.Candle
 	request exchange.CandleRequest
@@ -193,4 +233,19 @@ func integrationResumeCandle(symbol string, openTime time.Time, close string) da
 		Volume:    "10",
 		IsClosed:  true,
 	}
+}
+
+func countIntegrationExchangeBackoffs(t *testing.T, ctx context.Context, store *Store, exchangeName string) int {
+	t.Helper()
+
+	var count int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		  FROM data_sync_exchange_backoffs
+		 WHERE exchange = $1`,
+		exchangeName,
+	).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
