@@ -93,6 +93,7 @@ async function runViewport(endpoint, viewport) {
     await waitFor(cdp, "!!document.querySelector('.research-chart-body')", 15000);
     await waitFor(cdp, "!!document.querySelector('.tv-lightweight-charts')", 15000);
     await delay(settleMs);
+    assertChartLayout(viewport.label, await evaluate(cdp, sampleExpression()));
 
     const samples = [];
     for (let index = 0; index < samplesPerViewport; index += 1) {
@@ -262,34 +263,64 @@ async function evaluate(cdp, expression) {
 
 function sampleExpression() {
   return `(() => {
-    const read = (selector) => {
-      const element = document.querySelector(selector);
-      if (!element) return null;
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return {
-        clientHeight: element.clientHeight,
-        offsetHeight: element.offsetHeight,
-        scrollHeight: element.scrollHeight,
-        rectHeight: Math.round(rect.height),
-        styleHeight: style.height,
-        contain: style.contain,
-        overflowY: style.overflowY
+      const read = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          clientHeight: element.clientHeight,
+          offsetHeight: element.offsetHeight,
+          scrollHeight: element.scrollHeight,
+          rectWidth: Math.round(rect.width),
+          rectHeight: Math.round(rect.height),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          styleHeight: style.height,
+          contain: style.contain,
+          overflowY: style.overflowY
+        };
       };
-    };
-    return {
-      href: location.href,
-      bodyScrollHeight: document.body.scrollHeight,
-      docScrollHeight: document.documentElement.scrollHeight,
-      viewportHeight: innerHeight,
-      panel: read('.research-chart-panel'),
-      body: read('.research-chart-body'),
-      chart: read('.trading-chart'),
-      canvas: read('.trading-chart__canvas'),
-      tv: read('.tv-lightweight-charts'),
-      chartCount: document.querySelectorAll('.tv-lightweight-charts').length
-    };
-  })()`;
+      const body = read('.research-chart-body');
+      const tv = read('.tv-lightweight-charts');
+      const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas')).map((canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        const style = getComputedStyle(canvas);
+        return {
+          rectWidth: Math.round(rect.width),
+          rectHeight: Math.round(rect.height),
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          styleWidth: style.width,
+          styleHeight: style.height
+        };
+      });
+      const rightAxisCanvas = canvases
+        .filter((canvas) => canvas.rectWidth >= 72 && canvas.rectWidth <= 180)
+        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
+        .sort((left, right) => right.right - left.right)[0] ?? null;
+      const bottomTimeAxisCanvas = canvases
+        .filter((canvas) => canvas.rectHeight >= 16 && canvas.rectHeight <= 80)
+        .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
+        .sort((left, right) => right.bottom - left.bottom)[0] ?? null;
+      return {
+        href: location.href,
+        bodyScrollHeight: document.body.scrollHeight,
+        docScrollHeight: document.documentElement.scrollHeight,
+        viewportHeight: innerHeight,
+        panel: read('.research-chart-panel'),
+        body,
+        chart: read('.trading-chart'),
+        canvas: read('.trading-chart__canvas'),
+        tv,
+        canvases,
+        rightAxisCanvas,
+        bottomTimeAxisCanvas,
+        chartCount: document.querySelectorAll('.tv-lightweight-charts').length
+      };
+    })()`;
 }
 
 async function polluteInternalChartHeights(cdp) {
@@ -350,6 +381,49 @@ function compactSample(sample) {
     canvas: sample.canvas?.rectHeight ?? 0,
     tv: sample.tv?.rectHeight ?? 0,
   };
+}
+
+function assertChartLayout(label, sample) {
+  const { body, tv, rightAxisCanvas, bottomTimeAxisCanvas } = sample;
+  if (!body || !tv) {
+    throw new Error(`${label} missing chart layout nodes`);
+  }
+  if (!rightAxisCanvas) {
+    throw new Error(
+      `${label} missing bounded right price-axis canvas: ${JSON.stringify({
+        body,
+        tv,
+        canvases: sample.canvases,
+      })}`,
+    );
+  }
+  if (rightAxisCanvas.right > body.right + 1 || rightAxisCanvas.bottom > body.bottom + 1 || tv.right > body.right + 1) {
+    throw new Error(
+      `${label} chart right edge overflowed fixed body: ${JSON.stringify({
+        body,
+        tv,
+        rightAxisCanvas,
+      })}`,
+    );
+  }
+  if (!bottomTimeAxisCanvas) {
+    throw new Error(
+      `${label} missing bounded bottom time-axis canvas: ${JSON.stringify({
+        body,
+        tv,
+        canvases: sample.canvases,
+      })}`,
+    );
+  }
+  if (bottomTimeAxisCanvas.bottom > body.bottom + 1 || bottomTimeAxisCanvas.right > body.right + 1 || tv.bottom > body.bottom + 1) {
+    throw new Error(
+      `${label} chart bottom edge overflowed fixed body: ${JSON.stringify({
+        body,
+        tv,
+        bottomTimeAxisCanvas,
+      })}`,
+    );
+  }
 }
 
 function assertStable(result) {

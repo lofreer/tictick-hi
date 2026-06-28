@@ -158,6 +158,23 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
+  it("reserves enough right price scale width for visible price labels", () => {
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        rightPriceScale: expect.objectContaining({
+          minimumWidth: 88,
+        }),
+      }),
+    );
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
   it("prefers fixed CSS height over polluted client height", () => {
     viewportSize = { width: 1180, height: 5000 };
     const host = createResearchHost();
