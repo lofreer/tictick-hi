@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -90,6 +91,58 @@ func TestIntegrationScanMarketCandleGapsReportsLimitedTotal(t *testing.T) {
 	}
 	assertTaskGap(t, scan.Gaps[0], start.Add(time.Minute), start.Add(2*time.Minute), 1)
 	assertTaskGap(t, scan.Gaps[1], start.Add(3*time.Minute), start.Add(4*time.Minute), 1)
+}
+
+func TestIntegrationRepairMarketCandleGapCreatesSyncTask(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCR")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+	for _, minute := range []int{0, 1, 4} {
+		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
+	}
+
+	request := data.RepairMarketCandleGapRequest{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		From:     start.Add(2 * time.Minute),
+		To:       start.Add(4 * time.Minute),
+	}
+	result, err := store.RepairMarketCandleGap(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceTaskID != "" || result.SkippedExisting != 0 || result.TotalCount != 1 || result.RepairLimit != 1 || result.Limited {
+		t.Fatalf("unexpected repair result metadata: %#v", result)
+	}
+	if len(result.CreatedTasks) != 1 {
+		t.Fatalf("created repair task count = %d, want 1: %#v", len(result.CreatedTasks), result.CreatedTasks)
+	}
+	assertRepairTaskWindow(t, result.CreatedTasks[0], "", request.From, request.To)
+
+	duplicate, err := store.RepairMarketCandleGap(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicate.CreatedTasks) != 0 || duplicate.SkippedExisting != 1 {
+		t.Fatalf("duplicate repair result = %#v, want skipped existing", duplicate)
+	}
+
+	notGapRequest := request
+	notGapRequest.From = start.Add(time.Minute)
+	notGapRequest.To = start.Add(2 * time.Minute)
+	if _, err := store.RepairMarketCandleGap(ctx, notGapRequest); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("non-gap repair error = %v, want ErrNotFound", err)
+	}
 }
 
 func cleanupMarketCandles(t *testing.T, store *Store, symbol string) {

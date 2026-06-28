@@ -406,4 +406,60 @@ describe("data api", () => {
       }),
     );
   });
+
+  it("queues a repair task for a full-history market gap", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          sourceTaskId: "",
+          createdTasks: [
+            {
+              id: "dst_market_repair_1",
+              exchange: "binance",
+              symbol: "BTCUSDT",
+              interval: "1m",
+              startTime: "2026-06-27T03:02:00Z",
+              endTime: "2026-06-27T03:03:00Z",
+              realtimeEnabled: false,
+              syncEnabled: true,
+              status: "pending",
+              dataHealth: "syncing",
+            },
+          ],
+          skippedExisting: 0,
+          limited: false,
+          totalCount: 1,
+          repairLimit: 1,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.repairMarketCandleGap({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      from: "2026-06-27T03:02:00Z",
+      to: "2026-06-27T03:03:00Z",
+    })).resolves.toMatchObject({
+      sourceTaskId: "",
+      createdTasks: [{ id: "dst_market_repair_1", syncEnabled: true, dataHealth: "syncing" }],
+      totalCount: 1,
+      repairLimit: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/market/candle-gaps/repair",
+      expect.objectContaining({
+        body: JSON.stringify({
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          from: "2026-06-27T03:02:00Z",
+          to: "2026-06-27T03:03:00Z",
+        }),
+        method: "POST",
+      }),
+    );
+  });
 });

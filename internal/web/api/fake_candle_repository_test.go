@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -76,4 +78,75 @@ func (repository *fakeRepository) ScanMarketCandleGaps(
 	result.Gaps = gaps
 	result.ReturnedCount = len(gaps)
 	return result, nil
+}
+
+func (repository *fakeRepository) RepairMarketCandleGap(
+	_ context.Context,
+	request data.RepairMarketCandleGapRequest,
+) (data.DataSyncGapRepairResult, error) {
+	gap, ok, err := repository.fakeMarketCandleGap(request)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	if !ok {
+		return data.DataSyncGapRepairResult{}, data.ErrNotFound
+	}
+
+	result := data.DataSyncGapRepairResult{
+		CreatedTasks: []data.DataSyncTask{},
+		TotalCount:   1,
+		RepairLimit:  1,
+	}
+	source := data.DataSyncTask{
+		Exchange: request.Exchange,
+		Symbol:   request.Symbol,
+		Interval: request.Interval,
+	}
+	if repository.fakeRepairTaskExists(source, gap) {
+		result.SkippedExisting = 1
+		return result, nil
+	}
+
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repairTask := data.DataSyncTask{
+		ID:              "dst_market_repair_" + strconv.Itoa(len(repository.tasks)+1),
+		Exchange:        request.Exchange,
+		Symbol:          request.Symbol,
+		Interval:        request.Interval,
+		StartTime:       &gap.From,
+		EndTime:         &gap.To,
+		SyncEnabled:     true,
+		RealtimeEnabled: false,
+		Status:          data.TaskStatusPending,
+		DataHealth:      data.DataSyncHealthSyncing,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	repository.tasks = append(repository.tasks, repairTask)
+	result.CreatedTasks = append(result.CreatedTasks, repairTask)
+	return result, nil
+}
+
+func (repository *fakeRepository) fakeMarketCandleGap(
+	request data.RepairMarketCandleGapRequest,
+) (data.CandleGap, bool, error) {
+	matches := make([]data.Candle, 0)
+	for _, candle := range repository.candles {
+		if candle.Exchange == request.Exchange && candle.Symbol == request.Symbol && candle.Interval == request.Interval {
+			matches = append(matches, candle)
+		}
+	}
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.Before(matches[right].OpenTime)
+	})
+	gaps, err := data.DetectCandleGaps(matches, request.Interval)
+	if err != nil {
+		return data.CandleGap{}, false, err
+	}
+	for _, gap := range gaps {
+		if gap.From.Equal(request.From) && gap.To.Equal(request.To) {
+			return gap, true, nil
+		}
+	}
+	return data.CandleGap{}, false, nil
 }

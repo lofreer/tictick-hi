@@ -16,6 +16,8 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/market/candle-gaps":
 		server.handleMarketCandleGaps(w, r)
+	case "/api/market/candle-gaps/repair":
+		server.repairMarketCandleGap(w, r)
 	case "/api/market/instruments":
 		server.handleMarketInstruments(w, r)
 	case "/api/market/instruments/sync":
@@ -42,6 +44,29 @@ func (server *Server) handleMarketCandleGaps(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, scan)
+}
+
+func (server *Server) repairMarketCandleGap(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+
+	var request data.RepairMarketCandleGapRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateRepairMarketCandleGapRequest(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := server.repository.RepairMarketCandleGap(r.Context(), request)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
 }
 
 func (server *Server) handleMarketInstruments(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +170,25 @@ func parseMarketCandleGapScanQuery(r *http.Request) (data.MarketCandleGapScanQue
 		query.Limit = limit
 	}
 	return query, nil
+}
+
+func validateRepairMarketCandleGapRequest(request *data.RepairMarketCandleGapRequest) error {
+	request.Exchange = strings.TrimSpace(request.Exchange)
+	request.Symbol = strings.ToUpper(strings.TrimSpace(request.Symbol))
+	request.Interval = strings.TrimSpace(request.Interval)
+	if request.Exchange == "" || request.Symbol == "" || request.Interval == "" {
+		return fmt.Errorf("exchange, symbol and interval are required")
+	}
+	if err := validateExchangeSymbol(request.Exchange, request.Symbol); err != nil {
+		return err
+	}
+	if _, err := data.IntervalDuration(request.Interval); err != nil {
+		return err
+	}
+	if request.From.IsZero() || request.To.IsZero() || !request.From.Before(request.To) {
+		return fmt.Errorf("from and to are required and from must be before to")
+	}
+	return nil
 }
 
 func parseMarketInstrumentSyncQuery(r *http.Request) (data.MarketInstrumentQuery, error) {

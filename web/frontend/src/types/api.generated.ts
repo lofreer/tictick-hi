@@ -37,6 +37,7 @@ export type OperatorSession = { createdAt: string; current: boolean; expiresAt: 
 export type Order = { accountId: string; createdAt: string; exchange: string; exchangeOrderId?: string; exchangeResponseSummary: Record<string, unknown>; id: string; idempotencyKey: string; intentId?: string; lastError?: string; orderType: string; price: string; quantity: string; side: string; status: string; symbol: string; taskId: string; taskType: string; updatedAt: string; };
 export type Position = { accountId: string; averagePrice: string; exchange: string; quantity: string; realizedPnl: string; symbol: string; taskId: string; taskType: string; updatedAt: string; };
 export type RepairDataSyncTaskGapRequest = { from: string; to: string; };
+export type RepairMarketCandleGapRequest = { exchange: string; from: string; interval: string; symbol: string; to: string; };
 export type ServiceHealth = { detail?: string; exchangeBackoffCount?: number; lastHeartbeatAt?: string; lockedCount?: number; lockedUntil?: string; name: string; nextExchangeAttemptAt?: string; pendingCount?: number; runningCount?: number; staleLeaseCount?: number; status: string; };
 export type StatusResponse = { status: string; };
 export type StrategyDefinition = { description: string; id: string; name: string; params: StrategyParamSpec[]; supportedIntents: string[]; supportedIntervals: string[]; version: string; };

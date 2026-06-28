@@ -94,6 +94,70 @@ func TestMarketCandleGapRouteScansPersistedHistory(t *testing.T) {
 	}
 }
 
+func TestMarketCandleGapRepairRouteQueuesSyncTask(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 4, 0, 0, 0, time.UTC)
+	for _, minute := range []int{0, 1, 3} {
+		openTime := start.Add(time.Duration(minute) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		})
+	}
+
+	body := `{"exchange":"binance","symbol":"btcusdt","interval":"1m","from":"2026-06-27T04:02:00Z","to":"2026-06-27T04:03:00Z"}`
+	missingCSRF := serveAuthenticatedWithoutCSRF(server, auth, http.MethodPost, "/api/market/candle-gaps/repair", body)
+	if missingCSRF.Code != http.StatusForbidden {
+		t.Fatalf("missing csrf status = %d body = %s", missingCSRF.Code, missingCSRF.Body.String())
+	}
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/candle-gaps/repair", body)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("repair status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var result data.DataSyncGapRepairResult
+	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceTaskID != "" || result.SkippedExisting != 0 || result.TotalCount != 1 || result.RepairLimit != 1 {
+		t.Fatalf("unexpected repair metadata: %#v", result)
+	}
+	if len(result.CreatedTasks) != 1 {
+		t.Fatalf("created repair tasks = %#v, want one", result.CreatedTasks)
+	}
+	task := result.CreatedTasks[0]
+	if task.RepairSourceTaskID != "" || task.StartTime == nil || !task.StartTime.Equal(start.Add(2*time.Minute)) ||
+		task.EndTime == nil || !task.EndTime.Equal(start.Add(3*time.Minute)) ||
+		!task.SyncEnabled || task.RealtimeEnabled || task.Status != data.TaskStatusPending {
+		t.Fatalf("unexpected repair task: %#v", task)
+	}
+
+	duplicateRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/candle-gaps/repair", body)
+	if duplicateRecorder.Code != http.StatusOK {
+		t.Fatalf("duplicate status = %d body = %s", duplicateRecorder.Code, duplicateRecorder.Body.String())
+	}
+	var duplicate data.DataSyncGapRepairResult
+	if err := json.NewDecoder(duplicateRecorder.Body).Decode(&duplicate); err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicate.CreatedTasks) != 0 || duplicate.SkippedExisting != 1 {
+		t.Fatalf("duplicate repair result = %#v, want skipped existing", duplicate)
+	}
+
+	notGap := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/market/candle-gaps/repair",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m","from":"2026-06-27T04:01:00Z","to":"2026-06-27T04:02:00Z"}`,
+	)
+	if notGap.Code != http.StatusNotFound {
+		t.Fatalf("not gap status = %d body = %s", notGap.Code, notGap.Body.String())
+	}
+}
+
 func TestMarketInstrumentSyncRouteRefreshesCatalog(t *testing.T) {
 	repository := newFakeRepository()
 	repository.marketInstruments = []data.MarketInstrument{

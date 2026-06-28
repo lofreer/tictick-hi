@@ -74,7 +74,7 @@
               <NTag v-if="candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
-              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" />
+              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />
               <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
                 {{ coverageLabel }}
               </NTag>

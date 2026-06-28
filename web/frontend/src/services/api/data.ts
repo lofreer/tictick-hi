@@ -13,6 +13,7 @@ import type {
   DataSyncTask,
   MarketCandleGapScan,
   RepairDataSyncTaskGapRequest,
+  RepairMarketCandleGapRequest,
 } from "@/types/app";
 import { sanitizeExternalError } from "@/utils/errorText";
 
@@ -96,6 +97,11 @@ export const dataApi = {
       limit: String(query.limit ?? 20),
     });
     return apiClient.get<MarketCandleGapScan>(`/market/candle-gaps?${params.toString()}`);
+  },
+
+  async repairMarketCandleGap(request: RepairMarketCandleGapRequest): Promise<DataSyncGapRepairResult> {
+    const response = await apiClient.post<DataSyncGapRepairResult>("/market/candle-gaps/repair", request);
+    return normalizeGapRepairResult(response);
   },
 
   async listCandles(query: CandleQuery) {

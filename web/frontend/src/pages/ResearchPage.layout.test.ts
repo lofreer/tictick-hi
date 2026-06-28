@@ -25,6 +25,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
     expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
+    expect(bodyStyle).toContain("--tt-chart-fixed-inline-end-gutter: 12px;");
+    expect(bodyStyle).toContain("--tt-chart-fixed-block-end-gutter: 12px;");
     expect(bodyStyle).toContain("height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("block-size: var(--research-chart-viewport-height) !important;");
@@ -79,7 +81,7 @@ describe("ResearchPage chart layout contract", () => {
 
   it("shows full-history market gap scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";');
-    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" />');
+    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />');
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {
