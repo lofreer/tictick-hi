@@ -26,6 +26,8 @@ scripts/quality-gate.sh
 
 The quality gate blocks current-stage engineering regressions. It can also print non-blocking audit findings for later-stage scaffold debt; those findings still keep the overall project at `scaffold`.
 
+The gate includes a non-browser research chart layout contract. The runtime browser smoke below is still required after chart or `/research` layout changes because it validates the built app in headless Chrome.
+
 ## Local Docker
 
 Create local environment values:

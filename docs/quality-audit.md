@@ -4615,6 +4615,43 @@ Definition of Done：
 - 本轮补的是基础子命令运行手册和配置错误 smoke，不是生产部署运行手册。
 - 仍缺结构化日志/trace、子命令级健康探针、生产资源限制和更完整优雅停止证据；Go 子命令仍保持 `scaffold`。
 
+### 阶段 1 研究页图表布局静态门禁补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页 K 线图表此前多次暴露高度反馈、容器裁切和人为缩图问题，虽然已有浏览器 smoke，但轻量 `scripts/quality-gate.sh` 不能在不启动 8080/Chrome 的情况下阻止高频源码回退。
+- 当前本地运行态 smoke 已能证明 `/research` 三组 viewport 高度稳定，但运行态 smoke 仍依赖本机 Chrome 和已启动的本地服务，不适合直接放入轻量门禁。
+
+修复范围：
+
+- 新增 `scripts/check-research-chart-layout.sh`，用源码契约检查研究页任务列表在上、图表在下、图表固定槽带 `data-chart-viewport="fixed"`、研究页不重新继承全局 `.chart-panel`、固定槽不声明旧 gutter 变量。
+- 检查 `TradingViewChart.css` 中 `.trading-chart`、`.trading-chart__canvas` 和 `.trading-chart__canvas > .tv-lightweight-charts` 三个具体 block 必须使用显式 `top/right/bottom/left` 与 `contain: strict`，且不能回退到 `inset: 0`。
+- 检查 `scripts/research-chart-height-smoke.mjs` 仍覆盖 `narrow-desktop-812x1320`、初始首屏图表 fit、内部 table/tbody/tr/td/canvas 高度污染和固定图表槽完整渲染断言。
+- `scripts/quality-gate.sh` 将 `research chart layout` 纳入硬门禁；浏览器级 `research-chart-height-smoke.mjs` 保持为本地 8080 后的运行态检查。
+- README 明确轻量门禁与运行态浏览器 smoke 的边界。
+
+验证：
+
+- `bash -n scripts/check-research-chart-layout.sh` 通过。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `node --check scripts/research-chart-height-smoke.mjs` 通过。
+- `SMOKE_SAMPLES=8 SMOKE_INTERVAL_MS=100 SMOKE_SETTLE_MS=1000 BASE_URL=http://127.0.0.1:8080 node scripts/research-chart-height-smoke.mjs` 通过：desktop `doc 1310->1310, panel 752->752, body 603->603, chart 603->603, tv 603->603`；812x1320 `doc 1320->1320, panel 669->669, body 500->500, chart 500->500, tv 500->500`；mobile `doc 1362->1362, panel 730->730, body 457->457, chart 457->457, tv 457->457`。
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过，2 个测试文件 / 25 个测试。
+- `scripts/quality-gate.sh` 通过，并执行 `research chart layout`。
+- `git diff --check` 通过。
+
+失败：
+
+- 首次 `scripts/check-research-chart-layout.sh` 失败：CSS 变量 `--research-chart-viewport-height` 被 `grep` 当成参数解析；已改为 `grep --`。
+- 第二次定向检查失败：全文件禁止 `inset: 0` 误伤 `.trading-chart__empty` 空状态 overlay；已收敛为只检查三个图表布局 block。
+
+剩余风险：
+
+- 本轮补的是源码级布局契约门禁和本地短采样浏览器证据，不是完整像素快照系统。
+- 研究页图表交互工具、指标层、全语言/全主题视觉矩阵和长期浏览器采样仍不足，研究页和整体项目仍不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
