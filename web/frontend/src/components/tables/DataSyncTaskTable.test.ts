@@ -88,6 +88,7 @@ describe("DataSyncTaskTable", () => {
             id: "repair_1",
             startTime: "2026-06-27T03:02:00Z",
             endTime: "2026-06-27T03:03:00Z",
+            repairSourceTaskId: "dst_source_1",
           }),
           dataSyncTask({
             id: "tail_1",
@@ -101,7 +102,7 @@ describe("DataSyncTaskTable", () => {
     });
 
     const windows = wrapper.findAll(".task-sync-window").map((node) => node.text());
-    expect(windows).toContain("2026-06-27T03:02:00Z 到 2026-06-27T03:03:00Z");
+    expect(windows).toContain("修复来源 dst_source_1 / 2026-06-27T03:02:00Z 到 2026-06-27T03:03:00Z");
     expect(windows).toContain("从 2026-06-27T03:02:00Z 开始");
     expect(windows).toContain("持续同步");
   });

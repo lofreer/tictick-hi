@@ -242,6 +242,7 @@ export const enUSMessages: Record<string, string> = {
     "research.syncWindowContinuous": "Continuous sync",
     "research.syncWindowRange": "{from} to {to}",
     "research.syncWindowFrom": "From {from}",
+    "research.syncWindowRepairSource": "Repair source {source} / {window}",
     "research.syncWindowTo": "Until {to}",
     "research.dataHealth": "Data health",
     "research.dataHealth.ok": "OK",

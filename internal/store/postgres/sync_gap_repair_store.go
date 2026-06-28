@@ -248,9 +248,9 @@ func insertDataSyncRepairTask(
 	row := tx.QueryRow(ctx, `
 		INSERT INTO data_sync_tasks (
 			id, exchange, symbol, interval, start_time, end_time,
-			sync_enabled, realtime_enabled, status
+			repair_source_task_id, sync_enabled, realtime_enabled, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, true, false, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, false, $8)
 		RETURNING `+dataSyncTaskReturningColumns(),
 		id,
 		source.Exchange,
@@ -258,6 +258,7 @@ func insertDataSyncRepairTask(
 		source.Interval,
 		window.from,
 		window.to,
+		source.ID,
 		data.TaskStatusPending,
 	)
 	task, err := scanDataSyncTaskRow(row)

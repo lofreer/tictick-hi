@@ -173,6 +173,7 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		repairResult.RepairLimit != 20 ||
 		repairResult.CreatedTasks[0].StartTime == nil ||
 		!repairResult.CreatedTasks[0].StartTime.Equal(gapFrom) ||
+		repairResult.CreatedTasks[0].RepairSourceTaskID != created.ID ||
 		!repairResult.CreatedTasks[0].SyncEnabled {
 		t.Fatalf("unexpected repair result: %#v", repairResult)
 	}

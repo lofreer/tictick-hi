@@ -191,6 +191,7 @@ export type DataSyncTask = {
   latestSyncedAt?: string;
   nextAttemptAt?: string;
   realtimeEnabled: boolean;
+  repairSourceTaskId?: string;
   startTime?: string;
   status: TaskStatus;
   symbol: string;

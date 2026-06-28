@@ -105,6 +105,89 @@ func TestIntegrationWorkerLeaseConstraintsAreValidated(t *testing.T) {
 	}
 }
 
+func TestIntegrationDataSyncRepairSourceConstraints(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	sourceID := "dst_repair_source_" + suffix
+	childID := "dst_repair_child_" + suffix
+	missingSourceChildID := "dst_missing_repair_source_" + suffix
+	selfID := "dst_self_repair_source_" + suffix
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(
+			cleanupCtx,
+			`DELETE FROM data_sync_tasks WHERE id IN ($1, $2, $3, $4)`,
+			sourceID,
+			childID,
+			missingSourceChildID,
+			selfID,
+		)
+	})
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (id, exchange, symbol, interval, status)
+		VALUES ($1, 'binance', $2, '1m', 'pending')`,
+		sourceID,
+		"ITREPAIRSRC"+suffix+"USDT",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (
+			id, exchange, symbol, interval, repair_source_task_id, status
+		)
+		VALUES ($1, 'binance', $2, '1m', $3, 'pending')`,
+		childID,
+		"ITREPAIRCHILD"+suffix+"USDT",
+		sourceID,
+	); err != nil {
+		t.Fatalf("valid repair source should be accepted: %v", err)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (
+			id, exchange, symbol, interval, repair_source_task_id, status
+		)
+		VALUES ($1, 'binance', $2, '1m', $3, 'pending')`,
+		missingSourceChildID,
+		"ITREPAIRMISS"+suffix+"USDT",
+		"dst_missing_source_"+suffix,
+	); err == nil || !strings.Contains(err.Error(), "data_sync_tasks_repair_source_fk") {
+		t.Fatalf("missing repair source error = %v, want FK violation", err)
+	}
+
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (
+			id, exchange, symbol, interval, repair_source_task_id, status
+		)
+		VALUES ($1, 'binance', $2, '1m', $1, 'pending')`,
+		selfID,
+		"ITREPAIRSELF"+suffix+"USDT",
+	); err == nil || !strings.Contains(err.Error(), "data_sync_tasks_repair_source_not_self_check") {
+		t.Fatalf("self repair source error = %v, want check violation", err)
+	}
+
+	if _, err := store.pool.Exec(ctx, `DELETE FROM data_sync_tasks WHERE id = $1`, sourceID); err != nil {
+		t.Fatal(err)
+	}
+	var repairSource sql.NullString
+	if err := store.pool.QueryRow(ctx, `
+		SELECT repair_source_task_id
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		childID,
+	).Scan(&repairSource); err != nil {
+		t.Fatal(err)
+	}
+	if repairSource.Valid {
+		t.Fatalf("repair source after parent delete = %q, want NULL", repairSource.String)
+	}
+}
+
 func TestIntegrationFailureTransitionsSetFinishedAt(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

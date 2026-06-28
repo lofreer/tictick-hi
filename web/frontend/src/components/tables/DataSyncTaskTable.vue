@@ -187,6 +187,14 @@ function syncWindowCell(row: DataSyncTask) {
 }
 
 function syncWindowText(row: DataSyncTask) {
+  const window = syncWindowRangeText(row);
+  if (row.repairSourceTaskId) {
+    return t("research.syncWindowRepairSource", { source: row.repairSourceTaskId, window });
+  }
+  return window;
+}
+
+function syncWindowRangeText(row: DataSyncTask) {
   if (row.startTime && row.endTime) {
     return t("research.syncWindowRange", { from: row.startTime, to: row.endTime });
   }

@@ -160,18 +160,19 @@ func (repository *fakeRepository) RepairDataSyncTaskGaps(
 		}
 		now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 		repairTask := data.DataSyncTask{
-			ID:              "dst_repair_" + strconv.Itoa(len(repository.tasks)+1),
-			Exchange:        repository.tasks[index].Exchange,
-			Symbol:          repository.tasks[index].Symbol,
-			Interval:        repository.tasks[index].Interval,
-			StartTime:       &summary.FirstGap.From,
-			EndTime:         &summary.FirstGap.To,
-			SyncEnabled:     true,
-			RealtimeEnabled: false,
-			Status:          data.TaskStatusPending,
-			DataHealth:      data.DataSyncHealthSyncing,
-			CreatedAt:       now,
-			UpdatedAt:       now,
+			ID:                 "dst_repair_" + strconv.Itoa(len(repository.tasks)+1),
+			Exchange:           repository.tasks[index].Exchange,
+			Symbol:             repository.tasks[index].Symbol,
+			Interval:           repository.tasks[index].Interval,
+			StartTime:          &summary.FirstGap.From,
+			EndTime:            &summary.FirstGap.To,
+			RepairSourceTaskID: repository.tasks[index].ID,
+			SyncEnabled:        true,
+			RealtimeEnabled:    false,
+			Status:             data.TaskStatusPending,
+			DataHealth:         data.DataSyncHealthSyncing,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 		repository.tasks = append(repository.tasks, repairTask)
 		result.CreatedTasks = append(result.CreatedTasks, repairTask)

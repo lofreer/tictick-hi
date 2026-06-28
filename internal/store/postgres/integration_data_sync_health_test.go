@@ -199,8 +199,22 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 	if len(result.CreatedTasks) != 2 {
 		t.Fatalf("created repair task count = %d, want 2: %#v", len(result.CreatedTasks), result.CreatedTasks)
 	}
-	assertRepairTaskWindow(t, result.CreatedTasks[0], start.Add(2*time.Minute), start.Add(3*time.Minute))
-	assertRepairTaskWindow(t, result.CreatedTasks[1], start.Add(4*time.Minute), start.Add(6*time.Minute))
+	assertRepairTaskWindow(t, result.CreatedTasks[0], taskID, start.Add(2*time.Minute), start.Add(3*time.Minute))
+	assertRepairTaskWindow(t, result.CreatedTasks[1], taskID, start.Add(4*time.Minute), start.Add(6*time.Minute))
+
+	tasks, err := store.ListDataSyncTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repairSourceByID := make(map[string]string)
+	for _, task := range tasks {
+		repairSourceByID[task.ID] = task.RepairSourceTaskID
+	}
+	for _, task := range result.CreatedTasks {
+		if repairSourceByID[task.ID] != taskID {
+			t.Fatalf("listed repair source for %s = %q, want %q", task.ID, repairSourceByID[task.ID], taskID)
+		}
+	}
 
 	duplicateResult, err := store.RepairDataSyncTaskGaps(ctx, taskID)
 	if err != nil {
@@ -218,10 +232,11 @@ func assertTaskGap(t *testing.T, gap data.CandleGap, from time.Time, to time.Tim
 	}
 }
 
-func assertRepairTaskWindow(t *testing.T, task data.DataSyncTask, from time.Time, to time.Time) {
+func assertRepairTaskWindow(t *testing.T, task data.DataSyncTask, sourceTaskID string, from time.Time, to time.Time) {
 	t.Helper()
 	if task.StartTime == nil || !task.StartTime.Equal(from) ||
 		task.EndTime == nil || !task.EndTime.Equal(to) ||
+		task.RepairSourceTaskID != sourceTaskID ||
 		!task.SyncEnabled ||
 		task.RealtimeEnabled ||
 		task.Status != data.TaskStatusPending ||

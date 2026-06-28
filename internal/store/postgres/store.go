@@ -319,11 +319,12 @@ func dataSyncTaskReturningColumns() string {
 }
 
 func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL string) string {
-	return fmt.Sprintf(`%s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s`,
+	return fmt.Sprintf(`%s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s`,
 		dataSyncTaskColumnList(alias, "id", "exchange", "symbol", "interval", "start_time", "end_time",
 			"sync_enabled", "realtime_enabled", "status"),
 		healthSQL,
 		gapSummarySQL,
+		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "repair_source_task_id")),
 		dataSyncTaskColumn(alias, "last_synced_open_time"),
 		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "last_error")),
 		dataSyncTaskColumn(alias, "attempt_count"),
@@ -456,6 +457,7 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&firstGapFrom,
 		&firstGapTo,
 		&firstGapMissingCandles,
+		&task.RepairSourceTaskID,
 		&task.LatestSyncedOpenTime,
 		&task.LastError,
 		&task.AttemptCount,

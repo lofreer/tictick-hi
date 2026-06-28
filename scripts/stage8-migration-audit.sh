@@ -104,6 +104,8 @@ while IFS= read -r migration; do
 done < <(find "$ROOT_DIR/internal/store/postgres/migrations" -maxdepth 1 -type f -name '*.sql' | sort)
 
 assert_constraint_validated "data_sync_tasks_lease_consistency_check"
+assert_constraint_validated "data_sync_tasks_repair_source_not_self_check"
+assert_constraint_validated "data_sync_tasks_repair_source_fk"
 assert_constraint_validated "backtest_tasks_lease_consistency_check"
 assert_constraint_validated "trading_tasks_lease_consistency_check"
 assert_constraint_validated "notification_outbox_lease_consistency_check"
@@ -123,6 +125,12 @@ assert_zero "trading terminal rows without finished_at" \
 
 assert_zero "data_sync inconsistent lease rows" \
   "SELECT count(*) FROM data_sync_tasks WHERE NOT ((locked_by IS NULL AND locked_until IS NULL AND heartbeat_at IS NULL) OR (status = 'running' AND locked_by IS NOT NULL AND locked_until IS NOT NULL AND heartbeat_at IS NOT NULL))"
+
+assert_zero "data_sync repair source orphan rows" \
+  "SELECT count(*) FROM data_sync_tasks child WHERE child.repair_source_task_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM data_sync_tasks source WHERE source.id = child.repair_source_task_id)"
+
+assert_zero "data_sync repair source self rows" \
+  "SELECT count(*) FROM data_sync_tasks WHERE repair_source_task_id = id"
 
 assert_zero "backtest inconsistent lease rows" \
   "SELECT count(*) FROM backtest_tasks WHERE NOT ((locked_by IS NULL AND locked_until IS NULL AND heartbeat_at IS NULL) OR (status = 'running' AND locked_by IS NOT NULL AND locked_until IS NOT NULL AND heartbeat_at IS NOT NULL))"

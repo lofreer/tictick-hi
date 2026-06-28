@@ -242,6 +242,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.syncWindowContinuous": "持续同步",
     "research.syncWindowRange": "{from} 到 {to}",
     "research.syncWindowFrom": "从 {from} 开始",
+    "research.syncWindowRepairSource": "修复来源 {source} / {window}",
     "research.syncWindowTo": "截至 {to}",
     "research.dataHealth": "数据健康",
     "research.dataHealth.ok": "正常",

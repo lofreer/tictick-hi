@@ -98,6 +98,7 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     interval: response.interval,
     startTime: response.startTime,
     endTime: response.endTime,
+    repairSourceTaskId: response.repairSourceTaskId,
     latestSyncedAt: response.latestSyncedAt,
     realtimeEnabled: response.realtimeEnabled,
     syncEnabled: response.syncEnabled,

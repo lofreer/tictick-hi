@@ -130,6 +130,7 @@ describe("data api", () => {
               exchange: "binance",
               symbol: "BTCUSDT",
               interval: "1m",
+              repairSourceTaskId: "dst_source_1",
               realtimeEnabled: true,
               syncEnabled: true,
               status: "running",
@@ -158,6 +159,7 @@ describe("data api", () => {
         id: "dst_1",
         attemptCount: 3,
         dataHealth: "retrying",
+        repairSourceTaskId: "dst_source_1",
         gapSummary: {
           count: 2,
           firstGap: {
@@ -257,6 +259,7 @@ describe("data api", () => {
               interval: "1m",
               startTime: "2026-06-27T03:02:00Z",
               endTime: "2026-06-27T03:03:00Z",
+              repairSourceTaskId: "dst_1",
               realtimeEnabled: false,
               syncEnabled: true,
               status: "pending",
@@ -279,6 +282,7 @@ describe("data api", () => {
         {
           id: "dst_repair_1",
           startTime: "2026-06-27T03:02:00Z",
+          repairSourceTaskId: "dst_1",
           syncEnabled: true,
           dataHealth: "syncing",
         },
