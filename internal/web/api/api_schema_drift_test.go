@@ -51,6 +51,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 	}{
 		{"DataSyncTask", "DataSyncTask"},
 		{"DataSyncGapSummary", "DataSyncGapSummary"},
+		{"DataSyncGapList", "DataSyncGapList"},
 		{"DataSyncGapRepairResult", "DataSyncGapRepairResult"},
 		{"CandleGap", "CandleGap"},
 		{"CandleCoverage", "CandleCoverage"},
@@ -96,6 +97,7 @@ func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
 	for _, expected := range []string{
 		`from "@/types/api.generated"`,
 		"export type DataSyncTask = APIDataSyncTask;",
+		"export type DataSyncGapList = APIDataSyncGapList;",
 		"export type CreateDataSyncTask = APICreateDataSyncTask;",
 		"export type BacktestTask = APIBacktestTask;",
 		"export type TradingTask = Omit<APITradingTask",

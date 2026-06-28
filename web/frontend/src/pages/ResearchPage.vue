@@ -30,6 +30,7 @@
           :repairing-task-id="repairTaskGapsLoadingId"
           :tasks="tasks"
           @view="selectTask"
+          @view-gaps="viewTaskGaps"
           @delete="deleteTask"
           @repair-gaps="repairTaskGaps"
           @retry="retryTask"
@@ -129,6 +130,45 @@
         </NSpace>
       </template>
     </NModal>
+
+    <NModal
+      v-model:show="gapDetailsModalOpen"
+      preset="card"
+      :title="t('research.gapDetailsTitle')"
+      class="research-modal"
+    >
+      <div v-if="gapDetailsTask" class="research-gap-context">
+        <NText depth="3">
+          {{ gapDetailsTask.exchange }} / {{ gapDetailsTask.symbol }} / {{ gapDetailsTask.interval }}
+        </NText>
+      </div>
+      <LoadingState v-if="gapDetailsLoading" />
+      <ErrorState
+        v-else-if="gapDetailsError"
+        :title="gapDetailsError"
+        retryable
+        @retry="gapDetailsTask && viewTaskGaps(gapDetailsTask)"
+      />
+      <EmptyState
+        v-else-if="!gapDetails || gapDetails.gaps.length === 0"
+        :title="t('research.noGapDetails')"
+      />
+      <NDataTable
+        v-else
+        :columns="gapDetailColumns"
+        :data="gapDetails.gaps"
+        :bordered="false"
+        size="small"
+      />
+      <template #footer>
+        <NSpace justify="end">
+          <NTag v-if="gapDetails?.limited" :bordered="false" type="warning">
+            {{ t("research.gapDetailsLimited") }}
+          </NTag>
+          <NButton @click="gapDetailsModalOpen = false">{{ t("common.close") }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </section>
 </template>
 
@@ -136,6 +176,7 @@
 import { Plus } from "@lucide/vue";
 import {
   NButton,
+  NDataTable,
   NDatePicker,
   NForm,
   NFormItem,
@@ -144,8 +185,9 @@ import {
   NSpace,
   NTag,
   NText,
-  type TagProps,
+  type DataTableColumns,
   type SelectOption,
+  type TagProps,
 } from "naive-ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
@@ -156,6 +198,7 @@ import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
+import type { CandleGap } from "@/types/app";
 import { symbolOptionsForExchange } from "@/utils/marketSymbols";
 
 const { t } = useI18n();
@@ -172,6 +215,11 @@ const {
   createTask,
   deleteTask,
   exchange,
+  gapDetails,
+  gapDetailsError,
+  gapDetailsLoading,
+  gapDetailsModalOpen,
+  gapDetailsTask,
   interval,
   loadCandles,
   loadTasks,
@@ -188,6 +236,7 @@ const {
   tasksLoading,
   toggleRealtime,
   toggleSync,
+  viewTaskGaps,
 } = useResearchWorkspace();
 
 const exchangeOptions = computed<SelectOption[]>(() => [
@@ -205,6 +254,12 @@ const intervalOptions = computed<SelectOption[]>(() => [
   { label: "1h", value: "1h" },
   { label: "4h", value: "4h" },
   { label: "1d", value: "1d" },
+]);
+
+const gapDetailColumns = computed<DataTableColumns<CandleGap>>(() => [
+  { title: t("research.gapFrom"), key: "from", minWidth: 180 },
+  { title: t("research.gapTo"), key: "to", minWidth: 180 },
+  { title: t("research.missingCandles"), key: "missingCandles", width: 120 },
 ]);
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
@@ -291,6 +346,10 @@ const healthTagType = computed<TagProps["type"]>(() => {
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.research-gap-context {
+  margin-bottom: 12px;
 }
 
 .research-chart-body {

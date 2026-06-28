@@ -6,13 +6,13 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="1660"
+    :scroll-x="1700"
     size="small"
   />
 </template>
 
 <script setup lang="ts">
-import { Eye, Play, RefreshCw, RotateCcw, Square, Trash2, Wrench } from "@lucide/vue";
+import { Eye, ListChecks, Play, RefreshCw, RotateCcw, Square, Trash2, Wrench } from "@lucide/vue";
 import {
   NButton,
   NDataTable,
@@ -34,6 +34,7 @@ const props = defineProps<{ tasks: DataSyncTask[]; repairingTaskId?: string }>()
 const emit = defineEmits<{
   view: [task: DataSyncTask];
   delete: [task: DataSyncTask];
+  "view-gaps": [task: DataSyncTask];
   "repair-gaps": [task: DataSyncTask];
   retry: [task: DataSyncTask];
   "toggle-realtime": [task: DataSyncTask];
@@ -94,10 +95,13 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.actions"),
     key: "actions",
-    width: 264,
+    width: 292,
     render: (row) =>
       h(NSpace, { size: 4, wrap: false }, () => [
         iconButton(Eye, t("research.viewChart"), () => emit("view", row)),
+        ...(hasRepairableTaskGaps(row)
+          ? [iconButton(ListChecks, t("research.viewTaskGaps"), () => emit("view-gaps", row))]
+          : []),
         ...(hasRepairableTaskGaps(row)
           ? [
               iconButton(

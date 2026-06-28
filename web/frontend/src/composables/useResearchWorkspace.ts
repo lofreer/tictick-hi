@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 
 import { dataApi } from "@/services/api/data";
-import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncTask } from "@/types/app";
+import type { CandleResult, ChartCandle, CreateDataSyncTask, DataSyncGapList, DataSyncTask } from "@/types/app";
 import { coerceSymbolForExchange } from "@/utils/marketSymbols";
 
 type ResearchForm = {
@@ -34,6 +34,11 @@ export function useResearchWorkspace() {
   const createLoading = ref(false);
   const repairGapLoading = ref(false);
   const repairTaskGapsLoadingId = ref("");
+  const gapDetailsModalOpen = ref(false);
+  const gapDetailsLoading = ref(false);
+  const gapDetailsError = ref("");
+  const gapDetailsTask = ref<DataSyncTask | null>(null);
+  const gapDetails = ref<DataSyncGapList | null>(null);
   const tasksError = ref("");
   const candlesError = ref("");
   const createModalOpen = ref(false);
@@ -189,6 +194,21 @@ export function useResearchWorkspace() {
     });
   }
 
+  async function viewTaskGaps(task: DataSyncTask) {
+    gapDetailsTask.value = task;
+    gapDetails.value = null;
+    gapDetailsError.value = "";
+    gapDetailsModalOpen.value = true;
+    gapDetailsLoading.value = true;
+    try {
+      gapDetails.value = await dataApi.getTaskGaps(task.id);
+    } catch (error) {
+      gapDetailsError.value = errorMessage(error, t("research.gapDetailsLoadFailed"));
+    } finally {
+      gapDetailsLoading.value = false;
+    }
+  }
+
   async function repairTaskGaps(task: DataSyncTask) {
     if (repairTaskGapsLoadingId.value) {
       return;
@@ -260,6 +280,11 @@ export function useResearchWorkspace() {
     createTask,
     deleteTask,
     exchange,
+    gapDetails,
+    gapDetailsError,
+    gapDetailsLoading,
+    gapDetailsModalOpen,
+    gapDetailsTask,
     interval,
     loadCandles,
     loadTasks,
@@ -277,6 +302,7 @@ export function useResearchWorkspace() {
     tasksLoading,
     toggleRealtime,
     toggleSync,
+    viewTaskGaps,
   };
 }
 

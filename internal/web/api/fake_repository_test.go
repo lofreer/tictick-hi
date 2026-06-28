@@ -22,6 +22,7 @@ type fakeRepository struct {
 	sessions        map[string]data.OperatorSession
 	tradingTasks    []data.TradingTask
 	tasks           []data.DataSyncTask
+	taskGapDetails  map[string]data.DataSyncGapList
 	candles         []data.Candle
 }
 
@@ -41,6 +42,7 @@ func newFakeRepository() *fakeRepository {
 		backtestIntents: map[string][]data.StrategyIntent{},
 		passwords:       map[string]string{},
 		sessions:        map[string]data.OperatorSession{},
+		taskGapDetails:  map[string]data.DataSyncGapList{},
 	}
 	operator := data.Operator{
 		ID:        "op_admin",
@@ -104,6 +106,29 @@ func (repository *fakeRepository) RetryDataSyncTask(
 		}
 	}
 	return data.DataSyncTask{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) ListDataSyncTaskGaps(
+	_ context.Context,
+	id string,
+) (data.DataSyncGapList, error) {
+	for _, task := range repository.tasks {
+		if task.ID != id {
+			continue
+		}
+		if detail, ok := repository.taskGapDetails[id]; ok {
+			return cloneDataSyncGapList(detail), nil
+		}
+		result := data.DataSyncGapList{
+			TaskID: task.ID,
+			Gaps:   []data.CandleGap{},
+		}
+		if task.GapSummary != nil && task.GapSummary.FirstGap != nil && task.GapSummary.Count > 0 {
+			result.Gaps = append(result.Gaps, *task.GapSummary.FirstGap)
+		}
+		return result, nil
+	}
+	return data.DataSyncGapList{}, data.ErrNotFound
 }
 
 func (repository *fakeRepository) RepairDataSyncTaskGaps(
@@ -626,6 +651,14 @@ func (repository *fakeRepository) fakeRepairTaskExists(source data.DataSyncTask,
 		}
 	}
 	return false
+}
+
+func cloneDataSyncGapList(value data.DataSyncGapList) data.DataSyncGapList {
+	return data.DataSyncGapList{
+		TaskID:  value.TaskID,
+		Gaps:    append([]data.CandleGap(nil), value.Gaps...),
+		Limited: value.Limited,
+	}
 }
 
 func dataSyncTaskCommandAllowed(status data.TaskStatus) bool {

@@ -108,12 +108,42 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	gapFrom := time.Date(2026, 1, 1, 0, 2, 0, 0, time.UTC)
 	gapTo := time.Date(2026, 1, 1, 0, 3, 0, 0, time.UTC)
 	repository.tasks[0].GapSummary = &data.DataSyncGapSummary{
-		Count: 1,
+		Count: 2,
 		FirstGap: &data.CandleGap{
 			From:           gapFrom,
 			To:             gapTo,
 			MissingCandles: 1,
 		},
+	}
+	repository.taskGapDetails[created.ID] = data.DataSyncGapList{
+		TaskID: created.ID,
+		Gaps: []data.CandleGap{
+			{From: gapFrom, To: gapTo, MissingCandles: 1},
+			{From: gapTo.Add(time.Minute), To: gapTo.Add(3 * time.Minute), MissingCandles: 2},
+		},
+		Limited: false,
+	}
+
+	gapsRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/data/tasks/"+created.ID+"/gaps",
+		"",
+	)
+	if gapsRecorder.Code != http.StatusOK {
+		t.Fatalf("gaps status = %d body = %s", gapsRecorder.Code, gapsRecorder.Body.String())
+	}
+	var gapList data.DataSyncGapList
+	if err := json.NewDecoder(gapsRecorder.Body).Decode(&gapList); err != nil {
+		t.Fatal(err)
+	}
+	if gapList.TaskID != created.ID ||
+		gapList.Limited ||
+		len(gapList.Gaps) != 2 ||
+		!gapList.Gaps[0].From.Equal(gapFrom) ||
+		gapList.Gaps[1].MissingCandles != 2 {
+		t.Fatalf("unexpected gap list: %#v", gapList)
 	}
 
 	repairRecorder := serveAuthenticated(

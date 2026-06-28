@@ -13,6 +13,7 @@ import type {
   CreateOperator as APICreateOperator,
   CreateTradingTask as APICreateTradingTask,
   DataSyncGapRepairResult as APIDataSyncGapRepairResult,
+  DataSyncGapList as APIDataSyncGapList,
   DataSyncTask as APIDataSyncTask,
   ExchangeAccount as APIExchangeAccount,
   Execution as APIExecution,
@@ -40,6 +41,8 @@ export type LocaleCode = "zh-CN" | "en-US";
 export type TaskStatus = APITaskStatus | "gap";
 
 export type DataSyncTask = APIDataSyncTask;
+
+export type DataSyncGapList = APIDataSyncGapList;
 
 export type DataSyncGapRepairResult = APIDataSyncGapRepairResult;
 

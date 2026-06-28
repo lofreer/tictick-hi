@@ -10,6 +10,7 @@ const dataApiMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   deleteTask: vi.fn(),
   getCandles: vi.fn(),
+  getTaskGaps: vi.fn(),
   listTasks: vi.fn(),
   repairTaskGaps: vi.fn(),
   retryTask: vi.fn(),
@@ -47,6 +48,11 @@ describe("useResearchWorkspace", () => {
     routerMocks.query = { exchange: "binance", symbol: "BTCUSDT", interval: "5m" };
     dataApiMocks.listTasks.mockResolvedValue([]);
     dataApiMocks.getCandles.mockResolvedValue(candleResult({ gaps: [] }));
+    dataApiMocks.getTaskGaps.mockResolvedValue({
+      taskId: "dst_1",
+      gaps: [{ from: "2026-06-27T03:02:00Z", to: "2026-06-27T03:03:00Z", missingCandles: 1 }],
+      limited: false,
+    });
     dataApiMocks.createTask.mockResolvedValue({ id: "dst_repair" });
     dataApiMocks.repairTaskGaps.mockResolvedValue({
       sourceTaskId: "dst_1",
@@ -108,6 +114,23 @@ describe("useResearchWorkspace", () => {
     expect(dataApi.repairTaskGaps).toHaveBeenCalledWith("dst_1");
     expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
     expect(messageMocks.success).toHaveBeenCalledWith("已排队 1 个缺口修复任务。");
+  });
+
+  it("loads task gap details for the gap modal", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    await workspace.viewTaskGaps(dataSyncTask({ id: "dst_1" }));
+    await flushPromises();
+
+    expect(dataApi.getTaskGaps).toHaveBeenCalledWith("dst_1");
+    expect(workspace.gapDetailsModalOpen.value).toBe(true);
+    expect(workspace.gapDetails.value).toMatchObject({
+      taskId: "dst_1",
+      gaps: [{ missingCandles: 1 }],
+      limited: false,
+    });
+    expect(workspace.gapDetailsError.value).toBe("");
   });
 });
 

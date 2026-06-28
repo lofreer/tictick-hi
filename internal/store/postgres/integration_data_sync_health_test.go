@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -93,6 +94,41 @@ func TestIntegrationListDataSyncTasksReportsDataHealth(t *testing.T) {
 	}
 }
 
+func TestIntegrationListDataSyncTaskGapsReportsWindows(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 4, 30, 0, 0, time.UTC)
+	symbol := integrationSymbol("DHGD")
+	taskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(6*time.Minute)), nil, "")
+	for _, minute := range []int{0, 1, 3, 6} {
+		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
+	}
+
+	gaps, err := store.ListDataSyncTaskGaps(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gaps.TaskID != taskID || gaps.Limited || len(gaps.Gaps) != 2 {
+		t.Fatalf("unexpected gap list metadata: %#v", gaps)
+	}
+	assertTaskGap(t, gaps.Gaps[0], start.Add(2*time.Minute), start.Add(3*time.Minute), 1)
+	assertTaskGap(t, gaps.Gaps[1], start.Add(4*time.Minute), start.Add(6*time.Minute), 2)
+
+	if _, err := store.ListDataSyncTaskGaps(ctx, integrationID("missing")); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("missing task error = %v, want ErrNotFound", err)
+	}
+}
+
 func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -132,6 +168,13 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 	}
 	if len(duplicateResult.CreatedTasks) != 0 || duplicateResult.SkippedExisting != 2 {
 		t.Fatalf("duplicate repair result = %#v, want skipped existing", duplicateResult)
+	}
+}
+
+func assertTaskGap(t *testing.T, gap data.CandleGap, from time.Time, to time.Time, missingCandles int) {
+	t.Helper()
+	if !gap.From.Equal(from) || !gap.To.Equal(to) || gap.MissingCandles != missingCandles {
+		t.Fatalf("unexpected task gap: %#v", gap)
 	}
 }
 

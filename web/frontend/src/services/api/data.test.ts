@@ -175,6 +175,42 @@ describe("data api", () => {
     );
   });
 
+  it("loads data sync task gap details", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          taskId: "dst_1",
+          gaps: [
+            {
+              from: "2026-06-27T03:02:00Z",
+              to: "2026-06-27T03:03:00Z",
+              missingCandles: 1,
+            },
+          ],
+          limited: false,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.getTaskGaps("dst_1")).resolves.toEqual({
+      taskId: "dst_1",
+      gaps: [
+        {
+          from: "2026-06-27T03:02:00Z",
+          to: "2026-06-27T03:03:00Z",
+          missingCandles: 1,
+        },
+      ],
+      limited: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/data/tasks/dst_1/gaps",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("queues repair tasks for data sync gaps", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
