@@ -36,8 +36,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
     expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
-    expect(bodyStyle).not.toContain("--tt-chart-fixed-inline-end-gutter");
-    expect(bodyStyle).not.toContain("--tt-chart-fixed-block-end-gutter");
+    expect(bodyStyle).toContain("--tt-chart-inline-end-gutter: 16px;");
+    expect(bodyStyle).toContain("--tt-chart-block-end-gutter: 12px;");
     expect(bodyStyle).toContain("height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("block-size: var(--research-chart-viewport-height) !important;");
@@ -72,6 +72,8 @@ describe("ResearchPage chart layout contract", () => {
       expect(style).toContain("right: auto;");
       expect(style).toContain("bottom: auto;");
       expect(style).toContain("left: 0;");
+      expect(style).toContain("overflow: visible");
+      expect(style).toContain("contain: layout style;");
       expect(style).not.toContain("inset: 0;");
     }
   });

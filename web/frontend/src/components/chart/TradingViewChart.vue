@@ -28,6 +28,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
+import { positiveFloor, readChartGutter, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
 import "./TradingViewChart.css";
 
 const props = defineProps<{
@@ -67,7 +68,7 @@ const volumeDownColor = "rgba(246, 70, 93, 0.28)";
 onMounted(() => {
   if (!rootRef.value || !containerRef.value) return;
 
-  const initialSize = readHostSize() ?? { ...fallbackSize, fixedViewport: false };
+  const initialSize = readHostSize() ?? { ...fallbackSize };
   lastSize = { width: initialSize.width, height: initialSize.height };
   lockRenderedViewport(lastSize);
   chart = createChart(containerRef.value, {
@@ -355,16 +356,19 @@ function readHostSize(refreshFixedViewportHeight = false) {
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
+  const style = window.getComputedStyle(host);
   const fixedViewport = isFixedViewportHost(host);
-  const measuredWidth = readHostWidth(host, bounds);
+  const measuredWidth = (readHostWidth(host, bounds) ?? fallbackSize.width) - readChartGutter(style, "--tt-chart-inline-end-gutter");
   const measuredHeight = fixedViewport
     ? readFixedViewportHeight(host, bounds, refreshFixedViewportHeight)
     : readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
-  const width = Math.floor(measuredWidth ?? fallbackSize.width);
-  const height = measuredHeight ? clampRenderedHeight(measuredHeight) : fallbackSize.height;
+  const width = Math.floor(measuredWidth);
+  const height = measuredHeight
+    ? clampRenderedHeight(measuredHeight - readChartGutter(style, "--tt-chart-block-end-gutter"))
+    : fallbackSize.height;
   if (width <= 0 || height <= 0) return null;
 
-  return { width, height, fixedViewport };
+  return { width, height };
 }
 
 function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect, refresh: boolean) {
@@ -405,14 +409,6 @@ function fixedViewportHeightCap() {
   return Math.min(maxRenderedChartHeight, Math.max(fallbackSize.height, viewportHeight));
 }
 
-function readClientWidth(element: HTMLElement) {
-  return element.clientWidth > 0 ? element.clientWidth : null;
-}
-
-function readClientHeight(element: HTMLElement) {
-  return element.clientHeight > 0 ? element.clientHeight : null;
-}
-
 function readHostWidth(element: HTMLElement, bounds = element.getBoundingClientRect()) {
   return readClientWidth(element) ?? readPixelSize(element, "width") ?? positiveFloor(bounds.width);
 }
@@ -420,12 +416,6 @@ function readHostWidth(element: HTMLElement, bounds = element.getBoundingClientR
 function readResizeEntryWidth(entry: ResizeObserverEntry) {
   const contentBox = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
   return positiveFloor(contentBox?.inlineSize ?? entry.contentRect.width);
-}
-
-function readPixelSize(element: HTMLElement, property: "width" | "height" | "maxHeight") {
-  const value = Number.parseFloat(window.getComputedStyle(element)[property]);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return value;
 }
 
 function readResizeHost() {
@@ -441,10 +431,5 @@ function readResizeHost() {
 
 function isFixedViewportHost(element: HTMLElement) {
   return element.getAttribute("data-chart-viewport") === "fixed";
-}
-
-function positiveFloor(value: number) {
-  const floored = Math.floor(value);
-  return floored > 0 ? floored : null;
 }
 </script>

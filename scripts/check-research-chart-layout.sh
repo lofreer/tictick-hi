@@ -93,8 +93,8 @@ require_contains "$RESEARCH_CSS" "flex: 0 0 var(--research-chart-viewport-height
 require_contains "$RESEARCH_CSS" "height: var(--research-chart-viewport-height) !important;"
 require_contains "$RESEARCH_CSS" "max-height: var(--research-chart-viewport-height) !important;"
 require_contains "$RESEARCH_CSS" "contain: strict;"
-require_not_contains "$RESEARCH_CSS" "--tt-chart-fixed-inline-end-gutter"
-require_not_contains "$RESEARCH_CSS" "--tt-chart-fixed-block-end-gutter"
+require_contains "$RESEARCH_CSS" "--tt-chart-inline-end-gutter: 16px;"
+require_contains "$RESEARCH_CSS" "--tt-chart-block-end-gutter: 12px;"
 
 for selector in ".trading-chart" ".trading-chart__canvas" ".trading-chart__canvas > .tv-lightweight-charts"; do
   require_contains "$CHART_CSS" "$selector"
@@ -102,7 +102,8 @@ for selector in ".trading-chart" ".trading-chart__canvas" ".trading-chart__canva
   require_block_contains "$CHART_CSS" "$selector" "right: auto;"
   require_block_contains "$CHART_CSS" "$selector" "bottom: auto;"
   require_block_contains "$CHART_CSS" "$selector" "left: 0;"
-  require_block_contains "$CHART_CSS" "$selector" "contain: strict;"
+  require_block_contains "$CHART_CSS" "$selector" "overflow: visible"
+  require_block_contains "$CHART_CSS" "$selector" "contain: layout style;"
   require_block_not_contains "$CHART_CSS" "$selector" "inset: 0;"
 done
 
@@ -126,7 +127,7 @@ require_contains "$CHART_SMOKE" "research chart panel must not inherit the globa
 require_contains "$CHART_SMOKE" "chart bottom axis is clipped from the initial viewport"
 require_contains "$CHART_SMOKE" "page overflowed horizontally and can clip the chart viewport"
 require_contains "$CHART_SMOKE" "time-axis label touches fixed body edge"
-require_contains "$CHART_SMOKE" "left too much unused fixed body height"
+require_contains "$CHART_SMOKE" "does not match configured fixed body inset"
 require_contains "$CHART_SMOKE" "maxRetries: 5"
 
 echo "research chart layout check passed"

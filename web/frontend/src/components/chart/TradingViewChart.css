@@ -17,9 +17,8 @@
   max-inline-size: var(--tt-chart-render-width, 100%) !important;
   max-height: var(--tt-chart-render-height, 100%) !important;
   max-block-size: var(--tt-chart-render-height, 100%) !important;
-  overflow: hidden;
-  overflow: clip;
-  contain: strict;
+  overflow: visible !important;
+  contain: layout style;
   isolation: isolate;
   background: var(--tt-chart-bg);
 }
@@ -42,9 +41,8 @@
   max-inline-size: var(--tt-chart-render-width, 100%) !important;
   max-height: var(--tt-chart-render-height, 100%) !important;
   max-block-size: var(--tt-chart-render-height, 100%) !important;
-  overflow: hidden;
-  overflow: clip;
-  contain: strict;
+  overflow: visible !important;
+  contain: layout style;
 }
 
 .trading-chart__canvas > .tv-lightweight-charts {
@@ -64,9 +62,8 @@
   max-block-size: var(--tt-chart-render-height, 100%) !important;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
-  overflow: clip;
-  contain: strict;
+  overflow: visible !important;
+  contain: layout style;
 }
 
 .trading-chart__canvas canvas {

@@ -301,6 +301,8 @@ function sampleExpression() {
         };
       };
       const body = read('.research-chart-body');
+      const chartInlineEndGutter = cssPixel('.research-chart-body', '--tt-chart-inline-end-gutter');
+      const chartBlockEndGutter = cssPixel('.research-chart-body', '--tt-chart-block-end-gutter');
       const tv = read('.tv-lightweight-charts');
       const canvasEntries = Array.from(document.querySelectorAll('.trading-chart__canvas canvas')).map((canvas, index) => {
         const rect = canvas.getBoundingClientRect();
@@ -354,6 +356,8 @@ function sampleExpression() {
         chart: read('.trading-chart'),
         canvas: read('.trading-chart__canvas'),
         tv,
+        chartInlineEndGutter,
+        chartBlockEndGutter,
         canvases,
         mainPaneCanvas,
         mainPaneColorStats,
@@ -419,6 +423,13 @@ function sampleExpression() {
         const blue = pixels[index + 2];
         const alpha = pixels[index + 3];
         return alpha > 40 && red < 180 && green < 180 && blue < 190;
+      }
+
+      function cssPixel(selector, property) {
+        const element = document.querySelector(selector);
+        if (!element) return 0;
+        const value = Number.parseFloat(getComputedStyle(element).getPropertyValue(property));
+        return Number.isFinite(value) && value > 0 ? value : 0;
       }
     })()`;
 }
@@ -570,16 +581,11 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (body.right - rightAxisCanvas.right > maxViewportInset || body.right - tv.right > maxViewportInset) {
-    throw new Error(
-      `${label} chart right side leaves unused fixed body space: ${JSON.stringify({
-        maxInset: maxViewportInset,
-        body,
-        tv,
-        rightAxisCanvas,
-      })}`,
-    );
-  }
+  assertConfiguredInset(label, "chart right side", body.right - tv.right, sample.chartInlineEndGutter, { body, tv });
+  assertConfiguredInset(label, "right price-axis", body.right - rightAxisCanvas.right, sample.chartInlineEndGutter, {
+    body,
+    rightAxisCanvas,
+  });
   if (!bottomTimeAxisCanvas) {
     throw new Error(
       `${label} missing bounded bottom time-axis canvas: ${JSON.stringify({
@@ -603,16 +609,11 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (body.bottom - bottomTimeAxisCanvas.bottom > maxViewportInset || body.bottom - tv.bottom > maxViewportInset) {
-    throw new Error(
-      `${label} chart bottom side leaves unused fixed body space: ${JSON.stringify({
-        maxInset: maxViewportInset,
-        body,
-        tv,
-        bottomTimeAxisCanvas,
-      })}`,
-    );
-  }
+  assertConfiguredInset(label, "chart bottom side", body.bottom - tv.bottom, sample.chartBlockEndGutter, { body, tv });
+  assertConfiguredInset(label, "bottom time-axis", body.bottom - bottomTimeAxisCanvas.bottom, sample.chartBlockEndGutter, {
+    body,
+    bottomTimeAxisCanvas,
+  });
   if (bottomTimeAxisCanvas.bottom > body.bottom + 1 || bottomTimeAxisCanvas.right > body.right + 1 || tv.bottom > body.bottom + 1) {
     throw new Error(
       `${label} chart bottom edge overflowed fixed body: ${JSON.stringify({
@@ -690,6 +691,7 @@ function assertStable(result) {
   }
 
   const fixedBodyHeight = result.last.body;
+  const expectedBlockEndInset = result.lastFull.chartBlockEndGutter ?? 0;
   for (const key of ["chart", "canvas", "tv"]) {
     const overflow = result.last[key] - fixedBodyHeight;
     if (overflow > heightTolerance) {
@@ -703,10 +705,10 @@ function assertStable(result) {
       );
     }
     const inset = fixedBodyHeight - result.last[key];
-    if (inset > maxViewportInset) {
+    if (Math.abs(inset - expectedBlockEndInset) > heightTolerance) {
       throw new Error(
-        `${result.label} ${key} left too much unused fixed body height: ${JSON.stringify({
-          maxInset: maxViewportInset,
+        `${result.label} ${key} height does not match configured fixed body inset: ${JSON.stringify({
+          expectedBlockEndInset,
           body: fixedBodyHeight,
           last: result.last,
           min: result.min,
@@ -715,6 +717,18 @@ function assertStable(result) {
       );
     }
   }
+}
+
+function assertConfiguredInset(label, name, actual, expected, context) {
+  if (Math.abs(actual - expected) <= maxViewportInset) return;
+  throw new Error(
+    `${label} ${name} does not match configured fixed body inset: ${JSON.stringify({
+      expected,
+      actual,
+      tolerance: maxViewportInset,
+      ...context,
+    })}`,
+  );
 }
 
 function formatConsoleArgs(args) {

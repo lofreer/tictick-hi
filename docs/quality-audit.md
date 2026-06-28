@@ -5265,6 +5265,42 @@ Definition of Done：
 - 仍未建立人工像素快照基线、全语言/全主题视觉矩阵、真实浏览器长时间 soak 和完整图表工具能力。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页 K 线图表安全边距与内部裁剪补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户在本地研究页继续观察到 K 线图表容器内容贴边和被截断，尤其是右侧价格轴、底部时间轴在窄桌面或浏览器缩放下缺少安全空间。
+- 既有修复为了防止 lightweight-charts 内部节点高度污染，把 chart root、canvas host 和 `.tv-lightweight-charts` 都设置为 `contain: strict` / `overflow: clip`，这会把第三方图表内部标签也变成潜在裁剪对象。
+
+修复范围：
+
+- `.research-chart-body` 保持固定高度和外层裁剪，但新增 16px 右侧安全边距、12px 底部安全边距。
+- `TradingViewChart` 从固定 chart slot 读取 CSS 安全边距，传给 lightweight-charts 的实际 render width / height 会扣除边距，避免价格轴和时间轴贴到裁剪边。
+- chart root、canvas host 和 `.tv-lightweight-charts` 不再使用 paint containment；overflow 改为 visible，并用 `!important` 覆盖 lightweight-charts 根节点 inline overflow，外层固定槽仍负责阻断异常溢出。
+- `research-chart-height-smoke.mjs` 改为验证运行态 chart / tv / 右价轴 / 底部时间轴 inset 必须匹配 CSS 配置，而不是要求图表贴满固定槽。
+- 抽出 `chartSizing.ts` 放置 DOM 尺寸读取工具，避免主 chart 组件超过行数硬限制。
+
+验证：
+
+- `scripts/check-research-chart-layout.sh` 通过。
+- `node --check scripts/research-chart-height-smoke.mjs` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- 使用当前源码重建本地 Docker API 后，`BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=20 SMOKE_INTERVAL_MS=100 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：desktop `body 603, chart/tv 591`，812x1320 `body 500, chart/tv 488`，mobile `body 457, chart/tv 445`。
+
+剩余风险：
+
+- 本轮只修复研究页图表容器裁剪和运行态回归检查，不补齐完整图表工具、像素快照基线或全浏览器矩阵。
+- 任务表在极窄视口下仍依赖自身横向滚动和 sticky 操作列，未重做成响应式列管理。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ### 阶段 1 数据同步错误 API 出口脱敏补充
 
 目标等级：scaffold
