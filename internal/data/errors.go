@@ -11,6 +11,7 @@ var ErrInvalidState = errors.New("invalid state")
 type ErrorCode string
 
 const (
+	ErrorCodeMarketInstrumentNotActive   ErrorCode = "market_instrument_not_active"
 	ErrorCodeDataSyncRetryRequiresFailed ErrorCode = "data_sync_retry_requires_failed"
 	ErrorCodeDataSyncCommandInvalidState ErrorCode = "data_sync_command_invalid_state"
 )
@@ -41,6 +42,14 @@ func DataSyncRetryRequiresFailedError() error {
 	return &DomainError{
 		Code:    ErrorCodeDataSyncRetryRequiresFailed,
 		Message: "data sync task must be failed before retry",
+		Cause:   ErrInvalidState,
+	}
+}
+
+func MarketInstrumentNotActiveError() error {
+	return &DomainError{
+		Code:    ErrorCodeMarketInstrumentNotActive,
+		Message: "market instrument is not active in catalog",
 		Cause:   ErrInvalidState,
 	}
 }

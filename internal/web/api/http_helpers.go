@@ -112,6 +112,9 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	}
 	if code, ok := data.DomainErrorCode(err); ok {
 		switch code {
+		case data.ErrorCodeMarketInstrumentNotActive:
+			writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentNotActive, err.Error())
+			return
 		case data.ErrorCodeDataSyncRetryRequiresFailed:
 			writeAPIError(w, http.StatusConflict, apiErrorDataSyncRetryRequiresFailed, err.Error())
 			return

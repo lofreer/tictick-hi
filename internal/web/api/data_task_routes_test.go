@@ -237,6 +237,42 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 }
 
+func TestDataSyncTaskCommandRejectsInactiveMarketInstrument(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.tasks = []data.DataSyncTask{
+		{
+			ID:           "dst_inactive",
+			Exchange:     "binance",
+			Symbol:       "SOLUSDT",
+			Interval:     "1m",
+			Status:       data.TaskStatusPaused,
+			MarketStatus: data.DataSyncMarketStatusInactive,
+			DataHealth:   data.DataSyncHealthPaused,
+			CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/dst_inactive/sync/start",
+		"",
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "market_instrument_not_active" ||
+		response.Message != "market instrument is not active in catalog" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+	if repository.tasks[0].SyncEnabled {
+		t.Fatalf("inactive task should not be started: %#v", repository.tasks[0])
+	}
+}
+
 func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 	repository, server, cookie := newAuthenticatedTestServer(t)
 	repository.tasks = []data.DataSyncTask{

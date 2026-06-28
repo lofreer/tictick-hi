@@ -618,6 +618,7 @@ function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
     realtimeEnabled: false,
     syncEnabled: false,
     status: "succeeded",
+    marketStatus: "active",
     dataHealth: "gap",
     gapSummary: {
       count: 1,

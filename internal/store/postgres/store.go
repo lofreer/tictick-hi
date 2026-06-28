@@ -102,6 +102,13 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 		       updated_at = now()
 		 WHERE id = $1
 		   AND status = $3
+		   AND EXISTS (
+		     SELECT 1
+		       FROM market_instruments AS instrument
+		      WHERE instrument.exchange = data_sync_tasks.exchange
+		        AND instrument.symbol = data_sync_tasks.symbol
+		        AND instrument.status = 'active'
+		   )
 		RETURNING `+dataSyncTaskReturningColumns(),
 		clearLeaseAssignments(dataSyncTaskLease)),
 		id,
@@ -114,6 +121,11 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 			if exists, existsErr := store.dataSyncTaskExists(ctx, id); existsErr != nil {
 				return data.DataSyncTask{}, existsErr
 			} else if exists {
+				if active, activeErr := store.dataSyncTaskHasActiveMarketInstrument(ctx, id); activeErr != nil {
+					return data.DataSyncTask{}, activeErr
+				} else if !active {
+					return data.DataSyncTask{}, data.MarketInstrumentNotActiveError()
+				}
 				return data.DataSyncTask{}, data.DataSyncRetryRequiresFailedError()
 			}
 			return data.DataSyncTask{}, data.ErrNotFound
@@ -131,6 +143,25 @@ func (store *Store) dataSyncTaskExists(ctx context.Context, id string) (bool, er
 		id,
 	).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check data sync task exists: %w", err)
+	}
+	return exists, nil
+}
+
+func (store *Store) dataSyncTaskHasActiveMarketInstrument(ctx context.Context, id string) (bool, error) {
+	var exists bool
+	if err := store.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			  FROM data_sync_tasks AS task
+			  JOIN market_instruments AS instrument
+			    ON instrument.exchange = task.exchange
+			   AND instrument.symbol = task.symbol
+			   AND instrument.status = 'active'
+			 WHERE task.id = $1
+		)`,
+		id,
+	).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check data sync task active market instrument: %w", err)
 	}
 	return exists, nil
 }
@@ -263,6 +294,16 @@ func (store *Store) updateTaskFlag(
 		     status = $3
 		     OR ($3 IN ($4, $5, $6) AND status IN ($4, $5, $6))
 		   )
+		   AND (
+		     NOT $2::boolean
+		     OR EXISTS (
+		       SELECT 1
+		         FROM market_instruments AS instrument
+		        WHERE instrument.exchange = data_sync_tasks.exchange
+		          AND instrument.symbol = data_sync_tasks.symbol
+		          AND instrument.status = 'active'
+		     )
+		   )
 		RETURNING `+dataSyncTaskReturningColumns(),
 		column,
 		clearLeaseCaseAssignments(dataSyncTaskLease, "NOT $2::boolean")),
@@ -280,6 +321,13 @@ func (store *Store) updateTaskFlag(
 			if exists, existsErr := store.dataSyncTaskExists(ctx, id); existsErr != nil {
 				return data.DataSyncTask{}, existsErr
 			} else if exists {
+				if enabled {
+					if active, activeErr := store.dataSyncTaskHasActiveMarketInstrument(ctx, id); activeErr != nil {
+						return data.DataSyncTask{}, activeErr
+					} else if !active {
+						return data.DataSyncTask{}, data.MarketInstrumentNotActiveError()
+					}
+				}
 				return data.DataSyncTask{}, data.DataSyncCommandInvalidStateError()
 			}
 			return data.DataSyncTask{}, data.ErrNotFound

@@ -21,6 +21,11 @@ import {
 } from "@/composables/researchWorkspaceHelpers";
 import { researchChartGapMarkers } from "@/composables/researchChartGapMarkers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
+import {
+  retryResearchSyncTask,
+  toggleResearchRealtimeTask,
+  toggleResearchSyncTask,
+} from "@/composables/researchTaskCommandActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, DataSyncGapList, DataSyncTask } from "@/types/app";
@@ -260,27 +265,15 @@ export function useResearchWorkspace() {
   }
 
   async function toggleRealtime(task: DataSyncTask) {
-    await runAction(async () => {
-      await dataApi.setRealtime(task.id, !task.realtimeEnabled);
-      message.success(t("research.taskUpdated"));
-      await loadTasks();
-    });
+    await toggleResearchRealtimeTask({ loadTasks, message, t, task });
   }
 
   async function toggleSync(task: DataSyncTask) {
-    await runAction(async () => {
-      await dataApi.setSync(task.id, !task.syncEnabled);
-      message.success(t("research.taskUpdated"));
-      await loadTasks();
-    });
+    await toggleResearchSyncTask({ loadTasks, message, t, task });
   }
 
   async function retryTask(task: DataSyncTask) {
-    await runAction(async () => {
-      await dataApi.retryTask(task.id);
-      message.success(t("research.taskRetried"));
-      await loadTasks();
-    });
+    await retryResearchSyncTask({ loadTasks, message, t, task });
   }
 
   async function viewTaskGaps(task: DataSyncTask) {

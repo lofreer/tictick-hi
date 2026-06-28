@@ -6,7 +6,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="2060"
+    :scroll-x="2180"
     size="small"
   />
 </template>
@@ -47,6 +47,15 @@ const { t } = useI18n();
 const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   { title: t("research.exchange"), key: "exchange", width: 92 },
   { title: t("research.symbol"), key: "symbol", width: 110 },
+  {
+    title: t("research.marketStatus"),
+    key: "marketStatus",
+    width: 118,
+    render: (row) =>
+      h(NTag, { bordered: false, size: "small", type: marketStatusTagType(row.marketStatus) }, () =>
+        t(`research.marketStatus.${row.marketStatus}`),
+      ),
+  },
   { title: t("research.interval"), key: "interval", width: 76 },
   {
     title: t("research.syncWindow"),
@@ -129,15 +138,21 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
           : []),
         iconButton(
           row.realtimeEnabled ? Square : Play,
-          row.realtimeEnabled ? t("research.stopRealtime") : t("research.startRealtime"),
+          realtimeButtonLabel(row),
           () => emit("toggle-realtime", row),
+          "default",
+          false,
+          !row.realtimeEnabled && !taskMarketActive(row),
         ),
         row.status === "failed"
           ? iconButton(RotateCcw, t("common.retry"), () => emit("retry", row))
           : iconButton(
               row.syncEnabled ? Square : RefreshCw,
-              row.syncEnabled ? t("research.stopSync") : t("research.startSync"),
+              syncButtonLabel(row),
               () => emit("toggle-sync", row),
+              "default",
+              false,
+              !row.syncEnabled && !taskMarketActive(row),
             ),
         iconButton(Trash2, t("research.deleteTask"), () => emit("delete", row), "error"),
       ]),
@@ -150,12 +165,29 @@ function iconButton(
   onClick: () => void,
   type: "default" | "error" | "warning" = "default",
   loading = false,
+  disabled = false,
 ) {
   return h(
     NButton,
-    { disabled: loading, loading, size: "tiny", quaternary: true, type, title: label, onClick },
+    { disabled: loading || disabled, loading, size: "tiny", quaternary: true, type, title: label, onClick },
     { icon: () => h(icon, { size: 15 }) },
   );
+}
+
+function realtimeButtonLabel(row: DataSyncTask) {
+  if (row.realtimeEnabled) return t("research.stopRealtime");
+  if (!taskMarketActive(row)) return t("research.marketNotActiveAction");
+  return t("research.startRealtime");
+}
+
+function syncButtonLabel(row: DataSyncTask) {
+  if (row.syncEnabled) return t("research.stopSync");
+  if (!taskMarketActive(row)) return t("research.marketNotActiveAction");
+  return t("research.startSync");
+}
+
+function taskMarketActive(row: DataSyncTask) {
+  return row.marketStatus === "active";
 }
 
 function hasRepairableTaskGaps(row: DataSyncTask) {
@@ -344,6 +376,12 @@ function dataHealthTagType(health: DataSyncTask["dataHealth"]): TagProps["type"]
   if (health === "failed") return "error";
   if (health === "syncing") return "info";
   return "default";
+}
+
+function marketStatusTagType(status: DataSyncTask["marketStatus"]): TagProps["type"] {
+  if (status === "active") return "success";
+  if (status === "inactive") return "warning";
+  return "error";
 }
 
 function rowKey(row: DataSyncTask): DataTableRowKey {

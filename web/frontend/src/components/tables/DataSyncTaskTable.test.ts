@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(2060);
+    expect(table.props("scrollX")).toBe(2180);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
     expect(columns.find((column) => column.key === "actions")).toMatchObject({ fixed: "right", width: 292 });
 
@@ -107,6 +107,30 @@ describe("DataSyncTaskTable", () => {
 
     expect(wrapper.text()).toContain("数据健康");
     expect(wrapper.text()).toContain("有缺口");
+  });
+
+  it("shows inactive market status and disables start commands", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            marketStatus: "inactive",
+            status: "paused",
+            syncEnabled: false,
+            realtimeEnabled: false,
+            dataHealth: "paused",
+          }),
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain("市场状态");
+    expect(wrapper.text()).toContain("Inactive");
+    expect(wrapper.get('button[title="市场非 active"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.emitted("toggle-sync")).toBeUndefined();
+    expect(wrapper.emitted("toggle-realtime")).toBeUndefined();
   });
 
   it("shows sync task window boundaries", () => {
@@ -255,6 +279,7 @@ function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
     realtimeEnabled: false,
     syncEnabled: true,
     status: "failed",
+    marketStatus: "active",
     dataHealth: "failed",
     attemptCount: 1,
     createdAt: "2026-06-28T00:00:00Z",

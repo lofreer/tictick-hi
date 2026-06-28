@@ -17,6 +17,11 @@ func TestDataSyncDomainErrorsPreserveInvalidStateCause(t *testing.T) {
 			code: ErrorCodeDataSyncRetryRequiresFailed,
 		},
 		{
+			name: "market instrument not active",
+			err:  MarketInstrumentNotActiveError(),
+			code: ErrorCodeMarketInstrumentNotActive,
+		},
+		{
 			name: "command invalid state",
 			err:  DataSyncCommandInvalidStateError(),
 			code: ErrorCodeDataSyncCommandInvalidState,

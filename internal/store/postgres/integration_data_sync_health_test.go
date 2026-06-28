@@ -147,6 +147,87 @@ func TestIntegrationListDataSyncTasksReportsExchangeBackoff(t *testing.T) {
 	}
 }
 
+func TestIntegrationListDataSyncTasksReportsMarketStatus(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	activeID := integrationID("dst")
+	inactiveID := integrationID("dst")
+	missingID := integrationID("dst")
+	activeSymbol := integrationSymbol("MSA")
+	inactiveSymbol := integrationSymbol("MSI")
+	missingSymbol := integrationSymbol("MSM")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id IN ($1, $2, $3)`, activeID, inactiveID, missingID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol IN ($1, $2, $3)`, activeSymbol, inactiveSymbol, missingSymbol)
+	})
+
+	insertDataHealthTask(t, ctx, store, activeID, activeSymbol, data.TaskStatusPaused, false, false, nil, nil, "")
+	insertDataHealthTask(t, ctx, store, inactiveID, inactiveSymbol, data.TaskStatusPaused, false, false, nil, nil, "")
+	insertDataHealthTask(t, ctx, store, missingID, missingSymbol, data.TaskStatusPaused, false, false, nil, nil, "")
+	if _, err := store.pool.Exec(ctx, `UPDATE market_instruments SET status = 'inactive' WHERE exchange = 'binance' AND symbol = $1`, inactiveSymbol); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `DELETE FROM market_instruments WHERE exchange = 'binance' AND symbol = $1`, missingSymbol); err != nil {
+		t.Fatal(err)
+	}
+
+	tasks, err := store.ListDataSyncTasks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusByID := make(map[string]data.DataSyncMarketStatus)
+	for _, task := range tasks {
+		statusByID[task.ID] = task.MarketStatus
+	}
+	expected := map[string]data.DataSyncMarketStatus{
+		activeID:   data.DataSyncMarketStatusActive,
+		inactiveID: data.DataSyncMarketStatusInactive,
+		missingID:  data.DataSyncMarketStatusMissing,
+	}
+	for id, want := range expected {
+		if got := statusByID[id]; got != want {
+			t.Fatalf("task %s market status = %q, want %q", id, got, want)
+		}
+	}
+}
+
+func TestIntegrationDataSyncCommandsRequireActiveMarketInstrument(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	taskID := integrationID("dst")
+	symbol := integrationSymbol("MSC")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+	})
+	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusPaused, false, false, nil, nil, "")
+	if _, err := store.pool.Exec(ctx, `UPDATE market_instruments SET status = 'inactive' WHERE exchange = 'binance' AND symbol = $1`, symbol); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.SetSyncEnabled(ctx, taskID, true); !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("start inactive sync error = %v, want invalid state domain error", err)
+	} else if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeMarketInstrumentNotActive {
+		t.Fatalf("start inactive sync domain code = %q, %t", code, ok)
+	}
+
+	task, err := store.SetSyncEnabled(ctx, taskID, false)
+	if err != nil {
+		t.Fatalf("stop inactive sync should remain allowed: %v", err)
+	}
+	if task.SyncEnabled || task.MarketStatus != data.DataSyncMarketStatusInactive {
+		t.Fatalf("stopped task = %#v, want sync disabled and inactive market", task)
+	}
+}
+
 func TestIntegrationListDataSyncTaskGapsReportsWindows(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -503,6 +584,7 @@ func insertDataHealthTaskWindow(
 	lastError string,
 ) {
 	t.Helper()
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	var finishedAt any
 	if status == data.TaskStatusSucceeded || status == data.TaskStatusFailed || status == data.TaskStatusCancelled {
 		finishedAt = time.Now().UTC()
@@ -526,6 +608,31 @@ func insertDataHealthTaskWindow(
 		nextAttemptAt,
 		lastError,
 		finishedAt,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func upsertIntegrationMarketInstrument(
+	t *testing.T,
+	ctx context.Context,
+	store *Store,
+	exchange string,
+	symbol string,
+	status string,
+) {
+	t.Helper()
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_instruments (
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, search_priority, synced_at
+		)
+		VALUES ($1, $2, $3, 'USDT', 'spot', $4, 0, now())
+		ON CONFLICT (exchange, symbol)
+		DO UPDATE SET status = EXCLUDED.status, synced_at = EXCLUDED.synced_at, updated_at = now()`,
+		exchange,
+		symbol,
+		symbol,
+		status,
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -101,6 +101,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"StatusResponse", apiStatusResponse{}},
 		{"TaskStatus", data.TaskStatus("")},
 		{"DataSyncHealth", data.DataSyncHealth("")},
+		{"DataSyncMarketStatus", data.DataSyncMarketStatus("")},
 		{"DataSyncGapSummary", data.DataSyncGapSummary{}},
 		{"DataSyncGapList", data.DataSyncGapList{}},
 		{"DataSyncGapRepairResult", data.DataSyncGapRepairResult{}},
@@ -305,6 +306,12 @@ func enumSchema(t reflect.Type) map[string]any {
 			string(data.DataSyncHealthPaused),
 			string(data.DataSyncHealthRetrying),
 			string(data.DataSyncHealthInsufficient),
+		}}
+	case reflect.TypeOf(data.DataSyncMarketStatus("")):
+		return map[string]any{"type": "string", "enum": []string{
+			string(data.DataSyncMarketStatusActive),
+			string(data.DataSyncMarketStatusInactive),
+			string(data.DataSyncMarketStatusMissing),
 		}}
 	case reflect.TypeOf(data.CandleSource("")):
 		return map[string]any{"type": "string", "enum": []string{

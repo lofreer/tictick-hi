@@ -211,6 +211,7 @@ describe("data api", () => {
               realtimeEnabled: true,
               syncEnabled: true,
               status: "running",
+              marketStatus: "inactive",
               dataHealth: "retrying",
               gapSummary: {
                 count: 2,
@@ -239,6 +240,7 @@ describe("data api", () => {
         id: "dst_1",
         attemptCount: 3,
         dataHealth: "retrying",
+        marketStatus: "inactive",
         repairSourceTaskId: "dst_source_1",
         gapSummary: {
           count: 2,

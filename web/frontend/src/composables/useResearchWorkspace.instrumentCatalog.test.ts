@@ -5,6 +5,7 @@ import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
 import { marketApi } from "@/services/api/market";
+import type { DataSyncTask } from "@/types/app";
 
 const dataApiMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
@@ -108,6 +109,23 @@ describe("useResearchWorkspace instrument catalog validation", () => {
     expect(dataApi.createTask).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledWith("交易对已不在当前交易所 active 目录中，请刷新交易对或选择仍可用的标的。");
   });
+
+  it("blocks starting sync when an existing task market is not active", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    await workspace.toggleSync(
+      dataSyncTask({
+        id: "dst_inactive",
+        status: "paused",
+        syncEnabled: false,
+        marketStatus: "inactive",
+      }),
+    );
+
+    expect(dataApi.setSync).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("任务交易对不在当前交易所 active 目录中，不能启动同步或实时。");
+  });
 });
 
 function mountWorkspace() {
@@ -130,4 +148,22 @@ function mountWorkspace() {
     throw new Error("research workspace was not mounted");
   }
   return holder.workspace;
+}
+
+function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
+  return {
+    id: "sync_1",
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    interval: "1m",
+    realtimeEnabled: false,
+    syncEnabled: true,
+    status: "succeeded",
+    marketStatus: "active",
+    dataHealth: "ok",
+    attemptCount: 0,
+    createdAt: "2026-06-28T00:00:00Z",
+    updatedAt: "2026-06-28T00:00:00Z",
+    ...overrides,
+  };
 }

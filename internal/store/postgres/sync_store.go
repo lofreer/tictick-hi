@@ -33,6 +33,13 @@ func (store *Store) ClaimDataSyncTask(
 				       FROM data_sync_exchange_backoffs
 				      WHERE data_sync_exchange_backoffs.exchange = data_sync_tasks.exchange
 				        AND data_sync_exchange_backoffs.next_attempt_at > now()
+				   )
+				   AND EXISTS (
+				     SELECT 1
+				       FROM market_instruments AS instrument
+				      WHERE instrument.exchange = data_sync_tasks.exchange
+				        AND instrument.symbol = data_sync_tasks.symbol
+				        AND instrument.status = 'active'
 				   )`,
 			orderBy: "realtime_enabled DESC, created_at ASC",
 			args: []any{

@@ -547,6 +547,7 @@ func insertIntegrationSyncTask(
 	lockedBy string,
 ) {
 	t.Helper()
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 
 	var (
 		leaseLockedBy  any

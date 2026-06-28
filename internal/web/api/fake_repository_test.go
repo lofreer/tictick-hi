@@ -59,7 +59,11 @@ func newFakeRepository() *fakeRepository {
 }
 
 func (repository *fakeRepository) ListDataSyncTasks(context.Context) ([]data.DataSyncTask, error) {
-	return append([]data.DataSyncTask(nil), repository.tasks...), nil
+	tasks := make([]data.DataSyncTask, len(repository.tasks))
+	for index, task := range repository.tasks {
+		tasks[index] = normalizeFakeDataSyncTask(task)
+	}
+	return tasks, nil
 }
 
 func (repository *fakeRepository) CreateDataSyncTask(
@@ -68,14 +72,15 @@ func (repository *fakeRepository) CreateDataSyncTask(
 ) (data.DataSyncTask, error) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	task := data.DataSyncTask{
-		ID:         "dst_1",
-		Exchange:   request.Exchange,
-		Symbol:     request.Symbol,
-		Interval:   request.Interval,
-		Status:     data.TaskStatusPending,
-		DataHealth: data.DataSyncHealthInsufficient,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:           "dst_1",
+		Exchange:     request.Exchange,
+		Symbol:       request.Symbol,
+		Interval:     request.Interval,
+		Status:       data.TaskStatusPending,
+		MarketStatus: data.DataSyncMarketStatusActive,
+		DataHealth:   data.DataSyncHealthInsufficient,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	repository.tasks = append(repository.tasks, task)
 	return task, nil
@@ -99,6 +104,9 @@ func (repository *fakeRepository) RetryDataSyncTask(
 		if repository.tasks[index].ID == id {
 			if repository.tasks[index].Status != data.TaskStatusFailed {
 				return data.DataSyncTask{}, data.DataSyncRetryRequiresFailedError()
+			}
+			if normalizeFakeDataSyncTask(repository.tasks[index]).MarketStatus != data.DataSyncMarketStatusActive {
+				return data.DataSyncTask{}, data.MarketInstrumentNotActiveError()
 			}
 			repository.tasks[index].SyncEnabled = true
 			repository.tasks[index].Status = data.TaskStatusPending
@@ -181,36 +189,6 @@ func (repository *fakeRepository) RepairDataSyncTaskGaps(
 		return result, nil
 	}
 	return data.DataSyncGapRepairResult{}, data.ErrNotFound
-}
-
-func (repository *fakeRepository) SetSyncEnabled(
-	ctx context.Context,
-	id string,
-	enabled bool,
-) (data.DataSyncTask, error) {
-	return repository.updateTask(ctx, id, func(task *data.DataSyncTask) {
-		task.SyncEnabled = enabled
-		task.Status = data.TaskStatusPending
-		if !enabled {
-			task.Status = data.TaskStatusPaused
-		}
-		refreshFakeDataSyncHealth(task)
-	})
-}
-
-func (repository *fakeRepository) SetRealtimeEnabled(
-	ctx context.Context,
-	id string,
-	enabled bool,
-) (data.DataSyncTask, error) {
-	return repository.updateTask(ctx, id, func(task *data.DataSyncTask) {
-		task.RealtimeEnabled = enabled
-		task.Status = data.TaskStatusRunning
-		if !enabled {
-			task.Status = data.TaskStatusPaused
-		}
-		refreshFakeDataSyncHealth(task)
-	})
 }
 
 func (repository *fakeRepository) GetCandles(
@@ -616,23 +594,6 @@ func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHeal
 			},
 		},
 	}, nil
-}
-
-func (repository *fakeRepository) updateTask(
-	_ context.Context,
-	id string,
-	update func(task *data.DataSyncTask),
-) (data.DataSyncTask, error) {
-	for index := range repository.tasks {
-		if repository.tasks[index].ID == id {
-			if !dataSyncTaskCommandAllowed(repository.tasks[index].Status) {
-				return data.DataSyncTask{}, data.DataSyncCommandInvalidStateError()
-			}
-			update(&repository.tasks[index])
-			return repository.tasks[index], nil
-		}
-	}
-	return data.DataSyncTask{}, data.ErrNotFound
 }
 
 func (repository *fakeRepository) fakeRepairTaskExists(source data.DataSyncTask, gap data.CandleGap) bool {
