@@ -58,6 +58,8 @@ check_file_exists "internal/web/api/server.go"
 check_file_exists "web/frontend/src/i18n/messages.ts"
 check_file_exists "web/frontend/src/i18n/messages.zh.ts"
 check_file_exists "web/frontend/src/i18n/messages.en.ts"
+check_file_exists "web/frontend/src/i18n/messages.research.zh.ts"
+check_file_exists "web/frontend/src/i18n/messages.research.en.ts"
 
 check_file_max_lines "internal/web/api/server.go" 220
 check_file_max_lines "web/frontend/src/i18n/messages.ts" 80
