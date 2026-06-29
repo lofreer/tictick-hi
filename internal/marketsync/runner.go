@@ -28,8 +28,10 @@ type Runner struct {
 }
 
 type Config struct {
-	Interval    time.Duration
-	SyncOnStart bool
+	Interval     time.Duration
+	SyncOnStart  bool
+	FetchRetries int
+	RetryDelay   time.Duration
 }
 
 type ExchangeResult struct {
@@ -45,6 +47,12 @@ func NewRunner(
 ) *Runner {
 	if config.Interval <= 0 {
 		config.Interval = 6 * time.Hour
+	}
+	if config.FetchRetries <= 0 {
+		config.FetchRetries = 2
+	}
+	if config.RetryDelay <= 0 {
+		config.RetryDelay = 250 * time.Millisecond
 	}
 	clonedClients := make(map[string]exchange.InstrumentClient, len(clients))
 	exchanges := make([]string, 0, len(clients))
@@ -89,7 +97,7 @@ func (runner *Runner) RunOnce(ctx context.Context) []ExchangeResult {
 	for _, exchangeID := range runner.exchanges {
 		client := runner.clients[exchangeID]
 		result := ExchangeResult{Exchange: exchangeID}
-		instruments, err := client.FetchInstruments(ctx)
+		instruments, err := runner.fetchInstruments(ctx, exchangeID, client)
 		if err == nil {
 			result.Result, err = runner.repository.ReplaceMarketInstruments(
 				ctx,
@@ -113,4 +121,46 @@ func (runner *Runner) RunOnce(ctx context.Context) []ExchangeResult {
 		results = append(results, result)
 	}
 	return results
+}
+
+func (runner *Runner) fetchInstruments(
+	ctx context.Context,
+	exchangeID string,
+	client exchange.InstrumentClient,
+) ([]data.MarketInstrument, error) {
+	attempts := runner.config.FetchRetries + 1
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		instruments, err := client.FetchInstruments(ctx)
+		if err == nil {
+			return instruments, nil
+		}
+		lastErr = err
+		if !exchange.IsTemporaryError(err) || attempt == attempts {
+			return nil, err
+		}
+
+		slog.Warn(
+			"temporary market instrument fetch failed; retrying",
+			"exchange", exchangeID,
+			"attempt", attempt,
+			"max_attempts", attempts,
+			"error", err,
+		)
+		if err := waitForRetry(ctx, runner.config.RetryDelay*time.Duration(attempt)); err != nil {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

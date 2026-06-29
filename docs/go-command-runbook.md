@@ -78,6 +78,8 @@ OKX_MARKET_REQUEST_LIMIT
 OKX_MARKET_REQUEST_WINDOW
 ```
 
+`SYNC_FETCH_RETRIES` and `SYNC_RETRY_DELAY` apply to both K-line fetches and the background instrument catalog fetch inside `hi sync`.
+
 Invalid `duration`, `int`, and `bool` values fail before the command opens PostgreSQL. Error messages include the env name.
 
 ## Sensitive Values

@@ -226,8 +226,10 @@ func runSync(ctx context.Context, args []string) error {
 			"binance": binanceClient,
 			"okx":     okxClient,
 		}, marketsync.Config{
-			Interval:    config.MarketInstrumentSyncInterval,
-			SyncOnStart: config.MarketInstrumentSyncOnStart,
+			Interval:     config.MarketInstrumentSyncInterval,
+			SyncOnStart:  config.MarketInstrumentSyncOnStart,
+			FetchRetries: config.FetchRetries,
+			RetryDelay:   config.RetryDelay,
 		})
 		go func() {
 			if err := instrumentRunner.Run(ctx); err != nil {

@@ -41,6 +41,59 @@ func TestRunnerRunOnceReplacesEachExchangeAndContinuesAfterFailure(t *testing.T)
 	}
 }
 
+func TestRunnerRunOnceRetriesTemporaryInstrumentFailure(t *testing.T) {
+	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{}
+	client := &scriptedInstrumentClient{
+		errs: []error{exchange.NewTemporaryError("okx EOF", errors.New("EOF"))},
+		instruments: []data.MarketInstrument{
+			{Symbol: "BTC-USDT", BaseAsset: "BTC", QuoteAsset: "USDT", InstrumentType: "spot", Status: "active"},
+		},
+	}
+	runner := NewRunner(repository, map[string]exchange.InstrumentClient{"okx": client}, Config{
+		FetchRetries: 2,
+		RetryDelay:   time.Nanosecond,
+	})
+	runner.now = func() time.Time { return now }
+
+	results := runner.RunOnce(context.Background())
+
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+	if client.calls != 2 {
+		t.Fatalf("instrument fetch calls = %d, want 2", client.calls)
+	}
+	if len(repository.calls) != 1 {
+		t.Fatalf("replace calls = %d, want 1", len(repository.calls))
+	}
+	call := repository.calls[0]
+	if call.exchange != "okx" || !call.syncedAt.Equal(now) || len(call.instruments) != 1 {
+		t.Fatalf("unexpected replace call: %#v", call)
+	}
+}
+
+func TestRunnerRunOnceDoesNotRetryPermanentInstrumentFailure(t *testing.T) {
+	repository := &fakeRepository{}
+	client := &scriptedInstrumentClient{errs: []error{errors.New("bad request")}}
+	runner := NewRunner(repository, map[string]exchange.InstrumentClient{"binance": client}, Config{
+		FetchRetries: 3,
+		RetryDelay:   time.Nanosecond,
+	})
+
+	results := runner.RunOnce(context.Background())
+
+	if len(results) != 1 || results[0].Err == nil {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+	if client.calls != 1 {
+		t.Fatalf("instrument fetch calls = %d, want 1", client.calls)
+	}
+	if len(repository.calls) != 0 {
+		t.Fatalf("replace calls = %d, want 0", len(repository.calls))
+	}
+}
+
 func TestRunnerRunSyncsOnStartAndInterval(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -95,6 +148,22 @@ type fakeInstrumentClient struct {
 func (client fakeInstrumentClient) FetchInstruments(context.Context) ([]data.MarketInstrument, error) {
 	if client.err != nil {
 		return nil, client.err
+	}
+	return append([]data.MarketInstrument(nil), client.instruments...), nil
+}
+
+type scriptedInstrumentClient struct {
+	errs        []error
+	instruments []data.MarketInstrument
+	calls       int
+}
+
+func (client *scriptedInstrumentClient) FetchInstruments(context.Context) ([]data.MarketInstrument, error) {
+	client.calls++
+	if len(client.errs) > 0 {
+		err := client.errs[0]
+		client.errs = client.errs[1:]
+		return nil, err
 	}
 	return append([]data.MarketInstrument(nil), client.instruments...), nil
 }
