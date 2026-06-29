@@ -6949,11 +6949,12 @@ Definition of Done：
 
 - `scripts/full-quality-gate.sh` 本地通过，覆盖 `go test ./...`、`go vet ./...`、前端 typecheck、前端 test、前端 build 和 `scripts/quality-gate.sh`。
 - 首次远程 run `28385821859` 失败，原因是 GitHub runner 缺少 `rg`，导致 `check-trading-floats.sh`、`check-strategy-boundary.sh` 和 scaffold marker 检查无法运行；已在 workflow 中安装 `ripgrep`。
+- 修正后远程 run `28386293502` 通过：`Quality Gate / Full local quality gate`，耗时约 1m30s。
 - `git diff --check` 通过。
 
 剩余风险：
 
-- 本地无法证明 GitHub 托管 runner 实际执行结果；需以远程 Actions 首次运行结果作为最终证据。
+- GitHub Actions 日志有 Node 20 deprecation annotation，原因是 `actions/checkout@v4`、`actions/setup-go@v5`、`actions/setup-node@v4` 被 runner 强制以 Node 24 执行；当前不阻断门禁，但后续需要关注 actions 主版本升级。
 - CI 默认仍不跑 `FULL_QUALITY_STAGE8=1` / `FULL_QUALITY_SIGTERM=1` 重型 Docker smoke；Stage 8 和 worker shutdown 相关变更仍需显式运行。
 - 仍缺像素快照基线和多浏览器视觉回归。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
