@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 96);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 72);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -103,6 +103,14 @@ async function runViewport(endpoint, viewport) {
       throw new Error(`login failed for ${viewport.label}: HTTP ${login.status} ${login.body}`);
     }
 
+    await evaluate(
+      cdp,
+      `(() => {
+        localStorage.setItem('tictick-hi.theme', 'light');
+        document.documentElement.dataset.theme = 'light';
+        return true;
+      })()`,
+    );
     await cdp.send("Page.navigate", { url: `${baseUrl}/research` });
     await waitFor(cdp, "!!document.querySelector('.research-chart-body')", 15000);
     await waitFor(cdp, "!!document.querySelector('.tv-lightweight-charts')", 15000);
@@ -330,7 +338,7 @@ function sampleExpression() {
       });
       const canvases = canvasEntries.map((entry) => entry.metrics);
       const rightAxisCanvas = canvases
-        .filter((canvas) => canvas.rectWidth >= 56 && canvas.rectWidth <= 180)
+        .filter((canvas) => canvas.rectWidth >= 40 && canvas.rectWidth <= 180)
         .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
         .sort((left, right) => right.right - left.right)[0] ?? null;
       const mainPaneCanvases = canvases
@@ -524,6 +532,16 @@ function assertChartLayout(label, sample) {
   }
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
+  }
+  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 520 : sample.viewportWidth <= 980 ? 620 : 680;
+  if (tv.rectHeight < expectedMinimumPlotHeight - heightTolerance) {
+    throw new Error(
+      `${label} chart plot is too short for the viewport: ${JSON.stringify({
+        expectedMinimumPlotHeight,
+        body,
+        tv,
+      })}`,
+    );
   }
   if (tv.left < body.left - 1 || tv.top < body.top - 1) {
     throw new Error(

@@ -30,7 +30,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(tasksStyle).not.toContain("overflow: hidden;");
     expect(panelStyle).toContain("display: flex;");
     expect(panelStyle).toContain("flex-direction: column;");
-    expect(panelStyle).toContain("--research-chart-viewport-height:");
+    expect(panelStyle).toContain("--research-chart-plot-height:");
+    expect(panelStyle).toContain("--research-chart-body-height:");
     expect(panelStyle).toContain("width: 100%;");
     expect(panelStyle).toContain("max-width: 100%;");
     expect(panelStyle).toContain("min-width: 0;");
@@ -40,19 +41,19 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("contain: size");
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
-    expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
-    expect(bodyStyle).toContain("height: var(--research-chart-viewport-height) !important;");
-    expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height) !important;");
-    expect(bodyStyle).toContain("block-size: var(--research-chart-viewport-height) !important;");
-    expect(bodyStyle).toContain("max-block-size: var(--research-chart-viewport-height) !important;");
+    expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-body-height);");
+    expect(bodyStyle).toContain("height: var(--research-chart-body-height) !important;");
+    expect(bodyStyle).toContain("max-height: var(--research-chart-body-height) !important;");
+    expect(bodyStyle).toContain("block-size: var(--research-chart-body-height) !important;");
+    expect(bodyStyle).toContain("max-block-size: var(--research-chart-body-height) !important;");
     expect(bodyStyle).toContain("padding: var(--research-chart-padding-top) var(--research-chart-padding-x) var(--research-chart-padding-bottom);");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
     expect(bodyStyle).toContain("overflow: hidden;");
     expect(bodyStyle).toContain("contain: layout paint;");
-    expect(viewportStyle).toContain("height: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;");
-    expect(viewportStyle).toContain("max-height: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;");
-    expect(viewportStyle).toContain("block-size: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;");
-    expect(viewportStyle).toContain("max-block-size: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;");
+    expect(viewportStyle).toContain("height: var(--research-chart-plot-height) !important;");
+    expect(viewportStyle).toContain("max-height: var(--research-chart-plot-height) !important;");
+    expect(viewportStyle).toContain("block-size: var(--research-chart-plot-height) !important;");
+    expect(viewportStyle).toContain("max-block-size: var(--research-chart-plot-height) !important;");
     expect(viewportStyle).toContain("overflow: hidden;");
     expect(pageStyles).toContain("height: 100% !important;");
     expect(pageStyles).toContain("max-height: 100% !important;");
@@ -60,10 +61,11 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("max-block-size: 100% !important;");
     expect(pageStyles).toContain("width: 100% !important;");
     expect(toolbarStyle).toContain("display: grid;");
-    expect(toolbarStyle).toContain("padding: 10px 14px 9px;");
+    expect(toolbarStyle).toContain("padding: 9px 14px;");
     expect(controlsStyle).toContain("display: flex;");
     expect(controlsStyle).toContain("flex-wrap: wrap;");
     expect(controlsStyle).toContain("width: 100%;");
+    expect(statusStyle).toContain("justify-content: space-between;");
     expect(statusStyle).toContain("flex-wrap: wrap;");
     expect(pageStyles).toContain(".research-toolbar-main");
     expect(pageStyles).toContain(".research-current-source");
@@ -90,11 +92,12 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(680px, 74vh, 900px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(680px, 74dvh, 900px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(620px, 66vh, 760px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(620px, 66dvh, 760px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(680px, 75vh, 900px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(680px, 75dvh, 900px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, 68vh, 760px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, 68dvh, 760px);");
     expect(pageStyles).toContain("flex-basis: min(240px, 32vw);");
+    expect(pageStyles).toContain("width: clamp(180px, 15vw, 240px);");
     expect(pageStyles).toContain("flex-basis: 100%;");
     expect(pageStyles).toContain("width: 100%;");
   });

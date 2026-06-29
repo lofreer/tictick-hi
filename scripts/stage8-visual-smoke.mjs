@@ -12,6 +12,8 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 260);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 72);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -231,9 +233,13 @@ function visualSampleExpression(pageConfig) {
       page: read('.page'),
       title: read('.page-title'),
       required: read(${JSON.stringify(pageConfig.selector)}),
+      toolbarControls: read('.research-source-controls'),
+      toolbarSymbol: read('.research-symbol-input'),
       chartBody: read('.research-chart-body'),
+      chartViewport: read(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport'),
       chart: read('.trading-chart'),
       tv: read('.tv-lightweight-charts'),
+      priceAxisCanvas: rightPriceAxisCanvas(),
       detail: detailSelectors ? {
         chartPanel: read(detailSelectors.chartPanel),
         chartViewport: read(detailSelectors.chartViewport),
@@ -242,6 +248,38 @@ function visualSampleExpression(pageConfig) {
         tabs: read(detailSelectors.tabs)
       } : null
     };
+
+    function rightPriceAxisCanvas() {
+      const chartViewport = document.querySelector(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport');
+      const viewportRect = chartViewport?.getBoundingClientRect();
+      const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
+        .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
+        .filter((entry) => entry.rect.width >= 40 && entry.rect.width <= 180)
+        .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 96))
+        .sort((left, right) => right.rect.right - left.rect.right);
+      const canvas = canvases[0]?.node;
+      return canvas ? readCanvas(canvas, canvases[0].index) : null;
+    }
+
+    function readCanvas(canvas, index) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        selector: '.trading-chart__canvas canvas',
+        index,
+        clientWidth: canvas.clientWidth,
+        clientHeight: canvas.clientHeight,
+        scrollWidth: canvas.scrollWidth,
+        scrollHeight: canvas.scrollHeight,
+        rectWidth: Math.round(rect.width),
+        rectHeight: Math.round(rect.height),
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        top: Math.round(rect.top),
+        bottom: Math.round(rect.bottom),
+        display: getComputedStyle(canvas).display,
+        visibility: getComputedStyle(canvas).visibility
+      };
+    }
   })()`;
 }
 
@@ -279,7 +317,7 @@ function assertPageLayout(viewport, theme, page, sample) {
       throw new Error(`${label} ${name} escaped viewport: ${JSON.stringify(node)}`);
     }
   }
-  if (page.chart) assertChartSmoke(label, sample, viewport.metrics.height);
+  if (page.chart) assertResearchChartSmoke(label, sample, viewport.metrics);
   if (page.detailLayout) assertDetailLayoutSmoke(label, sample, viewport.metrics);
 }
 
@@ -293,22 +331,69 @@ function assertVisibleNode(label, name, node) {
   }
 }
 
-function assertChartSmoke(label, sample, viewportHeight) {
+function assertResearchChartSmoke(label, sample, viewport) {
+  assertVisibleNode(label, "toolbarControls", sample.toolbarControls);
+  assertVisibleNode(label, "toolbarSymbol", sample.toolbarSymbol);
+  if (viewport.width > 760 && sample.toolbarSymbol.rectWidth > maxToolbarSymbolWidth) {
+    throw new Error(
+      `${label} symbol input is too wide for a compact chart toolbar: ${JSON.stringify({
+        maxToolbarSymbolWidth,
+        symbol: sample.toolbarSymbol,
+        controls: sample.toolbarControls,
+      })}`,
+    );
+  }
+  assertChartViewportSmoke(label, sample, viewport, 680);
+}
+
+function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight) {
   for (const [name, node] of [
+    ["chartViewport", sample.chartViewport],
     ["chartBody", sample.chartBody],
     ["chart", sample.chart],
     ["tv", sample.tv],
   ]) {
+    if (name === "chartBody" && !node) continue;
     assertVisibleNode(label, name, node);
-    if (node.rectHeight > viewportHeight + widthTolerance) {
+    if (node.rectHeight > viewport.height + widthTolerance) {
       throw new Error(`${label} ${name} exceeded viewport height: ${JSON.stringify(node)}`);
     }
   }
-  if (sample.chart.rectHeight - sample.chartBody.rectHeight > widthTolerance) {
+  const minimumHeight = viewport.width <= 760 ? 520 : viewport.width <= 980 ? 620 : desktopMinimumHeight;
+  if (sample.chartViewport.rectHeight < minimumHeight - widthTolerance) {
     throw new Error(
-      `${label} chart height escaped fixed body: ${JSON.stringify({
-        body: sample.chartBody,
+      `${label} chart viewport is too short: ${JSON.stringify({
+        minimumHeight,
+        viewport,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+  if (sample.chart.rectHeight - sample.chartViewport.rectHeight > widthTolerance) {
+    throw new Error(
+      `${label} chart height escaped fixed viewport: ${JSON.stringify({
+        viewport: sample.chartViewport,
         chart: sample.chart,
+      })}`,
+    );
+  }
+  if (!sample.priceAxisCanvas) {
+    throw new Error(`${label} missing right price-axis canvas: ${JSON.stringify(sample)}`);
+  }
+  if (sample.priceAxisCanvas.rectWidth > maxRightPriceAxisWidth) {
+    throw new Error(
+      `${label} right price-axis is too wide: ${JSON.stringify({
+        maxRightPriceAxisWidth,
+        priceAxis: sample.priceAxisCanvas,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+  if (sample.tv.right > sample.chartViewport.right + widthTolerance || sample.chartViewport.right - sample.tv.right > widthTolerance) {
+    throw new Error(
+      `${label} chart renderer does not fill the fixed viewport width: ${JSON.stringify({
+        chartViewport: sample.chartViewport,
+        tv: sample.tv,
       })}`,
     );
   }
@@ -336,6 +421,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
   if (sample.detail.chartPanel.rectHeight > viewport.height + widthTolerance) {
     throw new Error(`${label} detail chart exceeded viewport height: ${JSON.stringify(sample.detail.chartPanel)}`);
   }
+  assertChartViewportSmoke(label, sample, viewport, 620);
   if (sample.detail.lowerGrid.top <= sample.detail.chartPanel.bottom) {
     throw new Error(
       `${label} detail lower grid must sit below chart: ${JSON.stringify({
