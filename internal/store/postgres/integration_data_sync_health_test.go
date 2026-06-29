@@ -497,9 +497,13 @@ func TestIntegrationRepairDataSyncTaskGapCreatesSyncTask(t *testing.T) {
 		cleanupCtx, cleanupCancel := testContext(t)
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
 	})
 
-	insertDataHealthTask(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, ptrTime(start.Add(10*time.Minute)), nil, "")
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, nil, ptrTime(start.Add(10*time.Minute)), nil, "")
+	for _, minute := range []int{0, 1, 5, 10} {
+		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
+	}
 	request := data.RepairDataSyncTaskGapRequest{
 		From: start.Add(2 * time.Minute),
 		To:   start.Add(5 * time.Minute),
@@ -522,6 +526,26 @@ func TestIntegrationRepairDataSyncTaskGapCreatesSyncTask(t *testing.T) {
 	}
 	if len(duplicateResult.CreatedTasks) != 0 || duplicateResult.SkippedExisting != 1 {
 		t.Fatalf("duplicate single repair result = %#v, want skipped existing", duplicateResult)
+	}
+
+	notGap := data.RepairDataSyncTaskGapRequest{From: start.Add(3 * time.Minute), To: start.Add(4 * time.Minute)}
+	if _, err := store.RepairDataSyncTaskGap(ctx, taskID, notGap); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("non-gap repair err = %v, want ErrNotFound", err)
+	}
+	var nonGapTasks int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		  FROM data_sync_tasks
+		 WHERE symbol = $1
+		   AND repair_source_task_id = $2
+		   AND start_time = $3
+		   AND end_time = $4`,
+		symbol, taskID, notGap.From, notGap.To,
+	).Scan(&nonGapTasks); err != nil {
+		t.Fatal(err)
+	}
+	if nonGapTasks != 0 {
+		t.Fatalf("non-gap repair task count = %d, want 0", nonGapTasks)
 	}
 }
 

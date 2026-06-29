@@ -5394,6 +5394,41 @@ Definition of Done：
 - 表格仍是横向滚动型工作区，不是最终生产级密度/列管理方案。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 数据同步任务单缺口修复真实性校验补充
+
+目标等级：scaffold
+
+触发问题：
+
+- `POST /api/data/tasks/{id}/repair-gap` 原先只校验 `from/to` 格式和顺序，store 层会直接用前端传入窗口创建补同步任务。
+- 这允许前端或调用方绕过后端缺口检测，为任意时间窗口排补同步任务，和“缺口修复必须走同一套同步任务逻辑、不能手工拼接补同步语义”的 Stage 1 要求不一致。
+
+修复范围：
+
+- `RepairDataSyncTaskGap` 在事务内锁定源任务后，使用和 `ListDataSyncTaskGaps` 相同的任务窗口 gap CTE 校验请求窗口。
+- 只有 `gap_from/gap_to` 与后端当前检测出的真实缺口精确匹配时，才继续跳过重复任务或创建带 `repairSourceTaskId` 的补同步任务。
+- 非真实缺口返回 `data.ErrNotFound`，API 层映射为 `404 not_found`，不会写入 `data_sync_tasks`。
+- API fake repository 按 `taskGapDetails` / `GapSummary.FirstGap` 校验单缺口修复，避免路由测试继续接受伪造窗口。
+
+验证：
+
+- `go test ./internal/web/api -run TestDataSyncTaskRoutes -count=1` 通过。
+- 本机 `go test ./internal/store/postgres -run TestIntegrationRepairDataSyncTaskGapCreatesSyncTask -count=1 -v` 因未设置 `TICTICK_TEST_DATABASE_URL` 跳过。
+- Docker Compose PostgreSQL 集成测试通过：`docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@postgres:5432/tictick_hi?sslmode=disable' golang:1.26-bookworm go test ./internal/store/postgres -run TestIntegrationRepairDataSyncTaskGapCreatesSyncTask -count=1 -v`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，22 个前端测试文件、118 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮只关闭单缺口修复的“任意窗口可创建”问题，不自动批量补齐全历史缺口。
+- 真实交易所补数成功率、分布式限流、完整 data sync 状态机和缺口修复后的自动健康收敛仍未证明。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

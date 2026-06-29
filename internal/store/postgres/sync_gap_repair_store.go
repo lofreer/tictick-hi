@@ -110,7 +110,17 @@ func (store *Store) RepairDataSyncTaskGap(
 		return data.DataSyncGapRepairResult{}, err
 	}
 
+	request.From = request.From.UTC()
+	request.To = request.To.UTC()
 	window := dataSyncGapRepairWindow{from: request.From, to: request.To}
+	ok, err := dataSyncRepairWindowExists(ctx, tx, source.ID, window)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	if !ok {
+		return data.DataSyncGapRepairResult{}, data.ErrNotFound
+	}
+
 	result := data.DataSyncGapRepairResult{
 		SourceTaskID: source.ID,
 		CreatedTasks: []data.DataSyncTask{},
@@ -208,6 +218,31 @@ func listDataSyncRepairWindows(
 
 	limited := totalCount > maxDataSyncGapRepairTasks
 	return windows, totalCount, limited, nil
+}
+
+func dataSyncRepairWindowExists(
+	ctx context.Context,
+	queryer dataSyncGapQueryer,
+	id string,
+	window dataSyncGapRepairWindow,
+) (bool, error) {
+	var exists bool
+	if err := queryer.QueryRow(ctx, fmt.Sprintf(`
+		WITH %s
+		SELECT EXISTS (
+			SELECT 1
+			  FROM gaps
+			 WHERE gap_from = $2
+			   AND gap_to = $3
+		)`,
+		dataSyncTaskWindowGapCTESQL(`
+			SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time
+			  FROM data_sync_tasks AS t
+			 WHERE t.id = $1`),
+	), id, window.from, window.to).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check data sync repair window: %w", err)
+	}
+	return exists, nil
 }
 
 func dataSyncRepairWindowsToGaps(windows []dataSyncGapRepairWindow) []data.CandleGap {

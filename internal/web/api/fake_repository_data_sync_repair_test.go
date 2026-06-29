@@ -24,6 +24,9 @@ func (repository *fakeRepository) RepairDataSyncTaskGap(
 			RepairLimit:  1,
 		}
 		gap := data.CandleGap{From: request.From, To: request.To}
+		if !repository.fakeRepairableTaskGap(id, gap) {
+			return data.DataSyncGapRepairResult{}, data.ErrNotFound
+		}
 		if repository.fakeRepairTaskExists(repository.tasks[index], gap) {
 			result.SkippedExisting = 1
 			return result, nil
@@ -49,4 +52,22 @@ func (repository *fakeRepository) RepairDataSyncTaskGap(
 		return result, nil
 	}
 	return data.DataSyncGapRepairResult{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) fakeRepairableTaskGap(id string, gap data.CandleGap) bool {
+	if detail, ok := repository.taskGapDetails[id]; ok {
+		for _, candidate := range detail.Gaps {
+			if candidate.From.Equal(gap.From) && candidate.To.Equal(gap.To) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, task := range repository.tasks {
+		if task.ID != id || task.GapSummary == nil || task.GapSummary.FirstGap == nil || task.GapSummary.Count <= 0 {
+			continue
+		}
+		return task.GapSummary.FirstGap.From.Equal(gap.From) && task.GapSummary.FirstGap.To.Equal(gap.To)
+	}
+	return false
 }

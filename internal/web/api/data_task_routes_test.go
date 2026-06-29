@@ -225,6 +225,23 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		t.Fatalf("unexpected duplicate single repair result: %#v", duplicateOneResult)
 	}
 
+	nonGapFrom := gapFrom.Add(30 * time.Minute)
+	nonGapTo := gapFrom.Add(31 * time.Minute)
+	nonGapRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-gap",
+		`{"from":"`+nonGapFrom.Format(time.RFC3339)+`","to":"`+nonGapTo.Format(time.RFC3339)+`"}`,
+	)
+	if nonGapRecorder.Code != http.StatusNotFound {
+		t.Fatalf("non-gap repair one status = %d body = %s", nonGapRecorder.Code, nonGapRecorder.Body.String())
+	}
+	nonGapResponse := decodeAPIError(t, nonGapRecorder)
+	if nonGapResponse.Code != "not_found" {
+		t.Fatalf("unexpected non-gap repair response: %#v", nonGapResponse)
+	}
+
 	invalidOneRecorder := serveAuthenticated(
 		server,
 		cookie,
