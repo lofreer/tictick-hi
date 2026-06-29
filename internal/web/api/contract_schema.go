@@ -115,6 +115,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"CandleSource", data.CandleSource("")},
 		{"CandleHealth", data.CandleHealth("")},
 		{"CandleGap", data.CandleGap{}},
+		{"CandleIssue", data.CandleIssue{}},
 		{"CandleCoverage", data.CandleCoverage{}},
 		{"CandleWindow", data.CandleWindow{}},
 		{"CandlePagination", data.CandlePagination{}},
@@ -325,6 +326,7 @@ func enumSchema(t reflect.Type) map[string]any {
 			string(data.CandleHealthOK),
 			string(data.CandleHealthGap),
 			string(data.CandleHealthInsufficient),
+			string(data.CandleHealthInvalid),
 		}}
 	default:
 		return nil

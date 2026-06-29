@@ -89,6 +89,9 @@
               <NTag v-if="candleResult" :bordered="false" size="small" :type="healthTagType">
                 {{ t("research.dataHealth") }}: {{ healthLabel }}
               </NTag>
+              <NTag v-if="firstCandleIssue" :bordered="false" size="small" type="error" :title="firstCandleIssue.message">
+                {{ candleIssueLabel }}
+              </NTag>
               <NTag v-if="candleResult" :bordered="false" size="small">
                 {{ t("research.baseInterval") }}: {{ baseIntervalText }}
               </NTag>
@@ -261,7 +264,7 @@ import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
-import type { CandleGap, MarketInstrumentSyncStatus } from "@/types/app";
+import type { CandleGap, CandleIssue, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
 
 const { t } = useI18n();
@@ -330,6 +333,12 @@ const gapDetailColumns = computed<DataTableColumns<CandleGap>>(() => [{ title: t
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));
+const firstCandleIssue = computed<CandleIssue | null>(() => candleResult.value?.issues[0] ?? null);
+const candleIssueLabel = computed(() =>
+  t("research.candleIssue", {
+    time: firstCandleIssue.value?.openTime ? formatWindowTime(firstCandleIssue.value.openTime) : "-",
+  }),
+);
 const baseIntervalText = computed(() => candleResult.value?.baseInterval ?? "-");
 const gapCountLabel = computed(() => t("research.gapCount", { count: candleResult.value?.gaps.length ?? 0 }));
 const coverageLimited = computed(() => candleResult.value?.coverage.limitedByBaseWindow ?? false);
@@ -352,6 +361,7 @@ const sourceTagType = computed<TagProps["type"]>(() => {
 const healthTagType = computed<TagProps["type"]>(() => {
   if (candleResult.value?.health === "ok") return "success";
   if (candleResult.value?.health === "gap") return "warning";
+  if (candleResult.value?.health === "invalid") return "error";
   return "default";
 });
 

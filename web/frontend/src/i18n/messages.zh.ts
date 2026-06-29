@@ -257,6 +257,8 @@ export const zhCNMessages: Record<string, string> = {
     "research.dataHealth.paused": "已暂停",
     "research.dataHealth.retrying": "重试中",
     "research.dataHealth.insufficient": "数据不足",
+    "research.dataHealth.invalid": "数据异常",
+    "research.candleIssue": "异常 K 线：{time}",
     "research.baseInterval": "基础周期",
     "research.gapCount": "缺口 {count} 处",
     "research.chartGapMarker": "缺 {missing} 根",

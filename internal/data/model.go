@@ -342,12 +342,19 @@ const (
 	CandleHealthOK           CandleHealth = "ok"
 	CandleHealthGap          CandleHealth = "gap"
 	CandleHealthInsufficient CandleHealth = "insufficient"
+	CandleHealthInvalid      CandleHealth = "invalid"
 )
 
 type CandleGap struct {
 	From           time.Time `json:"from"`
 	To             time.Time `json:"to"`
 	MissingCandles int       `json:"missingCandles"`
+}
+
+type CandleIssue struct {
+	Code     string     `json:"code"`
+	Message  string     `json:"message"`
+	OpenTime *time.Time `json:"openTime,omitempty"`
 }
 
 type CandleCoverage struct {
@@ -383,6 +390,7 @@ type CandleResult struct {
 	BaseInterval      string           `json:"baseInterval,omitempty"`
 	Health            CandleHealth     `json:"health"`
 	Gaps              []CandleGap      `json:"gaps,omitempty"`
+	Issues            []CandleIssue    `json:"issues,omitempty"`
 	Coverage          CandleCoverage   `json:"coverage"`
 	Window            CandleWindow     `json:"window"`
 	Pagination        CandlePagination `json:"pagination"`

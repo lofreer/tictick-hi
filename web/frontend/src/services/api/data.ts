@@ -187,9 +187,10 @@ function normalizeCandleResult(response: CandleResultResponse, requestedInterval
     source: response.source ?? "none",
     requestedInterval: response.requestedInterval ?? requestedInterval,
     baseInterval: response.baseInterval,
-    health: response.health ?? (candles.length > 0 ? "ok" : "insufficient"),
-    gaps: response.gaps ?? [],
-    coverage: response.coverage ?? {
+	    health: response.health ?? (candles.length > 0 ? "ok" : "insufficient"),
+	    gaps: response.gaps ?? [],
+	    issues: response.issues ?? [],
+	    coverage: response.coverage ?? {
       requestedLimit: 1000,
       returnedCandles: candles.length,
       limitedByBaseWindow: false,

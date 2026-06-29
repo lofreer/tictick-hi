@@ -29,6 +29,13 @@ func TestValidateStrategyCandleResult(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid",
+			result: CandleResult{
+				Health: CandleHealthInvalid,
+			},
+			wantErr: true,
+		},
+		{
 			name: "limited coverage",
 			result: CandleResult{
 				Health: CandleHealthOK,

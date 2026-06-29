@@ -51,6 +51,8 @@ done            用户确认关闭
 
 注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和完整交易所业务状态处置语义。
 
+补充：阶段 1 已新增 CandleProvider `invalid` 健康状态和 CandleResult `issues` 摘要，用于把历史异常 K 线从 API 500 收敛为研究页可观察的数据健康状态；任务列表窗口级 invalid 统计、历史行清洗和自动修复仍未关闭。
+
 ## 3. 必须先修的问题
 
 ### 阶段 0 Definition of Done：质量底座
@@ -6135,6 +6137,58 @@ Definition of Done：
 - `0030` 使用 `NOT VALID`，只保证新写入/更新被约束，不证明历史 `market_candles` 已全量清洗。
 - 本轮不实现自动隔离已存在零价格 K 线、重算缺口、图表异常标记或补同步修复策略。
 - 数据同步 worker、CandleProvider 和研究页仍不能升级到 usable；项目整体仍是 `scaffold`。
+
+### 阶段 1 历史异常 K 线可观察补充
+
+目标等级：scaffold
+
+触发问题：
+
+- `0030_market_candle_positive_prices.sql` 使用 `NOT VALID`，可以保护新写入，但历史 `market_candles` 里如果已存在零价格或其它异常 K 线，不会被迁移自动扫描出来。
+- 上一轮收紧共享校验后，CandleProvider 读取到这类历史异常行会返回 Go error，`/api/candles` 可能变成 500；这对研究页用户不可观察，也容易被误判为系统故障而不是数据质量问题。
+- 策略入口已经拒绝非 `ok` 健康状态，因此历史异常 K 线应进入统一健康状态，而不是绕过健康语义。
+
+Definition of Done：
+
+- CandleProvider 遇到 native 或 aggregation base 历史异常 K 线时返回 `health=invalid`，不把该问题冒泡为 API 500。
+- CandleResult 返回 `issues` 摘要，至少包含问题 code、message，并在能定位时包含异常 K 线 `openTime`。
+- `/api/candles` 对历史异常 K 线返回 HTTP 200 和 `health=invalid`。
+- 研究页显示 `invalid` 数据健康标签和首个异常摘要；前端 API generated types、app types 和 i18n 同步更新。
+- 策略侧 `ValidateStrategyCandleResult` 继续拒绝 `invalid`。
+- 不清洗历史数据，不自动补同步，不改变新写入正价格约束，不扩大到任务列表窗口级 invalid 统计。
+
+修复范围：
+
+- `internal/data/model.go` 新增 `CandleHealthInvalid` 和 `CandleIssue`，并将 `issues` 加入 `CandleResult`。
+- `internal/data/candle_provider.go` 将 native / aggregation base 校验失败转换为 invalid CandleResult。
+- `internal/data/candle_provider_test.go` 覆盖 duplicate、零价格和聚合基础 K 线异常的 invalid 返回。
+- `internal/data/candle_result_test.go` 覆盖策略入口拒绝 `invalid`。
+- `internal/web/api/candles_test.go` 覆盖 `/api/candles` 历史异常数据返回 200 + `health=invalid`。
+- `internal/store/postgres/candle_invalid_integration_test.go` 通过临时模拟 legacy 行验证真实 PostgreSQL 下 `NOT VALID` 约束后的历史异常行可被 CandleProvider 标为 invalid。
+- `internal/web/api/contract_schema.go`、`web/frontend/src/types/api.generated.ts`、`web/frontend/src/types/app.ts`、`web/frontend/src/services/api/data.ts`、`web/frontend/src/pages/ResearchPage.vue` 和 i18n 文案同步前端可观察状态。
+
+验证：
+
+- `go test ./internal/data -run 'TestCandleProviderReportsInvalid|TestValidateStrategyCandleResult' -count=1` 通过。
+- `go test ./internal/web/api -run 'TestCandlesRouteReturnsInvalidHealthForHistoricalBadCandles|TestFrontendAPI(ResponseTypesMatchContractFields|AdapterResponseFieldsExistInContract|GeneratedTypesAreCurrent)' -count=1` 通过。
+- 本机 `go test ./internal/store/postgres -run TestIntegrationCandleProviderReportsLegacyInvalidCandle -count=1 -v` 因未设置 `TICTICK_TEST_DATABASE_URL` 跳过，编译通过。
+- Docker Compose PostgreSQL 集成测试通过：`docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@postgres:5432/tictick_hi?sslmode=disable' golang:1.26-bookworm go test ./internal/store/postgres -run TestIntegrationCandleProviderReportsLegacyInvalidCandle -count=1 -v`。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test -- src/pages/ResearchPage.layout.test.ts` 通过，实际执行 24 个测试文件、122 条测试通过。
+- `go test ./internal/web/api -run 'TestFrontendAPI' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过，24 个测试文件、122 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- 本地 PostgreSQL `market_candles_positive_price_values_check` 约束仍存在且 `convalidated=false`。
+
+剩余风险：
+
+- 任务列表 `dataHealth` 仍未统计窗口内 invalid 历史 K 线；用户需要进入图表请求窗口才能看到 `health=invalid`。
+- 本轮不清洗已有异常行，不自动排补同步任务，也不把 invalid 行纳入全历史缺口扫描。
+- 项目整体仍是 `scaffold`，CandleProvider 和研究页仍不能升级为 usable。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

@@ -257,6 +257,8 @@ export const enUSMessages: Record<string, string> = {
     "research.dataHealth.paused": "Paused",
     "research.dataHealth.retrying": "Retrying",
     "research.dataHealth.insufficient": "Insufficient",
+    "research.dataHealth.invalid": "Invalid",
+    "research.candleIssue": "Invalid candle near {time}",
     "research.baseInterval": "Base interval",
     "research.gapCount": "{count} gaps",
     "research.chartGapMarker": "Gap {missing}",

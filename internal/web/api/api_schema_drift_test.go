@@ -58,6 +58,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 		{"MarketCandleGapScan", "MarketCandleGapScan"},
 		{"MarketInstrumentSyncStatus", "MarketInstrumentSyncStatus"},
 		{"CandleGap", "CandleGap"},
+		{"CandleIssue", "CandleIssue"},
 		{"CandleCoverage", "CandleCoverage"},
 		{"CandleResult", "CandleResult"},
 		{"BacktestTask", "BacktestTask"},

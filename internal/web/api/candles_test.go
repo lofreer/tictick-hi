@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +45,41 @@ func TestCandlesRouteReturnsMetadata(t *testing.T) {
 	}
 	if len(result.Candles) != 1 || result.Candles[0].Open != "100.1" {
 		t.Fatalf("unexpected candles: %#v", result.Candles)
+	}
+}
+
+func TestCandlesRouteReturnsInvalidHealthForHistoricalBadCandles(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	repository.candles = append(repository.candles, data.Candle{
+		Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+		OpenTime: now, CloseTime: now.Add(time.Minute),
+		Open: "0", High: "1", Low: "0", Close: "0.5", Volume: "0",
+		IsClosed: true,
+	})
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/candles?exchange=binance&symbol=BTCUSDT&interval=1m",
+		"",
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var result data.CandleResult
+	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != data.CandleSourceNative || result.Health != data.CandleHealthInvalid {
+		t.Fatalf("unexpected invalid metadata: %#v", result)
+	}
+	if len(result.Candles) != 0 || len(result.Issues) != 1 ||
+		result.Issues[0].OpenTime == nil ||
+		!strings.Contains(result.Issues[0].Message, "price value must be positive") {
+		t.Fatalf("unexpected invalid candle payload: %#v", result)
 	}
 }
 

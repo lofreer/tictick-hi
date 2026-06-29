@@ -5,6 +5,7 @@ import type {
   CandleCoverage as APICandleCoverage,
   CandleGap as APICandleGap,
   CandleHealth as APICandleHealth,
+  CandleIssue as APICandleIssue,
   CandlePagination as APICandlePagination,
   CandleWindow as APICandleWindow,
   CandleSource as APICandleSource,
@@ -85,6 +86,8 @@ export type CandleHealth = APICandleHealth;
 
 export type CandleGap = APICandleGap;
 
+export type CandleIssue = APICandleIssue;
+
 export type CandleCoverage = APICandleCoverage;
 
 export type CandlePagination = APICandlePagination;
@@ -98,6 +101,7 @@ export type CandleResult = {
   baseInterval?: string;
   health: CandleHealth;
   gaps: CandleGap[];
+  issues: CandleIssue[];
   coverage: CandleCoverage;
   window: CandleWindow;
   pagination: CandlePagination;

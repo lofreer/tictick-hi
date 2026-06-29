@@ -21,7 +21,7 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 		return CandleResult{}, err
 	}
 	if err := validateCandleSeries(nativeCandles, query.Interval); err != nil {
-		return CandleResult{}, err
+		return invalidCandleResult(query, CandleSourceNative, query.Interval, nativeCandles, query.Interval, "invalid_native_series", err), nil
 	}
 
 	nativeGaps, err := DetectCandleGapsInRange(nativeCandles, query.Interval, query.From, query.To)
@@ -41,7 +41,12 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 		return CandleResult{}, err
 	}
 	if err := validateCandleSeries(baseCandles, baseCandleInterval); err != nil {
-		return CandleResult{}, err
+		result := invalidCandleResult(query, CandleSourceAggregated, baseCandleInterval, baseCandles, baseCandleInterval, "invalid_aggregation_base_series", err)
+		result.Coverage.RequiredBaseCandles = baseWindow.Required
+		result.Coverage.BaseLimit = baseWindow.Limit
+		result.Coverage.ReturnedBaseCandles = len(baseCandles)
+		result.Coverage.LimitedByBaseWindow = baseWindow.Limited && len(baseCandles) >= baseWindow.Limit
+		return result, nil
 	}
 
 	baseGaps, err := DetectCandleGapsInRange(baseCandles, baseCandleInterval, baseQuery.From, baseQuery.To)
@@ -192,6 +197,52 @@ func candleHealth(candles []Candle, gaps []CandleGap) CandleHealth {
 		return CandleHealthInsufficient
 	}
 	return CandleHealthOK
+}
+
+func invalidCandleResult(
+	query CandleQuery,
+	source CandleSource,
+	baseInterval string,
+	candles []Candle,
+	validationInterval string,
+	code string,
+	err error,
+) CandleResult {
+	result := CandleResult{
+		Source:            source,
+		RequestedInterval: query.Interval,
+		BaseInterval:      baseInterval,
+		Health:            CandleHealthInvalid,
+		Issues:            []CandleIssue{firstCandleIssue(candles, validationInterval, code, err)},
+		Coverage: CandleCoverage{
+			RequestedLimit: NormalizeCandleLimit(query.Limit),
+		},
+	}
+	if source == CandleSourceNone {
+		result.BaseInterval = ""
+	}
+	return result
+}
+
+func firstCandleIssue(candles []Candle, interval string, code string, err error) CandleIssue {
+	issue := CandleIssue{Code: code, Message: err.Error()}
+	for _, candle := range candles {
+		if valueErr := validateCandleValues(candle); valueErr != nil {
+			openTime := candle.OpenTime.UTC()
+			issue.Message = valueErr.Error()
+			issue.OpenTime = &openTime
+			return issue
+		}
+	}
+	for _, candle := range candles {
+		if singleErr := validateCandleSeries([]Candle{candle}, interval); singleErr != nil {
+			openTime := candle.OpenTime.UTC()
+			issue.Message = singleErr.Error()
+			issue.OpenTime = &openTime
+			return issue
+		}
+	}
+	return issue
 }
 
 func (provider *CandleProvider) withPagination(
