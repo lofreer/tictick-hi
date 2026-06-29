@@ -5495,7 +5495,40 @@ Definition of Done：
 剩余风险：
 
 - 本轮证明的是 PostgreSQL store / `SaveDataSyncResult` / `ListDataSyncTasks` 的缺口健康收敛，不代表真实交易所补数一定成功。
-- `hi sync` 的全局 claim 在共享开发库中仍会优先领取已有 realtime 任务；本轮未做分布式调度隔离或真实交易所恢复压测。
+- 本轮未做分布式调度隔离或真实交易所恢复压测。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
+### 阶段 1 补同步任务 claim 顺序防饥饿补充
+
+目标等级：scaffold
+
+触发问题：
+
+- `ClaimDataSyncTask` 原先按 `realtime_enabled DESC, created_at ASC` 领取任务。
+- 长期 realtime 任务每次保存结果后会释放 lease 并保持 `running/realtime_enabled=true`，在共享开发库或单 worker 场景中可能反复排在 pending 补同步任务前面，导致缺口修复任务长期拿不到执行机会。
+
+修复范围：
+
+- 数据同步 claim 排序改为 pending 任务优先，其次 `sync_enabled` 历史/补同步任务，再到 realtime 轮询任务，同级保持 `created_at ASC`。
+- 不改变 active market、exchange backoff、next attempt、lease 过期和状态候选条件。
+- 新增 PostgreSQL 集成测试 `TestIntegrationClaimDataSyncTaskPrioritizesPendingRepairOverRealtimePoll`：构造一个更早的 running realtime 任务和一个 pending repair 任务，断言 claim 领取 repair，realtime 任务保持未领取。
+
+验证：
+
+- 本机 `go test ./internal/store/postgres -run TestIntegrationClaimDataSyncTaskPrioritizesPendingRepairOverRealtimePoll -count=1 -v` 因未设置 `TICTICK_TEST_DATABASE_URL` 跳过，编译通过。
+- Docker Compose PostgreSQL 集成测试通过：`docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@postgres:5432/tictick_hi?sslmode=disable' golang:1.26-bookworm go test ./internal/store/postgres -run 'TestIntegrationClaimDataSyncTask(PrioritizesPendingRepairOverRealtimePoll|SkipsInactiveMarketInstrument)' -count=1 -v`。
+- `go test ./internal/datasync -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，22 个前端测试文件、118 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+剩余风险：
+
+- 本轮只修单 worker claim 顺序，未实现跨多实例的全局公平调度或交易所级共享速率预算。
+- 真实交易所补数成功率、完整 data sync 状态机和长期恢复压测仍未证明。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后

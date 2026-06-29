@@ -41,7 +41,13 @@ func (store *Store) ClaimDataSyncTask(
 				        AND instrument.symbol = data_sync_tasks.symbol
 				        AND instrument.status = 'active'
 				   )`,
-			orderBy: "realtime_enabled DESC, created_at ASC",
+			orderBy: `CASE
+			           WHEN status = 'pending' THEN 0
+			           WHEN sync_enabled = true THEN 1
+			           WHEN realtime_enabled = true THEN 2
+			           ELSE 3
+			         END,
+			         created_at ASC`,
 			args: []any{
 				data.TaskStatusPending,
 				data.TaskStatusRunning,
