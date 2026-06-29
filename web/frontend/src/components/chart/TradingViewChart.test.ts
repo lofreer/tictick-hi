@@ -191,7 +191,7 @@ describe("TradingViewChart", () => {
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 36,
+          minimumWidth: 32,
           ticksVisible: false,
         }),
       }),
@@ -210,7 +210,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 32,
+          minimumWidth: 28,
         }),
       }),
     );
@@ -228,7 +228,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 34,
+          minimumWidth: 30,
         }),
       }),
     );
