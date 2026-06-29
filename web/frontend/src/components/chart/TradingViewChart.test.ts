@@ -191,7 +191,7 @@ describe("TradingViewChart", () => {
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 42,
+          minimumWidth: 40,
           ticksVisible: false,
         }),
       }),
@@ -321,7 +321,7 @@ describe("TradingViewChart", () => {
         lastValueVisible: false,
         priceFormat: { type: "volume" },
         priceLineVisible: false,
-        priceScaleId: "",
+        priceScaleId: "volume",
       }),
     );
     expect(chartMocks.setVolumeData).toHaveBeenCalledWith([
@@ -329,7 +329,7 @@ describe("TradingViewChart", () => {
       { time: 2, value: 1800, color: "rgba(246, 70, 93, 0.28)" },
     ]);
     expect(chartMocks.priceScale).toHaveBeenCalledWith("right");
-    expect(chartMocks.priceScale).toHaveBeenCalledWith("");
+    expect(chartMocks.priceScale).toHaveBeenCalledWith("volume");
     expect(chartMocks.applyPriceScaleOptions).toHaveBeenCalledWith({
       scaleMargins: {
         top: 0.08,
@@ -337,6 +337,7 @@ describe("TradingViewChart", () => {
       },
     });
     expect(chartMocks.applyPriceScaleOptions).toHaveBeenCalledWith({
+      visible: false,
       scaleMargins: {
         top: 0.8,
         bottom: 0,

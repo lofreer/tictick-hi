@@ -53,12 +53,12 @@
 
 .research-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 14px;
   min-width: 0;
   max-width: 100%;
-  padding: 10px 16px 8px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -73,7 +73,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 112px 156px 68px max-content;
+  grid-template-columns: 112px 156px 28px 68px max-content;
   align-items: center;
   gap: 8px;
   width: auto;
@@ -86,13 +86,12 @@
 .research-toolbar-status {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 6px 10px;
   min-width: 0;
   max-width: 100%;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  flex-wrap: wrap;
+  overflow: hidden;
 }
 
 .research-current-source {
@@ -108,15 +107,14 @@
 
 .research-meta {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   align-items: center;
   max-width: 100%;
   min-width: 0;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 5px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  flex-wrap: wrap;
+  overflow: visible;
 }
 
 .research-current-source,
@@ -129,6 +127,7 @@
   flex: 0 1 auto;
   height: auto;
   min-height: 24px;
+  min-width: 0;
 }
 
 .research-meta .n-tag__content {
@@ -146,9 +145,9 @@
 }
 
 .research-chart-body {
-  --kline-chart-plot-height: clamp(700px, 44vw, 760px);
-  --kline-chart-padding-left: 18px;
-  --kline-chart-padding-right: 0px;
+  --kline-chart-plot-height: clamp(620px, 62vh, 760px);
+  --kline-chart-padding-left: 16px;
+  --kline-chart-padding-right: 12px;
   --kline-chart-padding-top: 10px;
   --kline-chart-padding-bottom: 12px;
   --kline-chart-frame-height: calc(
@@ -181,6 +180,11 @@
   max-width: 156px;
 }
 
+.research-refresh-button {
+  width: 28px;
+  min-width: 28px;
+}
+
 .research-select--compact {
   width: 68px;
 }
@@ -206,9 +210,9 @@
 
 @media (max-width: 760px) {
   .research-chart-body {
-    --kline-chart-plot-height: 560px;
-    --kline-chart-padding-left: 12px;
-    --kline-chart-padding-right: 0px;
+    --kline-chart-plot-height: 520px;
+    --kline-chart-padding-left: 10px;
+    --kline-chart-padding-right: 10px;
     --kline-chart-padding-top: 8px;
     --kline-chart-padding-bottom: 12px;
   }
@@ -226,7 +230,7 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 106px 142px 64px max-content;
+    grid-template-columns: 106px 142px 28px 64px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
@@ -255,8 +259,7 @@
     flex-direction: row;
     justify-content: flex-start;
     width: 100%;
-    overflow-x: auto;
-    scrollbar-width: thin;
+    overflow: hidden;
   }
 
   .research-current-source {
@@ -266,18 +269,18 @@
   }
 
   .research-meta {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     justify-content: flex-start;
     width: auto;
-    max-width: none;
+    max-width: 100%;
   }
 }
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-body {
-    --kline-chart-plot-height: 680px;
-    --kline-chart-padding-left: 14px;
-    --kline-chart-padding-right: 0px;
+    --kline-chart-plot-height: 640px;
+    --kline-chart-padding-left: 12px;
+    --kline-chart-padding-right: 10px;
     --kline-chart-padding-top: 9px;
     --kline-chart-padding-bottom: 13px;
   }
@@ -293,7 +296,7 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 108px 148px 66px max-content;
+    grid-template-columns: 108px 148px 28px 66px max-content;
   }
 
   .research-select--exchange {

@@ -543,7 +543,7 @@ function assertChartLayout(label, sample) {
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
   }
-  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 540 : sample.viewportWidth <= 980 ? 660 : 680;
+  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 500 : sample.viewportWidth <= 980 ? 620 : 600;
   if (tv.rectHeight < expectedMinimumPlotHeight - heightTolerance) {
     throw new Error(
       `${label} chart plot is too short for the viewport: ${JSON.stringify({
@@ -572,9 +572,9 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 0 || sample.chartInlineEndGutter > 4) {
+  if (sample.chartInlineEndGutter < 8 || sample.chartInlineEndGutter > 18) {
     throw new Error(
-      `${label} chart right gutter should stay tight: ${JSON.stringify({
+      `${label} chart right gutter is outside the production range: ${JSON.stringify({
         chartInlineEndGutter: sample.chartInlineEndGutter,
         body,
         tv,

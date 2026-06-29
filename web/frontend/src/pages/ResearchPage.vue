@@ -58,6 +58,20 @@
                 size="small"
                 @synced="loadMarketInstrumentSyncStatuses"
               />
+              <NButton
+                class="research-refresh-button"
+                circle
+                secondary
+                size="small"
+                :aria-label="t('research.refreshChart')"
+                :loading="candlesLoading"
+                :title="t('research.refreshChart')"
+                @click="loadCandles"
+              >
+                <template #icon>
+                  <RefreshCw :size="15" />
+                </template>
+              </NButton>
               <NSelect
                 v-model:value="interval"
                 class="research-select research-select--compact"
@@ -252,7 +266,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from "@lucide/vue";
+import { Plus, RefreshCw } from "@lucide/vue";
 import {
   NButton,
   NDataTable,

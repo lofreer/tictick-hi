@@ -431,7 +431,7 @@ function assertResearchChartSmoke(label, sample, viewport) {
       })}`,
     );
   }
-  assertChartViewportSmoke(label, sample, viewport, 700);
+  assertChartViewportSmoke(label, sample, viewport, 620);
 }
 
 function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight) {
@@ -447,7 +447,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       throw new Error(`${label} ${name} exceeded viewport height: ${JSON.stringify(node)}`);
     }
   }
-  const minimumHeight = viewport.width <= 760 ? 560 : viewport.width <= 980 ? 680 : desktopMinimumHeight;
+  const minimumHeight = viewport.width <= 760 ? 520 : viewport.width <= 980 ? 640 : desktopMinimumHeight;
   if (sample.chartViewport.rectHeight < minimumHeight - widthTolerance) {
     throw new Error(
       `${label} chart viewport is too short: ${JSON.stringify({
@@ -520,9 +520,9 @@ function assertChartGutters(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 0 || sample.chartInlineEndGutter > 4) {
+  if (sample.chartInlineEndGutter < 8 || sample.chartInlineEndGutter > 18) {
     throw new Error(
-      `${label} chart right gutter should be tight so the price scale does not create excess whitespace: ${JSON.stringify({
+      `${label} chart right gutter is outside the production range: ${JSON.stringify({
         gutter: sample.chartInlineEndGutter,
         host,
         chartViewport: sample.chartViewport,
@@ -565,7 +565,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
   if (sample.detail.chartPanel.rectHeight > viewport.height + widthTolerance) {
     throw new Error(`${label} detail chart exceeded viewport height: ${JSON.stringify(sample.detail.chartPanel)}`);
   }
-  assertChartViewportSmoke(label, sample, viewport, 700);
+  assertChartViewportSmoke(label, sample, viewport, 620);
   if (sample.detail.lowerGrid.top <= sample.detail.chartPanel.bottom) {
     throw new Error(
       `${label} detail lower grid must sit below chart: ${JSON.stringify({

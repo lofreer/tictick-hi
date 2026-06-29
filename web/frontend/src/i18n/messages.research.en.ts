@@ -91,6 +91,7 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.taskGapRepairAlreadyQueued": "Gap repair task already exists.",
     "research.taskGapRepairFailed": "Failed to repair task gaps.",
     "research.noRepairableTaskGaps": "No repairable gaps to queue for this task.",
+    "research.refreshChart": "Refresh chart",
     "research.refreshInstruments": "Refresh instruments",
     "research.coverageLimited": "Window {returned}/{requested}",
     "research.candleWindow": "Window {from} - {to} / {count} candles",
