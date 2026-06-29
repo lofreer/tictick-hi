@@ -53,12 +53,12 @@
 
 .research-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 8px 14px;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
-  padding: 10px 14px;
+  padding: 9px 12px 10px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -67,16 +67,17 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 112px 156px 28px 68px max-content;
+  grid-template-columns: 108px 136px 28px 64px max-content;
   align-items: center;
-  gap: 8px;
-  width: auto;
+  gap: 7px;
+  width: max-content;
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -86,8 +87,8 @@
 .research-toolbar-status {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px 10px;
+  justify-content: flex-start;
+  gap: 6px 8px;
   min-width: 0;
   max-width: 100%;
   flex-wrap: wrap;
@@ -97,7 +98,7 @@
 .research-current-source {
   flex: 0 0 auto;
   min-width: 0;
-  max-width: min(320px, 36vw);
+  max-width: min(300px, 42vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -111,7 +112,7 @@
   align-items: center;
   max-width: 100%;
   min-width: 0;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 5px;
   flex-wrap: wrap;
   overflow: visible;
@@ -145,7 +146,7 @@
 }
 
 .research-chart-body {
-  --kline-chart-plot-height: clamp(620px, 62vh, 760px);
+  --kline-chart-plot-height: clamp(660px, 66vh, 800px);
   --kline-chart-padding-left: 16px;
   --kline-chart-padding-right: 12px;
   --kline-chart-padding-top: 10px;
@@ -166,18 +167,18 @@
 }
 
 .research-select--exchange {
-  width: 112px;
+  width: 108px;
 }
 
 .research-symbol-input {
-  width: 156px;
-  max-width: 156px;
+  width: 136px;
+  max-width: 136px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: 156px;
-  max-width: 156px;
+  width: 136px;
+  max-width: 136px;
 }
 
 .research-refresh-button {
@@ -210,7 +211,7 @@
 
 @media (max-width: 760px) {
   .research-chart-body {
-    --kline-chart-plot-height: 520px;
+    --kline-chart-plot-height: 540px;
     --kline-chart-padding-left: 10px;
     --kline-chart-padding-right: 10px;
     --kline-chart-padding-top: 8px;
@@ -220,7 +221,7 @@
   .research-toolbar {
     grid-template-columns: minmax(0, 1fr);
     gap: 7px;
-    padding: 8px 10px;
+    padding: 8px 10px 10px;
   }
 
   .research-toolbar-main,
@@ -230,28 +231,28 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 106px 142px 28px 64px max-content;
+    grid-template-columns: 104px 128px 28px 62px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 106px;
+    width: 104px;
   }
 
   .research-select--compact {
-    width: 64px;
+    width: 62px;
   }
 
   .research-symbol-input {
-    width: 142px;
-    max-width: 142px;
+    width: 128px;
+    max-width: 128px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 142px;
-    max-width: 142px;
+    width: 128px;
+    max-width: 128px;
   }
 
   .research-toolbar-status {
@@ -264,7 +265,7 @@
 
   .research-current-source {
     flex: 0 0 auto;
-    max-width: 240px;
+    max-width: min(240px, 82vw);
     white-space: nowrap;
   }
 
@@ -278,7 +279,7 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-body {
-    --kline-chart-plot-height: 640px;
+    --kline-chart-plot-height: 680px;
     --kline-chart-padding-left: 12px;
     --kline-chart-padding-right: 10px;
     --kline-chart-padding-top: 9px;
@@ -296,32 +297,24 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 108px 148px 28px 66px max-content;
+    grid-template-columns: 106px 132px 28px 64px max-content;
   }
 
   .research-select--exchange {
-    width: 108px;
+    width: 106px;
   }
 
   .research-symbol-input {
-    width: 148px;
-    max-width: 148px;
+    width: 132px;
+    max-width: 132px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 148px;
-    max-width: 148px;
+    width: 132px;
+    max-width: 132px;
   }
 
   .research-select--compact {
-    width: 66px;
-  }
-
-  .research-toolbar-status {
-    justify-content: flex-start;
-  }
-
-  .research-meta {
-    justify-content: flex-start;
+    width: 64px;
   }
 }

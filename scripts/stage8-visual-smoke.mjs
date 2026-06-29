@@ -12,7 +12,7 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 160);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 140);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 54);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
@@ -293,7 +293,7 @@ function visualSampleExpression(pageConfig) {
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
-        .filter((entry) => entry.rect.width >= 40 && entry.rect.width <= 180)
+        .filter((entry) => entry.rect.width >= 28 && entry.rect.width <= 180)
         .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 96))
         .sort((left, right) => right.rect.right - left.rect.right);
       const canvas = canvases[0]?.node;
