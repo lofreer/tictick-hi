@@ -28,6 +28,18 @@ The quality gate blocks current-stage engineering regressions. It can also print
 
 The gate includes a non-browser research chart layout contract. The runtime browser smoke below is still required after chart or `/research` layout changes because it validates the built app in headless Chrome.
 
+Full local quality gate:
+
+```bash
+scripts/full-quality-gate.sh
+```
+
+This runs the protocol's common checks in one repeatable entrypoint: Go tests, Go vet, frontend typecheck, frontend tests, frontend production build, and the lightweight quality gate. Add the heavier Docker / browser checks explicitly when validating Stage 8 behavior:
+
+```bash
+FULL_QUALITY_STAGE8=1 FULL_QUALITY_SIGTERM=1 scripts/full-quality-gate.sh
+```
+
 ## Local Docker
 
 Create local environment values:

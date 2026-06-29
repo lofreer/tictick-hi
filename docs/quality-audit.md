@@ -47,7 +47,7 @@ done            用户确认关闭
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言并收紧 symbol 输入、右侧价格轴和图表高度阈值，防止右侧大空白、工具栏过宽和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
-| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
+| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、完整本地质量门禁 `scripts/full-quality-gate.sh`、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
 注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和完整交易所业务状态处置语义。
 
@@ -6881,6 +6881,43 @@ Definition of Done：
 - 浏览器 smoke 仍是 DOM / 几何级断言，不是人工审批的像素快照基线。
 - 仍只覆盖 Chrome/CDP，不覆盖 WebKit/Firefox 或真实用户浏览器长时间 soak。
 - `STAGE8_BROWSER_SMOKE=0` 允许无 Chrome 环境跳过浏览器验收；跳过时不能把页面布局风险视为关闭。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 0 完整本地质量门禁入口补充
+
+执行时间：2026-06-29
+
+目标等级：scaffold
+
+触发问题：
+
+- `scripts/quality-gate.sh` 是轻量静态门禁，只覆盖文件大小、交易事实浮点边界、策略边界、API contract、图表静态布局契约和若干 scaffold marker。
+- 协议要求的完整验证命令仍需要人工逐条执行，容易出现漏跑 `go vet`、前端测试或生产构建的情况。
+- Stage 8 smoke 和 SIGTERM smoke 已经存在，但属于 Docker / Chrome 重型验收，不能无条件塞进所有本地快速门禁。
+
+Definition of Done：
+
+- 新增一个完整本地质量门禁入口，默认按固定顺序执行协议要求的通用检查。
+- 脚本在某项失败后继续跑后续检查，最后统一返回失败，便于一次看到多个问题。
+- Stage 8 full-chain smoke 和 SIGTERM smoke 通过显式环境变量开启，不改变轻量门禁职责。
+- README 说明轻量门禁、完整门禁和重型 Stage 8 smoke 的边界。
+- 不改变业务功能、不新增 migration、不升级任何模块等级。
+
+修复范围：
+
+- 新增 `scripts/full-quality-gate.sh`。
+- README 增加完整本地质量门禁入口和 `FULL_QUALITY_STAGE8=1 FULL_QUALITY_SIGTERM=1` 重型验收开关说明。
+- `docs/quality-audit.md` 更新质量门禁评级摘要和本小节。
+
+验证：
+
+- `bash -n scripts/full-quality-gate.sh` 通过。
+- `scripts/full-quality-gate.sh` 通过，覆盖 `go test ./...`、`go vet ./...`、`pnpm --dir web/frontend run typecheck`、`pnpm --dir web/frontend run test`、`pnpm --dir web/frontend run build`、`scripts/quality-gate.sh`。
+
+剩余风险：
+
+- 默认完整门禁仍不包含 Docker / Chrome 重型 Stage 8 smoke；需要发布前或 Stage 8 变更时显式设置 `FULL_QUALITY_STAGE8=1` 和按需 `FULL_QUALITY_SIGTERM=1`。
+- 仍缺远程 CI 硬门禁、像素快照基线和多浏览器视觉回归。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ### 阶段 8 K 线图表生产布局第三次收口
