@@ -81,7 +81,8 @@ async function runVisualPass(endpoint, viewport, theme) {
     await waitFor(cdp, "document.readyState === 'complete' || document.readyState === 'interactive'");
     await login(cdp, viewport.label, theme);
 
-    for (const pageConfig of pages) {
+    const passPages = [...pages, ...(await detailPages(cdp))];
+    for (const pageConfig of passPages) {
       await setTheme(cdp, theme);
       await cdp.send("Page.navigate", { url: `${baseUrl}${pageConfig.path}` });
       await waitFor(cdp, "!!document.querySelector('.app-shell')", 15000);
@@ -90,9 +91,16 @@ async function runVisualPass(endpoint, viewport, theme) {
       if (pageConfig.chart) {
         await waitFor(cdp, "!!document.querySelector('.research-chart-body')", 15000);
       }
+      if (pageConfig.detailLayout) {
+        for (const selector of Object.values(pageConfig.detailLayout)) {
+          await waitFor(cdp, `!!document.querySelector(${JSON.stringify(selector)})`, 15000);
+        }
+        await waitFor(cdp, "!!document.querySelector('.trading-chart')", 15000);
+        await waitFor(cdp, "!!document.querySelector('.tv-lightweight-charts')", 15000);
+      }
       await delay(settleMs);
 
-      const sample = await evaluate(cdp, visualSampleExpression(pageConfig.selector));
+      const sample = await evaluate(cdp, visualSampleExpression(pageConfig));
       assertPageLayout(viewport, theme, pageConfig, sample);
       pageResults.push({ label: pageConfig.label, sample });
     }
@@ -110,6 +118,49 @@ async function runVisualPass(endpoint, viewport, theme) {
   } finally {
     cdp.close();
   }
+}
+
+async function detailPages(cdp) {
+  const result = await evaluate(
+    cdp,
+    `Promise.all([
+      fetch('/api/backtests', { credentials: 'include' }).then(async (response) => response.ok ? response.json() : []),
+      fetch('/api/trading/tasks', { credentials: 'include' }).then(async (response) => response.ok ? response.json() : [])
+    ]).then(([backtests, tradingTasks]) => ({
+      backtestId: Array.isArray(backtests) && backtests.length > 0 ? backtests[0].id : '',
+      tradingTaskId: Array.isArray(tradingTasks) && tradingTasks.length > 0 ? tradingTasks[0].id : ''
+    }))`,
+  );
+  const detailPages = [];
+  if (result.backtestId) {
+    detailPages.push({
+      label: "backtest-detail",
+      path: `/backtests/${encodeURIComponent(result.backtestId)}`,
+      selector: ".backtest-detail-workspace",
+      detailLayout: {
+        chartPanel: ".backtest-chart-panel",
+        chartViewport: ".backtest-chart-viewport",
+        lowerGrid: ".backtest-detail-lower-grid",
+        summary: ".backtest-summary-panel",
+        tabs: ".backtest-detail-tabs",
+      },
+    });
+  }
+  if (result.tradingTaskId) {
+    detailPages.push({
+      label: "trading-detail",
+      path: `/trading/${encodeURIComponent(result.tradingTaskId)}`,
+      selector: ".trading-detail-workspace",
+      detailLayout: {
+        chartPanel: ".trading-detail-chart",
+        chartViewport: ".trading-detail-chart-viewport",
+        lowerGrid: ".trading-detail-lower-grid",
+        summary: ".trading-detail-summary",
+        tabs: ".trading-detail-tabs",
+      },
+    });
+  }
+  return detailPages;
 }
 
 async function login(cdp, viewportLabel, theme) {
@@ -138,7 +189,7 @@ async function setTheme(cdp, theme) {
   );
 }
 
-function visualSampleExpression(requiredSelector) {
+function visualSampleExpression(pageConfig) {
   return `(() => {
     const read = (selector) => {
       const element = document.querySelector(selector);
@@ -164,6 +215,7 @@ function visualSampleExpression(requiredSelector) {
         visibility: style.visibility
       };
     };
+    const detailSelectors = ${JSON.stringify(pageConfig.detailLayout ?? null)};
     const root = document.documentElement;
     const body = document.body;
     return {
@@ -178,10 +230,17 @@ function visualSampleExpression(requiredSelector) {
       main: read('.app-main'),
       page: read('.page'),
       title: read('.page-title'),
-      required: read(${JSON.stringify(requiredSelector)}),
+      required: read(${JSON.stringify(pageConfig.selector)}),
       chartBody: read('.research-chart-body'),
       chart: read('.trading-chart'),
-      tv: read('.tv-lightweight-charts')
+      tv: read('.tv-lightweight-charts'),
+      detail: detailSelectors ? {
+        chartPanel: read(detailSelectors.chartPanel),
+        chartViewport: read(detailSelectors.chartViewport),
+        lowerGrid: read(detailSelectors.lowerGrid),
+        summary: read(detailSelectors.summary),
+        tabs: read(detailSelectors.tabs)
+      } : null
     };
   })()`;
 }
@@ -221,6 +280,7 @@ function assertPageLayout(viewport, theme, page, sample) {
     }
   }
   if (page.chart) assertChartSmoke(label, sample, viewport.metrics.height);
+  if (page.detailLayout) assertDetailLayoutSmoke(label, sample, viewport.metrics);
 }
 
 function assertVisibleNode(label, name, node) {
@@ -249,6 +309,66 @@ function assertChartSmoke(label, sample, viewportHeight) {
       `${label} chart height escaped fixed body: ${JSON.stringify({
         body: sample.chartBody,
         chart: sample.chart,
+      })}`,
+    );
+  }
+}
+
+function assertDetailLayoutSmoke(label, sample, viewport) {
+  if (!sample.detail) throw new Error(`${label} missing detail layout sample`);
+  for (const [name, node] of [
+    ["detailChartPanel", sample.detail.chartPanel],
+    ["detailChartViewport", sample.detail.chartViewport],
+    ["detailLowerGrid", sample.detail.lowerGrid],
+    ["detailSummary", sample.detail.summary],
+    ["detailTabs", sample.detail.tabs],
+    ["chart", sample.chart],
+    ["tv", sample.tv],
+  ]) {
+    assertVisibleNode(label, name, node);
+    if (node.rectWidth > viewport.width + widthTolerance || node.right > viewport.width + widthTolerance) {
+      throw new Error(`${label} ${name} escaped viewport: ${JSON.stringify(node)}`);
+    }
+  }
+  if (sample.detail.chartPanel.rectHeight < Math.min(500, viewport.height * 0.58)) {
+    throw new Error(`${label} detail chart is too short: ${JSON.stringify(sample.detail.chartPanel)}`);
+  }
+  if (sample.detail.chartPanel.rectHeight > viewport.height + widthTolerance) {
+    throw new Error(`${label} detail chart exceeded viewport height: ${JSON.stringify(sample.detail.chartPanel)}`);
+  }
+  if (sample.detail.lowerGrid.top <= sample.detail.chartPanel.bottom) {
+    throw new Error(
+      `${label} detail lower grid must sit below chart: ${JSON.stringify({
+        chart: sample.detail.chartPanel,
+        lowerGrid: sample.detail.lowerGrid,
+      })}`,
+    );
+  }
+  if (Math.abs(sample.chart.rectHeight - sample.detail.chartViewport.rectHeight) > widthTolerance + 2) {
+    throw new Error(
+      `${label} detail chart does not fill fixed viewport: ${JSON.stringify({
+        viewport: sample.detail.chartViewport,
+        chart: sample.chart,
+      })}`,
+    );
+  }
+  if (viewport.width > 980) {
+    if (sample.detail.summary.rectWidth >= sample.detail.tabs.rectWidth) {
+      throw new Error(
+        `${label} detail summary must be narrower than tab list: ${JSON.stringify({
+          summary: sample.detail.summary,
+          tabs: sample.detail.tabs,
+        })}`,
+      );
+    }
+    if (sample.detail.summary.rectWidth < 280 || sample.detail.summary.rectWidth > 360) {
+      throw new Error(`${label} detail summary width is outside the expected narrow column: ${JSON.stringify(sample.detail.summary)}`);
+    }
+  } else if (Math.abs(sample.detail.summary.rectWidth - sample.detail.tabs.rectWidth) > widthTolerance + 2) {
+    throw new Error(
+      `${label} stacked detail panels should share mobile width: ${JSON.stringify({
+        summary: sample.detail.summary,
+        tabs: sample.detail.tabs,
       })}`,
     );
   }
