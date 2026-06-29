@@ -73,7 +73,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 122px 174px 72px max-content;
+  grid-template-columns: 112px 156px 68px max-content;
   align-items: center;
   gap: 8px;
   width: auto;
@@ -167,22 +167,22 @@
 }
 
 .research-select--exchange {
-  width: 122px;
+  width: 112px;
 }
 
 .research-symbol-input {
-  width: 174px;
-  max-width: 174px;
+  width: 156px;
+  max-width: 156px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: 174px;
-  max-width: 174px;
+  width: 156px;
+  max-width: 156px;
 }
 
 .research-select--compact {
-  width: 72px;
+  width: 68px;
 }
 
 .research-modal {
@@ -226,28 +226,28 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 112px 158px 68px max-content;
+    grid-template-columns: 106px 142px 64px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 112px;
+    width: 106px;
   }
 
   .research-select--compact {
-    width: 68px;
+    width: 64px;
   }
 
   .research-symbol-input {
-    width: 158px;
-    max-width: 158px;
+    width: 142px;
+    max-width: 142px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 158px;
-    max-width: 158px;
+    width: 142px;
+    max-width: 142px;
   }
 
   .research-toolbar-status {
@@ -293,25 +293,25 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 116px 166px 70px max-content;
+    grid-template-columns: 108px 148px 66px max-content;
   }
 
   .research-select--exchange {
-    width: 116px;
+    width: 108px;
   }
 
   .research-symbol-input {
-    width: 166px;
-    max-width: 166px;
+    width: 148px;
+    max-width: 148px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 166px;
-    max-width: 166px;
+    width: 148px;
+    max-width: 148px;
   }
 
   .research-select--compact {
-    width: 70px;
+    width: 66px;
   }
 
   .research-toolbar-status {

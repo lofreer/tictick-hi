@@ -70,7 +70,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(toolbarStyle).toContain("padding: 10px 16px 8px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: grid;");
-    expect(controlsStyle).toContain("grid-template-columns: 122px 174px 72px max-content;");
+    expect(controlsStyle).toContain("grid-template-columns: 112px 156px 68px max-content;");
     expect(controlsStyle).toContain("width: auto;");
     expect(controlsStyle).toContain("overflow-x: auto;");
     expect(statusStyle).toContain("justify-content: flex-start;");
@@ -110,10 +110,10 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("--kline-chart-padding-left: 14px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 0px;");
-    expect(pageStyles).toContain("grid-template-columns: 122px 174px 72px max-content;");
-    expect(pageStyles).toContain("width: 174px;");
-    expect(pageStyles).toContain("width: 166px;");
-    expect(pageStyles).toContain("width: 158px;");
+    expect(pageStyles).toContain("grid-template-columns: 112px 156px 68px max-content;");
+    expect(pageStyles).toContain("width: 156px;");
+    expect(pageStyles).toContain("width: 148px;");
+    expect(pageStyles).toContain("width: 142px;");
     expect(pageStyles).toContain("width: 100%;");
     expect(pageStyles).toContain("max-width: min(320px, 36vw);");
     expect(pageStyles).toContain("overflow-x: auto;");
