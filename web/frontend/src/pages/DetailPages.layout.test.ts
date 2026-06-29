@@ -32,8 +32,8 @@ describe("strategy detail page layout contract", () => {
     expect(tradingSource).not.toContain('class="side-panel"');
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');
     expect(detailChartStyles).toContain(".trading-detail-chart,");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(660px, 66vh, 800px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 16px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(700px, 72vh, 840px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 20px;");
     expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
@@ -42,13 +42,13 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain(".trading-detail-chart-viewport,");
     expect(frameViewportStyle).toContain("height: var(--kline-chart-plot-height);");
     expect(styles).toContain(".trading-detail-lower-grid");
-    expect(styles).toContain("grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);");
+    expect(styles).toContain("grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);");
     expect(styles).toContain("align-items: stretch;");
     expect(styles).toContain(".trading-detail-tabs");
-    expect(styles).toContain("min-height: 320px;");
+    expect(styles).toContain("min-height: 360px;");
     expect(detailChartStyles).toContain("@media (max-width: 980px)");
     expect(detailChartStyles).toContain("@media (max-width: 760px)");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: 540px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: 560px;");
     expect(styles).toContain("grid-template-columns: 1fr;");
   });
 
@@ -78,8 +78,8 @@ describe("strategy detail page layout contract", () => {
     expect(backtestSource).not.toContain('class="side-panel"');
     expect(backtestSource).not.toContain('class="surface chart-panel backtest-chart-panel"');
     expect(detailChartStyles).toContain(".backtest-chart-panel");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(660px, 66vh, 800px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 16px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(700px, 72vh, 840px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 20px;");
     expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
@@ -88,13 +88,13 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain(".backtest-chart-viewport");
     expect(frameViewportStyle).toContain("height: var(--kline-chart-plot-height);");
     expect(styles).toContain(".backtest-detail-lower-grid");
-    expect(styles).toContain("grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);");
+    expect(styles).toContain("grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);");
     expect(styles).toContain("align-items: stretch;");
     expect(styles).toContain(".backtest-detail-tabs");
-    expect(styles).toContain("min-height: 320px;");
+    expect(styles).toContain("min-height: 360px;");
     expect(detailChartStyles).toContain("@media (max-width: 980px)");
     expect(detailChartStyles).toContain("@media (max-width: 760px)");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: 540px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: 560px;");
     expect(styles).toContain("grid-template-columns: 1fr;");
   });
 });

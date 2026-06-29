@@ -106,12 +106,12 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(660px, 66vh, 800px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: 680px;");
-    expect(pageStyles).toContain("--kline-chart-plot-height: 540px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(700px, 72vh, 840px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: 720px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: 560px;");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 20px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 16px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 10px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 8px;");
     expect(pageStyles).toContain("grid-template-columns: 96px 104px 28px 54px max-content;");
