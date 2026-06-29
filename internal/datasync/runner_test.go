@@ -499,6 +499,7 @@ type fakeSyncRepository struct {
 	saved                data.DataSyncResult
 	failed               error
 	retry                error
+	retryError           error
 	nextAttemptAt        *time.Time
 	released             bool
 	heartbeats           int
@@ -569,7 +570,7 @@ func (repository *fakeSyncRepository) RecordDataSyncRetry(
 ) error {
 	repository.retry = err
 	repository.nextAttemptAt = nextAttemptAt
-	return nil
+	return repository.retryError
 }
 
 func (repository *fakeSyncRepository) ReleaseDataSyncTask(context.Context, string) error {

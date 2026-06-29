@@ -270,7 +270,7 @@ func (store *Store) RecordDataSyncRetry(
 	defer tx.Rollback(ctx)
 
 	normalizedError := normalizeTaskError(taskErr)
-	_, err = tx.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+	commandTag, err := tx.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
 		resource: dataSyncTaskLease,
 		assignments: []string{
 			`status = CASE
@@ -291,15 +291,22 @@ func (store *Store) RecordDataSyncRetry(
 	if err != nil {
 		return fmt.Errorf("record data sync retry: %w", err)
 	}
+	if commandTag.RowsAffected() == 0 {
+		return data.ErrNotFound
+	}
 
 	if nextAttemptAt != nil {
 		var exchangeName string
 		if err := tx.QueryRow(ctx, `
 			SELECT exchange
 			  FROM data_sync_tasks
-			 WHERE id = $1`,
+			 WHERE id = $1
+			   AND deleted_at IS NULL`,
 			taskID,
 		).Scan(&exchangeName); err != nil {
+			if err == pgx.ErrNoRows {
+				return data.ErrNotFound
+			}
 			return fmt.Errorf("read data sync retry exchange: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `

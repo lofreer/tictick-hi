@@ -2,6 +2,7 @@ package datasync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -129,6 +130,10 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 				"error", err,
 			)
 			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, err, &nextAttemptAt); retryErr != nil {
+				if errors.Is(retryErr, data.ErrNotFound) {
+					slog.Info("data sync task disappeared before retry was recorded", "task_id", task.ID)
+					return nil
+				}
 				return fmt.Errorf("record data sync retry: %w", retryErr)
 			}
 			return nil

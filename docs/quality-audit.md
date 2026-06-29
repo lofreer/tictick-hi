@@ -5879,6 +5879,51 @@ Definition of Done：
 - 移动端仍需要滚动查看完整研究页上下文；本轮保证图表自身不再无限拉高和首屏桌面不裁切，不把移动端完整工作流升级为 usable。
 - 研究页仍缺完整操作语义和真实交易所长期恢复压测；项目整体仍是 `scaffold`。
 
+### 阶段 1 数据同步删除与临时重试竞态补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页删除 data sync task 后，任务行会软删除并对前端隐藏，但已领取该任务的 worker 仍可能在删除后收到交易所临时错误。
+- `RecordDataSyncRetry` 原先更新任务行时会过滤 `deleted_at IS NULL`，但随后读取 exchange 时没有过滤软删除任务。
+- 该竞态可能让已删除任务写入 `data_sync_exchange_backoffs`，导致同交易所其它任务被全局退避阻塞，研究页也会看到与已删除任务相关的退避状态。
+
+Definition of Done：
+
+- 已软删除或不存在的 data sync task 不能再记录 retry 状态。
+- 已软删除或不存在的 data sync task 不能再写入 exchange-level backoff。
+- sync runner 遇到“任务已删除后才尝试记录 retry”的竞态时不能退出长运行 worker。
+- 同交易所其它 active catalog 同步任务仍可被 claim。
+- 不引入 migration，不改变删除恢复语义，不改变真实交易所限流策略。
+
+修复范围：
+
+- `RecordDataSyncRetry` 检查 retry update 的 `RowsAffected`，未命中时返回 `data.ErrNotFound`。
+- `RecordDataSyncRetry` 读取 exchange 时同步过滤 `deleted_at IS NULL`，避免软删除任务进入 backoff 写入路径。
+- `datasync.Runner` 在临时错误 retry 记录阶段遇到 `data.ErrNotFound` 时将其视为用户已删除任务的竞态并继续运行。
+- `TestRunnerIgnoresRetryRecordForDeletedTask` 覆盖 runner 不因该竞态退出、不保存结果、不标记失败。
+- `TestIntegrationDeletedDataSyncTaskRetryDoesNotCreateExchangeBackoff` 覆盖软删除任务 retry 返回 `ErrNotFound`、不写 `data_sync_exchange_backoffs`、同交易所兄弟任务仍可 claim。
+
+验证：
+
+- `go test ./internal/datasync -run 'TestRunner(RecordsTemporaryFetchErrorForRetry|IgnoresRetryRecordForDeletedTask)' -count=1` 通过。
+- 本机 `go test ./internal/store/postgres -run TestIntegrationDeletedDataSyncTaskRetryDoesNotCreateExchangeBackoff -count=1 -v` 因未设置 `TICTICK_TEST_DATABASE_URL` 跳过，编译通过。
+- Docker Compose PostgreSQL 集成测试通过：`docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@postgres:5432/tictick_hi?sslmode=disable' golang:1.26-bookworm go test ./internal/store/postgres -run TestIntegrationDeletedDataSyncTaskRetryDoesNotCreateExchangeBackoff -count=1 -v`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，23 个测试文件、120 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮只关闭删除与 retry 记录之间的竞态，不改变已经存在的有效 exchange backoff 清理策略。
+- 本轮不证明真实 Binance / OKX 长时间抖动、多实例共享限流或完整统一状态机。
+- 数据同步 worker 仍不能升级到 usable；研究页和项目整体仍是 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
