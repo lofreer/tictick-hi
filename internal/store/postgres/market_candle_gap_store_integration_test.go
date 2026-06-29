@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -145,6 +146,104 @@ func TestIntegrationRepairMarketCandleGapCreatesSyncTask(t *testing.T) {
 	}
 }
 
+func TestIntegrationRepairMarketCandleGapIgnoresSoftDeletedRepairTask(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 11, 0, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCD")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+	for _, minute := range []int{0, 1, 4} {
+		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
+	}
+
+	request := data.RepairMarketCandleGapRequest{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		From:     start.Add(2 * time.Minute),
+		To:       start.Add(4 * time.Minute),
+	}
+	first, err := store.RepairMarketCandleGap(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.CreatedTasks) != 1 {
+		t.Fatalf("first repair created task count = %d, want 1: %#v", len(first.CreatedTasks), first.CreatedTasks)
+	}
+	firstTaskID := first.CreatedTasks[0].ID
+	if err := store.DeleteDataSyncTask(ctx, firstTaskID); err != nil {
+		t.Fatal(err)
+	}
+
+	var deletedStatus data.TaskStatus
+	var deletedAt sql.NullTime
+	if err := store.pool.QueryRow(ctx, `
+		SELECT status, deleted_at
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		firstTaskID,
+	).Scan(&deletedStatus, &deletedAt); err != nil {
+		t.Fatal(err)
+	}
+	if deletedStatus != data.TaskStatusCancelled || !deletedAt.Valid {
+		t.Fatalf("deleted repair task status/deleted_at = %s/%#v, want cancelled with deleted_at", deletedStatus, deletedAt)
+	}
+
+	second, err := store.RepairMarketCandleGap(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.SkippedExisting != 0 || len(second.CreatedTasks) != 1 {
+		t.Fatalf("second repair result = %#v, want new task after soft delete", second)
+	}
+	if second.CreatedTasks[0].ID == firstTaskID {
+		t.Fatalf("second repair reused soft-deleted task id %s", firstTaskID)
+	}
+	assertRepairTaskWindow(t, second.CreatedTasks[0], "", request.From, request.To)
+
+	var activeCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		  FROM data_sync_tasks
+		 WHERE symbol = $1
+		   AND start_time = $2
+		   AND end_time = $3
+		   AND deleted_at IS NULL`,
+		symbol,
+		request.From,
+		request.To,
+	).Scan(&activeCount); err != nil {
+		t.Fatal(err)
+	}
+	if activeCount != 1 {
+		t.Fatalf("active repair task count = %d, want 1", activeCount)
+	}
+
+	var totalCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		  FROM data_sync_tasks
+		 WHERE symbol = $1
+		   AND start_time = $2
+		   AND end_time = $3`,
+		symbol,
+		request.From,
+		request.To,
+	).Scan(&totalCount); err != nil {
+		t.Fatal(err)
+	}
+	if totalCount != 2 {
+		t.Fatalf("total repair task count = %d, want retained soft-deleted task plus new active task", totalCount)
+	}
+}
+
 func TestIntegrationRepairMarketCandleGapsCreatesSyncTasks(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -198,6 +297,65 @@ func TestIntegrationRepairMarketCandleGapsCreatesSyncTasks(t *testing.T) {
 	if _, err := store.RepairMarketCandleGaps(ctx, notGapRequest); !errors.Is(err, data.ErrNotFound) {
 		t.Fatalf("non-gap batch repair error = %v, want ErrNotFound", err)
 	}
+}
+
+func TestIntegrationRepairMarketCandleGapsRollsBackWhenAnyGapIsInvalid(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 12, 0, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCA")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+	for _, minute := range []int{0, 1, 3, 6} {
+		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
+	}
+
+	request := data.RepairMarketCandleGapsRequest{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		Gaps: []data.RepairMarketCandleGapWindow{
+			{From: start.Add(2 * time.Minute), To: start.Add(3 * time.Minute)},
+			{From: start.Add(time.Minute), To: start.Add(2 * time.Minute)},
+		},
+	}
+	if _, err := store.RepairMarketCandleGaps(ctx, request); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("mixed valid/invalid batch repair error = %v, want ErrNotFound", err)
+	}
+
+	var taskCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		  FROM data_sync_tasks
+		 WHERE symbol = $1`,
+		symbol,
+	).Scan(&taskCount); err != nil {
+		t.Fatal(err)
+	}
+	if taskCount != 0 {
+		t.Fatalf("repair task count after rolled back batch = %d, want 0", taskCount)
+	}
+
+	single, err := store.RepairMarketCandleGap(ctx, data.RepairMarketCandleGapRequest{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		From:     request.Gaps[0].From,
+		To:       request.Gaps[0].To,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if single.SkippedExisting != 0 || len(single.CreatedTasks) != 1 {
+		t.Fatalf("single repair after rollback = %#v, want one newly created task", single)
+	}
+	assertRepairTaskWindow(t, single.CreatedTasks[0], "", request.Gaps[0].From, request.Gaps[0].To)
 }
 
 func cleanupMarketCandles(t *testing.T, store *Store, symbol string) {

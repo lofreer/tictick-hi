@@ -5962,6 +5962,45 @@ Definition of Done：
 - 本轮不证明真实 Binance / OKX 长时间抖动、多实例共享限流或完整统一状态机。
 - 数据同步 worker 仍不能升级到 usable；研究页和项目整体仍是 `scaffold`。
 
+### 阶段 1 全历史缺口修复软删除与批量原子性补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页全历史缺口修复会创建无源 `data_sync_tasks` 补同步任务；用户删除错误或失败的补同步任务后，同一真实缺口必须能重新排修复任务，不能被软删除历史行永久挡住。
+- 批量修复当前返回的多个全历史缺口时，如果前面的窗口有效、后面的窗口不是已落库真实相邻缺口，不能留下半截创建的补同步任务。
+- 既有代码从 SQL 看过滤了 `deleted_at IS NULL` 且批量修复在事务内执行，但缺少真实 PostgreSQL 集成测试证明。
+
+Definition of Done：
+
+- 软删除的全历史缺口补同步任务保留审计行且 `deleted_at` 非空。
+- 同一真实缺口在旧补同步任务软删除后再次 repair 时创建新的 active pending 任务，而不是返回 `skippedExisting`。
+- 批量全历史缺口 repair 中任一窗口无效时返回 `data.ErrNotFound`，事务回滚，已经尝试创建的任务不落库。
+- 回滚后同一真实缺口仍能单独 repair，证明没有残留 duplicate 或半截状态。
+- 不引入 migration，不改变 `market_candles` 事实数据，不改变前端 API 契约。
+
+修复范围：
+
+- `market_candle_gap_store_integration_test.go` 增加 `TestIntegrationRepairMarketCandleGapIgnoresSoftDeletedRepairTask`，覆盖软删除后同窗口重建补同步任务。
+- `market_candle_gap_store_integration_test.go` 增加 `TestIntegrationRepairMarketCandleGapsRollsBackWhenAnyGapIsInvalid`，覆盖批量 repair 事务回滚。
+- 生产代码无需改动；现有 `marketCandleRepairTaskExists` 的 `deleted_at IS NULL` 和事务边界由新增测试锁定。
+
+验证：
+
+- 本机 `go test ./internal/store/postgres -run 'TestIntegrationRepairMarketCandleGap(IgnoresSoftDeletedRepairTask|sRollsBackWhenAnyGapIsInvalid)' -count=1 -v` 因未设置 `TICTICK_TEST_DATABASE_URL` 跳过，编译通过。
+- Docker Compose PostgreSQL 集成测试通过：`docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@postgres:5432/tictick_hi?sslmode=disable' golang:1.26-bookworm go test ./internal/store/postgres -run 'TestIntegrationRepairMarketCandleGap(IgnoresSoftDeletedRepairTask|sRollsBackWhenAnyGapIsInvalid)' -count=1 -v`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，23 个测试文件、120 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+
+剩余风险：
+
+- 本轮只补强全历史缺口 repair 的软删除去重和批量事务原子性证据，不实现自动补齐或重试调度策略。
+- 数据同步 worker 仍缺完整统一状态机、分布式多实例限流和真实外部交易所长期恢复压测；研究页和项目整体仍是 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
