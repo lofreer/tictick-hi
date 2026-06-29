@@ -22,6 +22,7 @@ const viewports = [
 ];
 
 const themes = ["light", "dark"];
+const locales = ["zh-CN", "en-US"];
 
 const pages = [
   { label: "overview", path: "/overview", selector: ".overview-metrics" },
@@ -42,13 +43,15 @@ try {
   const results = [];
   for (const viewport of viewports) {
     for (const theme of themes) {
-      results.push(await runVisualPass(endpoint, viewport, theme));
+      for (const locale of locales) {
+        results.push(await runVisualPass(endpoint, viewport, theme, locale));
+      }
     }
   }
 
   for (const result of results) {
     console.log(
-      `${result.viewport}/${result.theme}: ${result.pages.length} pages, max document width ${result.maxDocumentWidth}px`,
+      `${result.viewport}/${result.theme}/${result.locale}: ${result.pages.length} pages, max document width ${result.maxDocumentWidth}px`,
     );
   }
   console.log("stage8 visual smoke passed");
@@ -60,7 +63,7 @@ try {
   cleanupChrome();
 }
 
-async function runVisualPass(endpoint, viewport, theme) {
+async function runVisualPass(endpoint, viewport, theme, locale) {
   const page = await createPage(endpoint, `${baseUrl}/`);
   const cdp = await connect(page.webSocketDebuggerUrl);
   const browserErrors = [];
@@ -82,11 +85,13 @@ async function runVisualPass(endpoint, viewport, theme) {
     await cdp.send("Emulation.setDeviceMetricsOverride", viewport.metrics);
     await cdp.send("Page.navigate", { url: `${baseUrl}/` });
     await waitFor(cdp, "document.readyState === 'complete' || document.readyState === 'interactive'");
-    await login(cdp, viewport.label, theme);
+    await login(cdp, viewport.label, theme, locale);
+    await setLocale(cdp, locale);
 
     const passPages = [...pages, ...(await detailPages(cdp))];
     for (const pageConfig of passPages) {
       await setTheme(cdp, theme);
+      await setLocale(cdp, locale);
       await cdp.send("Page.navigate", { url: `${baseUrl}${pageConfig.path}` });
       await waitFor(cdp, "!!document.querySelector('.app-shell')", 15000);
       await waitFor(cdp, "!!document.querySelector('.page-title')", 15000);
@@ -104,17 +109,18 @@ async function runVisualPass(endpoint, viewport, theme) {
       await delay(settleMs);
 
       const sample = await evaluate(cdp, visualSampleExpression(pageConfig));
-      assertPageLayout(viewport, theme, pageConfig, sample);
+      assertPageLayout(viewport, theme, locale, pageConfig, sample);
       pageResults.push({ label: pageConfig.label, sample });
     }
 
     if (browserErrors.length > 0) {
-      throw new Error(`${viewport.label}/${theme} browser errors: ${browserErrors.join(" | ")}`);
+      throw new Error(`${viewport.label}/${theme}/${locale} browser errors: ${browserErrors.join(" | ")}`);
     }
 
     return {
       viewport: viewport.label,
       theme,
+      locale,
       pages: pageResults,
       maxDocumentWidth: Math.max(...pageResults.map((result) => result.sample.documentWidth)),
     };
@@ -166,7 +172,7 @@ async function detailPages(cdp) {
   return detailPages;
 }
 
-async function login(cdp, viewportLabel, theme) {
+async function login(cdp, viewportLabel, theme, locale) {
   const loginResult = await evaluate(
     cdp,
     `fetch('/api/auth/login', {
@@ -177,7 +183,7 @@ async function login(cdp, viewportLabel, theme) {
     }).then(async (response) => ({ ok: response.ok, status: response.status, body: await response.text() }))`,
   );
   if (!loginResult.ok) {
-    throw new Error(`${viewportLabel}/${theme} login failed: HTTP ${loginResult.status} ${loginResult.body}`);
+    throw new Error(`${viewportLabel}/${theme}/${locale} login failed: HTTP ${loginResult.status} ${loginResult.body}`);
   }
 }
 
@@ -187,6 +193,17 @@ async function setTheme(cdp, theme) {
     `(() => {
       localStorage.setItem('tictick-hi.theme', ${JSON.stringify(theme)});
       document.documentElement.dataset.theme = ${JSON.stringify(theme)};
+      return true;
+    })()`,
+  );
+}
+
+async function setLocale(cdp, locale) {
+  await evaluate(
+    cdp,
+    `(() => {
+      localStorage.setItem('tictick-hi.locale', ${JSON.stringify(locale)});
+      document.documentElement.lang = ${JSON.stringify(locale)};
       return true;
     })()`,
   );
@@ -221,9 +238,15 @@ function visualSampleExpression(pageConfig) {
     const detailSelectors = ${JSON.stringify(pageConfig.detailLayout ?? null)};
     const root = document.documentElement;
     const body = document.body;
+    const visibleText = document.body?.innerText ?? '';
     return {
       href: location.href,
       theme: document.documentElement.dataset.theme || '',
+      locale: document.documentElement.lang || '',
+      navText: document.querySelector('.top-nav')?.innerText ?? '',
+      i18nLeaks: Array.from(new Set(
+        visibleText.match(/\\b(?:auth|backtests|common|nav|overview|page|research|strategy|system|trading)\\.[A-Za-z0-9_.-]+\\b/g) ?? []
+      )).slice(0, 8),
       viewportWidth: innerWidth,
       viewportHeight: innerHeight,
       documentWidth: Math.max(root.scrollWidth, body.scrollWidth, root.clientWidth, body.clientWidth),
@@ -293,11 +316,12 @@ function visualSampleExpression(pageConfig) {
   })()`;
 }
 
-function assertPageLayout(viewport, theme, page, sample) {
-  const label = `${viewport.label}/${theme}/${page.label}`;
+function assertPageLayout(viewport, theme, locale, page, sample) {
+  const label = `${viewport.label}/${theme}/${locale}/${page.label}`;
   if (sample.theme !== theme) {
     throw new Error(`${label} theme = ${sample.theme}, want ${theme}`);
   }
+  assertLocale(label, locale, sample);
   for (const [name, node] of [
     ["shell", sample.shell],
     ["header", sample.header],
@@ -329,6 +353,33 @@ function assertPageLayout(viewport, theme, page, sample) {
   }
   if (page.chart) assertResearchChartSmoke(label, sample, viewport.metrics);
   if (page.detailLayout) assertDetailLayoutSmoke(label, sample, viewport.metrics);
+}
+
+function assertLocale(label, locale, sample) {
+  if (sample.locale !== locale) {
+    throw new Error(`${label} html lang = ${sample.locale}, want ${locale}`);
+  }
+  const expectedNavText = locale === "en-US" ? "Overview" : "概览";
+  const unexpectedNavText = locale === "en-US" ? "概览" : "Overview";
+  if (!sample.navText.includes(expectedNavText)) {
+    throw new Error(
+      `${label} top nav did not render the expected locale: ${JSON.stringify({
+        expectedNavText,
+        navText: sample.navText,
+      })}`,
+    );
+  }
+  if (sample.navText.includes(unexpectedNavText)) {
+    throw new Error(
+      `${label} top nav still contains text from the wrong locale: ${JSON.stringify({
+        unexpectedNavText,
+        navText: sample.navText,
+      })}`,
+    );
+  }
+  if (sample.i18nLeaks.length > 0) {
+    throw new Error(`${label} leaked i18n keys into visible text: ${sample.i18nLeaks.join(", ")}`);
+  }
 }
 
 function assertVisibleNode(label, name, node) {

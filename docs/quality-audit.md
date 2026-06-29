@@ -44,7 +44,7 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；`scripts/stage8-visual-smoke.mjs` 已覆盖核心页面桌面/移动与浅/深主题的 runtime error、横向溢出和主内容存在性，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；仍缺像素快照基线、全路由/全语言覆盖和 CI 硬门禁，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；`scripts/stage8-visual-smoke.mjs` 已覆盖核心页面 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；仍缺像素快照基线、真正全路由覆盖和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
@@ -3269,7 +3269,7 @@ Definition of Done：
 | 交易 runner | demo | paper execute/notification、position/order/execution/outbox、claim 公平性和容器 SIGTERM release 已走通；通知 intent 可进入 email / Telegram / 飞书 provider 基础发送路径 | 风控、PnL 可信度、通知 provider 生产启用边界、统一状态机和实盘隔离不足 |
 | 实盘安全 | demo | 凭据 AES-GCM、本地 live 任务创建护栏和 live execute 禁用已验证 | testnet/sandbox executor、订单先落库再提交、幂等 retry、KMS/轮换未完成 |
 | 通知 | demo | outbox、local/webhook-demo/webhook/email/Telegram/飞书 provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实第三方账号联网验收、模板、限流、审计和通道管理不足 |
-| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告；概览页已接入真实 API 聚合；Stage 8 visual smoke 已覆盖核心页面桌面/移动与浅/深主题 | 缺像素快照基线、全路由/全语言覆盖和 CI 硬门禁 |
+| 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告；概览页已接入真实 API 聚合；Stage 8 visual smoke 已覆盖核心页面 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵 | 缺像素快照基线、真正全路由覆盖和 CI 硬门禁 |
 | 概览页 | demo | 从现有 API 聚合系统健康、data sync、backtest、trading 和 notification，展示关键计数、异常提醒、worker 状态和最近活动；`useOverviewWorkspace` 单测覆盖聚合契约 | 缺时间窗口筛选、趋势图、关键操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员 session 管理、基础操作审计页、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 通用门禁、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator gate、Go command config smoke、stage8 smoke、data sync/backtest/trading/notify SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、像素视觉回归和安全审计纳入硬门禁 |
@@ -6642,6 +6642,39 @@ Definition of Done：
 
 - 仍缺像素快照基线和多浏览器视觉回归门禁；当前只用 Headless Chrome 几何 smoke 覆盖。
 - 详情页列表内容密度、marker 可读性和真实长数据滚动体验还需要继续打磨。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 8 visual smoke 中英语言矩阵补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 前端基础设施审计仍标记缺全语言覆盖；既有 visual smoke 只覆盖视口和主题，没有验证中英 locale 初始化链路。
+- 顶部导航、页面标题、详情页和系统页若出现 i18n key 泄漏，旧 smoke 不会失败。
+
+Definition of Done：
+
+- `scripts/stage8-visual-smoke.mjs` 覆盖 `zh-CN` / `en-US` 与既有视口、主题矩阵组合。
+- smoke 使用应用真实存储键 `tictick-hi.locale`，触发 `LocaleStore`、`vue-i18n` 和 Naive UI provider 的真实初始化路径。
+- 每页采样校验 `document.documentElement.lang` 等于目标语言。
+- 中文矩阵下顶部导航必须包含 `概览` 且不能残留 `Overview`；英文矩阵下反向校验。
+- 页面可见文本不得泄漏明显 i18n key，例如 `page.research.title`、`common.create`。
+- 既有横向溢出、主题、研究页图表、详情页图表/双栏布局断言保持不变。
+
+修复范围：
+
+- `scripts/stage8-visual-smoke.mjs` 增加 `locales` 矩阵、`setLocale`、locale/nav/i18n leak 采样和断言。
+- `docs/quality-audit.md` 更新前端基础设施当前风险：核心 smoke 页已有中英矩阵覆盖，但仍不等于真正全路由覆盖。
+
+验证：
+
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：`1440x900`、`812x1320`、`390x844` 三视口 × light/dark × `zh-CN/en-US`，当前本地数据下每组 7 页，最大 document width 分别等于 `1440 / 812 / 390`。
+
+剩余风险：
+
+- 语言矩阵当前覆盖 visual smoke 的核心页面和存在数据时的首个详情页，不等于所有系统管理子路由全覆盖。
+- 仍缺像素快照基线、多浏览器视觉回归和 CI 硬门禁。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ## 6. 保留 / 返工 / 删除 / 延后
