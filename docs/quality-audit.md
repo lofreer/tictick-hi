@@ -53,6 +53,8 @@ done            用户确认关闭
 
 补充：阶段 1 已新增 CandleProvider `invalid` 健康状态、CandleResult `issues` 摘要和任务列表窗口级 `dataHealth=invalid` 统计，用于把历史异常 K 线从 API 500 收敛为研究页列表和图表可观察的数据健康状态；历史行清洗和自动修复仍未关闭。
 
+补充：阶段 1 全历史 invalid repair 已补 PostgreSQL 集成证据：通过全历史 invalid scan 找到 persisted 异常行，排补同步任务后由 `SaveDataSyncResult` 走正常 worker 写回路径覆盖为健康 K 线，随后 `ScanMarketCandleInvalidIssues` 回到无异常；该证据只证明“补同步成功写回时会收敛”，不代表自动清洗历史行或保证交易所一定返回健康数据。
+
 补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表布局精细化复核补充”为准：研究页 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，图表左/右 gutter 为桌面 `16px/6px`、窄桌面 `12px/6px`、移动端 `10px/10px`，详情页下方摘要列为 `minmax(240px, 300px)`，`TradingViewChart` 只让 lightweight-charts 外层填满固定 viewport，不再覆写内部 table/canvas 几何。
 
 ## 3. 必须先修的问题
@@ -7467,6 +7469,52 @@ Definition of Done：
 - 本轮只创建补同步任务，不保证交易所一定能返回替换历史异常行；结果仍依赖 sync worker、adapter 和外部网络。
 - 全历史 invalid repair 按当前返回的 openTime 列表执行，不做自动全量修复。
 - 阶段 1 研究核心仍不能标记 usable；项目整体仍为 `scaffold`。
+
+### 阶段 1 全历史 invalid 补同步执行收敛证据补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 上一轮已经提供全历史 invalid K 线扫描和补同步任务排队入口，但验收重点停留在“能创建 repair task”。
+- 阶段 1 研究核心要继续接近真实可用，必须证明当补同步 worker 成功拉回健康 K 线后，历史异常行会通过正常写回路径被替换，并且研究页依赖的全历史 invalid scan 能观察到健康回流。
+
+Definition of Done：
+
+- 使用真实 PostgreSQL 集成测试制造 legacy invalid `market_candles` 行。
+- 通过 `RepairMarketCandleInvalidIssues` 创建全历史 invalid repair task，不直接改写市场数据。
+- 通过 `SaveDataSyncResult` 写入同一 open_time 的健康 K 线，覆盖历史 invalid 行。
+- 验证 repair task 收敛到 `succeeded`，`sync_enabled=false`，`latest_synced_open_time` 推进到修复 open_time。
+- 验证 `ScanMarketCandleInvalidIssues` 在相同 exchange / symbol / interval 下回到 `TotalCount=0`、`Issues=[]`，且窗口 K 线数量保持完整。
+- 不新增自动清洗、不绕过 positive price constraint、不把阶段 1 升级为 usable。
+
+改动范围：
+
+- `internal/store/postgres/market_candle_gap_store_integration_test.go` 新增 `TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan`。
+
+当前验证：
+
+- `go test ./internal/store/postgres -run 'TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan' -count=1` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegration(RepairMarketCandleInvalidIssue|RepairMarketCandleInvalidIssues|ScanMarketCandleInvalidIssues|RepairDataSyncTaskInvalidIssuesConvergesSourceHealth|RepairTaskExecutionConvergesSourceDataHealth)' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+失败项：
+
+- 无。
+
+剩余风险：
+
+- 该测试证明的是“worker 成功保存健康 K 线时会收敛”，不保证交易所一定能返回对应历史数据。
+- 当前仍没有自动全量修复或自动清洗历史 invalid 行；用户仍需要从研究页排队补同步并观察任务结果。
+- 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

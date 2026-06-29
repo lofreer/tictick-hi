@@ -187,6 +187,97 @@ func TestIntegrationRepairMarketCandleInvalidIssuesCreatesSyncTasks(t *testing.T
 	}
 }
 
+func TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 8, 45, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCIC")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		ensurePositivePriceConstraint(t, cleanupCtx, store)
+	})
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 0))
+	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(time.Minute))
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 2))
+
+	before, err := store.ScanMarketCandleInvalidIssues(ctx, data.MarketCandleInvalidIssueScanQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.TotalCount != 1 || before.ReturnedCount != 1 || len(before.Issues) != 1 {
+		t.Fatalf("invalid scan before repair = %#v, want one issue", before)
+	}
+
+	repair, err := store.RepairMarketCandleInvalidIssues(ctx, data.RepairMarketCandleInvalidIssuesRequest{
+		Exchange:  "binance",
+		Symbol:    symbol,
+		Interval:  "1m",
+		OpenTimes: []time.Time{start.Add(time.Minute)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repair.TotalCount != 1 || repair.SkippedExisting != 0 || len(repair.CreatedTasks) != 1 {
+		t.Fatalf("unexpected invalid repair result: %#v", repair)
+	}
+	repairTask := repair.CreatedTasks[0]
+	assertRepairTaskWindow(t, repairTask, "", start.Add(time.Minute), start.Add(2*time.Minute))
+
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET status = $2,
+		       locked_by = 'invalid-repair-converge-worker',
+		       locked_until = now() + interval '1 minute',
+		       heartbeat_at = now()
+		 WHERE id = $1`,
+		repairTask.ID,
+		data.TaskStatusRunning,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	repairedCandle := integrationGapScanCandle(symbol, start, 1)
+	lastOpenTime := repairedCandle.OpenTime
+	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
+		TaskID:       repairTask.ID,
+		Candles:      []data.Candle{repairedCandle},
+		LastOpenTime: &lastOpenTime,
+		Completed:    true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	listedRepair := findListedDataSyncTask(t, ctx, store, repairTask.ID)
+	if listedRepair.Status != data.TaskStatusSucceeded ||
+		listedRepair.SyncEnabled ||
+		listedRepair.LatestSyncedOpenTime == nil ||
+		!listedRepair.LatestSyncedOpenTime.Equal(lastOpenTime) {
+		t.Fatalf("repair task after result = %#v, want succeeded with latest synced open time", listedRepair)
+	}
+
+	after, err := store.ScanMarketCandleInvalidIssues(ctx, data.MarketCandleInvalidIssueScanQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Window.Count != 3 || after.TotalCount != 0 || after.ReturnedCount != 0 ||
+		len(after.Issues) != 0 || after.Limited {
+		t.Fatalf("invalid scan after repair result = %#v, want healthy history", after)
+	}
+}
+
 func TestIntegrationScanMarketCandleGapsReportsLimitedTotal(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
