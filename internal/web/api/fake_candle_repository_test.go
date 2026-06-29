@@ -265,6 +265,52 @@ func (repository *fakeRepository) RepairMarketCandleGaps(
 	return result, nil
 }
 
+func (repository *fakeRepository) RepairMarketCandleInvalidIssues(
+	_ context.Context,
+	request data.RepairMarketCandleInvalidIssuesRequest,
+) (data.DataSyncGapRepairResult, error) {
+	duration, err := data.IntervalDuration(request.Interval)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	result := data.DataSyncGapRepairResult{
+		CreatedTasks: []data.DataSyncTask{},
+		TotalCount:   len(request.OpenTimes),
+		RepairLimit:  data.MaxMarketCandleInvalidIssueScanLimit,
+	}
+	source := data.DataSyncTask{Exchange: request.Exchange, Symbol: request.Symbol, Interval: request.Interval}
+	for _, openTime := range request.OpenTimes {
+		window, ok := repository.fakeMarketCandleInvalidIssueWindow(request, openTime.UTC(), duration)
+		if !ok {
+			return data.DataSyncGapRepairResult{}, data.ErrNotFound
+		}
+		if repository.fakeRepairTaskExists(source, window) {
+			result.SkippedExisting += 1
+			continue
+		}
+		now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		startTime := window.From
+		endTime := window.To
+		repairTask := data.DataSyncTask{
+			ID:              "dst_market_invalid_repair_" + strconv.Itoa(len(repository.tasks)+1),
+			Exchange:        request.Exchange,
+			Symbol:          request.Symbol,
+			Interval:        request.Interval,
+			StartTime:       &startTime,
+			EndTime:         &endTime,
+			SyncEnabled:     true,
+			RealtimeEnabled: false,
+			Status:          data.TaskStatusPending,
+			DataHealth:      data.DataSyncHealthSyncing,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		repository.tasks = append(repository.tasks, repairTask)
+		result.CreatedTasks = append(result.CreatedTasks, repairTask)
+	}
+	return result, nil
+}
+
 func (repository *fakeRepository) fakeMarketCandleGap(
 	request data.RepairMarketCandleGapRequest,
 ) (data.CandleGap, bool, error) {
@@ -287,4 +333,22 @@ func (repository *fakeRepository) fakeMarketCandleGap(
 		}
 	}
 	return data.CandleGap{}, false, nil
+}
+
+func (repository *fakeRepository) fakeMarketCandleInvalidIssueWindow(
+	request data.RepairMarketCandleInvalidIssuesRequest,
+	openTime time.Time,
+	duration time.Duration,
+) (data.CandleGap, bool) {
+	for _, candle := range repository.candles {
+		if candle.Exchange != request.Exchange || candle.Symbol != request.Symbol || candle.Interval != request.Interval {
+			continue
+		}
+		if !candle.OpenTime.Equal(openTime) || data.DetectCandleIssue(candle) == nil {
+			continue
+		}
+		from := candle.OpenTime.UTC()
+		return data.CandleGap{From: from, To: from.Add(duration), MissingCandles: 1}, true
+	}
+	return data.CandleGap{}, false
 }

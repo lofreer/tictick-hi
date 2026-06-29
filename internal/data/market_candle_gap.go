@@ -57,3 +57,10 @@ type RepairMarketCandleGapsRequest struct {
 	Interval string                        `json:"interval"`
 	Gaps     []RepairMarketCandleGapWindow `json:"gaps"`
 }
+
+type RepairMarketCandleInvalidIssuesRequest struct {
+	Exchange  string      `json:"exchange"`
+	Symbol    string      `json:"symbol"`
+	Interval  string      `json:"interval"`
+	OpenTimes []time.Time `json:"openTimes"`
+}

@@ -419,6 +419,7 @@ type Repository interface {
 	ScanMarketCandleInvalidIssues(ctx context.Context, query MarketCandleInvalidIssueScanQuery) (MarketCandleInvalidIssueScan, error)
 	RepairMarketCandleGap(ctx context.Context, request RepairMarketCandleGapRequest) (DataSyncGapRepairResult, error)
 	RepairMarketCandleGaps(ctx context.Context, request RepairMarketCandleGapsRequest) (DataSyncGapRepairResult, error)
+	RepairMarketCandleInvalidIssues(ctx context.Context, request RepairMarketCandleInvalidIssuesRequest) (DataSyncGapRepairResult, error)
 	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
 	CreateBacktestTask(ctx context.Context, task CreateBacktestTask) (BacktestTask, error)
 	GetBacktestTask(ctx context.Context, id string) (BacktestTask, error)

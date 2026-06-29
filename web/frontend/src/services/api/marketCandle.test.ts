@@ -221,4 +221,59 @@ describe("market candle api", () => {
       }),
     );
   });
+
+  it("queues repair tasks for returned full-history invalid market candles", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          sourceTaskId: "",
+          createdTasks: [
+            {
+              id: "dst_market_invalid_repair_1",
+              exchange: "binance",
+              symbol: "BTCUSDT",
+              interval: "1m",
+              startTime: "2026-06-27T03:01:00Z",
+              endTime: "2026-06-27T03:02:00Z",
+              realtimeEnabled: false,
+              syncEnabled: true,
+              status: "pending",
+              dataHealth: "syncing",
+            },
+          ],
+          skippedExisting: 1,
+          limited: false,
+          totalCount: 2,
+          repairLimit: 100,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.repairMarketCandleInvalidIssues({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      openTimes: ["2026-06-27T03:01:00Z", "2026-06-27T03:02:00Z"],
+    })).resolves.toMatchObject({
+      sourceTaskId: "",
+      createdTasks: [{ id: "dst_market_invalid_repair_1", syncEnabled: true, dataHealth: "syncing" }],
+      skippedExisting: 1,
+      totalCount: 2,
+      repairLimit: 100,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/market/candle-invalid-issues/repair",
+      expect.objectContaining({
+        body: JSON.stringify({
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          openTimes: ["2026-06-27T03:01:00Z", "2026-06-27T03:02:00Z"],
+        }),
+        method: "POST",
+      }),
+    );
+  });
 });

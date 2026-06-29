@@ -130,7 +130,7 @@
                 {{ gapCountLabel }}
               </NTag>
               <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />
-              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" />
+              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />
               <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
                 {{ coverageLabel }}
               </NTag>

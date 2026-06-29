@@ -47,6 +47,7 @@ export type RepairDataSyncTaskGapRequest = { from: string; to: string; };
 export type RepairMarketCandleGapRequest = { exchange: string; from: string; interval: string; symbol: string; to: string; };
 export type RepairMarketCandleGapWindow = { from: string; to: string; };
 export type RepairMarketCandleGapsRequest = { exchange: string; gaps: RepairMarketCandleGapWindow[]; interval: string; symbol: string; };
+export type RepairMarketCandleInvalidIssuesRequest = { exchange: string; interval: string; openTimes: string[]; symbol: string; };
 export type ServiceHealth = { detail?: string; exchangeBackoffCount?: number; lastHeartbeatAt?: string; lockedCount?: number; lockedUntil?: string; name: string; nextExchangeAttemptAt?: string; pendingCount?: number; runningCount?: number; staleLeaseCount?: number; status: string; };
 export type StatusResponse = { status: string; };
 export type StrategyDefinition = { description: string; id: string; name: string; params: StrategyParamSpec[]; supportedIntents: string[]; supportedIntervals: string[]; version: string; };

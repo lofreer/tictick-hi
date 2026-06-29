@@ -35,6 +35,21 @@
         <NTag v-if="scan?.limited" :bordered="false" type="warning">
           {{ t("research.marketInvalidDetailsLimited", { returned: scan.returnedCount, total: scan.totalCount }) }}
         </NTag>
+        <NTag v-if="repairResultLabel" :bordered="false" type="success">
+          {{ repairResultLabel }}
+        </NTag>
+        <NTag v-if="repairError" :bordered="false" type="error" :title="repairError">
+          {{ t("research.marketInvalidRepairFailed") }}
+        </NTag>
+        <NButton
+          v-if="repairableOpenTimes.length > 0"
+          secondary
+          type="warning"
+          :loading="repairing"
+          @click="repairReturnedIssues"
+        >
+          {{ t("research.marketInvalidRepairReturned") }}
+        </NButton>
         <NButton @click="detailsOpen = false">{{ t("common.close") }}</NButton>
       </NSpace>
     </template>
@@ -54,10 +69,16 @@ const props = defineProps<{
   interval: string;
   symbol: string;
 }>();
+const emit = defineEmits<{
+  repaired: [];
+}>();
 
 const { t, te } = useI18n();
 const loading = ref(false);
 const error = ref("");
+const repairError = ref("");
+const repairing = ref(false);
+const repairResult = ref<{ created: number; skipped: number } | null>(null);
 const scan = ref<MarketCandleInvalidIssueScan | null>(null);
 const detailsOpen = ref(false);
 let requestSeq = 0;
@@ -90,6 +111,15 @@ const title = computed(() => {
   });
 });
 
+const repairableOpenTimes = computed(() => scan.value?.issues
+  .map((issue) => issue.openTime)
+  .filter((openTime): openTime is string => Boolean(openTime)) ?? []);
+
+const repairResultLabel = computed(() => {
+  if (!repairResult.value) return "";
+  return t("research.marketInvalidRepairReturnedQueued", repairResult.value);
+});
+
 watch(
   () => [props.exchange, props.symbol, props.interval],
   () => void loadScan(),
@@ -100,6 +130,8 @@ async function loadScan() {
   const seq = ++requestSeq;
   loading.value = true;
   error.value = "";
+  repairError.value = "";
+  repairResult.value = null;
   scan.value = null;
   try {
     const result = await dataApi.scanMarketCandleInvalidIssues({
@@ -113,6 +145,30 @@ async function loadScan() {
     if (seq === requestSeq) error.value = scanError instanceof Error ? scanError.message : String(scanError);
   } finally {
     if (seq === requestSeq) loading.value = false;
+  }
+}
+
+async function repairReturnedIssues() {
+  if (repairableOpenTimes.value.length === 0) return;
+  repairing.value = true;
+  repairError.value = "";
+  repairResult.value = null;
+  try {
+    const result = await dataApi.repairMarketCandleInvalidIssues({
+      exchange: props.exchange,
+      interval: props.interval,
+      openTimes: repairableOpenTimes.value,
+      symbol: props.symbol,
+    });
+    repairResult.value = {
+      created: result.createdTasks.length,
+      skipped: result.skippedExisting,
+    };
+    emit("repaired");
+  } catch (repairFailure) {
+    repairError.value = repairFailure instanceof Error ? repairFailure.message : String(repairFailure);
+  } finally {
+    repairing.value = false;
   }
 }
 

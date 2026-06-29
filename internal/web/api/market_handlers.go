@@ -23,6 +23,8 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 		server.repairMarketCandleGap(w, r)
 	case "/api/market/candle-gaps/repair-batch":
 		server.repairMarketCandleGaps(w, r)
+	case "/api/market/candle-invalid-issues/repair":
+		server.repairMarketCandleInvalidIssues(w, r)
 	case "/api/market/instruments":
 		server.handleMarketInstruments(w, r)
 	case "/api/market/instruments/status":
@@ -117,6 +119,32 @@ func (server *Server) repairMarketCandleGaps(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	result, err := server.repository.RepairMarketCandleGaps(r.Context(), request)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
+func (server *Server) repairMarketCandleInvalidIssues(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+
+	var request data.RepairMarketCandleInvalidIssuesRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateRepairMarketCandleInvalidIssuesRequest(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
+		return
+	}
+	result, err := server.repository.RepairMarketCandleInvalidIssues(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -355,6 +383,34 @@ func validateRepairMarketCandleGapsRequest(request *data.RepairMarketCandleGapsR
 		From:     request.Gaps[0].From,
 		To:       request.Gaps[0].To,
 	})
+}
+
+func validateRepairMarketCandleInvalidIssuesRequest(request *data.RepairMarketCandleInvalidIssuesRequest) error {
+	request.Exchange = strings.TrimSpace(request.Exchange)
+	request.Symbol = strings.ToUpper(strings.TrimSpace(request.Symbol))
+	request.Interval = strings.TrimSpace(request.Interval)
+	if request.Exchange == "" || request.Symbol == "" || request.Interval == "" {
+		return fmt.Errorf("exchange, symbol and interval are required")
+	}
+	if err := validateExchangeSymbol(request.Exchange, request.Symbol); err != nil {
+		return err
+	}
+	if _, err := data.IntervalDuration(request.Interval); err != nil {
+		return err
+	}
+	if len(request.OpenTimes) == 0 {
+		return fmt.Errorf("openTimes are required")
+	}
+	if len(request.OpenTimes) > data.MaxMarketCandleInvalidIssueScanLimit {
+		return fmt.Errorf("openTimes must contain at most %d items", data.MaxMarketCandleInvalidIssueScanLimit)
+	}
+	for index := range request.OpenTimes {
+		if request.OpenTimes[index].IsZero() {
+			return fmt.Errorf("openTimes must not contain zero time")
+		}
+		request.OpenTimes[index] = request.OpenTimes[index].UTC()
+	}
+	return nil
 }
 
 func parseMarketInstrumentSyncQuery(r *http.Request) (data.MarketInstrumentQuery, error) {

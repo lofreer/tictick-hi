@@ -133,6 +133,60 @@ func TestIntegrationScanMarketCandleInvalidIssuesReportsHealthyHistory(t *testin
 	}
 }
 
+func TestIntegrationRepairMarketCandleInvalidIssuesCreatesSyncTasks(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 8, 30, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCIR")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		ensurePositivePriceConstraint(t, cleanupCtx, store)
+	})
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 0))
+	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(time.Minute))
+	insertLegacyInvalidCloseDataHealthCandle(t, ctx, store, symbol, start.Add(2*time.Minute))
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 3))
+
+	request := data.RepairMarketCandleInvalidIssuesRequest{
+		Exchange:  "binance",
+		Symbol:    symbol,
+		Interval:  "1m",
+		OpenTimes: []time.Time{start.Add(time.Minute), start.Add(2 * time.Minute)},
+	}
+	result, err := store.RepairMarketCandleInvalidIssues(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SourceTaskID != "" || result.SkippedExisting != 0 || result.TotalCount != 2 ||
+		result.RepairLimit != data.MaxMarketCandleInvalidIssueScanLimit || result.Limited {
+		t.Fatalf("unexpected invalid repair metadata: %#v", result)
+	}
+	if len(result.CreatedTasks) != 2 {
+		t.Fatalf("created repair task count = %d, want 2: %#v", len(result.CreatedTasks), result.CreatedTasks)
+	}
+	assertRepairTaskWindow(t, result.CreatedTasks[0], "", start.Add(time.Minute), start.Add(2*time.Minute))
+	assertRepairTaskWindow(t, result.CreatedTasks[1], "", start.Add(2*time.Minute), start.Add(3*time.Minute))
+
+	duplicate, err := store.RepairMarketCandleInvalidIssues(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicate.CreatedTasks) != 0 || duplicate.SkippedExisting != 2 {
+		t.Fatalf("duplicate invalid repair result = %#v, want skipped existing", duplicate)
+	}
+
+	notInvalidRequest := request
+	notInvalidRequest.OpenTimes = []time.Time{start}
+	if _, err := store.RepairMarketCandleInvalidIssues(ctx, notInvalidRequest); !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("non-invalid repair error = %v, want ErrNotFound", err)
+	}
+}
+
 func TestIntegrationScanMarketCandleGapsReportsLimitedTotal(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

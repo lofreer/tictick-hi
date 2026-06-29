@@ -7368,6 +7368,61 @@ Definition of Done：
 - 全历史异常扫描只读观察，不自动修复或清洗历史异常行；真实修复仍依赖后续补同步和外部交易所可用性。
 - 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
+### 阶段 1 全历史 invalid 补同步入口补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 研究页已能扫描并展示当前数据源全历史 invalid K 线，但详情弹窗仍只能观察。
+- 阶段 1 的研究核心需要从“发现数据健康问题”推进到“可在同一研究工作流排补同步任务”，但仍不能由前端直接清洗或改写 `market_candles`。
+
+Definition of Done：
+
+- 新增 `POST /api/market/candle-invalid-issues/repair`，请求包含 exchange / symbol / interval / openTimes。
+- API 写请求继续要求登录、CSRF 和 active market instrument。
+- PostgreSQL store 必须逐个 `open_time` 重查 persisted `market_candles` 的真实 OHLCV invalid 条件；不是当前真实 invalid 的 openTime 返回 `ErrNotFound`，不创建任务。
+- 补同步任务窗口为 `[open_time, open_time + interval]`，`sync_enabled=true`，`realtime_enabled=false`，`status=pending`，不写 `repair_source_task_id`，因为来源是全历史市场数据而非某个 data sync task。
+- 已存在同 exchange / symbol / interval / start_time / end_time 的 active 补同步任务时返回 `skippedExisting`，不重复创建。
+- 研究页全历史 invalid 详情弹窗可排队补同步当前返回的异常 openTime，并刷新任务列表。
+- 不自动清洗历史行，不自动后台修复，不升级阶段 1 或项目整体等级。
+
+改动范围：
+
+- `internal/data/market_candle_gap.go` 和 repository interface 增加 `RepairMarketCandleInvalidIssuesRequest` / 方法。
+- `internal/store/postgres/market_candle_invalid_issue_store.go` 增加全历史 invalid repair 事务逻辑。
+- `internal/web/api/market_handlers.go`、API contract、schema drift 和 method contract 增加新路由。
+- `web/frontend/src/components/research/MarketCandleInvalidIssueTag.vue` 增加“排队补同步当前异常”入口和结果反馈。
+- `web/frontend/src/services/api/data.ts`、generated API types、app types 和 i18n 同步新请求类型和文案。
+
+当前验证：
+
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/web/api -run 'TestMarketCandleInvalidIssueRepair|TestAPIContract|TestAPIMethodNotAllowedContracts|TestFrontendAPI' -count=1` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegrationRepairMarketCandleInvalidIssues|TestIntegrationScanMarketCandleInvalidIssues' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/marketCandle.test.ts src/components/research/MarketCandleInvalidIssueTag.test.ts` 通过：2 个测试文件、10 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `docker compose up --build -d api sync backtest trading notify` 通过，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `node scripts/research-chart-height-smoke.mjs` 通过，当前 8080 在 1440 / 2048 / 812 / 390 视口下图表高度稳定。
+
+失败项：
+
+- 首次前端组件测试没有点到 Naive UI modal teleport 中的按钮；已改为从真实 `document` 查询按钮并重跑通过。
+- 首次 typecheck 暴露 `openTime` 可选字段未被 `filter(Boolean)` 收窄；已加显式 type guard 并重跑通过。
+
+剩余风险：
+
+- 本轮只创建补同步任务，不保证交易所一定能返回替换历史异常行；结果仍依赖 sync worker、adapter 和外部网络。
+- 全历史 invalid repair 按当前返回的 openTime 列表执行，不做自动全量修复。
+- 阶段 1 研究核心仍不能标记 usable；项目整体仍为 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

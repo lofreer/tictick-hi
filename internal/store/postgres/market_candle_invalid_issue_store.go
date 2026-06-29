@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
@@ -140,4 +142,110 @@ func (store *Store) marketCandleInvalidIssueScanRows(
 		return nil, 0, fmt.Errorf("iterate market candle invalid issues: %w", err)
 	}
 	return issues, totalCount, nil
+}
+
+func (store *Store) RepairMarketCandleInvalidIssues(
+	ctx context.Context,
+	request data.RepairMarketCandleInvalidIssuesRequest,
+) (data.DataSyncGapRepairResult, error) {
+	intervalDuration, err := data.IntervalDuration(request.Interval)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("begin repair market candle invalid issues: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	result := data.DataSyncGapRepairResult{
+		CreatedTasks: []data.DataSyncTask{},
+		TotalCount:   len(request.OpenTimes),
+		RepairLimit:  data.MaxMarketCandleInvalidIssueScanLimit,
+	}
+	for _, rawOpenTime := range request.OpenTimes {
+		openTime := rawOpenTime.UTC()
+		window, ok, err := marketCandleInvalidIssueRepairWindow(ctx, tx, request, openTime, intervalDuration)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		if !ok {
+			return data.DataSyncGapRepairResult{}, data.ErrNotFound
+		}
+		exists, err := marketCandleRepairTaskExists(ctx, tx, data.RepairMarketCandleGapRequest{
+			Exchange: request.Exchange,
+			Symbol:   request.Symbol,
+			Interval: request.Interval,
+			From:     window.from,
+			To:       window.to,
+		}, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		if exists {
+			result.SkippedExisting++
+			continue
+		}
+		task, err := insertMarketCandleRepairTask(ctx, tx, data.RepairMarketCandleGapRequest{
+			Exchange: request.Exchange,
+			Symbol:   request.Symbol,
+			Interval: request.Interval,
+			From:     window.from,
+			To:       window.to,
+		}, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		result.CreatedTasks = append(result.CreatedTasks, task)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("commit repair market candle invalid issues: %w", err)
+	}
+	return result, nil
+}
+
+func marketCandleInvalidIssueRepairWindow(
+	ctx context.Context,
+	tx pgx.Tx,
+	request data.RepairMarketCandleInvalidIssuesRequest,
+	openTime time.Time,
+	intervalDuration time.Duration,
+) (dataSyncGapRepairWindow, bool, error) {
+	row := tx.QueryRow(ctx, `
+		SELECT open_time
+		  FROM market_candles
+		 WHERE exchange = $1
+		   AND symbol = $2
+		   AND interval = $3
+		   AND open_time = $4
+		   AND (
+		     open <= 0
+		     OR high <= 0
+		     OR low <= 0
+		     OR close <= 0
+		     OR volume < 0
+		     OR high < GREATEST(open, close, low)
+		     OR low > LEAST(open, close, high)
+		   )`,
+		request.Exchange,
+		request.Symbol,
+		request.Interval,
+		openTime,
+	)
+
+	var persistedOpenTime time.Time
+	if err := row.Scan(&persistedOpenTime); err != nil {
+		if err == pgx.ErrNoRows {
+			return dataSyncGapRepairWindow{}, false, nil
+		}
+		return dataSyncGapRepairWindow{}, false, fmt.Errorf("find market candle invalid issue repair window: %w", err)
+	}
+	from := persistedOpenTime.UTC()
+	return dataSyncGapRepairWindow{
+		from:           from,
+		to:             from.Add(intervalDuration),
+		missingCandles: 1,
+	}, true, nil
 }

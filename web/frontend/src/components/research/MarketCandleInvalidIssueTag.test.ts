@@ -8,6 +8,7 @@ import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
 
 const dataApiMocks = vi.hoisted(() => ({
+  repairMarketCandleInvalidIssues: vi.fn(),
   scanMarketCandleInvalidIssues: vi.fn(),
 }));
 
@@ -34,6 +35,27 @@ describe("MarketCandleInvalidIssueTag", () => {
       limited: false,
       totalCount: 1,
       returnedCount: 1,
+    });
+    dataApiMocks.repairMarketCandleInvalidIssues.mockResolvedValue({
+      sourceTaskId: "",
+      createdTasks: [
+        {
+          id: "dst_market_invalid_repair_1",
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          startTime: "2026-06-27T03:01:00Z",
+          endTime: "2026-06-27T03:02:00Z",
+          realtimeEnabled: false,
+          syncEnabled: true,
+          status: "pending",
+          dataHealth: "syncing",
+        },
+      ],
+      skippedExisting: 1,
+      limited: false,
+      totalCount: 2,
+      repairLimit: 100,
     });
   });
 
@@ -67,6 +89,29 @@ describe("MarketCandleInvalidIssueTag", () => {
     expect(document.body.textContent).toContain("2026-06-27 03:01:00 UTC");
     expect(document.body.textContent).toContain("开盘价必须为正");
     expect(document.body.textContent).toContain("open price value must be positive");
+  });
+
+  it("queues repairs for returned full-history invalid candle details", async () => {
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("排队补同步当前异常");
+    const repairButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("排队补同步当前异常"));
+    expect(repairButton).toBeTruthy();
+    repairButton?.click();
+    await flushPromises();
+
+    expect(dataApi.repairMarketCandleInvalidIssues).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      openTimes: ["2026-06-27T03:01:00Z"],
+    });
+    expect(document.body.textContent).toContain("已排队 1 个全历史异常补同步任务，跳过 1 个已存在任务。");
+    expect(wrapper.findComponent(MarketCandleInvalidIssueTag).emitted("repaired")).toHaveLength(1);
   });
 
   it("shows a healthy full-history invalid scan", async () => {
@@ -108,6 +153,11 @@ function mountTag() {
     global: {
       plugins: [i18n],
       stubs: {
+        NButton: {
+          emits: ["click"],
+          props: ["loading"],
+          template: '<button :disabled="loading" @click="$emit(\'click\')"><slot /></button>',
+        },
         NDataTable: {
           props: ["data"],
           template: '<div><div v-for="row in data" :key="row.openTime">{{ row.openTime }} {{ row.code }} {{ row.message }}</div></div>',

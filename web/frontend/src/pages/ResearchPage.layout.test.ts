@@ -210,7 +210,7 @@ describe("ResearchPage chart layout contract", () => {
 
   it("shows full-history invalid candle scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";');
-    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" />');
+    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />');
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {
