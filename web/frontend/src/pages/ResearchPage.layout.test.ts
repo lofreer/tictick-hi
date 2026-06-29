@@ -61,7 +61,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("width: 100% !important;");
     expect(toolbarStyle).toContain("display: grid;");
     expect(toolbarStyle).toContain("padding: 10px 12px 9px;");
-    expect(controlsStyle).toContain("grid-template-columns: 128px minmax(280px, 520px) 84px auto;");
+    expect(controlsStyle).toContain("grid-template-columns: 128px clamp(180px, 18vw, 300px) 84px auto;");
     expect(controlsStyle).toContain("width: fit-content;");
     expect(statusStyle).toContain("flex-wrap: wrap;");
     expect(pageStyles).toContain(".research-toolbar-main");
@@ -93,7 +93,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(720px, 72dvh, 920px);");
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(640px, 62vh, 760px);");
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(640px, 62dvh, 760px);");
-    expect(pageStyles).toContain("grid-template-columns: 112px minmax(160px, 1fr) 76px auto;");
+    expect(pageStyles).toContain("grid-template-columns: 112px minmax(160px, 240px) 76px auto;");
     expect(pageStyles).toContain("grid-template-columns: minmax(0, 1fr);");
     expect(pageStyles).toContain("width: 100%;");
   });

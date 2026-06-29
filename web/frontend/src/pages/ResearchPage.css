@@ -77,7 +77,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 128px minmax(280px, 520px) 84px auto;
+  grid-template-columns: 128px clamp(180px, 18vw, 300px) 84px auto;
   align-items: center;
   gap: 8px;
   width: fit-content;
@@ -294,7 +294,7 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 112px minmax(160px, 1fr) 76px auto;
+    grid-template-columns: 112px minmax(160px, 240px) 76px auto;
   }
 
   .research-select--exchange {

@@ -235,9 +235,9 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function rightPriceScaleMinimumWidth(width: number) {
-  if (width < 520) return 64;
-  if (width < 900) return 76;
-  return 88;
+  if (width < 520) return 56;
+  if (width < 900) return 60;
+  return 64;
 }
 
 function formatChartPrice(price: number) {
