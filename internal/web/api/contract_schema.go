@@ -121,6 +121,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"CandleResult", data.CandleResult{}},
 		{"MarketCandleGapScan", data.MarketCandleGapScan{}},
 		{"MarketInstrument", data.MarketInstrument{}},
+		{"MarketInstrumentSyncStatus", data.MarketInstrumentSyncStatus{}},
 		{"StrategyDefinition", strategy.Definition{}},
 		{"StrategyParamSpec", strategy.ParamSpec{}},
 		{"StrategyOption", strategy.Option{}},

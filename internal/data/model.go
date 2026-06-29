@@ -431,6 +431,7 @@ type Repository interface {
 	GetActiveMarketInstrument(ctx context.Context, exchange string, symbol string) (MarketInstrument, error)
 	CreateExchangeAccount(ctx context.Context, account CreateExchangeAccount) (ExchangeAccount, error)
 	ListMarketInstruments(ctx context.Context, query MarketInstrumentQuery) ([]MarketInstrument, error)
+	ListMarketInstrumentSyncStatuses(ctx context.Context) ([]MarketInstrumentSyncStatus, error)
 	ReplaceMarketInstruments(ctx context.Context, exchange string, instruments []MarketInstrument, syncedAt time.Time) (MarketInstrumentSyncResult, error)
 	RecordMarketInstrumentSyncFailure(ctx context.Context, exchange string, syncErr error, attemptedAt time.Time) error
 	ListOperators(ctx context.Context) ([]Operator, error)

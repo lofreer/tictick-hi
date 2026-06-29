@@ -22,6 +22,7 @@ import type {
   LoginRequest as APILoginRequest,
   MarketInstrument as APIMarketInstrument,
   MarketCandleGapScan as APIMarketCandleGapScan,
+  MarketInstrumentSyncStatus as APIMarketInstrumentSyncStatus,
   Notification as APINotification,
   NotificationChannel as APINotificationChannel,
   Operator as APIOperator,
@@ -147,6 +148,8 @@ export type CreateExchangeAccount = APICreateExchangeAccount;
 export type MarketInstrument = APIMarketInstrument;
 
 export type MarketCandleGapScan = APIMarketCandleGapScan;
+
+export type MarketInstrumentSyncStatus = APIMarketInstrumentSyncStatus;
 
 export type MarketInstrumentSyncResult = {
   exchange: string;

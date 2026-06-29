@@ -343,6 +343,20 @@ func TestIntegrationMarketInstrumentSyncStatusRecordsFailureAndSuccess(t *testin
 		len([]rune(failedError)) > 500 {
 		t.Fatalf("unexpected failed error: %q", failedError)
 	}
+	statuses, err := store.ListMarketInstrumentSyncStatuses(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundStatus *data.MarketInstrumentSyncStatus
+	for index := range statuses {
+		if statuses[index].Exchange == exchangeID {
+			foundStatus = &statuses[index]
+			break
+		}
+	}
+	if foundStatus == nil || foundStatus.LastError != failedError {
+		t.Fatalf("listed status = %#v, want last error %q", foundStatus, failedError)
+	}
 
 	active, err := listAllIntegrationActiveInstruments(ctx, store, exchangeID)
 	if err != nil {

@@ -22,6 +22,8 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 		server.repairMarketCandleGaps(w, r)
 	case "/api/market/instruments":
 		server.handleMarketInstruments(w, r)
+	case "/api/market/instruments/status":
+		server.handleMarketInstrumentSyncStatuses(w, r)
 	case "/api/market/instruments/sync":
 		server.syncMarketInstruments(w, r)
 	default:
@@ -111,6 +113,19 @@ func (server *Server) handleMarketInstruments(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, instruments)
+}
+
+func (server *Server) handleMarketInstrumentSyncStatuses(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, http.MethodGet)
+		return
+	}
+	statuses, err := server.repository.ListMarketInstrumentSyncStatuses(r.Context())
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, statuses)
 }
 
 func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Request) {

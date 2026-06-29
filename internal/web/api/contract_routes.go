@@ -132,6 +132,9 @@ func addMarketContractPaths(paths map[string]apiPathItem) {
 		),
 		withErrors(http.StatusBadRequest),
 	))
+	addOperation(paths, "/api/market/instruments/status", http.MethodGet, operation(
+		"market", "listMarketInstrumentSyncStatuses", "List market instrument sync statuses", http.StatusOK, arraySchema(schemaRef("MarketInstrumentSyncStatus")),
+	))
 	addOperation(paths, "/api/market/instruments/sync", http.MethodPost, operation(
 		"market", "syncMarketInstruments", "Synchronize market instruments", http.StatusOK, marketInstrumentSyncResultSchema(),
 		withCSRF(), withParameters(

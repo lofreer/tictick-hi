@@ -303,6 +303,33 @@ func TestMarketInstrumentSyncRouteRejectsUnavailableClient(t *testing.T) {
 	}
 }
 
+func TestMarketInstrumentSyncStatusRouteListsStatuses(t *testing.T) {
+	repository := newFakeRepository()
+	lastAttempt := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
+	lastSuccess := lastAttempt.Add(-time.Hour)
+	repository.marketSyncStatuses = []data.MarketInstrumentSyncStatus{{
+		Exchange:      "okx",
+		LastAttemptAt: lastAttempt,
+		LastSuccessAt: &lastSuccess,
+		LastError:     "okx instruments temporary unavailable: www.okx.com: EOF",
+		UpdatedAt:     lastAttempt,
+	}}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/market/instruments/status", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var statuses []data.MarketInstrumentSyncStatus
+	if err := json.NewDecoder(recorder.Body).Decode(&statuses); err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 1 || statuses[0].Exchange != "okx" || statuses[0].LastError == "" {
+		t.Fatalf("unexpected statuses: %#v", statuses)
+	}
+}
+
 func TestMarketInstrumentSyncRouteRecordsFetchFailure(t *testing.T) {
 	repository := newFakeRepository()
 	server := NewServerWithConfig(repository, Config{

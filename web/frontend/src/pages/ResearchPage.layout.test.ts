@@ -107,9 +107,9 @@ describe("ResearchPage chart layout contract", () => {
 
   it("uses backend-backed symbol autocomplete without locking the symbol input to a select", () => {
     expect(source).toContain('import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";');
-    expect(source).toContain('<MarketSymbolAutoComplete v-model:value="symbol"');
+    expect(source).toMatch(/<MarketSymbolAutoComplete[\s\S]*?v-model:value="symbol"[\s\S]*?:exchange="exchange"[\s\S]*?@synced="loadMarketInstrumentSyncStatuses"/);
     expect(source).toContain(':exchange="exchange"');
-    expect(source).toContain('<MarketSymbolAutoComplete v-model:value="createForm.symbol"');
+    expect(source).toMatch(/<MarketSymbolAutoComplete[\s\S]*?v-model:value="createForm\.symbol"[\s\S]*?:exchange="createForm\.exchange"[\s\S]*?@synced="loadMarketInstrumentSyncStatuses"/);
     expect(source).toContain(':exchange="createForm.exchange"');
     expect(source).not.toContain('<NSelect v-model:value="symbol"');
     expect(source).not.toContain('<NSelect v-model:value="createForm.symbol"');

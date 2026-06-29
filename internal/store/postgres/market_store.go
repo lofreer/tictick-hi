@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -124,6 +125,43 @@ func (store *Store) ListMarketInstruments(
 		return nil, fmt.Errorf("collect market instruments: %w", err)
 	}
 	return instruments, nil
+}
+
+func (store *Store) ListMarketInstrumentSyncStatuses(ctx context.Context) ([]data.MarketInstrumentSyncStatus, error) {
+	rows, err := store.pool.Query(ctx, `
+		SELECT exchange, last_attempt_at, last_success_at, last_error, updated_at
+		  FROM market_instrument_sync_statuses
+		 ORDER BY exchange`)
+	if err != nil {
+		return nil, fmt.Errorf("list market instrument sync statuses: %w", err)
+	}
+	defer rows.Close()
+
+	var statuses []data.MarketInstrumentSyncStatus
+	for rows.Next() {
+		var status data.MarketInstrumentSyncStatus
+		var lastSuccess sql.NullTime
+		if err := rows.Scan(
+			&status.Exchange,
+			&status.LastAttemptAt,
+			&lastSuccess,
+			&status.LastError,
+			&status.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan market instrument sync status: %w", err)
+		}
+		if lastSuccess.Valid {
+			lastSuccessAt := lastSuccess.Time.UTC()
+			status.LastSuccessAt = &lastSuccessAt
+		}
+		status.LastAttemptAt = status.LastAttemptAt.UTC()
+		status.UpdatedAt = status.UpdatedAt.UTC()
+		statuses = append(statuses, status)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("collect market instrument sync statuses: %w", err)
+	}
+	return statuses, nil
 }
 
 func (store *Store) ReplaceMarketInstruments(

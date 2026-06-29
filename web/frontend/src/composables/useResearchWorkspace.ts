@@ -27,6 +27,8 @@ import {
   toggleResearchSyncTask,
 } from "@/composables/researchTaskCommandActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
+import { useMarketInstrumentSyncStatuses } from "@/composables/useMarketInstrumentSyncStatuses";
+import { useMarketSymbolNormalization } from "@/composables/useMarketSymbolNormalization";
 import { dataApi } from "@/services/api/data";
 import type { CandleResult, ChartCandle, DataSyncGapList, DataSyncTask } from "@/types/app";
 import { coerceSymbolForExchange, isSymbolFormatForExchange, normalizeSymbolInput } from "@/utils/marketSymbols";
@@ -64,6 +66,14 @@ export function useResearchWorkspace() {
   const createModalOpen = ref(false);
   const selectedChartTask = ref<DataSyncTask | null>(null);
   const createForm = reactive(initialResearchForm(exchange.value, symbol.value, interval.value));
+  const {
+    create: createMarketInstrumentSyncStatus,
+    current: currentMarketInstrumentSyncStatus,
+    error: marketInstrumentSyncStatusError,
+    load: loadMarketInstrumentSyncStatuses,
+  } = useMarketInstrumentSyncStatuses(exchange, computed(() => createForm.exchange), (error) =>
+    errorMessage(error, t("research.instrumentCatalogStatusLoadFailed")),
+  );
   const canCreateTask = computed(
     () =>
       createForm.exchange !== "" &&
@@ -84,33 +94,7 @@ export function useResearchWorkspace() {
   });
   const canLoadPreviousCandles = computed(() => canLoadPreviousCandleWindow(candleResult.value));
   const canLoadNextCandles = computed(() => canLoadNextCandleWindow(candleResult.value));
-
-  watch(exchange, (nextExchange) => {
-    symbol.value = coerceSymbolForExchange(nextExchange, symbol.value);
-  });
-  watch(symbol, (nextSymbol) => {
-    const normalized = normalizeSymbolInput(nextSymbol);
-    if (normalized !== nextSymbol) {
-      symbol.value = normalized;
-    }
-  });
-
-  watch(
-    () => createForm.exchange,
-    (nextExchange) => {
-      createForm.symbol = coerceSymbolForExchange(nextExchange, createForm.symbol);
-    },
-  );
-
-  watch(
-    () => createForm.symbol,
-    (nextSymbol) => {
-      const normalized = normalizeSymbolInput(nextSymbol);
-      if (normalized !== nextSymbol) {
-        createForm.symbol = normalized;
-      }
-    },
-  );
+  useMarketSymbolNormalization(exchange, symbol, createForm);
 
   watch([exchange, symbol, interval, candleWindowFrom, candleWindowTo, candleWindowCursor], (nextValues, previousValues) => {
     const contextChanged =
@@ -135,7 +119,7 @@ export function useResearchWorkspace() {
   onMounted(() => void refreshAll());
 
   async function refreshAll() {
-    await Promise.all([loadTasks(), loadCandles()]);
+    await Promise.all([loadTasks(), loadCandles(), loadMarketInstrumentSyncStatuses()]);
   }
 
   async function loadTasks() {
@@ -360,7 +344,9 @@ export function useResearchWorkspace() {
     createForm,
     createLoading,
     createModalOpen,
+    createMarketInstrumentSyncStatus,
     createTask,
+    currentMarketInstrumentSyncStatus,
     deleteTask,
     exchange,
     applyTimeRange,
@@ -371,6 +357,7 @@ export function useResearchWorkspace() {
     gapDetailsTask,
     interval,
     loadCandles,
+    loadMarketInstrumentSyncStatuses,
     loadNextCandles,
     loadPreviousCandles,
     loadTasks,
@@ -383,6 +370,7 @@ export function useResearchWorkspace() {
     retryTask,
     selectTask,
     symbol,
+    marketInstrumentSyncStatusError,
     tasks,
     tasksError,
     tasksLoading,

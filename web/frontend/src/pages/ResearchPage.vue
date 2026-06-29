@@ -44,7 +44,12 @@
         <div class="research-toolbar">
           <div class="toolbar-row">
             <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
-            <MarketSymbolAutoComplete v-model:value="symbol" class="research-symbol-input" :exchange="exchange" />
+            <MarketSymbolAutoComplete
+              v-model:value="symbol"
+              class="research-symbol-input"
+              :exchange="exchange"
+              @synced="loadMarketInstrumentSyncStatuses"
+            />
             <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
             <ResearchWindowControls
               :can-load-next="canLoadNextCandles"
@@ -59,20 +64,38 @@
             <NText depth="3">
               {{ t("research.currentDataSource") }}: {{ exchange }} / {{ symbol }} / {{ interval }}
             </NText>
-            <div v-if="candleResult" class="research-meta">
-              <NTag :bordered="false" size="small" :type="sourceTagType">
+            <div v-if="candleResult || currentMarketInstrumentSyncStatus || marketInstrumentSyncStatusError" class="research-meta">
+              <NTag
+                v-if="currentMarketInstrumentSyncStatus"
+                :bordered="false"
+                size="small"
+                :title="catalogStatusDetail(currentMarketInstrumentSyncStatus)"
+                :type="catalogStatusTagType(currentMarketInstrumentSyncStatus)"
+              >
+                {{ t("research.instrumentCatalog") }}: {{ catalogStatusLabel(currentMarketInstrumentSyncStatus) }}
+              </NTag>
+              <NTag
+                v-else-if="marketInstrumentSyncStatusError"
+                :bordered="false"
+                size="small"
+                type="warning"
+                :title="marketInstrumentSyncStatusError"
+              >
+                {{ t("research.instrumentCatalog") }}: {{ t("research.instrumentCatalogUnknown") }}
+              </NTag>
+              <NTag v-if="candleResult" :bordered="false" size="small" :type="sourceTagType">
                 {{ t("research.candleSource") }}: {{ sourceLabel }}
               </NTag>
-              <NTag :bordered="false" size="small" :type="healthTagType">
+              <NTag v-if="candleResult" :bordered="false" size="small" :type="healthTagType">
                 {{ t("research.dataHealth") }}: {{ healthLabel }}
               </NTag>
-              <NTag :bordered="false" size="small">
+              <NTag v-if="candleResult" :bordered="false" size="small">
                 {{ t("research.baseInterval") }}: {{ baseIntervalText }}
               </NTag>
               <NTag v-if="windowLabel" :bordered="false" size="small">
                 {{ windowLabel }}
               </NTag>
-              <NTag v-if="candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
+              <NTag v-if="candleResult && candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
               <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />
@@ -116,7 +139,24 @@
           <NSelect v-model:value="createForm.exchange" :options="exchangeOptions" />
         </NFormItem>
         <NFormItem :label="t('research.symbol')">
-          <MarketSymbolAutoComplete v-model:value="createForm.symbol" :exchange="createForm.exchange" />
+          <MarketSymbolAutoComplete
+            v-model:value="createForm.symbol"
+            :exchange="createForm.exchange"
+            @synced="loadMarketInstrumentSyncStatuses"
+          />
+        </NFormItem>
+        <NFormItem v-if="createMarketInstrumentSyncStatus || marketInstrumentSyncStatusError" :label="t('research.instrumentCatalog')">
+          <NTag
+            v-if="createMarketInstrumentSyncStatus"
+            :bordered="false"
+            :title="catalogStatusDetail(createMarketInstrumentSyncStatus)"
+            :type="catalogStatusTagType(createMarketInstrumentSyncStatus)"
+          >
+            {{ catalogStatusDetail(createMarketInstrumentSyncStatus) }}
+          </NTag>
+          <NTag v-else :bordered="false" type="warning" :title="marketInstrumentSyncStatusError">
+            {{ t("research.instrumentCatalogUnknown") }}
+          </NTag>
         </NFormItem>
         <NFormItem :label="t('research.interval')">
           <NSelect v-model:value="createForm.interval" :options="intervalOptions" />
@@ -219,7 +259,7 @@ import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
-import type { CandleGap } from "@/types/app";
+import type { CandleGap, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
 
 const { t } = useI18n();
@@ -236,7 +276,9 @@ const {
   createForm,
   createLoading,
   createModalOpen,
+  createMarketInstrumentSyncStatus,
   createTask,
+  currentMarketInstrumentSyncStatus,
   deleteTask,
   exchange,
   applyTimeRange,
@@ -247,6 +289,7 @@ const {
   gapDetailsTask,
   interval,
   loadCandles,
+  loadMarketInstrumentSyncStatuses,
   loadNextCandles,
   loadPreviousCandles,
   loadTasks,
@@ -258,6 +301,7 @@ const {
   retryTask,
   selectTask,
   symbol,
+  marketInstrumentSyncStatusError,
   tasks,
   tasksError,
   tasksLoading,
@@ -308,6 +352,29 @@ const healthTagType = computed<TagProps["type"]>(() => {
   if (candleResult.value?.health === "gap") return "warning";
   return "default";
 });
+
+function catalogStatusTagType(status: MarketInstrumentSyncStatus): TagProps["type"] {
+  return status.lastError ? "warning" : "success";
+}
+
+function catalogStatusLabel(status: MarketInstrumentSyncStatus) {
+  if (status.lastError) return t("research.instrumentCatalogFailed");
+  return t("research.instrumentCatalogOK");
+}
+
+function catalogStatusDetail(status: MarketInstrumentSyncStatus) {
+  if (status.lastError) {
+    return t("research.instrumentCatalogFailedDetail", {
+      exchange: status.exchange,
+      error: status.lastError,
+      time: formatWindowTime(status.lastAttemptAt),
+    });
+  }
+  return t("research.instrumentCatalogOKDetail", {
+    exchange: status.exchange,
+    time: formatWindowTime(status.lastSuccessAt ?? status.lastAttemptAt),
+  });
+}
 
 function formatWindowTime(value: string) {
   return value.replace("T", " ").replace(/(?:\.\d+)?Z$/, " UTC");

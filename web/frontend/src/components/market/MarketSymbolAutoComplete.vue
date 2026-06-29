@@ -40,6 +40,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:value": [value: string];
+  synced: [];
 }>();
 
 const { t } = useI18n();
@@ -93,6 +94,7 @@ async function syncInstruments() {
     options.value = symbolOptionsForExchange(props.exchange);
   } finally {
     syncing.value = false;
+    emit("synced");
   }
 }
 

@@ -73,6 +73,10 @@ func (repository *fakeRepository) ListMarketInstruments(
 	return results, nil
 }
 
+func (repository *fakeRepository) ListMarketInstrumentSyncStatuses(context.Context) ([]data.MarketInstrumentSyncStatus, error) {
+	return append([]data.MarketInstrumentSyncStatus(nil), repository.marketSyncStatuses...), nil
+}
+
 func (repository *fakeRepository) ReplaceMarketInstruments(
 	_ context.Context,
 	exchangeID string,

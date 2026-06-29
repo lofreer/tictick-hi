@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api/client";
-import type { MarketInstrument, MarketInstrumentSyncResult } from "@/types/app";
+import type { MarketInstrument, MarketInstrumentSyncResult, MarketInstrumentSyncStatus } from "@/types/app";
 
 export type MarketInstrumentQuery = {
   exchange: string;
@@ -25,5 +25,8 @@ export const marketApi = {
   syncInstruments(exchange: string) {
     const params = new URLSearchParams({ exchange });
     return apiClient.post<MarketInstrumentSyncResult>(`/market/instruments/sync?${params.toString()}`);
+  },
+  listInstrumentSyncStatuses() {
+    return apiClient.get<MarketInstrumentSyncStatus[]>("/market/instruments/status");
   },
 };

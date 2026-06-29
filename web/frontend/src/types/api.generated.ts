@@ -31,6 +31,7 @@ export type Execution = { accountId: string; createdAt: string; exchange: string
 export type LoginRequest = { password: string; username: string; };
 export type MarketCandleGapScan = { exchange: string; gaps: CandleGap[]; interval: string; limited: boolean; returnedCount: number; symbol: string; totalCount: number; window: CandleWindow; };
 export type MarketInstrument = { baseAsset: string; exchange: string; exchangeStatus: string; instrumentType: string; quoteAsset: string; searchPriority: number; status: string; symbol: string; syncedAt?: string; };
+export type MarketInstrumentSyncStatus = { exchange: string; lastAttemptAt: string; lastError?: string; lastSuccessAt?: string; updatedAt: string; };
 export type Notification = { attemptCount: number; body: string; channel: string; createdAt: string; error?: string; id: string; intentId?: string; lastAttemptAt?: string; maxAttempts: number; nextAttemptAt?: string; provider: string; sentAt?: string; status: string; target: string; taskId?: string; title: string; };
 export type NotificationChannel = { createdAt: string; enabled: boolean; id: string; name: string; provider: string; target: string; updatedAt: string; };
 export type Operator = { createdAt: string; enabled: boolean; id: string; updatedAt: string; username: string; };

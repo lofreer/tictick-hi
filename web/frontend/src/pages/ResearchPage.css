@@ -161,6 +161,21 @@
   width: min(560px, calc(100vw - 32px));
 }
 
+.research-modal .n-tag {
+  max-width: 100%;
+  height: auto;
+  min-height: 24px;
+}
+
+.research-modal .n-tag__content {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.4;
+}
+
 @media (max-width: 760px) {
   .research-chart-panel {
     --research-chart-viewport-height: clamp(280px, calc(100vh - 387px), 457px);

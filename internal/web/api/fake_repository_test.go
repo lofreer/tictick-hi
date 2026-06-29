@@ -18,6 +18,7 @@ type fakeRepository struct {
 	accounts           []data.ExchangeAccount
 	auditEvents        []data.AuditEvent
 	marketInstruments  []data.MarketInstrument
+	marketSyncStatuses []data.MarketInstrumentSyncStatus
 	marketSyncFailures []marketSyncFailure
 	operators          []data.Operator
 	passwords          map[string]string
@@ -62,6 +63,12 @@ func newFakeRepository() *fakeRepository {
 	repository.operators = append(repository.operators, operator)
 	repository.passwords[operator.ID] = testPassword
 	repository.marketInstruments = defaultFakeMarketInstruments(now)
+	repository.marketSyncStatuses = []data.MarketInstrumentSyncStatus{{
+		Exchange:      "binance",
+		LastAttemptAt: now,
+		LastSuccessAt: &now,
+		UpdatedAt:     now,
+	}}
 	return repository
 }
 
