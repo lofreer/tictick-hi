@@ -46,7 +46,7 @@ func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask,
 		  ) candle_state ON true
 		 WHERE t.deleted_at IS NULL
 		 ORDER BY t.created_at DESC`,
-		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL()),
+		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL(), dataSyncTaskListInvalidSummarySQL()),
 		dataSyncTaskCandleStateLateralSQL(),
 	))
 	if err != nil {

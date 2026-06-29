@@ -28,7 +28,7 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(2210);
+    expect(table.props("scrollX")).toBe(2250);
     expect(wrapper.find(".data-sync-task-table").exists()).toBe(true);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
     const actionsColumn = columns.find((column) => column.key === "actions");
@@ -219,10 +219,41 @@ describe("DataSyncTaskTable", () => {
       },
     });
 
-    expect(wrapper.text()).toContain("缺口摘要");
+    expect(wrapper.text()).toContain("质量摘要");
     const summary = wrapper.get(".task-gap-summary");
     expect(summary.text()).toContain("缺口 2 处");
     expect(summary.attributes("title")).toContain("2026-06-27T03:02:00Z");
+  });
+
+  it("shows backend-derived invalid summary", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            exchange: "binance",
+            symbol: "BTCUSDT",
+            interval: "1m",
+            dataHealth: "invalid",
+            invalidSummary: {
+              count: 1,
+              firstIssue: {
+                code: "invalid_open_price",
+                message: "open price value must be positive",
+                openTime: "2026-06-27T07:02:00Z",
+              },
+            },
+          }),
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain("质量摘要");
+    const summary = wrapper.get(".task-invalid-summary");
+    expect(summary.text()).toContain("异常 1 处");
+    expect(summary.text()).toContain("开盘价必须为正");
+    expect(summary.attributes("title")).toContain("2026-06-27T07:02:00Z");
   });
 
   it("emits view gaps for tasks with gap summary", async () => {

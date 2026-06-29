@@ -222,6 +222,14 @@ describe("data api", () => {
                   missingCandles: 1,
                 },
               },
+              invalidSummary: {
+                count: 1,
+                firstIssue: {
+                  code: "invalid_open_price",
+                  message: "open price value must be positive",
+                  openTime: "2026-06-27T07:02:00Z",
+                },
+              },
               lastError:
                 'binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF',
               attemptCount: 3,
@@ -250,6 +258,14 @@ describe("data api", () => {
             from: "2026-06-27T03:02:00Z",
             to: "2026-06-27T03:03:00Z",
             missingCandles: 1,
+          },
+        },
+        invalidSummary: {
+          count: 1,
+          firstIssue: {
+            code: "invalid_open_price",
+            message: "open price value must be positive",
+            openTime: "2026-06-27T07:02:00Z",
           },
         },
         lastError: "binance klines: api.binance.com: EOF",

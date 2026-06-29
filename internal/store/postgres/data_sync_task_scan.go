@@ -14,17 +14,18 @@ type rowScanner interface {
 }
 
 func dataSyncTaskReturningColumns() string {
-	return dataSyncTaskScanColumns("", dataSyncTaskStateHealthSQL(""), dataSyncTaskEmptyGapSummarySQL())
+	return dataSyncTaskScanColumns("", dataSyncTaskStateHealthSQL(""), dataSyncTaskEmptyGapSummarySQL(), dataSyncTaskEmptyInvalidSummarySQL())
 }
 
-func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL string) string {
-	return fmt.Sprintf(`%s, %s, %s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s`,
+func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL string, invalidSummarySQL string) string {
+	return fmt.Sprintf(`%s, %s, %s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s`,
 		dataSyncTaskColumnList(alias, "id", "exchange", "symbol", "interval", "start_time", "end_time",
 			"sync_enabled", "realtime_enabled", "status"),
 		dataSyncTaskMarketStatusSQL(alias),
 		dataSyncTaskMarketStatusDetailSQL(alias),
 		healthSQL,
 		gapSummarySQL,
+		invalidSummarySQL,
 		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "repair_source_task_id")),
 		dataSyncTaskColumn(alias, "last_synced_open_time"),
 		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "last_error")),
@@ -80,11 +81,28 @@ func dataSyncTaskEmptyGapSummarySQL() string {
 		0 AS first_gap_missing_candles`
 }
 
+func dataSyncTaskListInvalidSummarySQL() string {
+	return `COALESCE(candle_state.invalid_count, 0) AS invalid_count,
+		candle_state.first_invalid_open_time AS first_invalid_open_time,
+		COALESCE(candle_state.first_invalid_code, '') AS first_invalid_code,
+		COALESCE(candle_state.first_invalid_message, '') AS first_invalid_message`
+}
+
+func dataSyncTaskEmptyInvalidSummarySQL() string {
+	return `0 AS invalid_count,
+		NULL::timestamptz AS first_invalid_open_time,
+		'' AS first_invalid_code,
+		'' AS first_invalid_message`
+}
+
 func dataSyncTaskCandleStateLateralSQL() string {
 	return fmt.Sprintf(`
 		WITH %s
 		SELECT (SELECT candle_count FROM candle_stats) AS candle_count,
 		       (SELECT invalid_count FROM candle_stats) AS invalid_count,
+		       (SELECT first_invalid_open_time FROM candle_stats) AS first_invalid_open_time,
+		       (SELECT first_invalid_code FROM candle_stats) AS first_invalid_code,
+		       (SELECT first_invalid_message FROM candle_stats) AS first_invalid_message,
 		       COUNT(*) AS gap_count,
 		       (ARRAY_AGG(gap_from ORDER BY gap_from, gap_to))[1] AS first_gap_from,
 		       (ARRAY_AGG(gap_to ORDER BY gap_from, gap_to))[1] AS first_gap_to,
@@ -131,6 +149,26 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 			       c.low,
 			       c.close,
 			       c.volume,
+			       CASE
+			         WHEN c.open <= 0 THEN 'invalid_open_price'
+			         WHEN c.high <= 0 THEN 'invalid_high_price'
+			         WHEN c.low <= 0 THEN 'invalid_low_price'
+			         WHEN c.close <= 0 THEN 'invalid_close_price'
+			         WHEN c.volume < 0 THEN 'invalid_volume'
+			         WHEN c.high < GREATEST(c.open, c.close, c.low) THEN 'invalid_high_bound'
+			         WHEN c.low > LEAST(c.open, c.close, c.high) THEN 'invalid_low_bound'
+			         ELSE NULL
+			       END AS invalid_code,
+			       CASE
+			         WHEN c.open <= 0 THEN 'open price value must be positive'
+			         WHEN c.high <= 0 THEN 'high price value must be positive'
+			         WHEN c.low <= 0 THEN 'low price value must be positive'
+			         WHEN c.close <= 0 THEN 'close price value must be positive'
+			         WHEN c.volume < 0 THEN 'volume value is negative'
+			         WHEN c.high < GREATEST(c.open, c.close, c.low) THEN 'high value is below OHLC bounds'
+			         WHEN c.low > LEAST(c.open, c.close, c.high) THEN 'low value is above OHLC bounds'
+			         ELSE ''
+			       END AS invalid_message,
 			       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
 			       task_window.interval_duration
 			  FROM task_window
@@ -143,15 +181,10 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 		),
 		candle_stats AS (
 			SELECT COUNT(*)::int AS candle_count,
-			       COUNT(*) FILTER (
-			         WHERE open <= 0
-			            OR high <= 0
-			            OR low <= 0
-			            OR close <= 0
-			            OR volume < 0
-			            OR high < GREATEST(open, close, low)
-			            OR low > LEAST(open, close, high)
-			       )::int AS invalid_count,
+			       COUNT(*) FILTER (WHERE invalid_code IS NOT NULL)::int AS invalid_count,
+			       (ARRAY_AGG(open_time ORDER BY open_time) FILTER (WHERE invalid_code IS NOT NULL))[1] AS first_invalid_open_time,
+			       (ARRAY_AGG(invalid_code ORDER BY open_time) FILTER (WHERE invalid_code IS NOT NULL))[1] AS first_invalid_code,
+			       (ARRAY_AGG(invalid_message ORDER BY open_time) FILTER (WHERE invalid_code IS NOT NULL))[1] AS first_invalid_message,
 			       MIN(open_time) AS first_open,
 			       MAX(open_time) AS last_open
 			  FROM ordered_candles
@@ -345,6 +378,10 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 	var firstGapFrom sql.NullTime
 	var firstGapTo sql.NullTime
 	var firstGapMissingCandles sql.NullInt64
+	var invalidCount int64
+	var firstInvalidOpenTime sql.NullTime
+	var firstInvalidCode string
+	var firstInvalidMessage string
 	err := row.Scan(
 		&task.ID,
 		&task.Exchange,
@@ -362,6 +399,10 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&firstGapFrom,
 		&firstGapTo,
 		&firstGapMissingCandles,
+		&invalidCount,
+		&firstInvalidOpenTime,
+		&firstInvalidCode,
+		&firstInvalidMessage,
 		&task.RepairSourceTaskID,
 		&task.LatestSyncedOpenTime,
 		&task.LastError,
@@ -379,6 +420,17 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 				From:           firstGapFrom.Time,
 				To:             firstGapTo.Time,
 				MissingCandles: int(firstGapMissingCandles.Int64),
+			}
+		}
+	}
+	if err == nil && invalidCount > 0 {
+		task.InvalidSummary = &data.DataSyncInvalidSummary{Count: int(invalidCount)}
+		if firstInvalidOpenTime.Valid && firstInvalidCode != "" {
+			openTime := firstInvalidOpenTime.Time
+			task.InvalidSummary.FirstIssue = &data.CandleIssue{
+				Code:     firstInvalidCode,
+				Message:  firstInvalidMessage,
+				OpenTime: &openTime,
 			}
 		}
 	}

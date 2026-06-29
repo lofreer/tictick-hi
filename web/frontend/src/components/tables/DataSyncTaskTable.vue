@@ -7,7 +7,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="2210"
+    :scroll-x="2250"
     size="small"
   />
 </template>
@@ -29,6 +29,7 @@ import { computed, h } from "vue";
 import { useI18n } from "vue-i18n";
 
 import StatusBadge from "@/components/common/StatusBadge.vue";
+import DataSyncQualitySummary from "@/components/tables/DataSyncQualitySummary.vue";
 import type { DataSyncTask } from "@/types/app";
 import { formatCompactDateTime, summarizeText } from "@/utils/displayText";
 import { sanitizeExternalError } from "@/utils/errorText";
@@ -81,10 +82,10 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
       ),
   },
   {
-    title: t("research.gapSummary"),
-    key: "gapSummary",
-    width: 180,
-    render: gapSummaryCell,
+    title: t("research.qualitySummary"),
+    key: "qualitySummary",
+    width: 220,
+    render: (row) => h(DataSyncQualitySummary, { task: row }),
   },
   {
     title: t("research.realtime"),
@@ -256,50 +257,6 @@ function syncWindowRangeText(row: DataSyncTask) {
   return t("research.syncWindowContinuous");
 }
 
-function gapSummaryCell(row: DataSyncTask) {
-  const summary = row.gapSummary;
-  if (!summary || summary.count <= 0) {
-    return h(NText, { depth: 3 }, () => "-");
-  }
-
-  const text = summary.firstGap
-    ? t("research.gapSummaryFirst", {
-        count: summary.count,
-        from: summary.firstGap.from,
-        missing: summary.firstGap.missingCandles,
-        to: summary.firstGap.to,
-      })
-    : t("research.gapSummaryCountOnly", { count: summary.count });
-
-  return h(
-    NTooltip,
-    { trigger: "hover", width: 420 },
-    {
-      trigger: () =>
-        h(
-          "span",
-          {
-            class: "task-gap-summary",
-            title: text,
-          },
-          text,
-        ),
-      default: () =>
-        h(
-          "span",
-          {
-            style: {
-              display: "block",
-              whiteSpace: "normal",
-              overflowWrap: "anywhere",
-            },
-          },
-          text,
-        ),
-    },
-  );
-}
-
 function lastErrorCell(row: DataSyncTask) {
   const detail = sanitizeExternalError(row.lastError);
   if (!detail) {
@@ -401,7 +358,6 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
 
 <style scoped>
 .task-error-text,
-.task-gap-summary,
 .task-sync-window,
 .task-exchange-backoff,
 .task-time-text {
@@ -418,7 +374,6 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
   color: var(--tt-danger);
 }
 
-.task-gap-summary,
 .task-exchange-backoff {
   color: var(--tt-warning);
 }

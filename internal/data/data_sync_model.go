@@ -23,33 +23,39 @@ const (
 )
 
 type DataSyncTask struct {
-	ID                   string               `json:"id"`
-	Exchange             string               `json:"exchange"`
-	Symbol               string               `json:"symbol"`
-	Interval             string               `json:"interval"`
-	StartTime            *time.Time           `json:"startTime,omitempty"`
-	EndTime              *time.Time           `json:"endTime,omitempty"`
-	RepairSourceTaskID   string               `json:"repairSourceTaskId,omitempty"`
-	SyncEnabled          bool                 `json:"syncEnabled"`
-	RealtimeEnabled      bool                 `json:"realtimeEnabled"`
-	Status               TaskStatus           `json:"status"`
-	MarketStatus         DataSyncMarketStatus `json:"marketStatus"`
-	MarketStatusDetail   string               `json:"marketStatusDetail,omitempty"`
-	DataHealth           DataSyncHealth       `json:"dataHealth"`
-	GapSummary           *DataSyncGapSummary  `json:"gapSummary,omitempty"`
-	LatestSyncedOpenTime *time.Time           `json:"latestSyncedAt,omitempty"`
-	LastError            string               `json:"lastError,omitempty"`
-	AttemptCount         int                  `json:"attemptCount"`
-	NextAttemptAt        *time.Time           `json:"nextAttemptAt,omitempty"`
-	ExchangeBackoffUntil *time.Time           `json:"exchangeBackoffUntil,omitempty"`
-	ExchangeBackoffError string               `json:"exchangeBackoffLastError,omitempty"`
-	CreatedAt            time.Time            `json:"createdAt"`
-	UpdatedAt            time.Time            `json:"updatedAt"`
+	ID                   string                  `json:"id"`
+	Exchange             string                  `json:"exchange"`
+	Symbol               string                  `json:"symbol"`
+	Interval             string                  `json:"interval"`
+	StartTime            *time.Time              `json:"startTime,omitempty"`
+	EndTime              *time.Time              `json:"endTime,omitempty"`
+	RepairSourceTaskID   string                  `json:"repairSourceTaskId,omitempty"`
+	SyncEnabled          bool                    `json:"syncEnabled"`
+	RealtimeEnabled      bool                    `json:"realtimeEnabled"`
+	Status               TaskStatus              `json:"status"`
+	MarketStatus         DataSyncMarketStatus    `json:"marketStatus"`
+	MarketStatusDetail   string                  `json:"marketStatusDetail,omitempty"`
+	DataHealth           DataSyncHealth          `json:"dataHealth"`
+	GapSummary           *DataSyncGapSummary     `json:"gapSummary,omitempty"`
+	InvalidSummary       *DataSyncInvalidSummary `json:"invalidSummary,omitempty"`
+	LatestSyncedOpenTime *time.Time              `json:"latestSyncedAt,omitempty"`
+	LastError            string                  `json:"lastError,omitempty"`
+	AttemptCount         int                     `json:"attemptCount"`
+	NextAttemptAt        *time.Time              `json:"nextAttemptAt,omitempty"`
+	ExchangeBackoffUntil *time.Time              `json:"exchangeBackoffUntil,omitempty"`
+	ExchangeBackoffError string                  `json:"exchangeBackoffLastError,omitempty"`
+	CreatedAt            time.Time               `json:"createdAt"`
+	UpdatedAt            time.Time               `json:"updatedAt"`
 }
 
 type DataSyncGapSummary struct {
 	Count    int        `json:"count"`
 	FirstGap *CandleGap `json:"firstGap,omitempty"`
+}
+
+type DataSyncInvalidSummary struct {
+	Count      int          `json:"count"`
+	FirstIssue *CandleIssue `json:"firstIssue,omitempty"`
 }
 
 type DataSyncGapList struct {

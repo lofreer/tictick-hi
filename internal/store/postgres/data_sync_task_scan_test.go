@@ -6,7 +6,7 @@ import (
 )
 
 func TestDataSyncTaskScanColumnsPlaceMarketStatusBeforeHealth(t *testing.T) {
-	columns := dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL())
+	columns := dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL(), dataSyncTaskListInvalidSummarySQL())
 
 	if strings.Contains(columns, "AS market_status AS data_health") {
 		t.Fatal("data sync task scan columns double-aliased market status as data health")

@@ -145,6 +145,7 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     marketStatusDetail: response.marketStatusDetail ?? response.marketStatus ?? "missing",
     dataHealth: response.dataHealth,
     gapSummary: response.gapSummary,
+    invalidSummary: response.invalidSummary,
     lastError: sanitizeExternalError(response.lastError),
     attemptCount: response.attemptCount,
     nextAttemptAt: response.nextAttemptAt,

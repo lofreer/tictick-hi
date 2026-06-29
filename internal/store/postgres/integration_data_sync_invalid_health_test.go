@@ -61,6 +61,21 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 	if found.DataHealth != data.DataSyncHealthInvalid {
 		t.Fatalf("data health = %q, want invalid", found.DataHealth)
 	}
+	if found.InvalidSummary == nil {
+		t.Fatal("invalid task should expose invalid summary")
+	}
+	if found.InvalidSummary.Count != 1 {
+		t.Fatalf("invalid summary count = %d, want 1", found.InvalidSummary.Count)
+	}
+	if found.InvalidSummary.FirstIssue == nil {
+		t.Fatal("invalid task should expose first invalid issue")
+	}
+	if found.InvalidSummary.FirstIssue.Code != "invalid_open_price" ||
+		found.InvalidSummary.FirstIssue.Message != "open price value must be positive" ||
+		found.InvalidSummary.FirstIssue.OpenTime == nil ||
+		!found.InvalidSummary.FirstIssue.OpenTime.Equal(start.Add(2*time.Minute)) {
+		t.Fatalf("unexpected invalid issue: %#v", found.InvalidSummary.FirstIssue)
+	}
 	if found.GapSummary != nil {
 		t.Fatalf("gap summary = %#v, want nil for contiguous invalid data", found.GapSummary)
 	}
