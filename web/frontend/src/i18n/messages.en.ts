@@ -345,6 +345,7 @@ export const enUSMessages: Record<string, string> = {
     "research.tasksLoadFailed": "Failed to load data sync tasks.",
     "research.candlesLoadFailed": "Failed to load candles.",
     "research.deleteConfirmTitle": "Delete sync task?",
+    "research.deleteConfirmContent": "Delete the sync task record for {market}. Synced candle data will not be deleted.",
     "strategy.backtestReady": "Backtest configuration generated.",
     "strategy.backtestCreated": "Backtest task created.",
     "strategy.backtestCreateFailed": "Failed to create backtest task.",

@@ -44,6 +44,7 @@ func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask,
 		  LEFT JOIN LATERAL (
 			%s
 		  ) candle_state ON true
+		 WHERE t.deleted_at IS NULL
 		 ORDER BY t.created_at DESC`,
 		dataSyncTaskScanColumns("t", dataSyncTaskListHealthSQL("t"), dataSyncTaskListGapSummarySQL()),
 		dataSyncTaskCandleStateLateralSQL(),
@@ -80,7 +81,21 @@ func (store *Store) CreateDataSyncTask(
 }
 
 func (store *Store) DeleteDataSyncTask(ctx context.Context, id string) error {
-	commandTag, err := store.pool.Exec(ctx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+	commandTag, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+		resource: dataSyncTaskLease,
+		assignments: []string{
+			"status = $2",
+			"sync_enabled = false",
+			"realtime_enabled = false",
+			"next_attempt_at = NULL",
+			"finished_at = COALESCE(finished_at, now())",
+			"deleted_at = COALESCE(deleted_at, now())",
+		},
+		where: "id = $1 AND deleted_at IS NULL",
+	}),
+		id,
+		data.TaskStatusCancelled,
+	)
 	if err != nil {
 		return fmt.Errorf("delete data sync task: %w", err)
 	}
@@ -102,6 +117,7 @@ func (store *Store) RetryDataSyncTask(ctx context.Context, id string) (data.Data
 		       updated_at = now()
 		 WHERE id = $1
 		   AND status = $3
+		   AND deleted_at IS NULL
 		   AND EXISTS (
 		     SELECT 1
 		       FROM market_instruments AS instrument
@@ -139,7 +155,7 @@ func (store *Store) dataSyncTaskExists(ctx context.Context, id string) (bool, er
 	var exists bool
 	if err := store.pool.QueryRow(
 		ctx,
-		`SELECT EXISTS (SELECT 1 FROM data_sync_tasks WHERE id = $1)`,
+		`SELECT EXISTS (SELECT 1 FROM data_sync_tasks WHERE id = $1 AND deleted_at IS NULL)`,
 		id,
 	).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check data sync task exists: %w", err)
@@ -158,6 +174,7 @@ func (store *Store) dataSyncTaskHasActiveMarketInstrument(ctx context.Context, i
 			   AND instrument.symbol = task.symbol
 			   AND instrument.status = 'active'
 			 WHERE task.id = $1
+			   AND task.deleted_at IS NULL
 		)`,
 		id,
 	).Scan(&exists); err != nil {
@@ -290,6 +307,7 @@ func (store *Store) updateTaskFlag(
 		       finished_at = CASE WHEN $2::boolean THEN NULL ELSE now() END,
 		       updated_at = now()
 		 WHERE id = $1
+		   AND deleted_at IS NULL
 		   AND (
 		     status = $3
 		     OR ($3 IN ($4, $5, $6) AND status IN ($4, $5, $6))

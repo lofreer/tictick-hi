@@ -151,7 +151,8 @@ func getDataSyncTask(ctx context.Context, queryer dataSyncGapQueryer, id string)
 	row := queryer.QueryRow(ctx, `
 		SELECT `+dataSyncTaskReturningColumns()+`
 		  FROM data_sync_tasks
-		 WHERE id = $1`,
+		 WHERE id = $1
+		   AND deleted_at IS NULL`,
 		id,
 	)
 	task, err := scanDataSyncTaskRow(row)
@@ -169,6 +170,7 @@ func lockDataSyncTask(ctx context.Context, tx pgx.Tx, id string) (data.DataSyncT
 		SELECT `+dataSyncTaskReturningColumns()+`
 		  FROM data_sync_tasks
 		 WHERE id = $1
+		   AND deleted_at IS NULL
 		 FOR UPDATE`,
 		id,
 	)
@@ -196,7 +198,8 @@ func listDataSyncRepairWindows(
 		dataSyncTaskWindowGapCTESQL(`
 			SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time
 			  FROM data_sync_tasks AS t
-			 WHERE t.id = $1`),
+			 WHERE t.id = $1
+			   AND t.deleted_at IS NULL`),
 	), id, maxDataSyncGapRepairTasks)
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("list data sync repair windows: %w", err)
@@ -238,7 +241,8 @@ func dataSyncRepairWindowExists(
 		dataSyncTaskWindowGapCTESQL(`
 			SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time
 			  FROM data_sync_tasks AS t
-			 WHERE t.id = $1`),
+			 WHERE t.id = $1
+			   AND t.deleted_at IS NULL`),
 	), id, window.from, window.to).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check data sync repair window: %w", err)
 	}
@@ -273,6 +277,7 @@ func dataSyncRepairTaskExists(
 			   AND interval = $3
 			   AND start_time = $4
 			   AND end_time = $5
+			   AND deleted_at IS NULL
 		)`,
 		source.Exchange,
 		source.Symbol,

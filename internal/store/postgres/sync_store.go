@@ -27,6 +27,7 @@ func (store *Store) ClaimDataSyncTask(
 		leaseClaimQuery{
 			resource: dataSyncTaskLease,
 			where: `(sync_enabled = true OR realtime_enabled = true)
+				   AND deleted_at IS NULL
 				   AND status IN ($1, $2)
 				   AND (next_attempt_at IS NULL OR next_attempt_at <= now())
 				   AND NOT EXISTS (
@@ -178,7 +179,7 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 			"last_error = NULL",
 			"next_attempt_at = NULL",
 		},
-		where: "id = $1",
+		where: "id = $1 AND deleted_at IS NULL",
 	}),
 		result.TaskID,
 		result.LastOpenTime,
@@ -220,7 +221,9 @@ func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string) (data
 	if err := tx.QueryRow(ctx, `
 		SELECT exchange, symbol, interval
 		  FROM data_sync_tasks
-		 WHERE id = $1`,
+		 WHERE id = $1
+		   AND deleted_at IS NULL
+		 FOR UPDATE`,
 		taskID,
 	).Scan(&target.exchange, &target.symbol, &target.interval); err != nil {
 		if err == pgx.ErrNoRows {
@@ -242,7 +245,7 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 			"next_attempt_at = NULL",
 			"finished_at = now()",
 		},
-		where: "id = $1",
+		where: "id = $1 AND deleted_at IS NULL",
 	}),
 		taskID,
 		data.TaskStatusFailed,
@@ -277,7 +280,7 @@ func (store *Store) RecordDataSyncRetry(
 			"last_error = $4",
 			"next_attempt_at = $5",
 		},
-		where: "id = $1",
+		where: "id = $1 AND deleted_at IS NULL",
 	}),
 		taskID,
 		data.TaskStatusRunning,

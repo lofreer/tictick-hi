@@ -235,9 +235,10 @@ export function useResearchWorkspace() {
   }
 
   function deleteTask(task: DataSyncTask) {
+    const market = `${task.exchange} / ${task.symbol} / ${task.interval}`;
     dialog.warning({
       title: t("research.deleteConfirmTitle"),
-      content: `${task.exchange} / ${task.symbol} / ${task.interval}`,
+      content: t("research.deleteConfirmContent", { market }),
       positiveText: t("common.delete"),
       negativeText: t("common.cancel"),
       onPositiveClick: () => runAction(async () => {

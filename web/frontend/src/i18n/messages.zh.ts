@@ -345,6 +345,7 @@ export const zhCNMessages: Record<string, string> = {
     "research.tasksLoadFailed": "加载数据同步任务失败。",
     "research.candlesLoadFailed": "加载 K 线失败。",
     "research.deleteConfirmTitle": "确认删除同步任务",
+    "research.deleteConfirmContent": "删除 {market} 的同步任务记录；已同步的 K 线数据不会被删除。",
     "strategy.backtestReady": "回测配置已生成。",
     "strategy.backtestCreated": "回测任务已创建。",
     "strategy.backtestCreateFailed": "创建回测任务失败。",

@@ -184,6 +184,7 @@ func marketCandleRepairTaskExists(
 			   AND interval = $3
 			   AND start_time = $4
 			   AND end_time = $5
+			   AND deleted_at IS NULL
 		)`,
 		request.Exchange,
 		request.Symbol,

@@ -254,6 +254,44 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 }
 
+func TestDataSyncTaskDeleteRouteHidesTask(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	repository.tasks = []data.DataSyncTask{
+		{
+			ID:           "dst_delete",
+			Exchange:     "binance",
+			Symbol:       "BTCUSDT",
+			Interval:     "1m",
+			Status:       data.TaskStatusRunning,
+			SyncEnabled:  true,
+			MarketStatus: data.DataSyncMarketStatusActive,
+			DataHealth:   data.DataSyncHealthSyncing,
+			CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	deleteRecorder := serveAuthenticated(server, cookie, http.MethodDelete, "/api/data/tasks/dst_delete", "")
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d body = %s", deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+	listRecorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/data/tasks", "")
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
+	}
+	var tasks []data.DataSyncTask
+	if err := json.NewDecoder(listRecorder.Body).Decode(&tasks); err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("tasks after delete = %#v, want empty list", tasks)
+	}
+	secondDeleteRecorder := serveAuthenticated(server, cookie, http.MethodDelete, "/api/data/tasks/dst_delete", "")
+	if secondDeleteRecorder.Code != http.StatusNotFound {
+		t.Fatalf("second delete status = %d body = %s", secondDeleteRecorder.Code, secondDeleteRecorder.Body.String())
+	}
+}
+
 func TestDataSyncTaskCommandRejectsInactiveMarketInstrument(t *testing.T) {
 	repository, server, cookie := newAuthenticatedTestServer(t)
 	repository.tasks = []data.DataSyncTask{
