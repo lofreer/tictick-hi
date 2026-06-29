@@ -281,7 +281,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtest-detail-lower-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.6fr);
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
   min-width: 0;

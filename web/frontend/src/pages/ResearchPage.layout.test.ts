@@ -60,9 +60,10 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("max-block-size: 100% !important;");
     expect(pageStyles).toContain("width: 100% !important;");
     expect(toolbarStyle).toContain("display: grid;");
-    expect(toolbarStyle).toContain("padding: 10px 12px 9px;");
-    expect(controlsStyle).toContain("grid-template-columns: 128px clamp(180px, 18vw, 300px) 84px auto;");
-    expect(controlsStyle).toContain("width: fit-content;");
+    expect(toolbarStyle).toContain("padding: 10px 14px 9px;");
+    expect(controlsStyle).toContain("display: flex;");
+    expect(controlsStyle).toContain("flex-wrap: wrap;");
+    expect(controlsStyle).toContain("width: 100%;");
     expect(statusStyle).toContain("flex-wrap: wrap;");
     expect(pageStyles).toContain(".research-toolbar-main");
     expect(pageStyles).toContain(".research-current-source");
@@ -89,12 +90,12 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(720px, 72vh, 920px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(720px, 72dvh, 920px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(640px, 62vh, 760px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(640px, 62dvh, 760px);");
-    expect(pageStyles).toContain("grid-template-columns: 112px minmax(160px, 240px) 76px auto;");
-    expect(pageStyles).toContain("grid-template-columns: minmax(0, 1fr);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(680px, 74vh, 900px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(680px, 74dvh, 900px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(620px, 66vh, 760px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(620px, 66dvh, 760px);");
+    expect(pageStyles).toContain("flex-basis: min(240px, 32vw);");
+    expect(pageStyles).toContain("flex-basis: 100%;");
     expect(pageStyles).toContain("width: 100%;");
   });
 

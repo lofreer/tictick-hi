@@ -38,10 +38,10 @@
 }
 
 .research-chart-panel {
-  --research-chart-viewport-height: clamp(720px, 72vh, 920px);
-  --research-chart-viewport-height: clamp(720px, 72dvh, 920px);
-  --research-chart-padding-x: 18px;
-  --research-chart-padding-top: 12px;
+  --research-chart-viewport-height: clamp(680px, 74vh, 900px);
+  --research-chart-viewport-height: clamp(680px, 74dvh, 900px);
+  --research-chart-padding-x: 22px;
+  --research-chart-padding-top: 14px;
   --research-chart-padding-bottom: 18px;
 
   display: flex;
@@ -60,10 +60,10 @@
 
 .research-toolbar {
   display: grid;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
   max-width: 100%;
-  padding: 10px 12px 9px;
+  padding: 10px 14px 9px;
   border-bottom: 1px solid var(--tt-line);
 }
 
@@ -76,11 +76,11 @@
 }
 
 .research-source-controls {
-  display: grid;
-  grid-template-columns: 128px clamp(180px, 18vw, 300px) 84px auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
 }
@@ -200,21 +200,23 @@
 }
 
 .research-select {
-  width: 100%;
   min-width: 0;
 }
 
 .research-select--exchange {
-  max-width: 128px;
+  flex: 0 0 128px;
+  width: 128px;
 }
 
 .research-symbol-input {
-  width: 100%;
+  flex: 0 1 clamp(180px, 16vw, 260px);
+  width: clamp(180px, 16vw, 260px);
   min-width: 0;
 }
 
 .research-select--compact {
-  max-width: 84px;
+  flex: 0 0 84px;
+  width: 84px;
 }
 
 .research-modal {
@@ -238,9 +240,9 @@
 
 @media (max-width: 760px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(500px, 68vh, 660px);
-    --research-chart-viewport-height: clamp(500px, 68dvh, 660px);
-    --research-chart-padding-x: 12px;
+    --research-chart-viewport-height: clamp(520px, 70vh, 680px);
+    --research-chart-viewport-height: clamp(520px, 70dvh, 680px);
+    --research-chart-padding-x: 14px;
     --research-chart-padding-top: 10px;
     --research-chart-padding-bottom: 14px;
   }
@@ -255,12 +257,14 @@
   }
 
   .research-source-controls {
-    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
   }
 
   .research-select--exchange,
+  .research-symbol-input,
   .research-select--compact {
-    max-width: none;
+    flex-basis: 100%;
+    width: 100%;
   }
 
   .research-toolbar-status {
@@ -281,9 +285,9 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(640px, 62vh, 760px);
-    --research-chart-viewport-height: clamp(640px, 62dvh, 760px);
-    --research-chart-padding-x: 14px;
+    --research-chart-viewport-height: clamp(620px, 66vh, 760px);
+    --research-chart-viewport-height: clamp(620px, 66dvh, 760px);
+    --research-chart-padding-x: 18px;
     --research-chart-padding-top: 12px;
     --research-chart-padding-bottom: 16px;
   }
@@ -293,15 +297,18 @@
     width: 100%;
   }
 
-  .research-source-controls {
-    grid-template-columns: 112px minmax(160px, 240px) 76px auto;
+  .research-select--exchange {
+    flex-basis: 112px;
+    width: 112px;
   }
 
-  .research-select--exchange {
-    max-width: 112px;
+  .research-symbol-input {
+    flex-basis: min(240px, 32vw);
+    width: min(240px, 32vw);
   }
 
   .research-select--compact {
-    max-width: 76px;
+    flex-basis: 76px;
+    width: 76px;
   }
 }

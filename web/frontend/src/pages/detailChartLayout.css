@@ -1,8 +1,9 @@
 .trading-detail-chart,
 .backtest-chart-panel {
-  height: clamp(620px, 70vh, 820px);
-  height: clamp(620px, 70dvh, 820px);
-  padding: 12px;
+  box-sizing: border-box;
+  height: clamp(560px, 68vh, 800px);
+  height: clamp(560px, 68dvh, 800px);
+  padding: 16px 18px 18px;
   min-height: 0;
   overflow: hidden;
   contain: layout paint;
@@ -31,8 +32,8 @@
 @media (max-width: 980px) {
   .trading-detail-chart,
   .backtest-chart-panel {
-    height: clamp(500px, 64vh, 680px);
-    height: clamp(500px, 64dvh, 680px);
-    padding: 10px;
+    height: clamp(500px, 66vh, 680px);
+    height: clamp(500px, 66dvh, 680px);
+    padding: 12px 14px 14px;
   }
 }
