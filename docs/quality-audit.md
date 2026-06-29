@@ -55,6 +55,8 @@ done            用户确认关闭
 
 补充：阶段 1 全历史 invalid repair 已补 PostgreSQL 集成证据：通过全历史 invalid scan 找到 persisted 异常行，排补同步任务后由 `SaveDataSyncResult` 走正常 worker 写回路径覆盖为健康 K 线，随后 `ScanMarketCandleInvalidIssues` 回到无异常；该证据只证明“补同步成功写回时会收敛”，不代表自动清洗历史行或保证交易所一定返回健康数据。
 
+补充：阶段 1 全历史 invalid repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF 写请求排队 invalid repair task，再由 `SaveDataSyncResult` 写回健康 K 线，最后通过 `GET /api/market/candle-invalid-issues` 观察 `TotalCount=0`；该证据证明路由层、认证/CSRF、active instrument 校验和 store 收敛路径可以串起来，但仍不代表自动清洗或交易所数据一定可修复。
+
 补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表生产高度复核补充”为准：研究页主工具栏 symbol 输入为桌面 `104px`、窄桌面 `102px`、移动端 `100px`，主工具栏不再显示 symbol 内置 instrument sync 按钮；图表左/右 gutter 为桌面 `20px/4px`、窄桌面 `16px/4px`、移动端 `12px/8px`；plot 高度为桌面 `clamp(700px, 72vh, 840px)`、窄桌面 `720px`、移动端 `560px`；右侧价格轴 minimumWidth 为 `32/34/36px`，visual smoke 同时断言主图 canvas 右边界贴住右侧价格轴左边界，详情页下方摘要列保持 `minmax(240px, 280px)`。
 
 ## 3. 必须先修的问题
@@ -7619,6 +7621,55 @@ Definition of Done：
 
 - 该测试证明的是“worker 成功保存健康 K 线时会收敛”，不保证交易所一定能返回对应历史数据。
 - 当前仍没有自动全量修复或自动清洗历史 invalid 行；用户仍需要从研究页排队补同步并观察任务结果。
+- 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
+
+### 阶段 1 全历史 invalid HTTP API 收敛证据补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- store 层已有全历史 invalid repair 收敛证据，但 API 路由层仍主要依赖 fake repository 测试。
+- 阶段 1 研究核心需要证明用户可见工作流对应的 HTTP API 能串起真实 PostgreSQL store、登录会话、CSRF、active market instrument 校验、repair task 创建和 worker 写回后的 scan 归零。
+
+Definition of Done：
+
+- 在 `internal/web/api` 包新增 PostgreSQL 集成测试，使用真实 `postgres.Store` 启动 `NewServer`。
+- 测试创建唯一 operator，通过 `/api/auth/login` 取得 session + CSRF。
+- 测试创建唯一 active `market_instruments`，并种入 3 根 `market_candles`，其中 1 根为 legacy invalid OHLCV。
+- 通过 `GET /api/market/candle-invalid-issues` 证明 HTTP scan 能看到 1 条 persisted invalid issue。
+- 通过 `POST /api/market/candle-invalid-issues/repair` 证明 CSRF 写请求能创建 1 个 full-history invalid repair task。
+- 通过 `SaveDataSyncResult` 写回同 open_time 健康 K 线，再通过 HTTP scan 证明 `TotalCount=0`、`Issues=[]`。
+- 测试 cleanup 必须删除测试 operator/session/task/candle/instrument，并恢复 `market_candles_positive_price_values_check`。
+- 没有 `TICTICK_TEST_DATABASE_URL` 时允许 skip；必须额外在 Docker Compose PostgreSQL 上运行一次真实集成测试。
+
+改动范围：
+
+- `internal/web/api/market_invalid_repair_integration_test.go` 新增 API + PostgreSQL 集成测试和测试辅助函数。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestIntegrationMarketCandleInvalidIssueRepairRouteConvergesPostgresScan|TestMarketCandleInvalidIssueRepairRoute' -count=1` 通过；本机无 `TICTICK_TEST_DATABASE_URL` 时集成测试 skip，fake repository 路由测试执行。
+- Docker Compose PostgreSQL 真实执行通过：
+  `docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL=postgresql://...@postgres:5432/... golang:1.26-bookworm go test ./internal/web/api -run TestIntegrationMarketCandleInvalidIssueRepairRouteConvergesPostgresScan -count=1 -v`
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+失败项：
+
+- 首次 Docker PostgreSQL 集成测试失败：seed 数据 `open=0, low=99` 违反 `market_candles_ohlc_bounds_check`；已改为 `open=0, low=0, close=100, high=101`，只违反 positive price invalid 条件并复跑通过。
+
+剩余风险：
+
+- 该测试证明 API 到 PostgreSQL 的单条 invalid repair 收敛路径，不代表自动全量清洗历史 invalid 行。
+- 仍不保证交易所一定返回可覆盖异常 open_time 的健康历史数据。
 - 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后
