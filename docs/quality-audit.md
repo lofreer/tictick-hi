@@ -5461,7 +5461,41 @@ Definition of Done：
 剩余风险：
 
 - 本轮只关闭单缺口修复的“任意窗口可创建”问题，不自动批量补齐全历史缺口。
-- 真实交易所补数成功率、分布式限流、完整 data sync 状态机和缺口修复后的自动健康收敛仍未证明。
+- 真实交易所补数成功率、分布式限流和完整 data sync 状态机仍未证明。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
+### 阶段 1 补同步任务结果驱动源任务健康收敛补证
+
+目标等级：scaffold
+
+触发问题：
+
+- 单缺口 repair API 已能验证真实缺口并创建带 `repairSourceTaskId` 的补同步任务，但此前只证明“任务可创建”，没有证明补同步任务写入缺失 K 线后，源任务的 `dataHealth/gapSummary` 会通过同一套后端派生逻辑自然回落。
+- 研究页数据健康依赖 `ListDataSyncTasks` 的动态 SQL，如果补同步结果只更新 repair task 而源任务派生查询没有被验证，用户仍可能看到源任务长期保持 `gap`。
+
+修复范围：
+
+- 新增 PostgreSQL 集成测试 `TestIntegrationRepairTaskExecutionConvergesSourceDataHealth`。
+- 测试创建一个只有单个真实缺口的源任务，调用 `RepairDataSyncTaskGap` 创建补同步任务，并模拟该 repair task 进入 running 后通过 `SaveDataSyncResult` upsert 缺失的 `market_candles`。
+- 测试随后重新调用 `ListDataSyncTasks`，断言 repair task 进入 `succeeded` 且 `syncEnabled=false`，源任务 `dataHealth=ok`、`gapSummary=nil`。
+- 新测试拆到独立 `integration_data_sync_repair_convergence_test.go`，避免把既有 `integration_data_sync_health_test.go` 推过 700 行质量门禁。
+
+验证：
+
+- 本机 `go test ./internal/store/postgres -run 'TestIntegrationRepair(DataSyncTaskGapCreatesSyncTask|TaskExecutionConvergesSourceDataHealth)' -count=1 -v` 因未设置 `TICTICK_TEST_DATABASE_URL` 跳过，编译通过。
+- Docker Compose PostgreSQL 集成测试通过：`docker run --rm --network tictick-hi_default -v "$PWD":/src -w /src -e TICTICK_TEST_DATABASE_URL='postgresql://tictick:tictick-local-postgres-password@postgres:5432/tictick_hi?sslmode=disable' golang:1.26-bookworm go test ./internal/store/postgres -run 'TestIntegrationRepair(DataSyncTaskGapCreatesSyncTask|TaskExecutionConvergesSourceDataHealth)' -count=1 -v`。
+- `go test ./internal/datasync -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，22 个前端测试文件、118 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 首次因 `integration_data_sync_health_test.go` 超过 700 行失败；测试拆分后通过。
+
+剩余风险：
+
+- 本轮证明的是 PostgreSQL store / `SaveDataSyncResult` / `ListDataSyncTasks` 的缺口健康收敛，不代表真实交易所补数一定成功。
+- `hi sync` 的全局 claim 在共享开发库中仍会优先领取已有 realtime 任务；本轮未做分布式调度隔离或真实交易所恢复压测。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后
