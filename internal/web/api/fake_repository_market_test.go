@@ -122,6 +122,20 @@ func (repository *fakeRepository) ReplaceMarketInstruments(
 	}, nil
 }
 
+func (repository *fakeRepository) RecordMarketInstrumentSyncFailure(
+	_ context.Context,
+	exchangeID string,
+	syncErr error,
+	attemptedAt time.Time,
+) error {
+	repository.marketSyncFailures = append(repository.marketSyncFailures, marketSyncFailure{
+		exchange:    exchangeID,
+		err:         syncErr,
+		attemptedAt: attemptedAt,
+	})
+	return nil
+}
+
 func (repository *fakeRepository) pauseDataSyncTasksForInactiveMarkets(exchangeID string) int {
 	paused := 0
 	for index := range repository.tasks {

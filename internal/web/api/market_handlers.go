@@ -128,13 +128,29 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 		writeAPIError(w, http.StatusBadRequest, apiErrorRequestFailed, "market instrument sync is unavailable for "+query.Exchange)
 		return
 	}
+	attemptedAt := time.Now().UTC()
 	instruments, err := client.FetchInstruments(r.Context())
 	if err != nil {
+		if recordErr := server.repository.RecordMarketInstrumentSyncFailure(
+			r.Context(),
+			query.Exchange,
+			err,
+			attemptedAt,
+		); recordErr != nil {
+			writeStoreError(w, recordErr)
+			return
+		}
 		writeAPIError(w, http.StatusBadRequest, apiErrorRequestFailed, "sync market instruments: "+err.Error())
 		return
 	}
 	result, err := server.repository.ReplaceMarketInstruments(r.Context(), query.Exchange, instruments, time.Now().UTC())
 	if err != nil {
+		_ = server.repository.RecordMarketInstrumentSyncFailure(
+			r.Context(),
+			query.Exchange,
+			err,
+			attemptedAt,
+		)
 		writeStoreError(w, err)
 		return
 	}

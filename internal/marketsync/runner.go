@@ -17,6 +17,12 @@ type Repository interface {
 		instruments []data.MarketInstrument,
 		syncedAt time.Time,
 	) (data.MarketInstrumentSyncResult, error)
+	RecordMarketInstrumentSyncFailure(
+		ctx context.Context,
+		exchange string,
+		syncErr error,
+		attemptedAt time.Time,
+	) error
 }
 
 type Runner struct {
@@ -108,6 +114,20 @@ func (runner *Runner) RunOnce(ctx context.Context) []ExchangeResult {
 		}
 		if err != nil {
 			result.Err = err
+			if ctx.Err() == nil {
+				if recordErr := runner.repository.RecordMarketInstrumentSyncFailure(
+					ctx,
+					exchangeID,
+					err,
+					runner.now(),
+				); recordErr != nil {
+					slog.Error(
+						"record market instrument sync failure failed",
+						"exchange", exchangeID,
+						"error", recordErr,
+					)
+				}
+			}
 			slog.Warn("market instrument sync failed", "exchange", exchangeID, "error", err)
 		} else {
 			slog.Info(

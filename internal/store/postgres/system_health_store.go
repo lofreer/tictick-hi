@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -91,6 +92,14 @@ func (store *Store) SystemHealth(ctx context.Context) (data.SystemHealth, error)
 		}
 		services = append(services, service)
 	}
+	catalogHealth, err := store.marketInstrumentCatalogHealth(ctx)
+	if err != nil {
+		return data.SystemHealth{}, err
+	}
+	if catalogHealth.Status != "ok" {
+		status = "degraded"
+	}
+	services = append(services, catalogHealth)
 	return data.SystemHealth{
 		Status:    status,
 		Database:  "ok",
@@ -162,4 +171,61 @@ func (store *Store) addSyncExchangeBackoffHealth(ctx context.Context, service *d
 		service.Detail = fmt.Sprintf("%s exchange_backoff=%d", service.Detail, backoffCount)
 	}
 	return nil
+}
+
+func (store *Store) marketInstrumentCatalogHealth(ctx context.Context) (data.ServiceHealth, error) {
+	rows, err := store.pool.Query(ctx, `
+		SELECT exchange, last_attempt_at, last_success_at, last_error, updated_at
+		  FROM market_instrument_sync_statuses
+		 ORDER BY exchange`)
+	if err != nil {
+		return data.ServiceHealth{}, fmt.Errorf("read market instrument catalog health: %w", err)
+	}
+	defer rows.Close()
+
+	service := data.ServiceHealth{Name: "market-instrument-catalog", Status: "ok"}
+	var details []string
+	for rows.Next() {
+		var status data.MarketInstrumentSyncStatus
+		var lastSuccess sql.NullTime
+		if err := rows.Scan(
+			&status.Exchange,
+			&status.LastAttemptAt,
+			&lastSuccess,
+			&status.LastError,
+			&status.UpdatedAt,
+		); err != nil {
+			return data.ServiceHealth{}, fmt.Errorf("scan market instrument catalog health: %w", err)
+		}
+		if lastSuccess.Valid {
+			status.LastSuccessAt = &lastSuccess.Time
+		}
+		lastError := strings.TrimSpace(status.LastError)
+		failedAfterSuccess := lastError != "" &&
+			(status.LastSuccessAt == nil || status.LastAttemptAt.After(status.LastSuccessAt.UTC()))
+		switch {
+		case failedAfterSuccess:
+			service.Status = "warning"
+			details = append(details, fmt.Sprintf("%s last_error=%s", status.Exchange, lastError))
+		case status.LastSuccessAt == nil:
+			service.Status = "warning"
+			details = append(details, fmt.Sprintf("%s never_synced", status.Exchange))
+		default:
+			details = append(details, fmt.Sprintf(
+				"%s last_success=%s",
+				status.Exchange,
+				status.LastSuccessAt.UTC().Format(time.RFC3339),
+			))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return data.ServiceHealth{}, fmt.Errorf("collect market instrument catalog health: %w", err)
+	}
+	if len(details) == 0 {
+		service.Status = "warning"
+		service.Detail = "no catalog sync status"
+		return service, nil
+	}
+	service.Detail = strings.Join(details, "; ")
+	return service, nil
 }

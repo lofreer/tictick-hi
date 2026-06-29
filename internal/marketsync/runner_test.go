@@ -35,6 +35,9 @@ func TestRunnerRunOnceReplacesEachExchangeAndContinuesAfterFailure(t *testing.T)
 	if len(repository.calls) != 1 {
 		t.Fatalf("replace calls = %d, want 1", len(repository.calls))
 	}
+	if len(repository.failures) != 1 || repository.failures[0].exchange != "okx" {
+		t.Fatalf("failure records = %#v, want one okx failure", repository.failures)
+	}
 	call := repository.calls[0]
 	if call.exchange != "binance" || !call.syncedAt.Equal(now) || len(call.instruments) != 1 {
 		t.Fatalf("unexpected replace call: %#v", call)
@@ -92,6 +95,9 @@ func TestRunnerRunOnceDoesNotRetryPermanentInstrumentFailure(t *testing.T) {
 	if len(repository.calls) != 0 {
 		t.Fatalf("replace calls = %d, want 0", len(repository.calls))
 	}
+	if len(repository.failures) != 1 || repository.failures[0].exchange != "binance" {
+		t.Fatalf("failure records = %#v, want one binance failure", repository.failures)
+	}
 }
 
 func TestRunnerRunSyncsOnStartAndInterval(t *testing.T) {
@@ -118,8 +124,15 @@ type replaceCall struct {
 	syncedAt    time.Time
 }
 
+type failureCall struct {
+	exchange    string
+	err         error
+	attemptedAt time.Time
+}
+
 type fakeRepository struct {
-	calls []replaceCall
+	calls    []replaceCall
+	failures []failureCall
 }
 
 func (repository *fakeRepository) ReplaceMarketInstruments(
@@ -138,6 +151,20 @@ func (repository *fakeRepository) ReplaceMarketInstruments(
 		ActiveCount: len(instruments),
 		SyncedAt:    syncedAt,
 	}, nil
+}
+
+func (repository *fakeRepository) RecordMarketInstrumentSyncFailure(
+	_ context.Context,
+	exchange string,
+	syncErr error,
+	attemptedAt time.Time,
+) error {
+	repository.failures = append(repository.failures, failureCall{
+		exchange:    exchange,
+		err:         syncErr,
+		attemptedAt: attemptedAt,
+	})
+	return nil
 }
 
 type fakeInstrumentClient struct {

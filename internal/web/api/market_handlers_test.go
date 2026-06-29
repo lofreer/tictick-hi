@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -302,6 +303,28 @@ func TestMarketInstrumentSyncRouteRejectsUnavailableClient(t *testing.T) {
 	}
 }
 
+func TestMarketInstrumentSyncRouteRecordsFetchFailure(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServerWithConfig(repository, Config{
+		InstrumentClients: map[string]exchange.InstrumentClient{
+			"okx": fakeInstrumentClient{err: errors.New("okx instruments temporary unavailable: www.okx.com: EOF")},
+		},
+	})
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/instruments/sync?exchange=okx", "")
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("sync status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(repository.marketSyncFailures) != 1 {
+		t.Fatalf("market sync failures = %#v, want one", repository.marketSyncFailures)
+	}
+	failure := repository.marketSyncFailures[0]
+	if failure.exchange != "okx" || failure.err == nil || failure.attemptedAt.IsZero() {
+		t.Fatalf("unexpected market sync failure: %#v", failure)
+	}
+}
+
 func TestMarketInstrumentRoutesRejectInvalidQuery(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -332,8 +355,12 @@ func TestMarketInstrumentRoutesRejectInvalidQuery(t *testing.T) {
 
 type fakeInstrumentClient struct {
 	instruments []data.MarketInstrument
+	err         error
 }
 
 func (client fakeInstrumentClient) FetchInstruments(context.Context) ([]data.MarketInstrument, error) {
+	if client.err != nil {
+		return nil, client.err
+	}
 	return append([]data.MarketInstrument(nil), client.instruments...), nil
 }

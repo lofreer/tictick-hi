@@ -210,6 +210,9 @@ func (store *Store) ReplaceMarketInstruments(
 	if err != nil {
 		return data.MarketInstrumentSyncResult{}, err
 	}
+	if err := recordMarketInstrumentSyncSuccess(ctx, tx, exchangeID, syncedAt); err != nil {
+		return data.MarketInstrumentSyncResult{}, err
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return data.MarketInstrumentSyncResult{}, fmt.Errorf("commit market instrument sync: %w", err)
@@ -256,6 +259,57 @@ func (store *Store) pauseDataSyncTasksForInactiveMarkets(
 		return 0, fmt.Errorf("pause data sync tasks for inactive markets: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+func (store *Store) RecordMarketInstrumentSyncFailure(
+	ctx context.Context,
+	exchangeID string,
+	syncErr error,
+	attemptedAt time.Time,
+) error {
+	if attemptedAt.IsZero() {
+		attemptedAt = time.Now().UTC()
+	}
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_instrument_sync_statuses (
+			exchange, last_attempt_at, last_success_at, last_error, updated_at
+		)
+		VALUES ($1, $2, NULL, $3, now())
+		ON CONFLICT (exchange) DO UPDATE
+		   SET last_attempt_at = EXCLUDED.last_attempt_at,
+		       last_error = EXCLUDED.last_error,
+		       updated_at = now()`,
+		exchangeID,
+		attemptedAt.UTC(),
+		normalizeTaskError(syncErr),
+	); err != nil {
+		return fmt.Errorf("record market instrument sync failure: %w", err)
+	}
+	return nil
+}
+
+func recordMarketInstrumentSyncSuccess(
+	ctx context.Context,
+	exec leaseExec,
+	exchangeID string,
+	syncedAt time.Time,
+) error {
+	if _, err := exec.Exec(ctx, `
+		INSERT INTO market_instrument_sync_statuses (
+			exchange, last_attempt_at, last_success_at, last_error, updated_at
+		)
+		VALUES ($1, $2, $2, '', now())
+		ON CONFLICT (exchange) DO UPDATE
+		   SET last_attempt_at = EXCLUDED.last_attempt_at,
+		       last_success_at = EXCLUDED.last_success_at,
+		       last_error = '',
+		       updated_at = now()`,
+		exchangeID,
+		syncedAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("record market instrument sync success: %w", err)
+	}
+	return nil
 }
 
 func normalizeMarketInstrumentLimit(limit int) int {

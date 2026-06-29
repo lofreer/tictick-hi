@@ -30,3 +30,11 @@ type MarketInstrumentSyncResult struct {
 	PausedDataSyncTaskCount int       `json:"pausedDataSyncTaskCount"`
 	SyncedAt                time.Time `json:"syncedAt"`
 }
+
+type MarketInstrumentSyncStatus struct {
+	Exchange      string     `json:"exchange"`
+	LastAttemptAt time.Time  `json:"lastAttemptAt"`
+	LastSuccessAt *time.Time `json:"lastSuccessAt,omitempty"`
+	LastError     string     `json:"lastError,omitempty"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+}

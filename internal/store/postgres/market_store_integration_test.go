@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -290,6 +291,126 @@ func TestIntegrationReplaceMarketInstrumentsPausesDataSyncTasksForInactiveMarket
 	}
 	if lockedBy.Valid || lockedUntil.Valid || heartbeatAt.Valid {
 		t.Fatalf("task lease not cleared: lockedBy=%#v lockedUntil=%#v heartbeatAt=%#v", lockedBy, lockedUntil, heartbeatAt)
+	}
+}
+
+func TestIntegrationMarketInstrumentSyncStatusRecordsFailureAndSuccess(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	exchangeID := "okx"
+	successAt := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `
+			UPDATE market_instrument_sync_statuses
+			   SET last_attempt_at = now(),
+			       last_success_at = now(),
+			       last_error = '',
+			       updated_at = now()
+			 WHERE exchange = $1`,
+			exchangeID,
+		)
+	})
+
+	failureAt := successAt.Add(-time.Minute)
+	if err := store.RecordMarketInstrumentSyncFailure(
+		ctx,
+		exchangeID,
+		errors.New("okx instruments temporary unavailable:\nwww.okx.com: EOF"),
+		failureAt,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	var failedAttempt time.Time
+	var failedError string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT last_attempt_at, last_error
+		  FROM market_instrument_sync_statuses
+		 WHERE exchange = $1`,
+		exchangeID,
+	).Scan(&failedAttempt, &failedError); err != nil {
+		t.Fatal(err)
+	}
+	if !failedAttempt.Equal(failureAt) {
+		t.Fatalf("last attempt = %s, want %s", failedAttempt, failureAt)
+	}
+	if !strings.Contains(failedError, "temporary unavailable") ||
+		strings.Contains(failedError, "\n") ||
+		len([]rune(failedError)) > 500 {
+		t.Fatalf("unexpected failed error: %q", failedError)
+	}
+
+	active, err := listAllIntegrationActiveInstruments(ctx, store, exchangeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ReplaceMarketInstruments(ctx, exchangeID, active, successAt); err != nil {
+		t.Fatal(err)
+	}
+
+	var lastSuccess sql.NullTime
+	var lastError string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT last_success_at, last_error
+		  FROM market_instrument_sync_statuses
+		 WHERE exchange = $1`,
+		exchangeID,
+	).Scan(&lastSuccess, &lastError); err != nil {
+		t.Fatal(err)
+	}
+	if !lastSuccess.Valid || !lastSuccess.Time.Equal(successAt) {
+		t.Fatalf("last success = %#v, want %s", lastSuccess, successAt)
+	}
+	if lastError != "" {
+		t.Fatalf("last error after success = %q, want empty", lastError)
+	}
+}
+
+func TestIntegrationSystemHealthReportsMarketInstrumentCatalogFailure(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	exchangeID := "binance"
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `
+			UPDATE market_instrument_sync_statuses
+			   SET last_attempt_at = now(),
+			       last_success_at = now(),
+			       last_error = '',
+			       updated_at = now()
+			 WHERE exchange = $1`,
+			exchangeID,
+		)
+	})
+
+	if err := store.RecordMarketInstrumentSyncFailure(
+		ctx,
+		exchangeID,
+		errors.New("binance instruments temporary unavailable: api.binance.com: EOF"),
+		time.Now().UTC(),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	health, err := store.SystemHealth(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if health.Status != "degraded" {
+		t.Fatalf("system health status = %q, want degraded", health.Status)
+	}
+	catalogHealth := findIntegrationServiceHealth(health, "market-instrument-catalog")
+	if catalogHealth.Status != "warning" ||
+		!strings.Contains(catalogHealth.Detail, "binance") ||
+		!strings.Contains(catalogHealth.Detail, "temporary unavailable") {
+		t.Fatalf("unexpected catalog health: %#v", catalogHealth)
 	}
 }
 
