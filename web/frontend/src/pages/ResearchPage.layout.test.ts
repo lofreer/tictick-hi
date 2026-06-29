@@ -81,11 +81,18 @@ describe("ResearchPage chart layout contract", () => {
     expect(canvasStyle).toContain("width: 100%;");
     expect(canvasStyle).toContain("height: 100%;");
     expect(canvasStyle).toContain("overflow: hidden;");
-    expect(lightweightStyle).toContain("max-width: 100%;");
-    expect(lightweightStyle).toContain("max-height: 100%;");
+    expect(lightweightStyle).toContain("block-size: 100% !important;");
+    expect(lightweightStyle).toContain("height: 100% !important;");
+    expect(lightweightStyle).toContain("max-block-size: 100% !important;");
+    expect(lightweightStyle).toContain("max-height: 100% !important;");
+    expect(lightweightStyle).not.toContain("max-width");
+    expect(lightweightStyle).not.toContain("max-inline-size");
+    expect(lightweightStyle).not.toContain("overflow:");
+    expect(lightweightStyle).not.toContain("contain:");
     expect(chartStyles).not.toContain("--tt-chart-render-width");
     expect(chartStyles).not.toContain("--tt-chart-render-height");
-    expect(chartStyles).not.toContain("!important");
+    expect(rootStyle).not.toContain("!important");
+    expect(canvasStyle).not.toContain("!important");
   });
 
   it("does not override lightweight-charts internal table geometry", () => {

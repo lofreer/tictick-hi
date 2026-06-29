@@ -5394,6 +5394,41 @@ Definition of Done：
 - 表格仍是横向滚动型工作区，不是最终生产级密度/列管理方案。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页 K 线图表内部根节点裁剪与高度反馈修正
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户在本地 `127.0.0.1:8080/research` 继续观察到 K 线图表固定容器内容被截掉。
+- 首轮去掉 `.tv-lightweight-charts` 外层 `max-* / overflow / contain` 后，运行态 smoke 复现内部根节点高度反馈：desktop 采样失败为 `tv=9000`，说明仅移除裁剪会重新打开无限拉高风险。
+
+修复范围：
+
+- `.tv-lightweight-charts` 外层不再设置 `max-width/max-inline-size`、`overflow:hidden` 或 `contain`，避免外部 CSS 干预 lightweight-charts 的价格轴、时间轴和内部 table 布局。
+- 只对 `.tv-lightweight-charts` 外层增加纵向 `block-size/height/max-block-size/max-height: 100% !important`，用固定图表槽锁住第三方根节点高度，阻断内部 inline 高度污染继续撑高页面。
+- `ResearchPage.layout.test.ts` 和 `scripts/check-research-chart-layout.sh` 更新为“外层固定、内部不裁剪、第三方根节点只锁高度”的契约。
+- 本地 `api` 已通过 `docker compose up -d --build api` 使用本轮前端构建产物重建，`http://127.0.0.1:8080/research` 当前加载新资源。
+
+验证：
+
+- 首次 `node scripts/research-chart-height-smoke.mjs` 失败：`desktop-1440x900 tv height exceeded viewport cap`，`tv=9000`；已作为本轮复现证据。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过，2 个测试文件 / 30 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose up -d --build api` 通过，`/readyz` 返回 `{"status":"ok"}`。
+- 修复后 `node scripts/research-chart-height-smoke.mjs` 在本地 8080 通过：desktop `body/chart/tv 603->603`，812x1320 窄桌面 `500->500`，mobile `457->457`；主图可见像素、右侧价格轴、底部时间轴、时间轴边缘和内部高度污染稳定性检查均通过。
+- `pnpm --dir web/frontend run test` 通过，22 个测试文件 / 118 条测试。
+- `scripts/quality-gate.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+
+剩余风险：
+
+- 本轮关闭的是研究页 K 线容器裁剪和 `.tv-lightweight-charts` 内部根节点高度反馈，不代表完整图表工具链达到 production-safe。
+- 仍未建立人工像素快照基线、全主题/全语言视觉矩阵、长期浏览器 soak 或完整图表交互能力。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ### 阶段 1 数据同步任务单缺口修复真实性校验补充
 
 目标等级：scaffold
