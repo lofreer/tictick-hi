@@ -13,6 +13,7 @@ import type {
   DataSyncInvalidIssueList,
   DataSyncTask,
   MarketCandleGapScan,
+  MarketCandleInvalidIssueScan,
   RepairDataSyncInvalidIssuesRequest,
   RepairDataSyncTaskGapRequest,
   RepairMarketCandleGapRequest,
@@ -138,6 +139,16 @@ export const dataApi = {
       limit: String(query.limit ?? 20),
     });
     return apiClient.get<MarketCandleGapScan>(`/market/candle-gaps?${params.toString()}`);
+  },
+
+  async scanMarketCandleInvalidIssues(query: CandleQuery): Promise<MarketCandleInvalidIssueScan> {
+    const params = new URLSearchParams({
+      exchange: query.exchange,
+      symbol: query.symbol,
+      interval: query.interval,
+      limit: String(query.limit ?? 20),
+    });
+    return apiClient.get<MarketCandleInvalidIssueScan>(`/market/candle-invalid-issues?${params.toString()}`);
   },
 
   async repairMarketCandleGap(request: RepairMarketCandleGapRequest): Promise<DataSyncGapRepairResult> {

@@ -70,7 +70,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(toolbarStyle).toContain("padding: 9px 12px 10px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: grid;");
-    expect(controlsStyle).toContain("grid-template-columns: 108px 136px 28px 64px max-content;");
+    expect(controlsStyle).toContain("grid-template-columns: 104px 120px 28px 62px max-content;");
     expect(controlsStyle).toContain("width: max-content;");
     expect(controlsStyle).toContain("overflow-x: auto;");
     expect(statusStyle).toContain("justify-content: flex-start;");
@@ -108,17 +108,17 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("--kline-chart-plot-height: clamp(660px, 66vh, 800px);");
     expect(pageStyles).toContain("--kline-chart-plot-height: 680px;");
     expect(pageStyles).toContain("--kline-chart-plot-height: 540px;");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 16px;");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 14px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 10px;");
-    expect(pageStyles).toContain("--kline-chart-padding-right: 12px;");
+    expect(pageStyles).toContain("--kline-chart-padding-right: 8px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 10px;");
-    expect(pageStyles).toContain("grid-template-columns: 108px 136px 28px 64px max-content;");
-    expect(pageStyles).toContain("width: 136px;");
-    expect(pageStyles).toContain("width: 132px;");
-    expect(pageStyles).toContain("width: 128px;");
+    expect(pageStyles).toContain("grid-template-columns: 104px 120px 28px 62px max-content;");
+    expect(pageStyles).toContain("width: 120px;");
+    expect(pageStyles).toContain("width: 112px;");
+    expect(pageStyles).toContain("width: 108px;");
     expect(pageStyles).toContain("width: 100%;");
-    expect(pageStyles).toContain("max-width: min(300px, 42vw);");
+    expect(pageStyles).toContain("max-width: min(260px, 38vw);");
     expect(pageStyles).toContain("overflow-x: auto;");
   });
 
@@ -141,7 +141,9 @@ describe("ResearchPage chart layout contract", () => {
     expect(canvasStyle).toContain("height: 100%;");
     expect(canvasStyle).toContain("overflow: hidden;");
     expect(lightweightStyle).toContain("block-size: 100% !important;");
+    expect(lightweightStyle).toContain("inline-size: 100% !important;");
     expect(lightweightStyle).toContain("height: 100% !important;");
+    expect(lightweightStyle).toContain("width: 100% !important;");
     expect(lightweightStyle).toContain("max-block-size: 100% !important;");
     expect(lightweightStyle).toContain("max-height: 100% !important;");
     expect(lightweightStyle).not.toContain("max-width");
@@ -204,6 +206,11 @@ describe("ResearchPage chart layout contract", () => {
   it("shows full-history market gap scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";');
     expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />');
+  });
+
+  it("shows full-history invalid candle scan metadata for the selected chart source", () => {
+    expect(source).toContain('import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";');
+    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" />');
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {

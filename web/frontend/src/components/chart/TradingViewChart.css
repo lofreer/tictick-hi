@@ -35,6 +35,8 @@
 
 .trading-chart__canvas > .tv-lightweight-charts {
   box-sizing: border-box;
+  inline-size: 100% !important;
+  width: 100% !important;
   block-size: 100% !important;
   height: 100% !important;
   max-block-size: 100% !important;

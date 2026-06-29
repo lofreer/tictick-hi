@@ -130,6 +130,16 @@ func addMarketContractPaths(paths map[string]apiPathItem) {
 		),
 		withErrors(http.StatusBadRequest),
 	))
+	addOperation(paths, "/api/market/candle-invalid-issues", http.MethodGet, operation(
+		"market", "scanMarketCandleInvalidIssues", "Scan persisted invalid market candles", http.StatusOK, schemaRef("MarketCandleInvalidIssueScan"),
+		withParameters(
+			queryParam("exchange", true, "Exchange id", map[string]any{"type": "string", "enum": []string{"binance", "okx"}}),
+			queryParam("symbol", true, "Market symbol", map[string]any{"type": "string"}),
+			queryParam("interval", true, "Candle interval", map[string]any{"type": "string", "enum": []string{"1m", "5m", "15m", "1h", "4h", "1d"}}),
+			queryParam("limit", false, "Maximum returned invalid candles", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxMarketCandleInvalidIssueScanLimit}),
+		),
+		withErrors(http.StatusBadRequest),
+	))
 	addOperation(paths, "/api/market/candle-gaps/repair", http.MethodPost, operation(
 		"market", "repairMarketCandleGap", "Create a sync task for one persisted market gap", http.StatusOK, schemaRef("DataSyncGapRepairResult"),
 		withCSRF(), withRequest(schemaRef("RepairMarketCandleGapRequest")), withErrors(http.StatusBadRequest, http.StatusNotFound),

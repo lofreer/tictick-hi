@@ -20,6 +20,24 @@ type MarketCandleGapScan struct {
 	ReturnedCount int          `json:"returnedCount"`
 }
 
+type MarketCandleInvalidIssueScanQuery struct {
+	Exchange string
+	Symbol   string
+	Interval string
+	Limit    int
+}
+
+type MarketCandleInvalidIssueScan struct {
+	Exchange      string        `json:"exchange"`
+	Symbol        string        `json:"symbol"`
+	Interval      string        `json:"interval"`
+	Window        CandleWindow  `json:"window"`
+	Issues        []CandleIssue `json:"issues"`
+	Limited       bool          `json:"limited"`
+	TotalCount    int           `json:"totalCount"`
+	ReturnedCount int           `json:"returnedCount"`
+}
+
 type RepairMarketCandleGapRequest struct {
 	Exchange string    `json:"exchange"`
 	Symbol   string    `json:"symbol"`

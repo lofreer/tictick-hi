@@ -33,6 +33,7 @@ export type ExchangeAccount = { alias: string; createdAt: string; credentialStat
 export type Execution = { accountId: string; createdAt: string; exchange: string; executedAt: string; fee: string; id: string; idempotencyKey: string; intentId?: string; orderId: string; price: string; quantity: string; side: string; status: string; symbol: string; taskId: string; taskType: string; };
 export type LoginRequest = { password: string; username: string; };
 export type MarketCandleGapScan = { exchange: string; gaps: CandleGap[]; interval: string; limited: boolean; returnedCount: number; symbol: string; totalCount: number; window: CandleWindow; };
+export type MarketCandleInvalidIssueScan = { exchange: string; interval: string; issues: CandleIssue[]; limited: boolean; returnedCount: number; symbol: string; totalCount: number; window: CandleWindow; };
 export type MarketInstrument = { baseAsset: string; exchange: string; exchangeStatus: string; instrumentType: string; quoteAsset: string; searchPriority: number; status: string; symbol: string; syncedAt?: string; };
 export type MarketInstrumentSyncStatus = { exchange: string; lastAttemptAt: string; lastError?: string; lastSuccessAt?: string; updatedAt: string; };
 export type Notification = { attemptCount: number; body: string; channel: string; createdAt: string; error?: string; id: string; intentId?: string; lastAttemptAt?: string; maxAttempts: number; nextAttemptAt?: string; provider: string; sentAt?: string; status: string; target: string; taskId?: string; title: string; };

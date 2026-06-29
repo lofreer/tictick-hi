@@ -119,6 +119,71 @@ func TestMarketCandleGapRouteScansPersistedHistory(t *testing.T) {
 	}
 }
 
+func TestMarketCandleInvalidIssueRouteScansPersistedHistory(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC)
+	for _, item := range []struct {
+		minute int
+		open   string
+		close  string
+	}{
+		{minute: 0, open: "100", close: "100"},
+		{minute: 1, open: "0", close: "100"},
+		{minute: 2, open: "100", close: "0"},
+		{minute: 3, open: "100", close: "100"},
+	} {
+		openTime := start.Add(time.Duration(item.minute) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: item.open, High: "101", Low: "99", Close: item.close, Volume: "1",
+			IsClosed: true,
+		})
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodGet,
+		"/api/market/candle-invalid-issues?exchange=binance&symbol=BTCUSDT&interval=1m&limit=1",
+		"",
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+
+	var scan data.MarketCandleInvalidIssueScan
+	if err := json.NewDecoder(recorder.Body).Decode(&scan); err != nil {
+		t.Fatal(err)
+	}
+	if scan.Exchange != "binance" || scan.Symbol != "BTCUSDT" || scan.Interval != "1m" {
+		t.Fatalf("unexpected scan identity: %#v", scan)
+	}
+	if scan.Window.Count != 4 || scan.Window.From == nil || !scan.Window.From.Equal(start) ||
+		scan.Window.To == nil || !scan.Window.To.Equal(start.Add(3*time.Minute)) {
+		t.Fatalf("unexpected scan window: %#v", scan.Window)
+	}
+	if !scan.Limited || scan.TotalCount != 2 || scan.ReturnedCount != 1 || len(scan.Issues) != 1 {
+		t.Fatalf("unexpected invalid issue metadata: %#v", scan)
+	}
+	if scan.Issues[0].OpenTime == nil || !scan.Issues[0].OpenTime.Equal(start.Add(time.Minute)) ||
+		scan.Issues[0].Code != data.CandleIssueInvalidOpenPrice ||
+		scan.Issues[0].Message != "open price value must be positive" {
+		t.Fatalf("unexpected first issue: %#v", scan.Issues[0])
+	}
+
+	invalidLimit := serveAuthenticated(
+		server,
+		auth,
+		http.MethodGet,
+		"/api/market/candle-invalid-issues?exchange=binance&symbol=BTCUSDT&interval=1m&limit=101",
+		"",
+	)
+	if invalidLimit.Code != http.StatusBadRequest {
+		t.Fatalf("invalid limit status = %d body = %s", invalidLimit.Code, invalidLimit.Body.String())
+	}
+}
+
 func TestMarketCandleGapRepairRouteQueuesSyncTask(t *testing.T) {
 	repository, server, auth := newAuthenticatedTestServer(t)
 	start := time.Date(2026, 6, 27, 4, 0, 0, 0, time.UTC)

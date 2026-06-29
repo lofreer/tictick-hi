@@ -17,6 +17,8 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/market/candle-gaps":
 		server.handleMarketCandleGaps(w, r)
+	case "/api/market/candle-invalid-issues":
+		server.handleMarketCandleInvalidIssues(w, r)
 	case "/api/market/candle-gaps/repair":
 		server.repairMarketCandleGap(w, r)
 	case "/api/market/candle-gaps/repair-batch":
@@ -44,6 +46,25 @@ func (server *Server) handleMarketCandleGaps(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	scan, err := server.repository.ScanMarketCandleGaps(r.Context(), query)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, scan)
+}
+
+func (server *Server) handleMarketCandleInvalidIssues(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, http.MethodGet)
+		return
+	}
+
+	query, err := parseMarketCandleInvalidIssueScanQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	scan, err := server.repository.ScanMarketCandleInvalidIssues(r.Context(), query)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -253,6 +274,36 @@ func parseMarketCandleGapScanQuery(r *http.Request) (data.MarketCandleGapScanQue
 		}
 		if limit > data.MaxMarketCandleGapScanLimit {
 			return data.MarketCandleGapScanQuery{}, fmt.Errorf("limit must be less than or equal to %d", data.MaxMarketCandleGapScanLimit)
+		}
+		query.Limit = limit
+	}
+	return query, nil
+}
+
+func parseMarketCandleInvalidIssueScanQuery(r *http.Request) (data.MarketCandleInvalidIssueScanQuery, error) {
+	values := r.URL.Query()
+	query := data.MarketCandleInvalidIssueScanQuery{
+		Exchange: strings.TrimSpace(values.Get("exchange")),
+		Symbol:   strings.ToUpper(strings.TrimSpace(values.Get("symbol"))),
+		Interval: strings.TrimSpace(values.Get("interval")),
+		Limit:    data.DefaultMarketCandleInvalidIssueScanLimit,
+	}
+	if query.Exchange == "" || query.Symbol == "" || query.Interval == "" {
+		return data.MarketCandleInvalidIssueScanQuery{}, fmt.Errorf("exchange, symbol and interval are required")
+	}
+	if err := validateExchangeSymbol(query.Exchange, query.Symbol); err != nil {
+		return data.MarketCandleInvalidIssueScanQuery{}, err
+	}
+	if _, err := data.IntervalDuration(query.Interval); err != nil {
+		return data.MarketCandleInvalidIssueScanQuery{}, err
+	}
+	if rawLimit := values.Get("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return data.MarketCandleInvalidIssueScanQuery{}, fmt.Errorf("limit must be a positive integer")
+		}
+		if limit > data.MaxMarketCandleInvalidIssueScanLimit {
+			return data.MarketCandleInvalidIssueScanQuery{}, fmt.Errorf("limit must be less than or equal to %d", data.MaxMarketCandleInvalidIssueScanLimit)
 		}
 		query.Limit = limit
 	}

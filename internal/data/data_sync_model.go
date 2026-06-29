@@ -6,13 +6,13 @@ type DataSyncHealth string
 type DataSyncMarketStatus string
 
 var candleIssueCodes = []string{
-	"invalid_open_price",
-	"invalid_high_price",
-	"invalid_low_price",
-	"invalid_close_price",
-	"invalid_volume",
-	"invalid_high_bound",
-	"invalid_low_bound",
+	CandleIssueInvalidOpenPrice,
+	CandleIssueInvalidHighPrice,
+	CandleIssueInvalidLowPrice,
+	CandleIssueInvalidClosePrice,
+	CandleIssueInvalidVolume,
+	CandleIssueInvalidHighBound,
+	CandleIssueInvalidLowBound,
 }
 
 const (
@@ -30,6 +30,16 @@ const (
 	DataSyncMarketStatusActive   DataSyncMarketStatus = "active"
 	DataSyncMarketStatusInactive DataSyncMarketStatus = "inactive"
 	DataSyncMarketStatusMissing  DataSyncMarketStatus = "missing"
+)
+
+const (
+	CandleIssueInvalidOpenPrice  = "invalid_open_price"
+	CandleIssueInvalidHighPrice  = "invalid_high_price"
+	CandleIssueInvalidLowPrice   = "invalid_low_price"
+	CandleIssueInvalidClosePrice = "invalid_close_price"
+	CandleIssueInvalidVolume     = "invalid_volume"
+	CandleIssueInvalidHighBound  = "invalid_high_bound"
+	CandleIssueInvalidLowBound   = "invalid_low_bound"
 )
 
 const (
@@ -144,6 +154,13 @@ type RepairDataSyncInvalidIssuesRequest struct {
 	Code string     `json:"code,omitempty"`
 	From *time.Time `json:"from,omitempty"`
 	To   *time.Time `json:"to,omitempty"`
+}
+
+type DataSyncResult struct {
+	TaskID       string
+	Candles      []Candle
+	LastOpenTime *time.Time
+	Completed    bool
 }
 
 type CreateDataSyncTask struct {

@@ -66,6 +66,73 @@ func TestIntegrationScanMarketCandleGapsReportsHealthyHistory(t *testing.T) {
 	}
 }
 
+func TestIntegrationScanMarketCandleInvalidIssuesReportsPersistedHistory(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 7, 30, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCI")
+	cleanupMarketCandles(t, store, symbol)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		ensurePositivePriceConstraint(t, cleanupCtx, store)
+	})
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 0))
+	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(time.Minute))
+	insertLegacyInvalidCloseDataHealthCandle(t, ctx, store, symbol, start.Add(2*time.Minute))
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 3))
+
+	scan, err := store.ScanMarketCandleInvalidIssues(ctx, data.MarketCandleInvalidIssueScanQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scan.Window.Count != 4 || scan.Window.From == nil || !scan.Window.From.Equal(start) ||
+		scan.Window.To == nil || !scan.Window.To.Equal(start.Add(3*time.Minute)) {
+		t.Fatalf("unexpected invalid scan window: %#v", scan.Window)
+	}
+	if !scan.Limited || scan.TotalCount != 2 || scan.ReturnedCount != 1 || len(scan.Issues) != 1 {
+		t.Fatalf("unexpected invalid scan metadata: %#v", scan)
+	}
+	issue := scan.Issues[0]
+	if issue.OpenTime == nil || !issue.OpenTime.Equal(start.Add(time.Minute)) ||
+		issue.Code != data.CandleIssueInvalidOpenPrice ||
+		issue.Message != "open price value must be positive" {
+		t.Fatalf("unexpected first invalid issue: %#v", issue)
+	}
+}
+
+func TestIntegrationScanMarketCandleInvalidIssuesReportsHealthyHistory(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 7, 45, 0, 0, time.UTC)
+	symbol := integrationSymbol("MCIH")
+	cleanupMarketCandles(t, store, symbol)
+	for _, minute := range []int{0, 1, 2} {
+		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
+	}
+
+	scan, err := store.ScanMarketCandleInvalidIssues(ctx, data.MarketCandleInvalidIssueScanQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scan.Window.Count != 3 || scan.TotalCount != 0 || scan.ReturnedCount != 0 || len(scan.Issues) != 0 || scan.Limited {
+		t.Fatalf("unexpected healthy invalid scan: %#v", scan)
+	}
+}
+
 func TestIntegrationScanMarketCandleGapsReportsLimitedTotal(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

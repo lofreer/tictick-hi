@@ -25,6 +25,53 @@ func ValidateCandleSeriesForTarget(candles []Candle, exchange string, symbol str
 	return validateCandleSeries(candles, interval)
 }
 
+func DetectCandleIssue(candle Candle) *CandleIssue {
+	open, err := parseCandleDecimal(candle, "open", candle.Open)
+	if err != nil {
+		return candleIssue(candle, CandleIssueInvalidOpenPrice, err.Error())
+	}
+	high, err := parseCandleDecimal(candle, "high", candle.High)
+	if err != nil {
+		return candleIssue(candle, CandleIssueInvalidHighPrice, err.Error())
+	}
+	low, err := parseCandleDecimal(candle, "low", candle.Low)
+	if err != nil {
+		return candleIssue(candle, CandleIssueInvalidLowPrice, err.Error())
+	}
+	closeValue, err := parseCandleDecimal(candle, "close", candle.Close)
+	if err != nil {
+		return candleIssue(candle, CandleIssueInvalidClosePrice, err.Error())
+	}
+	volume, err := parseCandleDecimal(candle, "volume", candle.Volume)
+	if err != nil {
+		return candleIssue(candle, CandleIssueInvalidVolume, err.Error())
+	}
+
+	zero := new(big.Rat)
+	if open.Cmp(zero) <= 0 {
+		return candleIssue(candle, CandleIssueInvalidOpenPrice, "open price value must be positive")
+	}
+	if high.Cmp(zero) <= 0 {
+		return candleIssue(candle, CandleIssueInvalidHighPrice, "high price value must be positive")
+	}
+	if low.Cmp(zero) <= 0 {
+		return candleIssue(candle, CandleIssueInvalidLowPrice, "low price value must be positive")
+	}
+	if closeValue.Cmp(zero) <= 0 {
+		return candleIssue(candle, CandleIssueInvalidClosePrice, "close price value must be positive")
+	}
+	if volume.Cmp(zero) < 0 {
+		return candleIssue(candle, CandleIssueInvalidVolume, "volume value is negative")
+	}
+	if high.Cmp(open) < 0 || high.Cmp(closeValue) < 0 || high.Cmp(low) < 0 {
+		return candleIssue(candle, CandleIssueInvalidHighBound, "high value is below OHLC bounds")
+	}
+	if low.Cmp(open) > 0 || low.Cmp(closeValue) > 0 || low.Cmp(high) > 0 {
+		return candleIssue(candle, CandleIssueInvalidLowBound, "low value is above OHLC bounds")
+	}
+	return nil
+}
+
 func validateCandleSeries(candles []Candle, interval string) error {
 	duration, err := IntervalDuration(interval)
 	if err != nil {
@@ -113,6 +160,15 @@ func parseCandleDecimal(candle Candle, field string, value string) (*big.Rat, er
 		return nil, fmt.Errorf("candle %s %s %q is not a decimal", candleIdentity(candle), field, value)
 	}
 	return parsed, nil
+}
+
+func candleIssue(candle Candle, code string, message string) *CandleIssue {
+	openTime := candle.OpenTime.UTC()
+	return &CandleIssue{
+		Code:     code,
+		Message:  message,
+		OpenTime: &openTime,
+	}
 }
 
 func candleIdentity(candle Candle) string {

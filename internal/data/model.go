@@ -416,6 +416,7 @@ type Repository interface {
 	GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error)
 	ListCandles(ctx context.Context, query CandleQuery) ([]Candle, error)
 	ScanMarketCandleGaps(ctx context.Context, query MarketCandleGapScanQuery) (MarketCandleGapScan, error)
+	ScanMarketCandleInvalidIssues(ctx context.Context, query MarketCandleInvalidIssueScanQuery) (MarketCandleInvalidIssueScan, error)
 	RepairMarketCandleGap(ctx context.Context, request RepairMarketCandleGapRequest) (DataSyncGapRepairResult, error)
 	RepairMarketCandleGaps(ctx context.Context, request RepairMarketCandleGapsRequest) (DataSyncGapRepairResult, error)
 	ListBacktestTasks(ctx context.Context) ([]BacktestTask, error)
@@ -490,11 +491,4 @@ type NotificationRepository interface {
 	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time) error
 	MarkNotificationFailed(ctx context.Context, deliveryID string, err error, nextAttemptAt *time.Time) error
 	ReleaseNotificationDelivery(ctx context.Context, deliveryID string) error
-}
-
-type DataSyncResult struct {
-	TaskID       string
-	Candles      []Candle
-	LastOpenTime *time.Time
-	Completed    bool
 }

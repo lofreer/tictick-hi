@@ -11,6 +11,9 @@ const (
 
 	DefaultMarketCandleGapScanLimit = 20
 	MaxMarketCandleGapScanLimit     = 100
+
+	DefaultMarketCandleInvalidIssueScanLimit = 20
+	MaxMarketCandleInvalidIssueScanLimit     = 100
 )
 
 func NormalizeCandleLimit(limit int) int {
@@ -29,6 +32,16 @@ func NormalizeMarketCandleGapScanLimit(limit int) int {
 	}
 	if limit > MaxMarketCandleGapScanLimit {
 		return MaxMarketCandleGapScanLimit
+	}
+	return limit
+}
+
+func NormalizeMarketCandleInvalidIssueScanLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultMarketCandleInvalidIssueScanLimit
+	}
+	if limit > MaxMarketCandleInvalidIssueScanLimit {
+		return MaxMarketCandleInvalidIssueScanLimit
 	}
 	return limit
 }

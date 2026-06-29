@@ -113,6 +113,55 @@ func (repository *fakeRepository) ScanMarketCandleGaps(
 	return result, nil
 }
 
+func (repository *fakeRepository) ScanMarketCandleInvalidIssues(
+	_ context.Context,
+	query data.MarketCandleInvalidIssueScanQuery,
+) (data.MarketCandleInvalidIssueScan, error) {
+	matches := make([]data.Candle, 0)
+	for _, candle := range repository.candles {
+		if candle.Exchange == query.Exchange && candle.Symbol == query.Symbol && candle.Interval == query.Interval {
+			matches = append(matches, candle)
+		}
+	}
+	sort.Slice(matches, func(left int, right int) bool {
+		return matches[left].OpenTime.Before(matches[right].OpenTime)
+	})
+
+	result := data.MarketCandleInvalidIssueScan{
+		Exchange: query.Exchange,
+		Symbol:   query.Symbol,
+		Interval: query.Interval,
+		Issues:   []data.CandleIssue{},
+		Window: data.CandleWindow{
+			Count: len(matches),
+		},
+	}
+	if len(matches) > 0 {
+		from := matches[0].OpenTime.UTC()
+		to := matches[len(matches)-1].OpenTime.UTC()
+		result.Window.From = &from
+		result.Window.To = &to
+	}
+
+	issues := make([]data.CandleIssue, 0)
+	for _, candle := range matches {
+		issue := data.DetectCandleIssue(candle)
+		if issue == nil {
+			continue
+		}
+		issues = append(issues, *issue)
+	}
+	limit := data.NormalizeMarketCandleInvalidIssueScanLimit(query.Limit)
+	result.TotalCount = len(issues)
+	result.Limited = len(issues) > limit
+	if len(issues) > limit {
+		issues = issues[:limit]
+	}
+	result.Issues = issues
+	result.ReturnedCount = len(issues)
+	return result, nil
+}
+
 func (repository *fakeRepository) RepairMarketCandleGap(
 	_ context.Context,
 	request data.RepairMarketCandleGapRequest,

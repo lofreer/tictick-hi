@@ -53,6 +53,8 @@ done            用户确认关闭
 
 补充：阶段 1 已新增 CandleProvider `invalid` 健康状态、CandleResult `issues` 摘要和任务列表窗口级 `dataHealth=invalid` 统计，用于把历史异常 K 线从 API 500 收敛为研究页列表和图表可观察的数据健康状态；历史行清洗和自动修复仍未关闭。
 
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表布局与全历史异常扫描复核补充”为准：研究页 symbol 输入为桌面 `120px`、窄桌面 `112px`、移动端 `108px`，图表左/右 gutter 为桌面 `14px/8px`、窄桌面 `12px/8px`、移动端 `10px/10px`，`TradingViewChart` 只让 lightweight-charts 外层填满固定 viewport，不再覆写内部 table/canvas 几何。
+
 ## 3. 必须先修的问题
 
 ### 阶段 0 Definition of Done：质量底座
@@ -7315,45 +7317,55 @@ Definition of Done：
 - 不自动清洗历史异常行，不自动重试 invalid repair，也不把 invalid 行纳入全历史缺口扫描。
 - 阶段 1 研究核心仍不能升级为 usable；项目整体仍是 `scaffold`。
 
-### 阶段 1 K 线图表布局生产化复核补充
+### 阶段 1 K 线图表布局与全历史异常扫描复核补充
 
 执行时间：2026-06-30
 
 触发问题：
 
 - 用户反馈研究页工具栏控件粗糙、symbol 输入过宽、图表高度过窄、右侧价格轴区域过宽，且交易详情和回测详情存在同类布局问题。
-- 既有前端契约把研究页右侧图表 gutter 写死为 `0px`，并把图表高度和工具栏布局散落在页面样式中，容易在不同视口下回归。
+- 用户继续反馈同步任务列表虽可见缺口，但全历史异常 K 线没有从研究页直接可见。
+- 既有前端契约曾把研究页右侧图表 gutter 写死为 `0px` 或过宽值，并把图表高度和工具栏布局散落在页面样式中，容易在不同视口下回归。
 
 修复范围：
 
 - 研究页图表工具栏改为两段式紧凑工作条：上方只放交易所、交易对、刷新、周期、窗口控制，下方放当前数据源和数据状态标签。
-- 研究页 symbol 输入收敛为桌面 `136px`、窄桌面 `132px`、移动端 `128px`，`stage8-visual-smoke.mjs` 将桌面最大宽度阈值收紧到 `140px`。
+- 研究页 symbol 输入收敛为桌面 `120px`、窄桌面 `112px`、移动端 `108px`，`stage8-visual-smoke.mjs` 将桌面最大宽度阈值收紧到 `124px`。
 - 研究页、交易详情、回测详情共享 `klineChartLayout.css` 固定图表槽，plot 高度收敛为桌面 `clamp(660px, 66vh, 800px)`、窄桌面 `680px`、移动端 `540px`。
-- 图表左右 gutter 收敛为桌面 `16px/12px`、窄/移动 `12px/10px` 或 `10px/10px`，不再使用右侧 `0px` 旧契约。
+- 图表左右 gutter 收敛为桌面 `14px/8px`、窄桌面 `12px/8px`、移动端 `10px/10px`，不再使用右侧 `0px` 或过宽右侧留白旧契约。
 - `TradingViewChart` 的成交量柱改用隐藏的 `volume` price scale，避免 overlay scale 参与右侧坐标区布局；右侧价格轴 minimumWidth 收敛为 34/38/40px，并继续由 browser smoke 限制不超过 54px。
-- 移动端状态 tag 区域收回到父容器内，避免长 metadata 把 `.research-chart-panel` 撑出 1000px scrollWidth。
-- `ResearchPage.layout.test.ts`、`DetailPages.layout.test.ts`、`check-research-chart-layout.sh`、`research-chart-height-smoke.mjs`、`stage8-visual-smoke.mjs` 和 `stage8-state-visual-smoke.mjs` 同步为新的布局 contract。
+- `TradingViewChart.css` 只让 `.tv-lightweight-charts` 外层填满固定 viewport，继续禁止覆写 lightweight-charts 内部 table / tbody / tr / td / canvas 几何。
+- 新增 `GET /api/market/candle-invalid-issues`，按 exchange / symbol / interval 全历史扫描已落库 `market_candles` 的真实 OHLCV 异常，返回窗口、总数、返回数和 limited metadata。
+- 研究页新增“全历史无异常 / 全历史异常 N 根”状态标签，可打开详情弹窗查看异常时间、类型和原因；该入口只观察，不自动清洗历史数据。
+- `ResearchPage.layout.test.ts`、`DetailPages.layout.test.ts`、`check-research-chart-layout.sh`、`research-chart-height-smoke.mjs`、`stage8-visual-smoke.mjs` 和前端 API / 组件测试同步为新的布局与异常扫描 contract。
 
 验证：
 
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/data ./internal/web/api -run 'TestMarketCandleInvalidIssue|TestAPIContract|TestAPIMethodNotAllowedContracts|TestFrontendAPI' -count=1` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegrationScanMarketCandleInvalidIssues' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.test.ts src/services/api/marketCandle.test.ts` 通过：2 个测试文件、13 条测试。
+- `pnpm --dir web/frontend exec vitest run src/components/research/MarketCandleInvalidIssueTag.test.ts src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过。
 - `scripts/check-research-chart-layout.sh` 通过。
-- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts` 通过：2 个测试文件、13 条测试。
-- `pnpm --dir web/frontend run build` 通过，构建阶段包含 `vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json`。
-- `pnpm --dir web/frontend run test` 通过：26 个测试文件、134 条测试。
-- `scripts/quality-gate.sh` 通过。
-- `git diff --check` 通过。
-- `docker compose up -d --build api` 后，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
 - `scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `660px`、`2048x1152` 图表 `760px`、`812x1320` 图表 `680px`、`390x844` 图表 `540px`，污染内部高度后 document/panel/body/chart/tv 高度均稳定。
-- `scripts/stage8-visual-smoke.mjs` 通过：1440、812、390 三个视口，浅/深主题，zh-CN/en-US，14 个登录后页面组合均无横向溢出和 runtime error；存在任务数据时覆盖回测详情和交易详情上图表、下双栏布局。
-- `scripts/stage8-state-visual-smoke.mjs` 通过：桌面和移动、浅/深主题、zh-CN/en-US 下 14 个状态用例均无横向溢出。
+- 本地 CDP 几何复核通过：研究页 symbol 输入 `120px`，图表 viewport / tv `1368x660`，价格轴约 `52px`；回测详情和交易详情图表 viewport / tv `1368x660`，下方双栏为左侧约 `320px`、右侧约 `1056px`，图表在上、详情在下。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、140 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过；此前暴露的 `data.test.ts` 文件规模失败已通过拆分 `marketCandle.test.ts` 关闭。
+- `docker compose up --build -d api sync backtest trading notify` 后，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，本地 `http://127.0.0.1:8080/research` 可访问。
 
 失败项：
 
-- 本轮未出现失败项。
+- `node scripts/stage8-visual-smoke.mjs` 本轮曾因运行时间过长被 SIGTERM 中断，未计为通过；已用更小的 CDP 几何复核覆盖研究页、回测详情和交易详情本轮布局风险。
+- 首次 `scripts/quality-gate.sh` 暴露 `web/frontend/src/services/api/data.test.ts` 超过 650 行硬上限；已拆出 `web/frontend/src/services/api/marketCandle.test.ts` 并复跑质量门禁通过。
 
 剩余风险：
 
-- 本轮只修复 K 线图表布局、toolbar 密度、右侧坐标区和详情页共享布局；未新增交易/回测业务能力。
+- 本轮只修复 K 线图表布局、toolbar 密度、右侧坐标区、详情页共享布局，并补全全历史异常 K 线观察入口；未新增交易/回测业务能力。
+- 全历史异常扫描只读观察，不自动修复或清洗历史异常行；真实修复仍依赖后续补同步和外部交易所可用性。
 - 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后
