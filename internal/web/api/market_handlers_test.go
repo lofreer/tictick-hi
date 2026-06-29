@@ -183,6 +183,39 @@ func TestMarketCandleGapRepairRouteQueuesSyncTask(t *testing.T) {
 	}
 }
 
+func TestMarketCandleGapRepairRouteRequiresActiveMarketInstrument(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 6, 0, 0, 0, time.UTC)
+	repository.marketInstruments = []data.MarketInstrument{marketInstrumentForTest("binance", "BTCUSDT", "inactive")}
+	for _, minute := range []int{0, 1, 3} {
+		openTime := start.Add(time.Duration(minute) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		})
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/market/candle-gaps/repair",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m","from":"2026-06-27T06:02:00Z","to":"2026-06-27T06:03:00Z"}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "market_instrument_not_active" {
+		t.Fatalf("unexpected error response: %#v", response)
+	}
+	if len(repository.tasks) != 0 {
+		t.Fatalf("repair created tasks for inactive market: %#v", repository.tasks)
+	}
+}
+
 func TestMarketCandleGapBatchRepairRouteQueuesReturnedGaps(t *testing.T) {
 	repository, server, auth := newAuthenticatedTestServer(t)
 	start := time.Date(2026, 6, 27, 5, 0, 0, 0, time.UTC)
@@ -242,6 +275,39 @@ func TestMarketCandleGapBatchRepairRouteQueuesReturnedGaps(t *testing.T) {
 	)
 	if notGap.Code != http.StatusNotFound {
 		t.Fatalf("not gap status = %d body = %s", notGap.Code, notGap.Body.String())
+	}
+}
+
+func TestMarketCandleGapBatchRepairRouteRequiresActiveMarketInstrument(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 7, 0, 0, 0, time.UTC)
+	repository.marketInstruments = nil
+	for _, minute := range []int{0, 1, 3, 6} {
+		openTime := start.Add(time.Duration(minute) * time.Minute)
+		repository.candles = append(repository.candles, data.Candle{
+			Exchange: "binance", Symbol: "ETHUSDT", Interval: "1m",
+			OpenTime: openTime, CloseTime: openTime.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		})
+	}
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/market/candle-gaps/repair-batch",
+		`{"exchange":"binance","symbol":"ETHUSDT","interval":"1m","gaps":[{"from":"2026-06-27T07:02:00Z","to":"2026-06-27T07:03:00Z"},{"from":"2026-06-27T07:04:00Z","to":"2026-06-27T07:06:00Z"}]}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "market_instrument_not_active" {
+		t.Fatalf("unexpected error response: %#v", response)
+	}
+	if len(repository.tasks) != 0 {
+		t.Fatalf("batch repair created tasks for missing market: %#v", repository.tasks)
 	}
 }
 

@@ -6001,6 +6001,45 @@ Definition of Done：
 - 本轮只补强全历史缺口 repair 的软删除去重和批量事务原子性证据，不实现自动补齐或重试调度策略。
 - 数据同步 worker 仍缺完整统一状态机、分布式多实例限流和真实外部交易所长期恢复压测；研究页和项目整体仍是 `scaffold`。
 
+### 阶段 1 全历史缺口修复 active catalog 边界补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页全历史缺口修复入口已经会创建无源 `data_sync_tasks` 补同步任务，但该入口只验证缺口窗口真实性，没有在 API 层验证 exchange / symbol 仍是 active catalog。
+- inactive 或 missing market 的补同步任务创建后会被 data sync claim 边界跳过，用户看到的是“已排队但不会被执行”的半截状态。
+
+Definition of Done：
+
+- `POST /api/market/candle-gaps/repair` 在创建补同步任务前校验 exact active `market_instruments` catalog 命中。
+- `POST /api/market/candle-gaps/repair-batch` 在批量创建前校验同一 active catalog 边界。
+- inactive / missing market 返回 HTTP 400 和领域错误码 `market_instrument_not_active`，且不写入 `data_sync_tasks`。
+- 已有真实缺口 repair 成功路径不回退。
+- 不引入 migration，不改变 `market_candles` 事实数据，不改变前端 API 契约。
+
+修复范围：
+
+- `internal/web/api/market_handlers.go` 增加全历史缺口 repair 的 active catalog 前置校验。
+- `internal/web/api/market_handlers_test.go` 覆盖单缺口 repair inactive catalog 拦截和批量 repair missing catalog 拦截。
+
+验证：
+
+- `go test ./internal/web/api -run 'TestMarketCandleGap(RepairRouteQueuesSyncTask|RepairRouteRequiresActiveMarketInstrument|BatchRepairRouteQueuesReturnedGaps|BatchRepairRouteRequiresActiveMarketInstrument)' -count=1 -v` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，23 个测试文件、120 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮只阻止 inactive / missing market 继续创建全历史缺口补同步任务，不实现退市/停牌后的跨模块迁移策略。
+- active catalog 仍依赖后台同步或人工刷新，不等于生产级交易所状态治理。
+- 数据同步 worker 仍缺完整统一状态机、分布式多实例限流和真实外部交易所长期恢复压测；研究页和项目整体仍是 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

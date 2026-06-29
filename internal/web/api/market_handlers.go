@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -65,6 +66,9 @@ func (server *Server) repairMarketCandleGap(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
+		return
+	}
 	result, err := server.repository.RepairMarketCandleGap(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)
@@ -88,12 +92,32 @@ func (server *Server) repairMarketCandleGaps(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
+		return
+	}
 	result, err := server.repository.RepairMarketCandleGaps(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
+func (server *Server) requireActiveMarketInstrument(
+	w http.ResponseWriter,
+	r *http.Request,
+	exchange string,
+	symbol string,
+) bool {
+	if _, err := server.repository.GetActiveMarketInstrument(r.Context(), exchange, symbol); err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentNotActive, "market instrument is not active in catalog")
+			return false
+		}
+		writeStoreError(w, err)
+		return false
+	}
+	return true
 }
 
 func (server *Server) handleMarketInstruments(w http.ResponseWriter, r *http.Request) {
