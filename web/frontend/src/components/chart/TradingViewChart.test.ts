@@ -188,7 +188,11 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 44,
+          alignLabels: true,
+          entireTextOnly: true,
+          ensureEdgeTickMarksVisible: false,
+          minimumWidth: 42,
+          ticksVisible: false,
         }),
       }),
     );
@@ -206,7 +210,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 36,
+          minimumWidth: 34,
         }),
       }),
     );
@@ -224,7 +228,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 40,
+          minimumWidth: 38,
         }),
       }),
     );
@@ -260,7 +264,13 @@ describe("TradingViewChart", () => {
       };
     };
 
-    expect(options.timeScale).toMatchObject({ secondsVisible: false, tickMarkMaxCharacterLength: 8 });
+    expect(options.timeScale).toMatchObject({
+      barSpacing: 5,
+      minBarSpacing: 0.75,
+      rightOffsetPixels: 8,
+      secondsVisible: false,
+      tickMarkMaxCharacterLength: 8,
+    });
     const time = Date.UTC(2026, 5, 27, 18, 58) / 1000;
     for (const [tickMarkType, label] of [[3, "18:58"], [2, "06-27"], [1, "26-06"], [0, "2026"]] as const) {
       expect(options.timeScale.tickMarkFormatter(time, tickMarkType, "en-US")).toBe(label);

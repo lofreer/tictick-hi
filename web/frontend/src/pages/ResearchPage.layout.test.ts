@@ -67,14 +67,14 @@ describe("ResearchPage chart layout contract", () => {
     expect(frameViewportChartStyle).toContain("max-block-size: 100% !important;");
     expect(frameViewportChartStyle).toContain("width: 100% !important;");
     expect(toolbarStyle).toContain("display: grid;");
-    expect(toolbarStyle).toContain("grid-template-columns: minmax(0, auto) minmax(0, 1fr);");
-    expect(toolbarStyle).toContain("padding: 8px 12px;");
+    expect(toolbarStyle).toContain("grid-template-columns: minmax(0, 1fr);");
+    expect(toolbarStyle).toContain("padding: 10px 16px 9px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
-    expect(controlsStyle).toContain("display: flex;");
-    expect(controlsStyle).toContain("flex-wrap: nowrap;");
+    expect(controlsStyle).toContain("display: grid;");
+    expect(controlsStyle).toContain("grid-template-columns: 128px clamp(170px, 12vw, 196px) 76px max-content;");
     expect(controlsStyle).toContain("width: auto;");
     expect(controlsStyle).toContain("overflow-x: auto;");
-    expect(statusStyle).toContain("justify-content: flex-end;");
+    expect(statusStyle).toContain("justify-content: space-between;");
     expect(statusStyle).toContain("flex-wrap: nowrap;");
     expect(statusStyle).toContain("overflow: hidden;");
     expect(pageStyles).toContain(".research-toolbar-main");
@@ -104,22 +104,21 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(620px, calc(100vh - 250px), 760px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(620px, calc(100dvh - 250px), 760px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(600px, calc(100vh - 290px), 720px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(600px, calc(100dvh - 290px), 720px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(500px, calc(100vh - 240px), 620px);");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 16px;");
-    expect(pageStyles).toContain("--kline-chart-padding-right: 4px;");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
-    expect(pageStyles).toContain("--kline-chart-padding-right: 3px;");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 8px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(680px, 68vh, 820px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(680px, 68dvh, 820px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(640px, 66vh, 760px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(640px, 66dvh, 760px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(520px, 66vh, 640px);");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 24px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 2px;");
-    expect(pageStyles).toContain("flex-basis: min(210px, 28vw);");
-    expect(pageStyles).toContain("width: clamp(168px, 12vw, 210px);");
-    expect(pageStyles).toContain("flex: 0 0 180px;");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 18px;");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
+    expect(pageStyles).toContain("--kline-chart-padding-right: 1px;");
+    expect(pageStyles).toContain("grid-template-columns: 128px clamp(170px, 12vw, 196px) 76px max-content;");
+    expect(pageStyles).toContain("width: clamp(170px, 12vw, 196px);");
+    expect(pageStyles).toContain("width: 176px;");
     expect(pageStyles).toContain("width: 100%;");
-    expect(pageStyles).toContain("max-width: 220px;");
+    expect(pageStyles).toContain("max-width: 240px;");
     expect(pageStyles).toContain("overflow-x: auto;");
   });
 
@@ -136,7 +135,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(rootStyle).toContain("overflow: hidden;");
     expect(rootStyle).toContain("contain: layout style;");
     expect(canvasStyle).toContain("position: absolute;");
-    expect(canvasStyle).toContain("inset: 0;");
+    expect(canvasStyle).toContain("top: 0;");
+    expect(canvasStyle).toContain("left: 0;");
     expect(canvasStyle).toContain("width: 100%;");
     expect(canvasStyle).toContain("height: 100%;");
     expect(canvasStyle).toContain("overflow: hidden;");

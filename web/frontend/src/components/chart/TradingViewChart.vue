@@ -223,10 +223,17 @@ function responsiveChartOptions(mode = themeStore.mode) {
     },
     rightPriceScale: {
       ...theme.rightPriceScale,
+      alignLabels: true,
+      entireTextOnly: true,
+      ticksVisible: false,
+      ensureEdgeTickMarksVisible: false,
       minimumWidth: rightPriceScaleMinimumWidth(lastSize.width),
     },
     timeScale: {
       ...theme.timeScale,
+      barSpacing: 5,
+      minBarSpacing: 0.75,
+      rightOffsetPixels: 8,
       secondsVisible: false,
       tickMarkMaxCharacterLength: 8,
       tickMarkFormatter: formatChartTickMark,
@@ -235,9 +242,9 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function rightPriceScaleMinimumWidth(width: number) {
-  if (width < 520) return 36;
-  if (width < 900) return 40;
-  return 44;
+  if (width < 520) return 34;
+  if (width < 900) return 38;
+  return 42;
 }
 
 function formatChartPrice(price: number) {

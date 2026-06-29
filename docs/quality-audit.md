@@ -38,13 +38,13 @@ done            用户确认关闭
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按连续 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口；一次性有界同步在交易所返回空批次且没有 cursor 时会保存 completed 结果、进入 succeeded、释放 lease、保留任务窗口缺口健康且不伪造 K 线，succeeded 的 active catalog 任务可重新启动为 pending；删除 data sync task 会软删除任务行、置为 cancelled、停用 sync/realtime、释放 lease、从列表/claim/命令入口隐藏，但不删除 `market_candles` 事实数据且删除后不再接受同步结果写入；保存结果前会校验 fetched candle series 的任务目标、时间周期、排序、重复、OHLCV decimal / OHLC 正价格 / volume 非负 / 高低价边界，异常 payload 不写库、不推进游标并明确失败；`SaveDataSyncResult` 也会按 `task_id` 读取目标并拒绝 exchange / symbol / interval 不匹配的 candle，防止绕过 runner 的错标的写入；PostgreSQL + runner 集成测试已覆盖重启遗留过期 running realtime lease 后重新 claim、按持久化游标 overlap 拉取、upsert 去重、推进游标并回到研究页任务列表可观察；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康和数据同步任务 API / 研究页任务表可观察 active exchange backoff 数量、最近重试时间、任务级 `exchangeBackoffUntil` 和脱敏错误；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；Binance / OKX public market 请求已有本地固定窗口限流，`hi sync` 中 K 线同步和 instrument catalog 同一进程共享 client 限流器，instrument catalog 临时错误会按 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 短重试后写入 `market_instrument_sync_statuses` 并在运维健康中显示单交易所 warning；已提供基于 `market_candles` 的全历史相邻缺口扫描入口，并可从研究页为单个真实缺口排补同步任务，但不会自动批量补全；仍缺完整统一状态机、分布式多实例限流和真实外部交易所恢复压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，`from/to` 已校验顺序并按 interval 限制最大闭区间跨度，显式 `from/to` 窗口会把起点到首根 K 线、末根 K 线到终点和整窗无数据识别为缺口，聚合 fallback 会返回 coverage 并标记基础窗口受限，基础 `1m` 聚合窗口已支持最多 12 页 / 60000 根的有界分页读取，默认最新聚合窗口会按尾部裁剪保留最新 K 线，`scripts/stage1-candle-provider-perf-smoke.sh` 已用真实 PostgreSQL 验证 60000 根 `1m` 聚合成 1000 根 `1h` 的查询边界，`/api/candles` 返回窗口级 pagination metadata、opaque `previousCursor/nextCursor` 和当前实际窗口 `from/to/count`，PostgreSQL 集成测试覆盖基础聚合、缺口、请求窗口边界缺口、默认最新窗口查询、latest-before 查询、上一/下一窗口 metadata、超大 limit clamp 和 runner 侧闭合信号过滤；仍缺长期/并发性能压测、超过 60000 根基础 K 线的缓存/分段策略和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；Binance K 线请求按 weight=2、exchangeInfo 按 weight=20 进入本地固定窗口限流，OKX history-candles 和 public instruments 按 20 次/2s 本地限流；仍缺动态读取交易所 `rateLimits`、多实例共享额度、真实网络韧性和更完整交易所业务码分类 |
-| 研究页 | scaffold | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary`、`invalidSummary`、同步窗口和交易所退避窗口，可区分正常、同步中、有缺口、失败、暂停、重试中、数据不足和数据异常，并在质量摘要列显示任务窗口内缺口数量/首个缺口和异常数量/首个异常原因，异常任务可打开逐根异常详情弹窗并按异常类型/时间范围筛选和分页查看完整窗口异常；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时会在 K 线上标记缺口，并可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先调用后端单缺口 repair API 并写入 `repairSourceTaskId`；删除任务弹窗已明确删除的是同步任务记录且不会删除已同步 K 线数据，确认后列表刷新并隐藏软删除任务；任务表格错误列、下次重试列、交易所退避列、failed retry 操作和图表高度已有前端约束，任务表外层改为可滚动视口且操作列固定在右侧，避免窄宽度裁掉关键操作；研究页图表面板不再继承全局 `.chart-panel` fixed height / size containment，图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: layout paint`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠，研究页工具栏 symbol 输入从过宽的剩余空间收敛为桌面 `clamp(168px, 12vw, 210px)`、窄桌面最多 210px、移动端 180px 横向工具条，并在 761-980px 窄桌面断点保留固定图表高度预算，避免应用头部换行后首屏截掉底部时间轴；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度；root/canvas 写入由固定槽派生的完整受控 CSS 变量和 inline 尺寸锁，但不再读取这些节点作为尺寸来源；lightweight-charts 外层受固定 viewport 尺寸约束，但内部 table / tbody / tr / td / canvas 不再被外部 CSS 强行写成整图宽高，避免价格轴、时间轴和主图 canvas 被外部布局规则裁切；图表 root/canvas/lightweight-charts 外层使用明确 `top/left` 和 JS 写入尺寸，不再用 `inset: 0` 与显式尺寸共同参与定位，右侧价格轴按视口响应式使用 36/40/44px，价格标签按量级去掉冗余小数，默认首屏按主绘图区宽度展示可读数量的最新 K 线，避免窄视口只剩网格或半截价格标签；headless Chrome 桌面、812x1320 窄桌面和移动连续采样会先验证主图 canvas、右侧价格轴和底部时间轴 canvas 均在固定图表槽内，且主图存在可见红/绿市场像素，图表 root/canvas/tv 与固定槽等高且不留下人为缩图留白，右侧价格轴超过 60px 会失败，窄桌面还会验证初始首屏不截掉底部时间轴，再污染内部高度并验证 document、panel、chart body、chart 高度不增长且不超过 viewport 上限；显示 source / health / base interval / 当前窗口范围和当前数据源全历史缺口扫描摘要，摘要可打开详情弹窗并为单个或当前返回的多个全历史缺口排补同步任务，可通过最新 / 1H / 6H / 1D 时间范围按钮和上一/下一窗口按钮显式请求 K 线窗口，上一/下一优先保留 opaque cursor，旧 `from/to` URL 仍兼容；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；研究页会读取 `/api/market/instruments/status` 并在当前数据源和创建任务弹窗里显示所选交易所目录最近成功/失败状态；`/api/market/instruments` 支持按 `status=active/inactive/all` 查询，研究页、回测创建和交易创建在提交前会 exact 查询 catalog 并区分 active、inactive、missing，inactive 会给出明确不可用提示；`hi sync` 长运行模式会按配置后台定时同步 Binance / OKX instrument catalog 并写入 `market_instruments`；创建数据同步任务会先在前端校验 exact active catalog 命中，后端 `POST /api/data/tasks` 也会强制查询 PostgreSQL `market_instruments` active 记录，不命中返回 `market_instrument_not_active`；既有数据同步任务列表会返回并展示 `marketStatus=active/inactive/missing`，非 active 任务的 sync / realtime / retry 启动会被前后端阻止，`hi sync` claim 也只领取 active catalog 任务；但仍缺退市/停牌后自动停用或迁移既有任务、交易所业务状态细分和完整操作语义，图表研究能力仍薄 |
+| 研究页 | scaffold | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary`、`invalidSummary`、同步窗口和交易所退避窗口，可区分正常、同步中、有缺口、失败、暂停、重试中、数据不足和数据异常，并在质量摘要列显示任务窗口内缺口数量/首个缺口和异常数量/首个异常原因，异常任务可打开逐根异常详情弹窗并按异常类型/时间范围筛选和分页查看完整窗口异常；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时会在 K 线上标记缺口，并可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先调用后端单缺口 repair API 并写入 `repairSourceTaskId`；删除任务弹窗已明确删除的是同步任务记录且不会删除已同步 K 线数据，确认后列表刷新并隐藏软删除任务；任务表格错误列、下次重试列、交易所退避列、failed retry 操作和图表高度已有前端约束，任务表外层改为可滚动视口且操作列固定在右侧，避免窄宽度裁掉关键操作；研究页图表面板不再继承全局 `.chart-panel` fixed height / size containment，图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: layout paint`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠，研究页工具栏已改为紧凑 market strip + 状态行，symbol 输入收敛为桌面 `clamp(170px, 12vw, 196px)`、窄桌面 `188px`、移动端 `176px` 横向工具条，研究页图表 plot 高度提升到桌面 `700px`、窄桌面 `640-760px`、移动端 `520-640px`，避免首屏把图表压成窄条；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度；root/canvas 写入由固定槽派生的完整受控 CSS 变量和 inline 尺寸锁，但不再读取这些节点作为尺寸来源；lightweight-charts 外层受固定 viewport 尺寸约束，但内部 table / tbody / tr / td / canvas 不再被外部 CSS 强行写成整图宽高，避免价格轴、时间轴和主图 canvas 被外部布局规则裁切；图表 root/canvas/lightweight-charts 外层使用明确 `top/left`，不再用 `inset: 0`，右侧价格轴按视口响应式使用 34/38/42px minimumWidth，开启 `entireTextOnly` 并把 `rightOffsetPixels` 收敛为 8px，价格标签按量级去掉冗余小数，默认首屏按主绘图区宽度展示可读数量的最新 K 线，避免窄视口只剩网格或半截价格标签；headless Chrome 桌面、812x1320 窄桌面和移动连续采样会先验证主图 canvas、右侧价格轴和底部时间轴 canvas 均在固定图表槽内，且主图存在可见红/绿市场像素，图表 root/canvas/tv 与固定槽等高且不留下人为缩图留白，右侧价格轴超过 56px 会失败，窄桌面还会验证初始首屏不截掉底部时间轴，再污染内部高度并验证 document、panel、chart body、chart 高度不增长且不超过 viewport 上限；显示 source / health / base interval / 当前窗口范围和当前数据源全历史缺口扫描摘要，摘要可打开详情弹窗并为单个或当前返回的多个全历史缺口排补同步任务，可通过最新 / 1H / 6H / 1D 时间范围按钮和上一/下一窗口按钮显式请求 K 线窗口，上一/下一优先保留 opaque cursor，旧 `from/to` URL 仍兼容；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；研究页会读取 `/api/market/instruments/status` 并在当前数据源和创建任务弹窗里显示所选交易所目录最近成功/失败状态；`/api/market/instruments` 支持按 `status=active/inactive/all` 查询，研究页、回测创建和交易创建在提交前会 exact 查询 catalog 并区分 active、inactive、missing，inactive 会给出明确不可用提示；`hi sync` 长运行模式会按配置后台定时同步 Binance / OKX instrument catalog 并写入 `market_instruments`；创建数据同步任务会先在前端校验 exact active catalog 命中，后端 `POST /api/data/tasks` 也会强制查询 PostgreSQL `market_instruments` active 记录，不命中返回 `market_instrument_not_active`；既有数据同步任务列表会返回并展示 `marketStatus=active/inactive/missing`，非 active 任务的 sync / realtime / retry 启动会被前后端阻止，`hi sync` claim 也只领取 active catalog 任务；但仍缺退市/停牌后自动停用或迁移既有任务、交易所业务状态细分和完整操作语义，图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点，并采用上方大图表、下方左窄摘要右宽列表的布局；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言，防止右侧大空白回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言并收紧 symbol 输入、右侧价格轴和图表高度阈值，防止右侧大空白、工具栏过宽和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
@@ -6833,6 +6833,61 @@ Definition of Done：
 - 这仍是 DOM/几何级状态 smoke，不是像素 PNG 快照基线。
 - 只覆盖当前列出的可见空/错误状态，不覆盖所有隐藏 tab、所有表单校验状态和所有动态详情 ID。
 - 仍缺多浏览器视觉回归和 CI 硬门禁。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 8 K 线图表生产布局第三次收口
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户继续反馈研究页 K 线图表工具栏不够精细、symbol 输入仍显得过宽、右侧价格轴区域空白明显。
+- 用户要求交易详情、回测详情同样按生产级图表布局收敛，不能只修研究页。
+- 本地 `8080` 由 Docker API 镜像服务静态资源，只执行前端 build 不会更新用户可见页面；必须重建并替换 API 镜像后再做真实采样。
+
+Definition of Done：
+
+- 研究页同步任务列表仍在上方，K 线图表在下方，图表成为主要阅读区域，不再按当前首屏硬平分高度。
+- 研究页工具栏改为紧凑 market strip + 状态行，symbol 输入桌面实际宽度不超过 `200px`。
+- 研究页、回测详情、交易详情复用共享 K 线图表槽；研究页真实 plot height 为 `700px`，详情页真实 plot height 为 `680px`。
+- 图表左侧保留读图 gutter，右侧外层 gutter 收敛到 `1-2px`；右侧价格轴保持贴近图表视口边界，宽度不超过 `56px`。
+- 回测详情和交易详情保持上方大图表、下方左窄摘要、右宽 tab 列表。
+- 仍不新增业务功能、不改 API 契约、不声明 production-safe。
+
+修复范围：
+
+- `web/frontend/src/pages/ResearchPage.css` 改为单列 toolbar 布局、紧凑 source controls、状态行、桌面/窄桌面/移动独立图表高度和 gutter。
+- `web/frontend/src/components/market/MarketSymbolAutoComplete.vue` 增加 root 宽度边界，避免 scoped 样式把页面级 symbol 宽度约束冲掉。
+- `web/frontend/src/pages/detailChartLayout.css` 同步详情页大图高度和 gutter。
+- `web/frontend/src/components/chart/TradingViewChart.vue` 收紧 right price scale minimumWidth 为 `34/38/42px`，启用 `entireTextOnly`，并把 `rightOffsetPixels` 收敛到 `8px`。
+- `web/frontend/src/components/chart/TradingViewChart.css` 使用显式 `top/left` 定位 canvas 宿主，不再用 `inset: 0`。
+- `scripts/stage8-visual-smoke.mjs` 收紧 symbol / price-axis / 图表高度阈值，并在每个 Chrome target 完成后关闭页面，减少矩阵 smoke 资源累积。
+- `ResearchPage.layout.test.ts`、`DetailPages.layout.test.ts`、`TradingViewChart.test.ts` 同步当前布局契约。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts src/components/market/MarketSymbolAutoComplete.test.ts` 通过：4 个测试文件、38 条测试。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose up -d --no-deps --build api` 通过，并确认 `tictick-hi-api-1` health 为 `healthy`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：26 个测试文件、132 条测试。
+- `scripts/quality-gate.sh` 通过。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=8 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=800 node scripts/research-chart-height-smoke.mjs` 通过：1440 / 2048 / 812 / 390 四视口连续采样均稳定，document、panel、body、chart、tv 高度不增长。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=500 node scripts/stage8-visual-smoke.mjs` 通过：三视口 × light/dark × `zh-CN/en-US`，每组 14 页，最大 document width 分别等于 `1440 / 812 / 390`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=300 node scripts/stage8-state-visual-smoke.mjs` 通过：桌面/移动 × light/dark × `zh-CN/en-US`，每组 14 个状态用例，最大 document width 分别等于 `1440 / 390`。
+- 真实 `http://127.0.0.1:8080/research` Headless Chrome 1440x900 几何采样：toolbar `80px`，symbol `173px`，chart viewport `1366x700`，frame gutter `22/2`，price axis `52px`，document width `1440`。
+- 真实回测详情采样：chart panel `1392x706`，viewport `1364x680`，summary `340px`，tabs `1036px`，price axis `46px`，document width `1440`。
+- 真实交易详情采样：chart panel `1392x706`，viewport `1364x680`，summary `340px`，tabs `1036px`，price axis `46px`，document width `1440`。
+- 截图产物用于人工核对：`/tmp/tictick-hi-research-layout.png`、`/tmp/tictick-hi-trading-detail-layout.png`。
+
+剩余风险：
+
+- 本轮仍是 DOM 几何和人工截图核对，不是像素快照基线。
+- 只核对了当前本地数据下首个回测详情和交易详情，不等于所有动态详情状态。
+- 移动端和窄桌面仍需完整矩阵 smoke 继续守护；本轮不能把前端整体升级为 usable。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ## 6. 保留 / 返工 / 删除 / 延后

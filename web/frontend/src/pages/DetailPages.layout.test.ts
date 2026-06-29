@@ -32,9 +32,9 @@ describe("strategy detail page layout contract", () => {
     expect(tradingSource).not.toContain('class="side-panel"');
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');
     expect(detailChartStyles).toContain(".trading-detail-chart,");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(680px, 68dvh, 820px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 24px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 2px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height) !important;");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");
@@ -73,9 +73,9 @@ describe("strategy detail page layout contract", () => {
     expect(backtestSource).not.toContain('class="side-panel"');
     expect(backtestSource).not.toContain('class="surface chart-panel backtest-chart-panel"');
     expect(detailChartStyles).toContain(".backtest-chart-panel");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(680px, 68dvh, 820px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 24px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 2px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height) !important;");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");

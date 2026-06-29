@@ -12,8 +12,8 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 220);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 60);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 200);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 56);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -133,6 +133,7 @@ async function runVisualPass(endpoint, viewport, theme, locale) {
     };
   } finally {
     cdp.close();
+    await closePage(endpoint, page.id);
   }
 }
 
@@ -425,7 +426,7 @@ function assertResearchChartSmoke(label, sample, viewport) {
       })}`,
     );
   }
-  assertChartViewportSmoke(label, sample, viewport, 620);
+  assertChartViewportSmoke(label, sample, viewport, 680);
 }
 
 function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight) {
@@ -441,7 +442,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       throw new Error(`${label} ${name} exceeded viewport height: ${JSON.stringify(node)}`);
     }
   }
-  const minimumHeight = viewport.width <= 760 ? 500 : viewport.width <= 980 ? 600 : desktopMinimumHeight;
+  const minimumHeight = viewport.width <= 760 ? 520 : viewport.width <= 980 ? 640 : desktopMinimumHeight;
   if (sample.chartViewport.rectHeight < minimumHeight - widthTolerance) {
     throw new Error(
       `${label} chart viewport is too short: ${JSON.stringify({
@@ -497,7 +498,7 @@ function assertChartGutters(label, sample) {
   const endGutter = host.right - sample.chartViewport.right;
   assertConfiguredGutter(label, "chart left gutter", startGutter, sample.chartInlineStartGutter, { host, chartViewport: sample.chartViewport });
   assertConfiguredGutter(label, "chart right gutter", endGutter, sample.chartInlineEndGutter, { host, chartViewport: sample.chartViewport });
-  if (sample.chartInlineStartGutter < 8 || sample.chartInlineStartGutter > 18) {
+  if (sample.chartInlineStartGutter < 10 || sample.chartInlineStartGutter > 28) {
     throw new Error(
       `${label} chart left gutter is outside the production range: ${JSON.stringify({
         gutter: sample.chartInlineStartGutter,
@@ -506,7 +507,7 @@ function assertChartGutters(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 2 || sample.chartInlineEndGutter > 6) {
+  if (sample.chartInlineEndGutter < 0 || sample.chartInlineEndGutter > 4) {
     throw new Error(
       `${label} chart right gutter should be tight so the price scale does not create excess whitespace: ${JSON.stringify({
         gutter: sample.chartInlineEndGutter,
@@ -551,7 +552,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
   if (sample.detail.chartPanel.rectHeight > viewport.height + widthTolerance) {
     throw new Error(`${label} detail chart exceeded viewport height: ${JSON.stringify(sample.detail.chartPanel)}`);
   }
-  assertChartViewportSmoke(label, sample, viewport, 620);
+  assertChartViewportSmoke(label, sample, viewport, 680);
   if (sample.detail.lowerGrid.top <= sample.detail.chartPanel.bottom) {
     throw new Error(
       `${label} detail lower grid must sit below chart: ${JSON.stringify({
@@ -668,6 +669,15 @@ async function createPage(endpoint, url) {
     throw new Error(`failed to create Chrome target: HTTP ${response.status}`);
   }
   return response.json();
+}
+
+async function closePage(endpoint, targetId) {
+  if (!targetId) return;
+  try {
+    await fetch(`${endpoint}/json/close/${encodeURIComponent(targetId)}`);
+  } catch {
+    // Best-effort cleanup; Chrome process cleanup still runs at script exit.
+  }
 }
 
 function connect(wsUrl) {

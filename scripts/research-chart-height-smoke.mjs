@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 60);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 56);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -133,6 +133,7 @@ async function runViewport(endpoint, viewport) {
     return result;
   } finally {
     cdp.close();
+    await closePage(endpoint, page.id);
   }
 }
 
@@ -214,6 +215,15 @@ async function createPage(endpoint, url) {
     throw new Error(`failed to create Chrome target: HTTP ${response.status}`);
   }
   return response.json();
+}
+
+async function closePage(endpoint, targetId) {
+  if (!targetId) return;
+  try {
+    await fetch(`${endpoint}/json/close/${encodeURIComponent(targetId)}`);
+  } catch {
+    // Best-effort cleanup; Chrome process cleanup still runs at script exit.
+  }
 }
 
 function connect(wsUrl) {
@@ -553,7 +563,7 @@ function assertChartLayout(label, sample) {
   }
   assertConfiguredInset(label, "chart left side", tv.left - body.left, sample.chartInlineStartGutter, { body, tv });
   assertConfiguredInset(label, "chart top side", tv.top - body.top, sample.chartBlockStartGutter, { body, tv });
-  if (sample.chartInlineStartGutter < 8 || sample.chartInlineStartGutter > 18) {
+  if (sample.chartInlineStartGutter < 10 || sample.chartInlineStartGutter > 28) {
     throw new Error(
       `${label} chart left gutter is outside the production range: ${JSON.stringify({
         chartInlineStartGutter: sample.chartInlineStartGutter,
@@ -562,7 +572,7 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 2 || sample.chartInlineEndGutter > 6) {
+  if (sample.chartInlineEndGutter < 0 || sample.chartInlineEndGutter > 4) {
     throw new Error(
       `${label} chart right gutter should stay tight: ${JSON.stringify({
         chartInlineEndGutter: sample.chartInlineEndGutter,

@@ -115,7 +115,10 @@ function instrumentOption(instrument: MarketInstrument): MarketSymbolOption {
   display: flex;
   align-items: center;
   gap: 6px;
+  box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .market-symbol-autocomplete__input {
