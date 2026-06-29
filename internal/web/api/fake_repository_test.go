@@ -639,7 +639,8 @@ func cloneDataSyncGapList(value data.DataSyncGapList) data.DataSyncGapList {
 func dataSyncTaskCommandAllowed(status data.TaskStatus) bool {
 	return status == data.TaskStatusPending ||
 		status == data.TaskStatusRunning ||
-		status == data.TaskStatusPaused
+		status == data.TaskStatusPaused ||
+		status == data.TaskStatusSucceeded
 }
 
 func refreshFakeDataSyncHealth(task *data.DataSyncTask) {

@@ -273,6 +273,29 @@ describe("DataSyncTaskTable", () => {
     expect(wrapper.emitted("retry")).toEqual([[failedTask]]);
     expect(wrapper.find('button[title="同步"]').exists()).toBe(false);
   });
+
+  it("allows restarting succeeded one-shot sync tasks", async () => {
+    const succeededTask = dataSyncTask({
+      id: "sync_1",
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      status: "succeeded",
+      syncEnabled: false,
+      dataHealth: "gap",
+    });
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [succeededTask],
+      },
+    });
+
+    await wrapper.get('button[title="同步"]').trigger("click");
+
+    expect(wrapper.emitted("toggle-sync")).toEqual([[succeededTask]]);
+    expect(wrapper.find('button[title="重试"]').exists()).toBe(false);
+  });
 });
 
 function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {

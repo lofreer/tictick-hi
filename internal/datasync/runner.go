@@ -208,7 +208,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		TaskID:       task.ID,
 		Candles:      candles,
 		LastOpenTime: cursorOpenTime,
-		Completed:    runner.isCompleted(task, duration, cursorOpenTime),
+		Completed:    runner.isCompleted(task, duration, cursorOpenTime, len(candles) == 0),
 	})
 }
 
@@ -312,6 +312,7 @@ func (runner *Runner) isCompleted(
 	task data.DataSyncTask,
 	interval time.Duration,
 	cursorOpenTime *time.Time,
+	emptyBatch bool,
 ) bool {
 	if task.RealtimeEnabled {
 		return false
@@ -320,7 +321,7 @@ func (runner *Runner) isCompleted(
 		return true
 	}
 	if cursorOpenTime == nil {
-		return false
+		return emptyBatch
 	}
 	nextOpen := cursorOpenTime.Add(interval)
 	return !nextOpen.Before(task.EndTime.UTC())

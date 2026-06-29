@@ -305,14 +305,17 @@ func TestIntegrationTaskCommandsRejectInvalidStatusTransitions(t *testing.T) {
 
 	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
 	dataFailedID := "dst_command_transition_" + suffix
+	dataFailedSymbol := "ITDSTCOMMAND" + suffix + "USDT"
 	tradingFailedID := "tt_command_transition_" + suffix
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := testContext(t)
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, dataFailedID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE exchange = 'binance' AND symbol = $1`, dataFailedSymbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, tradingFailedID)
 	})
 
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", dataFailedSymbol, "active")
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO data_sync_tasks (
 			id, exchange, symbol, interval, sync_enabled, realtime_enabled,
@@ -320,7 +323,7 @@ func TestIntegrationTaskCommandsRejectInvalidStatusTransitions(t *testing.T) {
 		)
 		VALUES ($1, 'binance', $2, '1m', false, false, 'failed', now())`,
 		dataFailedID,
-		"ITDSTCOMMAND"+suffix+"USDT",
+		dataFailedSymbol,
 	); err != nil {
 		t.Fatal(err)
 	}

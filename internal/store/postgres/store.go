@@ -287,12 +287,13 @@ func (store *Store) updateTaskFlag(
 		       status = $3,
 		       %s,
 		       next_attempt_at = CASE WHEN $2::boolean THEN NULL ELSE next_attempt_at END,
-		       finished_at = CASE WHEN $2::boolean THEN finished_at ELSE now() END,
+		       finished_at = CASE WHEN $2::boolean THEN NULL ELSE now() END,
 		       updated_at = now()
 		 WHERE id = $1
 		   AND (
 		     status = $3
 		     OR ($3 IN ($4, $5, $6) AND status IN ($4, $5, $6))
+		     OR ($2::boolean AND status = $7)
 		   )
 		   AND (
 		     NOT $2::boolean
@@ -313,6 +314,7 @@ func (store *Store) updateTaskFlag(
 		data.TaskStatusPending,
 		data.TaskStatusRunning,
 		data.TaskStatusPaused,
+		data.TaskStatusSucceeded,
 	)
 
 	task, err := scanDataSyncTaskRow(row)
