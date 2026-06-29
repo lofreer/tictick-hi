@@ -42,6 +42,12 @@ FULL_QUALITY_STAGE8=1 FULL_QUALITY_SIGTERM=1 scripts/full-quality-gate.sh
 
 The same default full gate runs in GitHub Actions on pull requests, pushes to `main`, and manual dispatches.
 
+Heavy Stage 8 smoke checks are isolated in a separate GitHub Actions workflow. They can be run manually or by the weekly schedule:
+
+```bash
+gh workflow run "Stage 8 Heavy Smoke" -f full_chain=true -f sigterm=true
+```
+
 ## Local Docker
 
 Create local environment values:

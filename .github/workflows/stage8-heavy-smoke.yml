@@ -1,0 +1,65 @@
+name: Stage 8 Heavy Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      full_chain:
+        description: Run the Stage 8 full-chain smoke with browser visual checks.
+        required: true
+        type: boolean
+        default: true
+      sigterm:
+        description: Run the Stage 8 SIGTERM smoke.
+        required: true
+        type: boolean
+        default: true
+  schedule:
+    - cron: "17 18 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage8-heavy-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stage8-heavy-smoke:
+    name: Stage 8 heavy smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Prepare CI environment
+        run: |
+          cp .env.example .env
+          {
+            echo "MARKET_INSTRUMENT_SYNC_ENABLED=false"
+            echo "MARKET_INSTRUMENT_SYNC_ON_START=false"
+          } >> .env
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME_PATH" ]; then
+            echo "Chrome executable not found on runner" >&2
+            exit 1
+          fi
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+
+      - name: Run Stage 8 full-chain smoke
+        if: ${{ github.event_name == 'schedule' || inputs.full_chain }}
+        run: scripts/stage8-smoke.sh
+
+      - name: Run Stage 8 SIGTERM smoke
+        if: ${{ github.event_name == 'schedule' || inputs.sigterm }}
+        run: scripts/stage8-sigterm-smoke.sh
+
+      - name: Clean Docker Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans

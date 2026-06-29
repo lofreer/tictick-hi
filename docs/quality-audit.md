@@ -47,7 +47,7 @@ done            用户确认关闭
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言并收紧 symbol 输入、右侧价格轴和图表高度阈值，防止右侧大空白、工具栏过宽和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
-| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、完整本地质量门禁 `scripts/full-quality-gate.sh`、GitHub Actions 默认 full gate、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
+| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、完整本地质量门禁 `scripts/full-quality-gate.sh`、GitHub Actions 默认 full gate、独立 Stage 8 heavy smoke workflow、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
 注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和完整交易所业务状态处置语义。
 
@@ -6957,6 +6957,43 @@ Definition of Done：
 - GitHub Actions 日志有 Node 20 deprecation annotation，原因是 `actions/checkout@v4`、`actions/setup-go@v5`、`actions/setup-node@v4` 被 runner 强制以 Node 24 执行；当前不阻断门禁，但后续需要关注 actions 主版本升级。
 - CI 默认仍不跑 `FULL_QUALITY_STAGE8=1` / `FULL_QUALITY_SIGTERM=1` 重型 Docker smoke；Stage 8 和 worker shutdown 相关变更仍需显式运行。
 - 仍缺像素快照基线和多浏览器视觉回归。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 0 Stage 8 heavy smoke workflow 补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold
+
+触发问题：
+
+- 默认 GitHub Actions full gate 已覆盖通用检查，但不会运行 Docker / Chrome 重型 Stage 8 smoke。
+- `scripts/stage8-smoke.sh` 和 `scripts/stage8-sigterm-smoke.sh` 仍靠本地人工执行，发布前或全链路相关变更有漏跑风险。
+- Stage 8 smoke 依赖 Docker Compose、Chrome 和本地 `.env`，需要与普通 PR gate 分离。
+
+Definition of Done：
+
+- 新增独立 GitHub Actions workflow，支持手动触发 full-chain smoke、SIGTERM smoke，并按固定周计划定时跑两者。
+- workflow 使用 `.env.example` 生成 CI `.env`，并关闭 instrument catalog 自动同步，降低对真实交易所网络的依赖。
+- workflow 显式检测 runner 上的 Chrome 可执行文件，避免 browser visual smoke 在缺 Chrome 时进入不明确失败。
+- workflow 结束后清理 Docker Compose volume 和 orphan 容器。
+- README 说明手动触发入口。
+- 不把重型 smoke 默认接入普通 PR / push full gate，不改业务功能、不新增 migration、不升级模块等级。
+
+修复范围：
+
+- 新增 `.github/workflows/stage8-heavy-smoke.yml`。
+- README 增加 `gh workflow run "Stage 8 Heavy Smoke"` 入口。
+- `docs/quality-audit.md` 更新质量门禁评级摘要和本小节。
+
+验证：
+
+- 待执行：YAML 解析、本地 `scripts/full-quality-gate.sh`、远程手动触发 Stage 8 heavy smoke。
+
+剩余风险：
+
+- 该 workflow 仍只覆盖 GitHub Ubuntu + Chrome 环境，不等于多浏览器视觉回归或生产部署验收。
+- 定时运行会占用较多 CI 分钟；失败需要按 smoke 日志回溯具体全链路问题。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ### 阶段 8 K 线图表生产布局第三次收口
