@@ -89,11 +89,13 @@ func validateCandleValues(candle Candle) error {
 		{field: "high", value: high},
 		{field: "low", value: low},
 		{field: "close", value: closeValue},
-		{field: "volume", value: volume},
 	} {
-		if item.value.Cmp(zero) < 0 {
-			return fmt.Errorf("candle %s %s value is negative", candleIdentity(candle), item.field)
+		if item.value.Cmp(zero) <= 0 {
+			return fmt.Errorf("candle %s %s price value must be positive", candleIdentity(candle), item.field)
 		}
+	}
+	if volume.Cmp(zero) < 0 {
+		return fmt.Errorf("candle %s volume value is negative", candleIdentity(candle))
 	}
 
 	if high.Cmp(open) < 0 || high.Cmp(closeValue) < 0 || high.Cmp(low) < 0 {

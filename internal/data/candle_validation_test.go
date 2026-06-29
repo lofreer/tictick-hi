@@ -70,6 +70,13 @@ func TestValidateCandleSeriesRejectsInvalidCandles(t *testing.T) {
 			want: "negative",
 		},
 		{
+			name: "zero price",
+			candles: []Candle{
+				testCandle(start, "0", "1", "0.5", "0.5", "0"),
+			},
+			want: "price value must be positive",
+		},
+		{
 			name: "high below bounds",
 			candles: []Candle{
 				testCandle(start, "10", "9", "8", "10", "1"),

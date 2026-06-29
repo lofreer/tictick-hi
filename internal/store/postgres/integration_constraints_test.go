@@ -48,6 +48,21 @@ func TestIntegrationDatabaseConstraintsRejectInvalidDomainValues(t *testing.T) {
 			constraint: "market_candles_ohlc_bounds_check",
 		},
 		{
+			name: "candle positive prices",
+			statement: `
+				INSERT INTO market_candles (
+					exchange, symbol, interval, open_time, close_time,
+					open, high, low, close, volume, is_closed
+				)
+				VALUES ('binance', $1, '1m', $2, $3, 0, 1, 0, 0.5, 0, true)`,
+			args: []any{
+				"ITZEROPRICE" + suffix + "USDT",
+				time.Date(2026, 6, 27, 3, 0, 0, 0, time.UTC),
+				time.Date(2026, 6, 27, 3, 1, 0, 0, time.UTC),
+			},
+			constraint: "market_candles_positive_price_values_check",
+		},
+		{
 			name: "backtest trigger mode",
 			statement: `
 				INSERT INTO backtest_tasks (
