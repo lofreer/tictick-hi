@@ -53,7 +53,7 @@ done            用户确认关闭
 
 补充：阶段 1 已新增 CandleProvider `invalid` 健康状态、CandleResult `issues` 摘要和任务列表窗口级 `dataHealth=invalid` 统计，用于把历史异常 K 线从 API 500 收敛为研究页列表和图表可观察的数据健康状态；历史行清洗和自动修复仍未关闭。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表布局与全历史异常扫描复核补充”为准：研究页 symbol 输入为桌面 `120px`、窄桌面 `112px`、移动端 `108px`，图表左/右 gutter 为桌面 `14px/8px`、窄桌面 `12px/8px`、移动端 `10px/10px`，`TradingViewChart` 只让 lightweight-charts 外层填满固定 viewport，不再覆写内部 table/canvas 几何。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表布局精细化复核补充”为准：研究页 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，图表左/右 gutter 为桌面 `16px/6px`、窄桌面 `12px/6px`、移动端 `10px/10px`，详情页下方摘要列为 `minmax(240px, 300px)`，`TradingViewChart` 只让 lightweight-charts 外层填满固定 viewport，不再覆写内部 table/canvas 几何。
 
 ## 3. 必须先修的问题
 
@@ -7366,6 +7366,51 @@ Definition of Done：
 
 - 本轮只修复 K 线图表布局、toolbar 密度、右侧坐标区、详情页共享布局，并补全全历史异常 K 线观察入口；未新增交易/回测业务能力。
 - 全历史异常扫描只读观察，不自动修复或清洗历史异常行；真实修复仍依赖后续补同步和外部交易所可用性。
+- 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
+
+### 阶段 1 K 线图表布局精细化复核补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+触发问题：
+
+- 用户继续反馈研究页 K 线工具栏粗糙、symbol 输入仍显得过宽、右侧留白明显，并要求交易详情和回测详情不要逐页提醒才修。
+- 首次收紧后的 `node scripts/stage8-visual-smoke.mjs` 暴露 812px 窄桌面下 `.research-source-controls` 被媒体查询拉成整行 `758px`，虽然内部控件为固定列宽，但容器视觉上仍不是紧凑 market strip。
+
+修复范围：
+
+- 研究页 symbol 输入进一步收敛为桌面 `112px`、窄桌面 `108px`、移动端 `104px`；内部 instrument refresh 按钮收敛为 `26px`。
+- 研究页工具栏去掉窄桌面 / 移动端 `.research-source-controls { width: 100%; }`，控件组按内容宽度呈现，超窄时只在控件组内部滚动。
+- 图表固定槽左/右 gutter 收敛为桌面 `16px/6px`、窄桌面 `12px/6px`、移动端 `10px/10px`，降低右侧空白并保留左侧可读边距。
+- 交易详情和回测详情下方布局继续沿用上图表、下双栏，摘要列从 `minmax(260px, 320px)` 收窄为 `minmax(240px, 300px)`。
+- `TradingViewChart` 初始时间轴逻辑 padding 下调，减少最新 K 线右侧无数据留白。
+- `stage8-visual-smoke.mjs` 新增/收紧工具栏约束：桌面 symbol 输入最大 `116px`，桌面/窄桌面 controls 最大 `590px`，详情摘要列期望范围改为 `260px-330px`。
+
+验证：
+
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过：3 个测试文件、35 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose up --build -d api` 后，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅/深主题、`zh-CN/en-US`，每组 14 页面，最大 document width 分别不超过对应 viewport。
+- `node scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `660px`、`2048x1152` 图表 `760px`、`812x1320` 图表 `680px`、`390x844` 图表 `540px`，污染内部 chart/table/canvas 高度后 document/panel/body/chart/tv 高度均稳定。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+失败项：
+
+- 首次 `node scripts/stage8-visual-smoke.mjs` 因窄桌面 `.research-source-controls` 容器宽度 `758px` 超出新阈值失败；已修复并复跑通过。
+
+剩余风险：
+
+- 本轮只修复 K 线图表布局、工具栏密度、左右 gutter 和详情页双栏比例；未新增指标、绘图、成交联动或策略分析能力。
+- 视觉验证仍是几何 smoke，不是像素快照基线；前端基础设施仍保持 `scaffold`。
 - 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
 ### 阶段 1 全历史 invalid 补同步入口补充

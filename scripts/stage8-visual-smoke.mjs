@@ -12,7 +12,8 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 124);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 116);
+const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 590);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 54);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
@@ -431,6 +432,14 @@ function assertResearchChartSmoke(label, sample, viewport) {
       })}`,
     );
   }
+  if (viewport.width > 760 && sample.toolbarControls.rectWidth > maxToolbarControlsWidth) {
+    throw new Error(
+      `${label} chart toolbar controls are too wide for a compact market strip: ${JSON.stringify({
+        maxToolbarControlsWidth,
+        controls: sample.toolbarControls,
+      })}`,
+    );
+  }
   assertChartViewportSmoke(label, sample, viewport, 620);
 }
 
@@ -520,7 +529,7 @@ function assertChartGutters(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 8 || sample.chartInlineEndGutter > 18) {
+  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 14) {
     throw new Error(
       `${label} chart right gutter is outside the production range: ${JSON.stringify({
         gutter: sample.chartInlineEndGutter,
@@ -591,7 +600,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
         })}`,
       );
     }
-    if (sample.detail.summary.rectWidth < 280 || sample.detail.summary.rectWidth > 360) {
+    if (sample.detail.summary.rectWidth < 260 || sample.detail.summary.rectWidth > 330) {
       throw new Error(`${label} detail summary width is outside the expected narrow column: ${JSON.stringify(sample.detail.summary)}`);
     }
   } else if (Math.abs(sample.detail.summary.rectWidth - sample.detail.tabs.rectWidth) > widthTolerance + 2) {

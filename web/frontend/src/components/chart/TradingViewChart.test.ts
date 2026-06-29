@@ -284,7 +284,7 @@ describe("TradingViewChart", () => {
     const wrapper = mountChart(host.body);
 
     expect(chartMocks.fitContent).toHaveBeenCalled();
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -6, to: 6 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenCalledWith({ from: -3, to: 3 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -301,7 +301,7 @@ describe("TradingViewChart", () => {
       volume: 1000 + index,
     })));
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 629, to: 1010 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 633, to: 1006 });
 
     wrapper.unmount();
     host.panel.remove();

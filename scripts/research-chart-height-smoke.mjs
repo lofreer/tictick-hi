@@ -572,7 +572,7 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 8 || sample.chartInlineEndGutter > 18) {
+  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 14) {
     throw new Error(
       `${label} chart right gutter is outside the production range: ${JSON.stringify({
         chartInlineEndGutter: sample.chartInlineEndGutter,

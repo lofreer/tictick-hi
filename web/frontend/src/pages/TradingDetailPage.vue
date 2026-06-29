@@ -339,7 +339,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .trading-detail-lower-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
   min-width: 0;

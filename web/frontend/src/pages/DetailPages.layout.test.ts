@@ -33,8 +33,8 @@ describe("strategy detail page layout contract", () => {
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');
     expect(detailChartStyles).toContain(".trading-detail-chart,");
     expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(660px, 66vh, 800px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 8px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 16px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 6px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");
@@ -42,7 +42,7 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain(".trading-detail-chart-viewport,");
     expect(frameViewportStyle).toContain("height: var(--kline-chart-plot-height);");
     expect(styles).toContain(".trading-detail-lower-grid");
-    expect(styles).toContain("grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);");
+    expect(styles).toContain("grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);");
     expect(styles).toContain("align-items: stretch;");
     expect(styles).toContain(".trading-detail-tabs");
     expect(styles).toContain("min-height: 320px;");
@@ -79,8 +79,8 @@ describe("strategy detail page layout contract", () => {
     expect(backtestSource).not.toContain('class="surface chart-panel backtest-chart-panel"');
     expect(detailChartStyles).toContain(".backtest-chart-panel");
     expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(660px, 66vh, 800px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 8px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 16px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 6px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");
@@ -88,7 +88,7 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain(".backtest-chart-viewport");
     expect(frameViewportStyle).toContain("height: var(--kline-chart-plot-height);");
     expect(styles).toContain(".backtest-detail-lower-grid");
-    expect(styles).toContain("grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);");
+    expect(styles).toContain("grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);");
     expect(styles).toContain("align-items: stretch;");
     expect(styles).toContain(".backtest-detail-tabs");
     expect(styles).toContain("min-height: 320px;");
