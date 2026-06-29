@@ -28,7 +28,14 @@ const pages = [
   { label: "overview", path: "/overview", selector: ".overview-metrics" },
   { label: "research", path: "/research", selector: ".research-workspace", chart: true },
   { label: "backtests", path: "/backtests", selector: ".backtests-panel" },
+  { label: "backtests-new", path: "/backtests/new", selector: ".task-form-grid" },
   { label: "trading", path: "/trading", selector: ".trading-panel" },
+  { label: "trading-new", path: "/trading/new", selector: ".task-form-grid" },
+  { label: "system-notifications", path: "/system/notifications", selector: ".system-panel" },
+  { label: "system-exchange-accounts", path: "/system/exchange-accounts", selector: ".system-panel" },
+  { label: "system-operators", path: "/system/operators", selector: ".system-panel" },
+  { label: "system-sessions", path: "/system/sessions", selector: ".system-panel" },
+  { label: "system-audit-events", path: "/system/audit-events", selector: ".system-panel" },
   { label: "system-health", path: "/system/health", selector: ".health-service-list, .health-service" },
 ];
 
@@ -238,7 +245,7 @@ function visualSampleExpression(pageConfig) {
     const detailSelectors = ${JSON.stringify(pageConfig.detailLayout ?? null)};
     const root = document.documentElement;
     const body = document.body;
-    const visibleText = document.body?.innerText ?? '';
+    const visibleText = i18nVisibleText();
     return {
       href: location.href,
       theme: document.documentElement.dataset.theme || '',
@@ -312,6 +319,20 @@ function visualSampleExpression(pageConfig) {
       if (!element) return 0;
       const value = Number.parseFloat(getComputedStyle(element).getPropertyValue(property));
       return Number.isFinite(value) && value > 0 ? value : 0;
+    }
+
+    function i18nVisibleText() {
+      const ignoredSelectors = '.audit-code, .session-id';
+      const textNodes = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const parent = node.parentElement;
+        if (!parent || parent.closest(ignoredSelectors)) continue;
+        const text = node.nodeValue?.trim();
+        if (text) textNodes.push(text);
+      }
+      return textNodes.join('\\n');
     }
   })()`;
 }

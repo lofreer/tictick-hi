@@ -44,7 +44,7 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；`scripts/stage8-visual-smoke.mjs` 已覆盖核心页面 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；仍缺像素快照基线、真正全路由覆盖和 CI 硬门禁，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；仍缺像素快照基线、动态详情全数据状态、错误/空状态专门视觉基线和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
@@ -6718,6 +6718,43 @@ Definition of Done：
 
 - 当前仍是几何和 DOM 级视觉 smoke，不是像素快照基线。
 - 移动端工具条采用横向滚动保留密度，后续若要做移动端专门交互，还需要单独设计。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 8 visual smoke 静态路由覆盖补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 前端基础设施仍标记缺真正全路由覆盖；旧 visual smoke 只覆盖核心页面、系统健康页和有数据时的详情页。
+- 系统管理子路由、回测创建页、交易创建页未进入真实浏览器矩阵，容易在中英文、暗色、窄屏下退化但不触发门禁。
+
+Definition of Done：
+
+- `scripts/stage8-visual-smoke.mjs` 覆盖当前所有登录后静态路由：overview、research、backtests、backtests/new、trading、trading/new、system/notifications、system/exchange-accounts、system/operators、system/sessions、system/audit-events、system/health。
+- 继续在当前环境存在数据时覆盖首个回测详情和交易详情。
+- 继续保留 1440 / 812 / 390 三视口、light / dark、zh-CN / en-US 矩阵。
+- 每页校验主内容 selector、主题、html lang、顶部导航翻译、可见 i18n key 泄漏、横向溢出和 runtime error。
+- 不提交表单、不创建任务、不写数据库。
+
+修复范围：
+
+- `scripts/stage8-visual-smoke.mjs` 增加创建页和系统管理页静态路由列表。
+- i18n key 泄漏检测跳过 `.audit-code` / `.session-id`，避免把审计事件码如 `auth.login` 误判为未翻译文案。
+- `web/frontend/src/router/routes.test.ts` 增加 visual smoke 与登录后静态路由同步检查，后续新增静态路由未纳入 smoke 会失败。
+- `docs/quality-audit.md` 更新前端基础设施风险摘要。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- routes` 通过：26 个测试文件、132 条测试。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- 首次新增系统审计页覆盖时复现并修正误报：`system-audit-events leaked i18n keys into visible text: auth.login`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=500 node scripts/stage8-visual-smoke.mjs` 通过：三视口 × light/dark × `zh-CN/en-US`，当前本地数据下每组 14 页，最大 document width 分别等于 `1440 / 812 / 390`。
+
+剩余风险：
+
+- 当前覆盖的是登录后静态路由和有数据时的首个动态详情页，不等于所有动态详情 ID、所有空/错误/加载状态的像素基线。
+- 仍缺像素快照基线、多浏览器视觉回归和 CI 硬门禁。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ## 6. 保留 / 返工 / 删除 / 延后
