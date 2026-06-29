@@ -67,11 +67,8 @@ func TestCandleProviderAggregatesFromOneMinuteCandles(t *testing.T) {
 
 func TestCandleProviderAggregatesAcrossPagedBaseWindow(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	candles := make([]Candle, 0, maxAggregationBaseCandles)
-	for index := 0; index < maxAggregationBaseCandles; index++ {
-		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
-	}
-	store := fakeCandleStore{candles: candles}
+	requiredBaseCandles := DefaultCandleLimit * 60
+	store := generatedCandleStore{start: start, count: requiredBaseCandles}
 
 	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
 		Exchange: "binance",
@@ -88,9 +85,9 @@ func TestCandleProviderAggregatesAcrossPagedBaseWindow(t *testing.T) {
 	if result.Coverage.LimitedByBaseWindow {
 		t.Fatalf("expected full paged base coverage: %#v", result.Coverage)
 	}
-	if result.Coverage.RequiredBaseCandles != maxAggregationBaseCandles ||
-		result.Coverage.BaseLimit != maxAggregationBaseCandles ||
-		result.Coverage.ReturnedBaseCandles != maxAggregationBaseCandles ||
+	if result.Coverage.RequiredBaseCandles != requiredBaseCandles ||
+		result.Coverage.BaseLimit != requiredBaseCandles ||
+		result.Coverage.ReturnedBaseCandles != requiredBaseCandles ||
 		result.Coverage.ReturnedCandles != DefaultCandleLimit {
 		t.Fatalf("unexpected coverage: %#v", result.Coverage)
 	}
@@ -98,13 +95,45 @@ func TestCandleProviderAggregatesAcrossPagedBaseWindow(t *testing.T) {
 	assertTimePtr(t, result.Window.To, start.Add(time.Duration(DefaultCandleLimit-1)*time.Hour))
 }
 
-func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
+func TestCandleProviderAggregatesDailyWindowAcrossStreamingBasePages(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	candles := make([]Candle, 0, maxAggregationBaseCandles+1000)
-	for index := 0; index < maxAggregationBaseCandles+1000; index++ {
-		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
+	requiredBaseCandles := DefaultCandleLimit * 24 * 60
+	store := generatedCandleStore{start: start, count: requiredBaseCandles}
+
+	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1d",
+		Limit:    DefaultCandleLimit,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	store := fakeCandleStore{candles: candles}
+	if result.Source != CandleSourceAggregated || result.Health != CandleHealthOK {
+		t.Fatalf("unexpected metadata: %#v", result)
+	}
+	if len(result.Candles) != DefaultCandleLimit {
+		t.Fatalf("unexpected candle count: %d", len(result.Candles))
+	}
+	if result.Coverage.RequiredBaseCandles != requiredBaseCandles ||
+		result.Coverage.BaseLimit != requiredBaseCandles ||
+		result.Coverage.ReturnedBaseCandles != requiredBaseCandles ||
+		result.Coverage.ReturnedCandles != DefaultCandleLimit ||
+		result.Coverage.LimitedByBaseWindow {
+		t.Fatalf("unexpected coverage: %#v", result.Coverage)
+	}
+	assertTimePtr(t, result.Window.From, start)
+	assertTimePtr(t, result.Window.To, start.Add(time.Duration(DefaultCandleLimit-1)*24*time.Hour))
+}
+
+func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
+	originalPages := maxAggregationBasePages
+	maxAggregationBasePages = 2
+	t.Cleanup(func() { maxAggregationBasePages = originalPages })
+
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	baseLimit := MaxCandleLimit * maxAggregationBasePages
+	store := generatedCandleStore{start: start, count: baseLimit + 1000}
 
 	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
 		Exchange: "binance",
@@ -122,10 +151,10 @@ func TestCandleProviderReportsLimitedAggregationCoverage(t *testing.T) {
 		t.Fatalf("expected limited coverage: %#v", result.Coverage)
 	}
 	if result.Coverage.RequiredBaseCandles != DefaultCandleLimit*240 ||
-		result.Coverage.BaseLimit != maxAggregationBaseCandles {
+		result.Coverage.BaseLimit != baseLimit {
 		t.Fatalf("unexpected base coverage: %#v", result.Coverage)
 	}
-	if result.Coverage.ReturnedBaseCandles != maxAggregationBaseCandles ||
+	if result.Coverage.ReturnedBaseCandles != baseLimit ||
 		result.Coverage.ReturnedCandles >= result.Coverage.RequestedLimit {
 		t.Fatalf("unexpected returned coverage: %#v", result.Coverage)
 	}
@@ -210,6 +239,34 @@ func TestCandleProviderReportsAggregatedPaginationFromBaseCandles(t *testing.T) 
 	assertTimePtr(t, result.Pagination.PreviousTo, start)
 	assertTimePtr(t, result.Pagination.NextFrom, start.Add(10*time.Minute))
 	assertTimePtr(t, result.Pagination.NextTo, start.Add(10*time.Minute))
+}
+
+func TestCandleProviderLatestAggregationPreservesRequestedToBoundaryGap(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := make([]Candle, 0, 5)
+	for index := 0; index < 5; index++ {
+		candles = append(candles, testCandle(start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
+	}
+	store := fakeCandleStore{candles: candles}
+	to := start.Add(9 * time.Minute)
+
+	result, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "5m",
+		To:       &to,
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != CandleSourceAggregated || result.Health != CandleHealthGap {
+		t.Fatalf("unexpected metadata: %#v", result)
+	}
+	if len(result.Gaps) != 1 {
+		t.Fatalf("expected one tail gap: %#v", result.Gaps)
+	}
+	assertGap(t, result.Gaps[0], start.Add(5*time.Minute), start.Add(10*time.Minute), 5)
 }
 
 func TestCandleProviderFallsBackWhenNativeHasGap(t *testing.T) {
@@ -464,6 +521,89 @@ func (store fakeCandleStore) matchingNativeCandles(query CandleQuery) []Candle {
 		matches = append(matches, candle)
 	}
 	return matches
+}
+
+type generatedCandleStore struct {
+	start time.Time
+	count int
+}
+
+func (store generatedCandleStore) ListNativeCandles(_ context.Context, query CandleQuery) ([]Candle, error) {
+	if query.From == nil && query.To == nil {
+		return store.ListLatestNativeCandles(context.Background(), query)
+	}
+	if query.Exchange != "binance" || query.Symbol != "BTCUSDT" || query.Interval != baseCandleInterval {
+		return nil, nil
+	}
+
+	firstIndex := 0
+	lastIndex := store.count - 1
+	if query.From != nil {
+		firstIndex = max(firstIndex, ceilMinuteIndex(store.start, query.From.UTC()))
+	}
+	if query.To != nil {
+		lastIndex = min(lastIndex, floorMinuteIndex(store.start, query.To.UTC()))
+	}
+	return store.candles(firstIndex, lastIndex, NormalizeCandleLimit(query.Limit)), nil
+}
+
+func (store generatedCandleStore) ListLatestNativeCandles(_ context.Context, query CandleQuery) ([]Candle, error) {
+	if query.Exchange != "binance" || query.Symbol != "BTCUSDT" || query.Interval != baseCandleInterval {
+		return nil, nil
+	}
+
+	lastIndex := store.count - 1
+	if query.To != nil {
+		lastIndex = min(lastIndex, floorMinuteIndex(store.start, query.To.UTC()))
+	}
+	limit := NormalizeCandleLimit(query.Limit)
+	firstIndex := max(0, lastIndex-limit+1)
+	return store.candles(firstIndex, lastIndex, limit), nil
+}
+
+func (store generatedCandleStore) candles(firstIndex int, lastIndex int, limit int) []Candle {
+	if store.count <= 0 || lastIndex < firstIndex || lastIndex < 0 || firstIndex >= store.count {
+		return nil
+	}
+	if firstIndex < 0 {
+		firstIndex = 0
+	}
+	if lastIndex >= store.count {
+		lastIndex = store.count - 1
+	}
+	if limit <= 0 {
+		return nil
+	}
+	total := lastIndex - firstIndex + 1
+	if total > limit {
+		total = limit
+	}
+	candles := make([]Candle, 0, total)
+	for offset := 0; offset < total; offset++ {
+		index := firstIndex + offset
+		candles = append(candles, testCandle(store.start.Add(time.Duration(index)*time.Minute), "10", "10", "10", "10", "1"))
+	}
+	return candles
+}
+
+func ceilMinuteIndex(start time.Time, value time.Time) int {
+	diff := value.Sub(start)
+	if diff <= 0 {
+		return 0
+	}
+	index := int(diff / time.Minute)
+	if start.Add(time.Duration(index) * time.Minute).Before(value) {
+		index++
+	}
+	return index
+}
+
+func floorMinuteIndex(start time.Time, value time.Time) int {
+	diff := value.Sub(start)
+	if diff < 0 {
+		return -1
+	}
+	return int(diff / time.Minute)
 }
 
 func testIntervalCandle(interval string, openTime time.Time, close string) Candle {

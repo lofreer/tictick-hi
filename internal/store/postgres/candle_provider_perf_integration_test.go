@@ -23,7 +23,12 @@ func TestIntegrationCandleProviderLargeAggregationWindowPerformance(t *testing.T
 	})
 
 	start := time.Date(2026, 6, 27, 0, 0, 0, 0, time.UTC)
-	requiredBaseCandles := data.DefaultCandleLimit * 60
+	targetInterval := "4h"
+	targetDuration, err := data.IntervalDuration(targetInterval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requiredBaseCandles := data.DefaultCandleLimit * int(targetDuration/time.Minute)
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO market_candles (
 			exchange, symbol, interval, open_time, close_time,
@@ -54,7 +59,7 @@ func TestIntegrationCandleProviderLargeAggregationWindowPerformance(t *testing.T
 	result, err := store.GetCandles(ctx, data.CandleQuery{
 		Exchange: "binance",
 		Symbol:   symbol,
-		Interval: "1h",
+		Interval: targetInterval,
 		Limit:    data.DefaultCandleLimit,
 	})
 	elapsed := time.Since(startedAt)
@@ -76,7 +81,7 @@ func TestIntegrationCandleProviderLargeAggregationWindowPerformance(t *testing.T
 		t.Fatalf("unexpected coverage: %#v", result.Coverage)
 	}
 	assertTimePtr(t, result.Window.From, start)
-	assertTimePtr(t, result.Window.To, start.Add(time.Duration(data.DefaultCandleLimit-1)*time.Hour))
+	assertTimePtr(t, result.Window.To, start.Add(time.Duration(data.DefaultCandleLimit-1)*targetDuration))
 	if elapsed > threshold {
 		t.Fatalf("large aggregation query took %s, threshold %s", elapsed, threshold)
 	}

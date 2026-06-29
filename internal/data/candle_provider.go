@@ -36,39 +36,33 @@ func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuer
 	if err != nil {
 		return CandleResult{}, err
 	}
-	baseCandles, err := provider.listAggregationBaseCandles(ctx, baseQuery, baseWindow)
+	aggregation, err := provider.aggregateBaseCandles(ctx, baseQuery, baseWindow, query.Interval)
 	if err != nil {
 		return CandleResult{}, err
 	}
-	if err := validateCandleSeries(baseCandles, baseCandleInterval); err != nil {
-		result := invalidCandleResult(query, CandleSourceAggregated, baseCandleInterval, baseCandles, baseCandleInterval, "invalid_aggregation_base_series", err)
+	if aggregation.InvalidErr != nil {
+		result := invalidCandleResult(query, CandleSourceAggregated, baseCandleInterval, aggregation.InvalidCandles, baseCandleInterval, "invalid_aggregation_base_series", aggregation.InvalidErr)
 		result.Coverage.RequiredBaseCandles = baseWindow.Required
 		result.Coverage.BaseLimit = baseWindow.Limit
-		result.Coverage.ReturnedBaseCandles = len(baseCandles)
-		result.Coverage.LimitedByBaseWindow = baseWindow.Limited && len(baseCandles) >= baseWindow.Limit
+		result.Coverage.ReturnedBaseCandles = aggregation.ReturnedBaseCandles
+		result.Coverage.LimitedByBaseWindow = baseWindow.Limited && aggregation.ReturnedBaseCandles >= baseWindow.Limit
 		return result, nil
 	}
 
-	baseGaps, err := DetectCandleGapsInRange(baseCandles, baseCandleInterval, baseQuery.From, baseQuery.To)
-	if err != nil {
-		return CandleResult{}, err
-	}
-	aggregated, err := AggregateCandles(baseCandles, query.Interval)
-	if err != nil {
-		return CandleResult{}, err
-	}
+	baseGaps := aggregation.Gaps
+	aggregated := aggregation.Candles
 	aggregated = filterCandlesInRange(aggregated, query.From, query.To)
 	aggregated = trimAggregatedCandles(aggregated, query)
 
 	result := candleResult(query, aggregated, CandleSourceAggregated, baseCandleInterval, baseGaps)
 	result.Coverage.RequiredBaseCandles = baseWindow.Required
 	result.Coverage.BaseLimit = baseWindow.Limit
-	result.Coverage.ReturnedBaseCandles = len(baseCandles)
-	result.Coverage.LimitedByBaseWindow = baseWindow.Limited && len(baseCandles) >= baseWindow.Limit
+	result.Coverage.ReturnedBaseCandles = aggregation.ReturnedBaseCandles
+	result.Coverage.LimitedByBaseWindow = baseWindow.Limited && aggregation.ReturnedBaseCandles >= baseWindow.Limit
 	if result.Coverage.LimitedByBaseWindow && len(aggregated) < result.Coverage.RequestedLimit {
 		result.Health = CandleHealthInsufficient
 	}
-	if len(baseCandles) == 0 {
+	if aggregation.ReturnedBaseCandles == 0 {
 		if len(nativeCandles) > 0 {
 			return provider.withPagination(ctx, query, candleResult(query, nativeCandles, CandleSourceNative, query.Interval, nativeGaps))
 		}
