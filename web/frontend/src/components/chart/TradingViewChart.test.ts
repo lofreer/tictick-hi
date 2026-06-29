@@ -188,7 +188,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 48,
+          minimumWidth: 44,
         }),
       }),
     );
@@ -206,7 +206,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 40,
+          minimumWidth: 36,
         }),
       }),
     );
@@ -224,7 +224,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 44,
+          minimumWidth: 40,
         }),
       }),
     );

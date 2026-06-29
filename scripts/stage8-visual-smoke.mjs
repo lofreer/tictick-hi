@@ -12,8 +12,8 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 260);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 68);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 220);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 60);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -404,7 +404,7 @@ function assertResearchChartSmoke(label, sample, viewport) {
       })}`,
     );
   }
-  assertChartViewportSmoke(label, sample, viewport, 680);
+  assertChartViewportSmoke(label, sample, viewport, 620);
 }
 
 function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight) {
@@ -420,7 +420,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       throw new Error(`${label} ${name} exceeded viewport height: ${JSON.stringify(node)}`);
     }
   }
-  const minimumHeight = viewport.width <= 760 ? 520 : viewport.width <= 980 ? 620 : desktopMinimumHeight;
+  const minimumHeight = viewport.width <= 760 ? 500 : viewport.width <= 980 ? 600 : desktopMinimumHeight;
   if (sample.chartViewport.rectHeight < minimumHeight - widthTolerance) {
     throw new Error(
       `${label} chart viewport is too short: ${JSON.stringify({
@@ -468,7 +468,7 @@ function assertChartGutters(label, sample) {
   const endGutter = host.right - sample.chartViewport.right;
   assertConfiguredGutter(label, "chart left gutter", startGutter, sample.chartInlineStartGutter, { host, chartViewport: sample.chartViewport });
   assertConfiguredGutter(label, "chart right gutter", endGutter, sample.chartInlineEndGutter, { host, chartViewport: sample.chartViewport });
-  if (sample.chartInlineStartGutter < 10 || sample.chartInlineStartGutter > 24) {
+  if (sample.chartInlineStartGutter < 8 || sample.chartInlineStartGutter > 18) {
     throw new Error(
       `${label} chart left gutter is outside the production range: ${JSON.stringify({
         gutter: sample.chartInlineStartGutter,
@@ -477,7 +477,7 @@ function assertChartGutters(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 10) {
+  if (sample.chartInlineEndGutter < 2 || sample.chartInlineEndGutter > 6) {
     throw new Error(
       `${label} chart right gutter should be tight so the price scale does not create excess whitespace: ${JSON.stringify({
         gutter: sample.chartInlineEndGutter,

@@ -23,8 +23,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(tasksStyle).toContain("width: 100%;");
     expect(tasksStyle).toContain("max-width: 100%;");
     expect(tasksStyle).toContain("min-width: 0;");
-    expect(tasksStyle).toContain("max-height: min(220px, 20vh);");
-    expect(tasksStyle).toContain("max-height: min(220px, 20dvh);");
+    expect(tasksStyle).toContain("max-height: min(190px, 18vh);");
+    expect(tasksStyle).toContain("max-height: min(190px, 18dvh);");
     expect(tasksStyle).toContain("overflow: auto;");
     expect(tasksStyle).toContain("overscroll-behavior: contain;");
     expect(tasksStyle).not.toContain("overflow: hidden;");
@@ -62,12 +62,16 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("max-block-size: 100% !important;");
     expect(pageStyles).toContain("width: 100% !important;");
     expect(toolbarStyle).toContain("display: grid;");
-    expect(toolbarStyle).toContain("padding: 9px 14px;");
+    expect(toolbarStyle).toContain("grid-template-columns: minmax(0, auto) minmax(0, 1fr);");
+    expect(toolbarStyle).toContain("padding: 8px 12px;");
+    expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: flex;");
-    expect(controlsStyle).toContain("flex-wrap: wrap;");
-    expect(controlsStyle).toContain("width: 100%;");
-    expect(statusStyle).toContain("justify-content: space-between;");
-    expect(statusStyle).toContain("flex-wrap: wrap;");
+    expect(controlsStyle).toContain("flex-wrap: nowrap;");
+    expect(controlsStyle).toContain("width: auto;");
+    expect(controlsStyle).toContain("overflow-x: auto;");
+    expect(statusStyle).toContain("justify-content: flex-end;");
+    expect(statusStyle).toContain("flex-wrap: nowrap;");
+    expect(statusStyle).toContain("overflow: hidden;");
     expect(pageStyles).toContain(".research-toolbar-main");
     expect(pageStyles).toContain(".research-current-source");
     expect(pageStyles).toContain(".research-meta .n-tag__content");
@@ -77,6 +81,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).not.toContain("flex: 1 1 620px;");
     expect(pageStyles).not.toContain("flex: 0 1 680px;");
     expect(pageStyles).not.toContain("width: clamp(180px, 22vw, 360px);");
+    expect(pageStyles).not.toContain("width: clamp(180px, 15vw, 240px);");
     expect(source).toContain('import "./ResearchPage.css";');
     expect(source).toContain('class="surface research-chart-panel"');
     expect(source).not.toContain('class="surface chart-panel research-chart-panel"');
@@ -93,20 +98,23 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--research-chart-plot-height: clamp(680px, 75vh, 900px);");
-    expect(pageStyles).toContain("--research-chart-plot-height: clamp(680px, 75dvh, 900px);");
-    expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, 68vh, 760px);");
-    expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, 68dvh, 760px);");
-    expect(pageStyles).toContain("--research-chart-padding-left: 22px;");
-    expect(pageStyles).toContain("--research-chart-padding-right: 8px;");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, calc(100vh - 250px), 760px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, calc(100dvh - 250px), 760px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(600px, calc(100vh - 290px), 720px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(600px, calc(100dvh - 290px), 720px);");
+    expect(pageStyles).toContain("--research-chart-plot-height: clamp(500px, calc(100vh - 240px), 620px);");
     expect(pageStyles).toContain("--research-chart-padding-left: 16px;");
-    expect(pageStyles).toContain("--research-chart-padding-right: 6px;");
+    expect(pageStyles).toContain("--research-chart-padding-right: 4px;");
     expect(pageStyles).toContain("--research-chart-padding-left: 12px;");
-    expect(pageStyles).toContain("--research-chart-padding-right: 6px;");
-    expect(pageStyles).toContain("flex-basis: min(240px, 32vw);");
-    expect(pageStyles).toContain("width: clamp(180px, 15vw, 240px);");
-    expect(pageStyles).toContain("flex-basis: 100%;");
+    expect(pageStyles).toContain("--research-chart-padding-right: 3px;");
+    expect(pageStyles).toContain("--research-chart-padding-left: 8px;");
+    expect(pageStyles).toContain("--research-chart-padding-right: 2px;");
+    expect(pageStyles).toContain("flex-basis: min(210px, 28vw);");
+    expect(pageStyles).toContain("width: clamp(168px, 12vw, 210px);");
+    expect(pageStyles).toContain("flex: 0 0 180px;");
     expect(pageStyles).toContain("width: 100%;");
+    expect(pageStyles).toContain("max-width: 220px;");
+    expect(pageStyles).toContain("overflow-x: auto;");
   });
 
   it("lets the chart renderer fill the external viewport without gutter shrinkage", () => {
