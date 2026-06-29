@@ -16,10 +16,12 @@
     <LoadingState v-if="taskLoading" />
     <ErrorState v-else-if="taskError" :title="taskError" retryable @retry="loadDetail" />
     <div v-else-if="task" class="backtest-detail-workspace">
-      <section class="surface chart-panel backtest-chart-panel" data-chart-viewport="fixed">
-        <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
-        <LoadingState v-else-if="candlesLoading" />
-        <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('backtests.chartEmpty')" />
+      <section class="surface backtest-chart-panel">
+        <div class="backtest-chart-viewport" data-chart-viewport="fixed">
+          <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
+          <LoadingState v-else-if="candlesLoading" />
+          <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('backtests.chartEmpty')" />
+        </div>
       </section>
 
       <div class="backtest-detail-lower-grid">
@@ -104,6 +106,8 @@ import { backtestsApi } from "@/services/api/backtests";
 import { dataApi } from "@/services/api/data";
 import { appColors } from "@/theme/tokens";
 import type { BacktestOrder, BacktestTask, ChartCandle, ChartMarker, StrategyIntent } from "@/types/app";
+
+import "./detailChartLayout.css";
 
 const route = useRoute();
 const router = useRouter();
@@ -275,14 +279,6 @@ function errorMessage(loadError: unknown, fallback: string) {
   min-width: 0;
 }
 
-.backtest-chart-panel {
-  height: clamp(520px, 58vh, 760px);
-  height: clamp(520px, 58dvh, 760px);
-  max-height: none;
-  min-height: 0;
-  contain: layout paint;
-}
-
 .backtest-detail-lower-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.6fr);
@@ -381,11 +377,6 @@ function errorMessage(loadError: unknown, fallback: string) {
 }
 
 @media (max-width: 980px) {
-  .backtest-chart-panel {
-    height: clamp(420px, 58vh, 620px);
-    height: clamp(420px, 58dvh, 620px);
-  }
-
   .backtest-detail-lower-grid {
     grid-template-columns: 1fr;
   }

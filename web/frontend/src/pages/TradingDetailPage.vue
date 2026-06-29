@@ -16,10 +16,12 @@
     <LoadingState v-if="taskLoading" />
     <ErrorState v-else-if="taskError" :title="taskError" retryable @retry="loadDetail" />
     <div v-else-if="task" class="trading-detail-workspace">
-      <section class="surface chart-panel trading-detail-chart" data-chart-viewport="fixed">
-        <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
-        <LoadingState v-else-if="candlesLoading" />
-        <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('trading.chartEmpty')" />
+      <section class="surface trading-detail-chart">
+        <div class="trading-detail-chart-viewport" data-chart-viewport="fixed">
+          <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
+          <LoadingState v-else-if="candlesLoading" />
+          <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('trading.chartEmpty')" />
+        </div>
       </section>
 
       <div class="trading-detail-lower-grid">
@@ -139,6 +141,8 @@ import type {
   StrategyIntent,
   TradingTask,
 } from "@/types/app";
+
+import "./detailChartLayout.css";
 
 const route = useRoute();
 const router = useRouter();
@@ -332,14 +336,6 @@ function errorMessage(loadError: unknown, fallback: string) {
   min-width: 0;
 }
 
-.trading-detail-chart {
-  height: clamp(520px, 58vh, 760px);
-  height: clamp(520px, 58dvh, 760px);
-  max-height: none;
-  min-height: 0;
-  contain: layout paint;
-}
-
 .trading-detail-lower-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.6fr);
@@ -429,11 +425,6 @@ function errorMessage(loadError: unknown, fallback: string) {
 }
 
 @media (max-width: 980px) {
-  .trading-detail-chart {
-    height: clamp(420px, 58vh, 620px);
-    height: clamp(420px, 58dvh, 620px);
-  }
-
   .trading-detail-lower-grid {
     grid-template-columns: 1fr;
   }

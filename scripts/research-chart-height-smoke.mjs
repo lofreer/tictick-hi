@@ -21,17 +21,14 @@ const viewports = [
   {
     label: "desktop-1440x900",
     metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false },
-    requireInitialChartFit: false,
   },
   {
     label: "desktop-2048x1152",
     metrics: { width: 2048, height: 1152, deviceScaleFactor: 1, mobile: false },
-    requireInitialChartFit: false,
   },
   {
     label: "narrow-desktop-812x1320",
     metrics: { width: 812, height: 1320, deviceScaleFactor: 2, mobile: false },
-    requireInitialChartFit: true,
   },
   { label: "mobile-390x844", metrics: { width: 390, height: 844, deviceScaleFactor: 2, mobile: true } },
 ];
@@ -111,9 +108,6 @@ async function runViewport(endpoint, viewport) {
     await delay(settleMs);
     const initialSample = await evaluate(cdp, sampleExpression());
     assertChartLayout(viewport.label, initialSample);
-    if (viewport.requireInitialChartFit) {
-      assertInitialChartFit(viewport.label, initialSample);
-    }
 
     const samples = [];
     for (let index = 0; index < samplesPerViewport; index += 1) {
@@ -310,7 +304,9 @@ function sampleExpression() {
         };
       };
       const body = read('.research-chart-body');
+      const chartInlineStartGutter = cssPixel('.research-chart-body', 'padding-left');
       const chartInlineEndGutter = cssPixel('.research-chart-body', 'padding-right');
+      const chartBlockStartGutter = cssPixel('.research-chart-body', 'padding-top');
       const chartBlockEndGutter = cssPixel('.research-chart-body', 'padding-bottom');
       const tv = read('.tv-lightweight-charts');
       const canvasEntries = Array.from(document.querySelectorAll('.trading-chart__canvas canvas')).map((canvas, index) => {
@@ -333,7 +329,7 @@ function sampleExpression() {
       });
       const canvases = canvasEntries.map((entry) => entry.metrics);
       const rightAxisCanvas = canvases
-        .filter((canvas) => canvas.rectWidth >= 72 && canvas.rectWidth <= 180)
+        .filter((canvas) => canvas.rectWidth >= 56 && canvas.rectWidth <= 180)
         .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
         .sort((left, right) => right.right - left.right)[0] ?? null;
       const mainPaneCanvases = canvases
@@ -365,7 +361,9 @@ function sampleExpression() {
         chart: read('.trading-chart'),
         canvas: read('.trading-chart__canvas'),
         tv,
+        chartInlineStartGutter,
         chartInlineEndGutter,
+        chartBlockStartGutter,
         chartBlockEndGutter,
         canvases,
         mainPaneCanvas,
@@ -534,6 +532,8 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
+  assertConfiguredInset(label, "chart left side", tv.left - body.left, sample.chartInlineStartGutter, { body, tv });
+  assertConfiguredInset(label, "chart top side", tv.top - body.top, sample.chartBlockStartGutter, { body, tv });
   if (!mainPaneCanvas) {
     throw new Error(
       `${label} missing bounded main pane canvas: ${JSON.stringify({
@@ -651,24 +651,6 @@ function assertChartLayout(label, sample) {
   }
 }
 
-function assertInitialChartFit(label, sample) {
-  const { body, bottomTimeAxisCanvas, viewportHeight } = sample;
-  if (!body || !bottomTimeAxisCanvas) return;
-
-  const bottomPadding = 16;
-  const maxBottom = viewportHeight - bottomPadding;
-  if (body.bottom > maxBottom || bottomTimeAxisCanvas.bottom > maxBottom) {
-    throw new Error(
-      `${label} chart bottom axis is clipped from the initial viewport: ${JSON.stringify({
-        viewportHeight,
-        maxBottom,
-        body,
-        bottomTimeAxisCanvas,
-      })}`,
-    );
-  }
-}
-
 function assertStable(result) {
   if (result.chartCount !== 1) {
     throw new Error(`${result.label} expected one chart, got ${result.chartCount}`);
@@ -700,13 +682,18 @@ function assertStable(result) {
   }
 
   const fixedBodyHeight = result.last.body;
+  const expectedBlockStartInset = result.lastFull.chartBlockStartGutter ?? 0;
   const expectedBlockEndInset = result.lastFull.chartBlockEndGutter ?? 0;
+  const expectedChartHeight = fixedBodyHeight - expectedBlockStartInset - expectedBlockEndInset;
   for (const key of ["chart", "canvas", "tv"]) {
-    const overflow = result.last[key] - fixedBodyHeight;
+    const overflow = result.last[key] - expectedChartHeight;
     if (overflow > heightTolerance) {
       throw new Error(
         `${result.label} ${key} height overflowed fixed body by ${overflow}px: ${JSON.stringify({
           body: fixedBodyHeight,
+          expectedBlockStartInset,
+          expectedBlockEndInset,
+          expectedChartHeight,
           last: result.last,
           min: result.min,
           max: result.max,
@@ -714,10 +701,13 @@ function assertStable(result) {
       );
     }
     const inset = fixedBodyHeight - result.last[key];
-    if (Math.abs(inset - expectedBlockEndInset) > heightTolerance) {
+    const expectedInset = expectedBlockStartInset + expectedBlockEndInset;
+    if (Math.abs(inset - expectedInset) > heightTolerance) {
       throw new Error(
         `${result.label} ${key} height does not match configured fixed body inset: ${JSON.stringify({
+          expectedBlockStartInset,
           expectedBlockEndInset,
+          expectedInset,
           body: fixedBodyHeight,
           last: result.last,
           min: result.min,

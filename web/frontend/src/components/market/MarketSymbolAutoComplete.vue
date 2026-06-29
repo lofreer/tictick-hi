@@ -4,6 +4,7 @@
       class="market-symbol-autocomplete__input"
       :loading="loading"
       :options="options"
+      :size="size"
       :value="value"
       clearable
       @update:value="handleUpdateValue"
@@ -11,7 +12,7 @@
     <NButton
       circle
       quaternary
-      size="small"
+      :size="size"
       :loading="syncing"
       :title="t('research.refreshInstruments')"
       @click="syncInstruments"
@@ -33,10 +34,13 @@ import { marketApi } from "@/services/api/market";
 import type { MarketInstrument } from "@/types/app";
 import { normalizeSymbolInput, symbolOptionsForExchange, type MarketSymbolOption } from "@/utils/marketSymbols";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   exchange: string;
+  size?: "small" | "medium" | "large";
   value: string;
-}>();
+}>(), {
+  size: "medium",
+});
 
 const emit = defineEmits<{
   "update:value": [value: string];

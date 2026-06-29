@@ -42,26 +42,39 @@
 
       <section class="surface research-chart-panel">
         <div class="research-toolbar">
-          <div class="toolbar-row">
-            <NSelect v-model:value="exchange" class="research-select" :options="exchangeOptions" />
-            <MarketSymbolAutoComplete
-              v-model:value="symbol"
-              class="research-symbol-input"
-              :exchange="exchange"
-              @synced="loadMarketInstrumentSyncStatuses"
-            />
-            <NSelect v-model:value="interval" class="research-select research-select--compact" :options="intervalOptions" />
-            <ResearchWindowControls
-              :can-load-next="canLoadNextCandles"
-              :can-load-previous="canLoadPreviousCandles"
-              :loading="candlesLoading"
-              @next="loadNextCandles"
-              @previous="loadPreviousCandles"
-              @range="applyTimeRange"
-            />
+          <div class="research-toolbar-main">
+            <div class="research-source-controls">
+              <NSelect
+                v-model:value="exchange"
+                class="research-select research-select--exchange"
+                :options="exchangeOptions"
+                size="small"
+              />
+              <MarketSymbolAutoComplete
+                v-model:value="symbol"
+                class="research-symbol-input"
+                :exchange="exchange"
+                size="small"
+                @synced="loadMarketInstrumentSyncStatuses"
+              />
+              <NSelect
+                v-model:value="interval"
+                class="research-select research-select--compact"
+                :options="intervalOptions"
+                size="small"
+              />
+              <ResearchWindowControls
+                :can-load-next="canLoadNextCandles"
+                :can-load-previous="canLoadPreviousCandles"
+                :loading="candlesLoading"
+                @next="loadNextCandles"
+                @previous="loadPreviousCandles"
+                @range="applyTimeRange"
+              />
+            </div>
           </div>
-          <div class="research-context">
-            <NText depth="3">
+          <div class="research-toolbar-status">
+            <NText class="research-current-source" depth="3">
               {{ t("research.currentDataSource") }}: {{ exchange }} / {{ symbol }} / {{ interval }}
             </NText>
             <div v-if="candleResult || currentMarketInstrumentSyncStatus || marketInstrumentSyncStatusError" class="research-meta">

@@ -6190,6 +6190,59 @@ Definition of Done：
 - 本轮不清洗已有异常行，不自动排补同步任务，也不把 invalid 行纳入全历史缺口扫描。
 - 项目整体仍是 `scaffold`，CandleProvider 和研究页仍不能升级为 usable。
 
+### 阶段 1/3/4 图表布局按 tictickbot 模式返工
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户在本地 `127.0.0.1:8080/research` 继续反馈 K 线图表高度、左右边距和右侧空白不符合生产级要求。
+- 用户明确指出交易详情、回测详情也存在同类排版问题，不能只修研究页。
+- 参考 `tictickbot` 后确认其 K 线图表组件自身只负责 `width: 100%; height: 100%`，由页面外层提供清晰固定高度和少量容器内边距。
+
+Definition of Done：
+
+- 研究页仍保持同步任务列表在上、图表在下，但任务列表作为轻量工作区滚动，K 线图表拥有可读高度。
+- 研究页、交易详情、回测详情都使用外层卡片控制边框 / 内边距，内层 `data-chart-viewport="fixed"` 作为真实图表测量节点。
+- 交易详情和回测详情不再继承全局 `.chart-panel` 的旧高度 / size containment，图表在上，下方两列保持左窄右宽。
+- `TradingViewChart` 收紧价格轴宽度和时间轴逻辑 padding，减少右侧空白，同时保留边缘标签防裁切。
+- 浏览器级检查不再强迫图表完整塞进当前首屏，改为验证固定图表槽内部不裁切、不横向溢出、不被内部节点污染到无限增高。
+
+修复范围：
+
+- `web/frontend/src/pages/ResearchPage.css` 调整研究页任务表高度上限、图表高度区间和图表容器安全边距。
+- `web/frontend/src/pages/ResearchPage.vue` 将图表工具栏拆成主控件行和状态行，避免 symbol 输入、刷新按钮、窗口按钮和状态标签互相挤压。
+- `web/frontend/src/components/market/MarketSymbolAutoComplete.vue` 支持控件尺寸参数，研究页工具栏使用小尺寸输入和刷新按钮。
+- `web/frontend/src/components/research/ResearchWindowControls.vue` 收紧窗口按钮间距和最小宽度。
+- `web/frontend/src/pages/detailChartLayout.css` 抽出交易详情和回测详情共用图表高度 / viewport 样式，避免详情页文件超过质量门禁硬限制。
+- `web/frontend/src/pages/TradingDetailPage.vue`、`web/frontend/src/pages/BacktestDetailPage.vue` 改为外层图表卡片 + 内层固定 viewport，去除全局 `.chart-panel` 继承。
+- `web/frontend/src/components/chart/TradingViewChart.vue` 收紧价格轴宽度和时间轴边缘 padding。
+- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`web/frontend/src/pages/DetailPages.layout.test.ts`、`web/frontend/src/components/chart/TradingViewChart.test.ts` 更新布局契约。
+- `scripts/check-research-chart-layout.sh`、`scripts/research-chart-height-smoke.mjs` 同步运行态检查语义。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过，3 个测试文件 / 32 条测试。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `node --check scripts/research-chart-height-smoke.mjs` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，24 个测试文件 / 122 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过，包含 file size、research chart layout 和 Stage 8 command config smoke；`TradingDetailPage.vue` 拆分后低于 450 行硬限制。
+- `docker compose up -d --build api` 通过，本地 `http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：1440 桌面图表渲染高 690px，2048 桌面 799px，812 窄桌面 732px，390 移动 550px，高度稳定，812 窄桌面不再横向溢出。
+- Headless Chrome 几何采样通过：研究页 1440 桌面 panel `1392x802`、toolbar `1390x80`、symbol 输入 `520px` 封顶；812 窄桌面 panel `780x897`、toolbar `778x135`、source controls `754x28`、symbol 输入 `314px`，刷新按钮在 symbol 控件内部。交易详情 `/trading/tt_a9a9801f53152b7fcf74f78e` 和回测详情 `/backtests/bt_8c9a0535e2a3f8a60a7a6918` 两页图表 panel 均为 `1392x630`，实际图表 viewport 均为 `1366x604`，下方两列为 `427/949` 左窄右宽，无横向溢出。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=1000 node scripts/stage8-visual-smoke.mjs` 通过，桌面 / 移动、浅色 / 深色核心页面 max document width 均未超过 viewport。
+
+剩余风险：
+
+- 本轮只修复 K 线图表布局、高度和边距，不新增指标工具、绘图工具、成交点联动或完整交易分析能力。
+- 研究页、交易详情、回测详情仍未建立人工截图基线审批；本轮以 DOM 几何、canvas 像素、无横向溢出和高度稳定性作为自动验收。
+- 项目整体仍是 `scaffold`，不能升级为 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

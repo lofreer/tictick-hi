@@ -14,8 +14,8 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: clamp(180px, 22vh, 240px);
-  max-height: clamp(180px, 22dvh, 240px);
+  max-height: min(220px, 20vh);
+  max-height: min(220px, 20dvh);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -38,8 +38,11 @@
 }
 
 .research-chart-panel {
-  --research-chart-viewport-height: clamp(520px, 58vh, 760px);
-  --research-chart-viewport-height: clamp(520px, 58dvh, 760px);
+  --research-chart-viewport-height: clamp(720px, 72vh, 920px);
+  --research-chart-viewport-height: clamp(720px, 72dvh, 920px);
+  --research-chart-padding-x: 18px;
+  --research-chart-padding-top: 12px;
+  --research-chart-padding-bottom: 18px;
 
   display: flex;
   flex-direction: column;
@@ -56,35 +59,57 @@
 }
 
 .research-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
-  padding: 12px;
+  padding: 10px 12px 9px;
   border-bottom: 1px solid var(--tt-line);
 }
 
-.research-toolbar .toolbar-row {
-  flex: 1 1 620px;
+.research-toolbar-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   min-width: 0;
   max-width: 100%;
 }
 
-.research-context {
-  display: flex;
-  flex: 0 1 680px;
-  width: auto;
+.research-source-controls {
+  display: grid;
+  grid-template-columns: 128px minmax(280px, 520px) 84px auto;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
   max-width: 100%;
   min-width: 0;
-  align-items: flex-end;
-  flex-direction: column;
-  gap: 6px;
+}
+
+.research-toolbar-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.research-current-source {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .research-meta {
   display: flex;
+  flex: 1 1 560px;
+  align-items: center;
   max-width: 100%;
   min-width: 0;
   justify-content: flex-end;
@@ -92,7 +117,7 @@
   flex-wrap: wrap;
 }
 
-.research-context .n-text,
+.research-current-source,
 .research-meta .n-tag,
 .research-meta .n-button {
   max-width: 100%;
@@ -132,7 +157,7 @@
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  padding: 0 14px 14px;
+  padding: var(--research-chart-padding-top) var(--research-chart-padding-x) var(--research-chart-padding-bottom);
   overflow: hidden;
   contain: layout paint;
 }
@@ -146,10 +171,10 @@
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  height: calc(var(--research-chart-viewport-height) - 14px) !important;
-  max-height: calc(var(--research-chart-viewport-height) - 14px) !important;
-  block-size: calc(var(--research-chart-viewport-height) - 14px) !important;
-  max-block-size: calc(var(--research-chart-viewport-height) - 14px) !important;
+  height: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;
+  max-height: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;
+  block-size: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;
+  max-block-size: calc(var(--research-chart-viewport-height) - var(--research-chart-padding-top) - var(--research-chart-padding-bottom)) !important;
   overflow: hidden;
 }
 
@@ -175,15 +200,21 @@
 }
 
 .research-select {
-  width: 136px;
+  width: 100%;
+  min-width: 0;
+}
+
+.research-select--exchange {
+  max-width: 128px;
 }
 
 .research-symbol-input {
-  width: clamp(180px, 22vw, 360px);
+  width: 100%;
+  min-width: 0;
 }
 
 .research-select--compact {
-  width: 96px;
+  max-width: 84px;
 }
 
 .research-modal {
@@ -207,34 +238,70 @@
 
 @media (max-width: 760px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(420px, 62vh, 560px);
-    --research-chart-viewport-height: clamp(420px, 62dvh, 560px);
+    --research-chart-viewport-height: clamp(500px, 68vh, 660px);
+    --research-chart-viewport-height: clamp(500px, 68dvh, 660px);
+    --research-chart-padding-x: 12px;
+    --research-chart-padding-top: 10px;
+    --research-chart-padding-bottom: 14px;
   }
 
   .research-toolbar {
+    gap: 10px;
+  }
+
+  .research-toolbar-main,
+  .research-source-controls {
+    width: 100%;
+  }
+
+  .research-source-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .research-select--exchange,
+  .research-select--compact {
+    max-width: none;
+  }
+
+  .research-toolbar-status {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .research-toolbar .toolbar-row {
-    flex: 0 1 auto;
     width: 100%;
   }
 
-  .research-context {
-    align-items: flex-start;
-    flex: 0 1 auto;
-    width: 100%;
+  .research-current-source {
+    white-space: normal;
   }
 
   .research-meta {
+    flex: 0 1 auto;
     justify-content: flex-start;
   }
 }
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(460px, 54vh, 640px);
-    --research-chart-viewport-height: clamp(460px, 54dvh, 640px);
+    --research-chart-viewport-height: clamp(640px, 62vh, 760px);
+    --research-chart-viewport-height: clamp(640px, 62dvh, 760px);
+    --research-chart-padding-x: 14px;
+    --research-chart-padding-top: 12px;
+    --research-chart-padding-bottom: 16px;
+  }
+
+  .research-toolbar-main,
+  .research-source-controls {
+    width: 100%;
+  }
+
+  .research-source-controls {
+    grid-template-columns: 112px minmax(160px, 1fr) 76px auto;
+  }
+
+  .research-select--exchange {
+    max-width: 112px;
+  }
+
+  .research-select--compact {
+    max-width: 76px;
   }
 }
