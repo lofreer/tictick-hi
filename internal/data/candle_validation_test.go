@@ -55,11 +55,39 @@ func TestValidateCandleSeriesRejectsInvalidCandles(t *testing.T) {
 			},
 			want: "duplicate",
 		},
+		{
+			name: "non decimal value",
+			candles: []Candle{
+				testCandle(start, "10", "10", "10", "repair", "1"),
+			},
+			want: "not a decimal",
+		},
+		{
+			name: "negative value",
+			candles: []Candle{
+				testCandle(start, "10", "10", "10", "10", "-1"),
+			},
+			want: "negative",
+		},
+		{
+			name: "high below bounds",
+			candles: []Candle{
+				testCandle(start, "10", "9", "8", "10", "1"),
+			},
+			want: "high value is below",
+		},
+		{
+			name: "low above bounds",
+			candles: []Candle{
+				testCandle(start, "10", "12", "11", "10", "1"),
+			},
+			want: "low value is above",
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateCandleSeries(tc.candles, "1m")
+			err := ValidateCandleSeries(tc.candles, "1m")
 			if tc.want == "" && err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

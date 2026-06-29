@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 	wantCursor := latest.Add(2 * time.Minute)
 	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, true, "crashed-worker")
 	for minute := -2; minute <= 0; minute++ {
-		insertIntegrationCandle(t, ctx, store, integrationResumeCandle(symbol, latest.Add(time.Duration(minute)*time.Minute), "old"))
+		insertIntegrationCandle(t, ctx, store, integrationResumeCandle(symbol, latest.Add(time.Duration(minute)*time.Minute), "1.2"))
 	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := testContext(t)
@@ -53,11 +54,11 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 
 	client := &recordingIntegrationMarketClient{
 		candles: []data.Candle{
-			integrationResumeCandle(symbol, latest.Add(-2*time.Minute), "new"),
-			integrationResumeCandle(symbol, latest.Add(-1*time.Minute), "new"),
-			integrationResumeCandle(symbol, latest, "new"),
-			integrationResumeCandle(symbol, latest.Add(time.Minute), "new"),
-			integrationResumeCandle(symbol, wantCursor, "new"),
+			integrationResumeCandle(symbol, latest.Add(-2*time.Minute), "1.8"),
+			integrationResumeCandle(symbol, latest.Add(-1*time.Minute), "1.8"),
+			integrationResumeCandle(symbol, latest, "1.8"),
+			integrationResumeCandle(symbol, latest.Add(time.Minute), "1.8"),
+			integrationResumeCandle(symbol, wantCursor, "1.8"),
 		},
 	}
 	runner := datasync.NewRunner(
@@ -66,7 +67,7 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 		datasync.Config{
 			WorkerID:          "restart-worker",
 			LeaseTTL:          time.Minute,
-			HeartbeatInterval: time.Millisecond,
+			HeartbeatInterval: time.Second,
 			BatchLimit:        10,
 			OverlapCandles:    2,
 		},
@@ -145,7 +146,7 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 		wantCursor,
 	)
 	for _, candle := range candles {
-		if candle.Close != "new" {
+		if normalizeDecimalText(candle.Close) != "1.8" {
 			t.Fatalf("overlap candle should be updated by upsert, got %#v", candle)
 		}
 	}
@@ -170,6 +171,15 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 	if listed.DataHealth != data.DataSyncHealthSyncing {
 		t.Fatalf("listed data health = %q, want syncing", listed.DataHealth)
 	}
+}
+
+func normalizeDecimalText(value string) string {
+	value = strings.TrimRight(value, "0")
+	value = strings.TrimRight(value, ".")
+	if value == "" {
+		return "0"
+	}
+	return value
 }
 
 func TestIntegrationSaveDataSyncResultKeepsFutureExchangeBackoff(t *testing.T) {

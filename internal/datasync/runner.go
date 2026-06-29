@@ -196,6 +196,9 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	if err != nil {
 		return err
 	}
+	if err := data.ValidateCandleSeries(candles, task.Interval); err != nil {
+		return fmt.Errorf("validate fetched candles: %w", err)
+	}
 
 	cursorOpenTime := nextCursorOpenTime(task, duration, candles)
 	if err := runner.repository.HeartbeatDataSyncTask(ctx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
