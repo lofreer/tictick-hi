@@ -12,11 +12,6 @@ export function readPixelSize(element: HTMLElement, property: "width" | "height"
   return value;
 }
 
-export function readChartGutter(style: CSSStyleDeclaration, property: string) {
-  const value = Number.parseFloat(style.getPropertyValue(property));
-  return Number.isFinite(value) && value > 0 ? value : 0;
-}
-
 export function positiveFloor(value: number) {
   const floored = Math.floor(value);
   return floored > 0 ? floored : null;

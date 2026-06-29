@@ -28,7 +28,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
-import { positiveFloor, readChartGutter, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
+import { positiveFloor, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
 import "./TradingViewChart.css";
 
 const props = defineProps<{
@@ -318,12 +318,11 @@ function readHostSize(): { width: number; height: number } | null {
   const bounds = host.getBoundingClientRect();
   const measuredWidth = readHostWidth(host, bounds);
   const measuredHeight = readHostHeight(host, bounds);
-  const gutters = readChartGutters(host);
   const width = measuredWidth === null ? null : positiveFloor(measuredWidth);
   const height = measuredHeight === null ? null : positiveFloor(measuredHeight);
   if (width === null && height === null) return { ...fallbackSize };
-  const renderWidth = positiveFloor(width === null ? fallbackSize.width : Math.max(1, width - gutters.inlineEnd));
-  const renderHeight = positiveFloor(height === null ? fallbackSize.height : Math.max(1, height - gutters.blockEnd));
+  const renderWidth = positiveFloor(width === null ? fallbackSize.width : width);
+  const renderHeight = positiveFloor(height === null ? fallbackSize.height : height);
   if (renderWidth === null || renderHeight === null) return null;
 
   return { width: renderWidth, height: renderHeight };
@@ -340,14 +339,6 @@ function readHostHeight(element: HTMLElement, bounds = element.getBoundingClient
     return Math.min(declaredHeight, declaredMaxHeight);
   }
   return declaredHeight ?? declaredMaxHeight ?? readClientHeight(element) ?? positiveFloor(bounds.height);
-}
-
-function readChartGutters(element: HTMLElement) {
-  const style = window.getComputedStyle(element);
-  return {
-    inlineEnd: readChartGutter(style, "--tt-chart-inline-end-gutter"),
-    blockEnd: readChartGutter(style, "--tt-chart-block-end-gutter"),
-  };
 }
 
 function readResizeHost() {

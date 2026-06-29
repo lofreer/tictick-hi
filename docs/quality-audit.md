@@ -5879,6 +5879,44 @@ Definition of Done：
 - 移动端仍需要滚动查看完整研究页上下文；本轮保证图表自身不再无限拉高和首屏桌面不裁切，不把移动端完整工作流升级为 usable。
 - 研究页仍缺完整操作语义和真实交易所长期恢复压测；项目整体仍是 `scaffold`。
 
+### 阶段 1 研究页 K 线固定槽填充修正
+
+目标等级：scaffold
+
+触发问题：
+
+- 用户在本地 `127.0.0.1:8080/research` 继续观察到 K 线图表固定容器内容被截掉。
+- 现有实现通过 `--tt-chart-inline-end-gutter` / `--tt-chart-block-end-gutter` 同时在研究页 CSS 和 `TradingViewChart` 尺寸读取中扣减右侧、底部空间；这种人为缩图会让真实图表槽、图表 root 和 lightweight-charts 渲染尺寸不一致，容易形成右侧价格轴、底部时间轴的裁切观感。
+
+修复范围：
+
+- 研究页固定图表槽仍由 `--research-chart-viewport-height` 控制高度，保持数据同步任务列表在上、K 线图表在下。
+- 移除研究页固定槽的右/底 gutter 变量，`.research-chart-body .trading-chart` 改为 `width/height: 100%` 填满固定槽。
+- `TradingViewChart` 尺寸读取不再读取或扣减 gutter，只使用外部 `data-chart-viewport="fixed"` 宿主的真实宽高。
+- `TradingViewChart.css` 中图表 root 改为 `width/height: 100%`，避免父层和组件自身重复缩小绘图区。
+- `ResearchPage.layout.test.ts` 和 `scripts/check-research-chart-layout.sh` 禁止研究页重新声明旧 gutter 变量，并断言图表 root 填满固定槽。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- TradingViewChart ResearchPage.layout` 通过，23 个测试文件、120 条测试通过。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `pnpm --dir web/frontend run test` 通过，23 个测试文件、120 条测试通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api` 通过，并已重启本地 `api` 容器。
+- `http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，`http://127.0.0.1:8080/research` 返回 200。
+- 新 8080 构建下 `node scripts/research-chart-height-smoke.mjs http://127.0.0.1:8080/research` 通过：1440x900、2048x1152、812x1320、390x844 均稳定，且 `body/chart/tv` 等高。
+- Headless Chrome 812x1320 截图复验：`.research-chart-body`、`.trading-chart`、`.trading-chart__canvas`、`.tv-lightweight-charts` 均为 `778x480`，右侧价格轴和底部时间轴 canvas 均在固定槽内。
+
+剩余风险：
+
+- 本轮修复的是研究页 K 线固定槽裁切/缩图问题，不补齐完整图表工具、指标层、全主题/全语言视觉矩阵或人工像素快照基线。
+- 移动端仍需要滚动查看完整研究页上下文；研究页和项目整体仍是 `scaffold`，不能升级。
+
 ### 阶段 1 数据同步删除与临时重试竞态补充
 
 目标等级：scaffold
