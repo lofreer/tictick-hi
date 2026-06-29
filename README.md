@@ -40,6 +40,8 @@ This runs the protocol's common checks in one repeatable entrypoint: Go tests, G
 FULL_QUALITY_STAGE8=1 FULL_QUALITY_SIGTERM=1 scripts/full-quality-gate.sh
 ```
 
+The same default full gate runs in GitHub Actions on pull requests, pushes to `main`, and manual dispatches.
+
 ## Local Docker
 
 Create local environment values:
