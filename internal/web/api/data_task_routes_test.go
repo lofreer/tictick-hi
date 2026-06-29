@@ -245,6 +245,44 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		t.Fatalf("invalid bad code status = %d body = %s", invalidBadCodeRecorder.Code, invalidBadCodeRecorder.Body.String())
 	}
 
+	repairInvalidRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-invalid-issues",
+		`{"code":"invalid_close_price","from":"`+secondInvalidOpenTime.Format(time.RFC3339)+`","to":"`+secondInvalidOpenTime.Format(time.RFC3339)+`"}`,
+	)
+	if repairInvalidRecorder.Code != http.StatusOK {
+		t.Fatalf("repair invalid status = %d body = %s", repairInvalidRecorder.Code, repairInvalidRecorder.Body.String())
+	}
+	var repairInvalidResult data.DataSyncGapRepairResult
+	if err := json.NewDecoder(repairInvalidRecorder.Body).Decode(&repairInvalidResult); err != nil {
+		t.Fatal(err)
+	}
+	if repairInvalidResult.SourceTaskID != created.ID ||
+		len(repairInvalidResult.CreatedTasks) != 1 ||
+		repairInvalidResult.TotalCount != 1 ||
+		repairInvalidResult.RepairLimit != 20 ||
+		repairInvalidResult.CreatedTasks[0].StartTime == nil ||
+		!repairInvalidResult.CreatedTasks[0].StartTime.Equal(secondInvalidOpenTime) ||
+		repairInvalidResult.CreatedTasks[0].EndTime == nil ||
+		!repairInvalidResult.CreatedTasks[0].EndTime.Equal(secondInvalidOpenTime.Add(time.Minute)) ||
+		repairInvalidResult.CreatedTasks[0].RepairSourceTaskID != created.ID ||
+		!repairInvalidResult.CreatedTasks[0].SyncEnabled {
+		t.Fatalf("unexpected invalid repair result: %#v", repairInvalidResult)
+	}
+
+	invalidRepairBadCodeRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-invalid-issues",
+		`{"code":"unknown"}`,
+	)
+	if invalidRepairBadCodeRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid repair bad code status = %d body = %s", invalidRepairBadCodeRecorder.Code, invalidRepairBadCodeRecorder.Body.String())
+	}
+
 	repairRecorder := serveAuthenticated(
 		server,
 		cookie,

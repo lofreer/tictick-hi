@@ -57,6 +57,14 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		server.repairDataTaskGaps(w, r, parts[3])
 		return
 	}
+	if len(parts) == 5 && parts[4] == "repair-invalid-issues" {
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
+		server.repairDataTaskInvalidIssues(w, r, parts[3])
+		return
+	}
 	if len(parts) == 5 && parts[4] == "repair-gap" {
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w, http.MethodPost)
@@ -194,6 +202,24 @@ func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
 }
 
+func (server *Server) repairDataTaskInvalidIssues(w http.ResponseWriter, r *http.Request, id string) {
+	var request data.RepairDataSyncInvalidIssuesRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateRepairDataSyncInvalidIssuesRequest(request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := server.repository.RepairDataSyncTaskInvalidIssues(r.Context(), id, request)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
 func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, id string) {
 	var request data.RepairDataSyncTaskGapRequest
 	if err := readJSON(r, &request); err != nil {
@@ -298,6 +324,16 @@ func parseDataSyncInvalidIssueQuery(r *http.Request) (data.DataSyncInvalidIssueQ
 	query.From = from
 	query.To = to
 	return data.NormalizeDataSyncInvalidIssueQuery(query), nil
+}
+
+func validateRepairDataSyncInvalidIssuesRequest(request data.RepairDataSyncInvalidIssuesRequest) error {
+	if request.Code != "" && !data.IsCandleIssueCode(request.Code) {
+		return errors.New("code must be a known invalid candle issue")
+	}
+	if request.From != nil && request.To != nil && request.From.After(*request.To) {
+		return errors.New("from must be before or equal to to")
+	}
+	return nil
 }
 
 type taskCommand struct {

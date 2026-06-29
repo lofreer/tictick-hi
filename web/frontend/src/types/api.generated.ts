@@ -41,6 +41,7 @@ export type Operator = { createdAt: string; enabled: boolean; id: string; update
 export type OperatorSession = { createdAt: string; current: boolean; expiresAt: string; id: string; operatorId?: string; };
 export type Order = { accountId: string; createdAt: string; exchange: string; exchangeOrderId?: string; exchangeResponseSummary: Record<string, unknown>; id: string; idempotencyKey: string; intentId?: string; lastError?: string; orderType: string; price: string; quantity: string; side: string; status: string; symbol: string; taskId: string; taskType: string; updatedAt: string; };
 export type Position = { accountId: string; averagePrice: string; exchange: string; quantity: string; realizedPnl: string; symbol: string; taskId: string; taskType: string; updatedAt: string; };
+export type RepairDataSyncInvalidIssuesRequest = { code?: string; from?: string; to?: string; };
 export type RepairDataSyncTaskGapRequest = { from: string; to: string; };
 export type RepairMarketCandleGapRequest = { exchange: string; from: string; interval: string; symbol: string; to: string; };
 export type RepairMarketCandleGapWindow = { from: string; to: string; };

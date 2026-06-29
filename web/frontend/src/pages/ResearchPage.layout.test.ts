@@ -213,7 +213,7 @@ describe("ResearchPage chart layout contract", () => {
   it("keeps task invalid issue details reachable from the research page", () => {
     expect(source).toContain('import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";');
     expect(source).toContain('@view-invalid="viewTaskInvalidIssues"');
-    expect(source).toContain('<ResearchTaskInvalidIssueModal ref="invalidIssueModal" />');
+    expect(source).toContain('<ResearchTaskInvalidIssueModal ref="invalidIssueModal" @repaired="loadTasks" />');
   });
 });
 

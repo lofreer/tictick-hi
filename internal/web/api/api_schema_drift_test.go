@@ -30,6 +30,7 @@ func TestFrontendAPIRequestTypesMatchContractSchemas(t *testing.T) {
 	}{
 		{"LoginRequest", "LoginRequest"},
 		{"CreateDataSyncTask", "CreateDataSyncTask"},
+		{"RepairDataSyncInvalidIssuesRequest", "RepairDataSyncInvalidIssuesRequest"},
 		{"RepairMarketCandleGapRequest", "RepairMarketCandleGapRequest"},
 		{"RepairMarketCandleGapsRequest", "RepairMarketCandleGapsRequest"},
 		{"CreateBacktestTask", "CreateBacktestTask"},
@@ -108,6 +109,7 @@ func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
 		"export type DataSyncInvalidIssueList = APIDataSyncInvalidIssueList;",
 		"export type MarketCandleGapScan = APIMarketCandleGapScan;",
 		"export type MarketInstrumentSyncStatus = APIMarketInstrumentSyncStatus;",
+		"export type RepairDataSyncInvalidIssuesRequest = APIRepairDataSyncInvalidIssuesRequest;",
 		"export type RepairMarketCandleGapRequest = APIRepairMarketCandleGapRequest;",
 		"export type RepairMarketCandleGapsRequest = APIRepairMarketCandleGapsRequest;",
 		"export type CreateDataSyncTask = APICreateDataSyncTask;",

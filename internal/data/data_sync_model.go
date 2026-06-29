@@ -140,6 +140,12 @@ type RepairDataSyncTaskGapRequest struct {
 	To   time.Time `json:"to"`
 }
 
+type RepairDataSyncInvalidIssuesRequest struct {
+	Code string     `json:"code,omitempty"`
+	From *time.Time `json:"from,omitempty"`
+	To   *time.Time `json:"to,omitempty"`
+}
+
 type CreateDataSyncTask struct {
 	Exchange  string     `json:"exchange"`
 	Symbol    string     `json:"symbol"`

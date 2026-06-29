@@ -31,6 +31,7 @@ import type {
   OperatorSession as APIOperatorSession,
   Order as APIOrder,
   Position as APIPosition,
+  RepairDataSyncInvalidIssuesRequest as APIRepairDataSyncInvalidIssuesRequest,
   RepairDataSyncTaskGapRequest as APIRepairDataSyncTaskGapRequest,
   RepairMarketCandleGapRequest as APIRepairMarketCandleGapRequest,
   RepairMarketCandleGapsRequest as APIRepairMarketCandleGapsRequest,
@@ -57,6 +58,8 @@ export type DataSyncGapList = APIDataSyncGapList;
 export type DataSyncInvalidIssueList = APIDataSyncInvalidIssueList;
 
 export type DataSyncGapRepairResult = APIDataSyncGapRepairResult;
+
+export type RepairDataSyncInvalidIssuesRequest = APIRepairDataSyncInvalidIssuesRequest;
 
 export type RepairDataSyncTaskGapRequest = APIRepairDataSyncTaskGapRequest;
 

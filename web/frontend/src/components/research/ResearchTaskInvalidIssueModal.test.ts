@@ -9,6 +9,7 @@ import type { DataSyncTask } from "@/types/app";
 
 const dataApiMocks = vi.hoisted(() => ({
   getTaskInvalidIssues: vi.fn(),
+  repairTaskInvalidIssues: vi.fn(),
 }));
 
 vi.mock("@/services/api/data", () => ({
@@ -32,6 +33,14 @@ describe("ResearchTaskInvalidIssueModal", () => {
       returnedCount: 1,
       issueLimit: 50,
       offset: 0,
+    });
+    dataApiMocks.repairTaskInvalidIssues.mockResolvedValue({
+      sourceTaskId: "dst_1",
+      createdTasks: [{ id: "dst_repair_1" }],
+      skippedExisting: 0,
+      limited: false,
+      totalCount: 1,
+      repairLimit: 20,
     });
   });
 
@@ -139,6 +148,40 @@ describe("ResearchTaskInvalidIssueModal", () => {
       offset: 0,
       to: "2026-06-27T08:00:00.000Z",
     });
+  });
+
+  it("queues repair tasks for the current invalid issue filters", async () => {
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+    const from = Date.parse("2026-06-27T07:00:00.000Z");
+    const to = Date.parse("2026-06-27T08:00:00.000Z");
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    await wrapper.findComponent(NSelect).vm.$emit("update:value", "invalid_close_price");
+    await flushPromises();
+    await wrapper.findComponent(NDatePicker).vm.$emit("update:value", [from, to]);
+    await flushPromises();
+
+    const repairButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("排队修复当前异常"),
+    );
+    if (!repairButton) throw new Error("repair button not found");
+    repairButton.click();
+    await flushPromises();
+
+    expect(dataApi.repairTaskInvalidIssues).toHaveBeenCalledWith("dst_1", {
+      code: "invalid_close_price",
+      from: "2026-06-27T07:00:00.000Z",
+      to: "2026-06-27T08:00:00.000Z",
+    });
+    expect(wrapper.emitted("repaired")).toHaveLength(1);
+    expect(document.body.textContent).toContain("已排队 1 个异常 K 线补同步任务");
   });
 });
 

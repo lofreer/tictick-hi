@@ -53,6 +53,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodGet, "/api/data/tasks/{id}/gaps"},
 		{http.MethodGet, "/api/data/tasks/{id}/invalid-issues"},
 		{http.MethodPost, "/api/data/tasks/{id}/repair-gaps"},
+		{http.MethodPost, "/api/data/tasks/{id}/repair-invalid-issues"},
 		{http.MethodPost, "/api/data/tasks/{id}/repair-gap"},
 		{http.MethodPost, "/api/data/tasks/{id}/sync/{action}"},
 		{http.MethodPost, "/api/data/tasks/{id}/realtime/{action}"},

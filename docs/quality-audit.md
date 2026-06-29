@@ -7220,6 +7220,57 @@ Definition of Done：
 - 恢复仍依赖下一次 instrument catalog sync，不是交易所事件驱动。
 - 阶段 1 仍是 `demo`，项目整体仍是 `scaffold`。
 
+### 阶段 1 数据同步任务 invalid 补同步入口补充
+
+复核时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 研究页已经能在任务表和异常详情弹窗中展示历史异常 K 线，但用户只能查看，不能从同一研究工作流排补同步任务。
+- 历史异常行不能由前端直接清洗，也不能绕过后端检测任意创建修复窗口；补数必须继续走 `data_sync_tasks` 和 worker 同一套同步逻辑。
+
+Definition of Done：
+
+- `GET /api/data/tasks/{id}/invalid-issues` 保持只列出后端检测出的 invalid candle issue。
+- 新增 `POST /api/data/tasks/{id}/repair-invalid-issues`，只按异常类型和时间范围过滤当前真实 invalid issues，并为每个 issue 的 `open_time` 创建 `[open_time, open_time + interval]` 补同步任务。
+- 补同步任务必须写入 `repair_source_task_id`，`sync_enabled=true`，`realtime_enabled=false`，不直接修改或删除 `market_candles`。
+- 已存在同窗口 active 补同步任务时返回 `skippedExisting`，不重复创建。
+- 研究页异常详情弹窗能按当前筛选排队修复异常，并刷新任务列表。
+- 不新增 migration，不清洗历史异常行，不做自动后台修复，不把阶段 1 或项目整体升级为 usable / production-safe。
+
+改动范围：
+
+- `internal/data/data_sync_model.go` / `internal/data/model.go` 增加 invalid repair request 和 repository 方法。
+- `internal/store/postgres/sync_invalid_issue_store.go` 增加 invalid issue repair 的事务逻辑。
+- `internal/web/api/data_handlers.go`、API contract 和 fake repository 增加新路由。
+- `web/frontend/src/components/research/ResearchTaskInvalidIssueModal.vue` 增加“排队修复当前异常”入口。
+- `web/frontend/src/services/api/data.ts`、`web/frontend/src/types/api.generated.ts`、`web/frontend/src/types/app.ts` 同步新 API 类型。
+- `web/frontend/src/i18n/messages.research.zh.ts` / `messages.research.en.ts` 拆出研究页文案，避免中英文主 messages 文件超过阶段 0 文件规模门禁。
+
+验证：
+
+- `go test ./internal/web/api -run 'TestDataSyncTaskRoutes|TestAPIContract|TestAPIMethodNotAllowedContracts|TestFrontendAPI' -count=1` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegrationListDataSyncTasksReportsInvalidCandleHealth|TestIntegrationRepairDataSyncTaskInvalidIssuesConvergesSourceHealth' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.invalid.test.ts src/components/research/ResearchTaskInvalidIssueModal.test.ts src/pages/ResearchPage.layout.test.ts` 通过：3 个测试文件、17 条测试。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `cd web/frontend && pnpm run typecheck` 通过。
+- `cd web/frontend && pnpm run test` 通过：26 个测试文件、134 条测试。
+- `cd web/frontend && pnpm run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+失败项：
+
+- 首次 `scripts/quality-gate.sh` 暴露 `messages.zh.ts` / `messages.en.ts` 超过 400 行硬上限；已通过拆分研究页文案修复，并复跑通过。
+
+剩余风险：
+
+- 本轮只把 invalid issue 变成可排补同步任务；真实补数是否成功仍依赖 exchange adapter、worker 和外部网络。
+- 不自动清洗历史异常行，不自动重试 invalid repair，也不把 invalid 行纳入全历史缺口扫描。
+- 阶段 1 研究核心仍不能升级为 usable；项目整体仍是 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

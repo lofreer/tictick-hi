@@ -8,7 +8,10 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
-const maxDataSyncInvalidIssues = data.MaxDataSyncInvalidIssueLimit
+const (
+	maxDataSyncInvalidIssues           = data.MaxDataSyncInvalidIssueLimit
+	maxDataSyncInvalidIssueRepairTasks = 20
+)
 
 func (store *Store) ListDataSyncTaskInvalidIssues(
 	ctx context.Context,
@@ -34,6 +37,69 @@ func (store *Store) ListDataSyncTaskInvalidIssues(
 		IssueLimit:    query.Limit,
 		Offset:        query.Offset,
 	}, nil
+}
+
+func (store *Store) RepairDataSyncTaskInvalidIssues(
+	ctx context.Context,
+	id string,
+	request data.RepairDataSyncInvalidIssuesRequest,
+) (data.DataSyncGapRepairResult, error) {
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("begin repair data sync invalid issues: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	source, err := lockDataSyncTask(ctx, tx, id)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	duration, err := data.IntervalDuration(source.Interval)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+
+	query := dataSyncInvalidIssueRepairQuery(request)
+	issues, totalCount, err := listDataSyncInvalidIssues(ctx, tx, id, query)
+	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	result := data.DataSyncGapRepairResult{
+		SourceTaskID: source.ID,
+		CreatedTasks: []data.DataSyncTask{},
+		Limited:      totalCount > len(issues),
+		TotalCount:   totalCount,
+		RepairLimit:  maxDataSyncInvalidIssueRepairTasks,
+	}
+	for _, issue := range issues {
+		if issue.OpenTime == nil {
+			continue
+		}
+		from := issue.OpenTime.UTC()
+		window := dataSyncGapRepairWindow{
+			from:           from,
+			to:             from.Add(duration),
+			missingCandles: 1,
+		}
+		exists, err := dataSyncRepairTaskExists(ctx, tx, source, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		if exists {
+			result.SkippedExisting++
+			continue
+		}
+		task, err := insertDataSyncRepairTask(ctx, tx, source, window)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		result.CreatedTasks = append(result.CreatedTasks, task)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return data.DataSyncGapRepairResult{}, fmt.Errorf("commit repair data sync invalid issues: %w", err)
+	}
+	return result, nil
 }
 
 func listDataSyncInvalidIssues(
@@ -102,6 +168,22 @@ func listDataSyncInvalidIssues(
 	}
 
 	return issues, totalCount, nil
+}
+
+func dataSyncInvalidIssueRepairQuery(request data.RepairDataSyncInvalidIssuesRequest) data.DataSyncInvalidIssueQuery {
+	query := data.DataSyncInvalidIssueQuery{
+		Limit: maxDataSyncInvalidIssueRepairTasks,
+		Code:  request.Code,
+	}
+	if request.From != nil {
+		value := request.From.UTC()
+		query.From = &value
+	}
+	if request.To != nil {
+		value := request.To.UTC()
+		query.To = &value
+	}
+	return query
 }
 
 func dataSyncInvalidIssueTimeBounds(query data.DataSyncInvalidIssueQuery) (any, any) {

@@ -143,6 +143,78 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 	}
 }
 
+func TestIntegrationRepairDataSyncTaskInvalidIssuesConvergesSourceHealth(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 8, 0, 0, 0, time.UTC)
+	taskID := integrationID("dst")
+	symbol := integrationSymbol("DINV")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		ensurePositivePriceConstraint(t, cleanupCtx, store)
+	})
+
+	insertDataHealthTaskWindow(t, ctx, store, taskID, symbol, data.TaskStatusSucceeded, false, false, &start, nil, ptrTime(start.Add(3*time.Minute)), nil, "")
+	for _, minute := range []int{0, 1, 3} {
+		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
+	}
+	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(2*time.Minute))
+
+	before := findListedDataSyncTask(t, ctx, store, taskID)
+	if before.DataHealth != data.DataSyncHealthInvalid || before.InvalidSummary == nil {
+		t.Fatalf("source health before invalid repair = %q summary=%#v, want invalid", before.DataHealth, before.InvalidSummary)
+	}
+
+	repair, err := store.RepairDataSyncTaskInvalidIssues(ctx, taskID, data.RepairDataSyncInvalidIssuesRequest{
+		Code: "invalid_open_price",
+		From: ptrTime(start.Add(2 * time.Minute)),
+		To:   ptrTime(start.Add(2 * time.Minute)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repair.SourceTaskID != taskID ||
+		repair.TotalCount != 1 ||
+		repair.RepairLimit != maxDataSyncInvalidIssueRepairTasks ||
+		len(repair.CreatedTasks) != 1 {
+		t.Fatalf("unexpected invalid repair result: %#v", repair)
+	}
+	repairTask := repair.CreatedTasks[0]
+	assertRepairTaskWindow(t, repairTask, taskID, start.Add(2*time.Minute), start.Add(3*time.Minute))
+
+	duplicate, err := store.RepairDataSyncTaskInvalidIssues(ctx, taskID, data.RepairDataSyncInvalidIssuesRequest{
+		Code: "invalid_open_price",
+		From: ptrTime(start.Add(2 * time.Minute)),
+		To:   ptrTime(start.Add(2 * time.Minute)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(duplicate.CreatedTasks) != 0 || duplicate.SkippedExisting != 1 {
+		t.Fatalf("duplicate invalid repair result = %#v, want skipped existing", duplicate)
+	}
+
+	lastRepairOpenTime := start.Add(2 * time.Minute)
+	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
+		TaskID:       repairTask.ID,
+		Candles:      []data.Candle{integrationDataHealthCandle(symbol, start, 2)},
+		LastOpenTime: &lastRepairOpenTime,
+		Completed:    true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	converged := findListedDataSyncTask(t, ctx, store, taskID)
+	if converged.DataHealth != data.DataSyncHealthOK || converged.InvalidSummary != nil || converged.GapSummary != nil {
+		t.Fatalf("source health after invalid repair = %q invalid=%#v gap=%#v, want ok", converged.DataHealth, converged.InvalidSummary, converged.GapSummary)
+	}
+}
+
 func insertLegacyInvalidDataHealthCandle(t *testing.T, ctx context.Context, store *Store, symbol string, openTime time.Time) {
 	t.Helper()
 	dropPositivePriceConstraint(t, ctx, store)

@@ -247,7 +247,7 @@
       </template>
     </NModal>
 
-    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" />
+    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" @repaired="loadTasks" />
   </section>
 </template>
 

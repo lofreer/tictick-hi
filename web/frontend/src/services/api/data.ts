@@ -13,6 +13,7 @@ import type {
   DataSyncInvalidIssueList,
   DataSyncTask,
   MarketCandleGapScan,
+  RepairDataSyncInvalidIssuesRequest,
   RepairDataSyncTaskGapRequest,
   RepairMarketCandleGapRequest,
   RepairMarketCandleGapsRequest,
@@ -83,6 +84,11 @@ export const dataApi = {
 
   async repairTaskGaps(id: string): Promise<DataSyncGapRepairResult> {
     const response = await apiClient.post<DataSyncGapRepairResult>(`/data/tasks/${id}/repair-gaps`);
+    return normalizeGapRepairResult(response);
+  },
+
+  async repairTaskInvalidIssues(id: string, request: RepairDataSyncInvalidIssuesRequest): Promise<DataSyncGapRepairResult> {
+    const response = await apiClient.post<DataSyncGapRepairResult>(`/data/tasks/${id}/repair-invalid-issues`, request);
     return normalizeGapRepairResult(response);
   },
 

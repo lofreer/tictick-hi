@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"strconv"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -32,6 +34,65 @@ func (repository *fakeRepository) ListDataSyncTaskInvalidIssues(
 		return paginateDataSyncInvalidIssueList(result, query), nil
 	}
 	return data.DataSyncInvalidIssueList{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) RepairDataSyncTaskInvalidIssues(
+	_ context.Context,
+	id string,
+	request data.RepairDataSyncInvalidIssuesRequest,
+) (data.DataSyncGapRepairResult, error) {
+	for index := range repository.tasks {
+		if repository.tasks[index].ID != id {
+			continue
+		}
+		duration, err := data.IntervalDuration(repository.tasks[index].Interval)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		query := dataSyncInvalidIssueRepairQuery(request)
+		detail, err := repository.ListDataSyncTaskInvalidIssues(context.Background(), id, query)
+		if err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
+		result := data.DataSyncGapRepairResult{
+			SourceTaskID: repository.tasks[index].ID,
+			CreatedTasks: []data.DataSyncTask{},
+			Limited:      detail.Limited,
+			TotalCount:   detail.TotalCount,
+			RepairLimit:  query.Limit,
+		}
+		for _, issue := range detail.Issues {
+			if issue.OpenTime == nil {
+				continue
+			}
+			from := issue.OpenTime.UTC()
+			gap := data.CandleGap{From: from, To: from.Add(duration), MissingCandles: 1}
+			if repository.fakeRepairTaskExists(repository.tasks[index], gap) {
+				result.SkippedExisting++
+				continue
+			}
+			now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			repairTask := data.DataSyncTask{
+				ID:                 "dst_invalid_repair_" + strconv.Itoa(len(repository.tasks)+1),
+				Exchange:           repository.tasks[index].Exchange,
+				Symbol:             repository.tasks[index].Symbol,
+				Interval:           repository.tasks[index].Interval,
+				StartTime:          &gap.From,
+				EndTime:            &gap.To,
+				RepairSourceTaskID: repository.tasks[index].ID,
+				SyncEnabled:        true,
+				RealtimeEnabled:    false,
+				Status:             data.TaskStatusPending,
+				DataHealth:         data.DataSyncHealthSyncing,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+			repository.tasks = append(repository.tasks, repairTask)
+			result.CreatedTasks = append(result.CreatedTasks, repairTask)
+		}
+		return result, nil
+	}
+	return data.DataSyncGapRepairResult{}, data.ErrNotFound
 }
 
 func cloneDataSyncInvalidIssueList(value data.DataSyncInvalidIssueList) data.DataSyncInvalidIssueList {
@@ -79,6 +140,17 @@ func paginateDataSyncInvalidIssueList(
 	value.Offset = query.Offset
 	value.Limited = query.Offset+len(value.Issues) < totalCount
 	return value
+}
+
+func dataSyncInvalidIssueRepairQuery(request data.RepairDataSyncInvalidIssuesRequest) data.DataSyncInvalidIssueQuery {
+	query := data.DataSyncInvalidIssueQuery{
+		Limit:  20,
+		Code:   request.Code,
+		From:   request.From,
+		To:     request.To,
+		Offset: 0,
+	}
+	return data.NormalizeDataSyncInvalidIssueQuery(query)
 }
 
 func hasDataSyncInvalidIssueFilters(query data.DataSyncInvalidIssueQuery) bool {

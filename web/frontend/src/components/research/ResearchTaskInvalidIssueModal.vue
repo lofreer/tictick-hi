@@ -29,20 +29,22 @@
     <NDataTable v-else :columns="columns" :data="details.issues" :bordered="false" size="small" />
     <template #footer>
       <NSpace align="center" justify="space-between">
-        <NTag
-          v-if="details && details.totalCount > 0"
-          :bordered="false"
-          :type="details.limited ? 'warning' : 'default'"
-        >
-          {{
-            t("research.invalidIssueDetailsLimited", {
-              returned: displayedIssueCount,
-              total: details.totalCount,
-              limit: details.issueLimit,
-            })
-          }}
-        </NTag>
-        <span v-else />
+        <NSpace align="center">
+          <NTag
+            v-if="details && details.totalCount > 0"
+            :bordered="false"
+            :type="details.limited ? 'warning' : 'default'"
+          >
+            {{
+              t("research.invalidIssueDetailsLimited", {
+                returned: displayedIssueCount,
+                total: details.totalCount,
+                limit: details.issueLimit,
+              })
+            }}
+          </NTag>
+          <NText v-if="repairNotice" :type="repairNoticeType">{{ repairNotice }}</NText>
+        </NSpace>
         <NSpace align="center" justify="end">
           <NPagination
             v-if="pageCount > 1"
@@ -52,6 +54,16 @@
             size="small"
             @update:page="changePage"
           />
+          <NButton
+            v-if="details && details.totalCount > 0"
+            :loading="repairLoading"
+            secondary
+            size="small"
+            type="warning"
+            @click="repairInvalidIssues"
+          >
+            {{ t("research.repairInvalidIssues") }}
+          </NButton>
           <NButton @click="modalOpen = false">{{ t("common.close") }}</NButton>
         </NSpace>
       </NSpace>
@@ -81,13 +93,18 @@ import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
 import type { CandleIssue, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
+import type { RepairDataSyncInvalidIssuesRequest } from "@/types/app";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const { t } = useI18n();
+const emit = defineEmits<{ repaired: [] }>();
 
 const modalOpen = ref(false);
 const loading = ref(false);
+const repairLoading = ref(false);
 const error = ref("");
+const repairNotice = ref("");
+const repairNoticeType = ref<"success" | "error" | "warning" | "default">("default");
 const task = ref<DataSyncTask | null>(null);
 const details = ref<DataSyncInvalidIssueList | null>(null);
 const page = ref(1);
@@ -142,6 +159,8 @@ async function open(nextTask: DataSyncTask) {
   task.value = nextTask;
   details.value = null;
   error.value = "";
+  repairNotice.value = "";
+  repairNoticeType.value = "default";
   page.value = 1;
   issueCode.value = null;
   timeRange.value = null;
@@ -180,16 +199,57 @@ async function changePage(nextPage: number) {
 
 async function applyFilters() {
   if (!task.value) return;
+  repairNotice.value = "";
   page.value = 1;
   await load(task.value);
 }
 
 async function resetFilters() {
   if (!task.value) return;
+  repairNotice.value = "";
   issueCode.value = null;
   timeRange.value = null;
   page.value = 1;
   await load(task.value);
+}
+
+async function repairInvalidIssues() {
+  if (!task.value || repairLoading.value) return;
+  repairLoading.value = true;
+  repairNotice.value = "";
+  repairNoticeType.value = "default";
+  try {
+    const result = await dataApi.repairTaskInvalidIssues(task.value.id, currentRepairRequest());
+    if (result.createdTasks.length > 0) {
+      repairNotice.value = t("research.invalidIssueRepairQueued", { count: result.createdTasks.length });
+      repairNoticeType.value = "success";
+    } else if (result.skippedExisting > 0) {
+      repairNotice.value = t("research.invalidIssueRepairAlreadyQueued");
+      repairNoticeType.value = "success";
+    } else {
+      repairNotice.value = t("research.noRepairableInvalidIssues");
+      repairNoticeType.value = "warning";
+    }
+    emit("repaired");
+    await load(task.value);
+  } catch {
+    repairNotice.value = t("research.invalidIssueRepairFailed");
+    repairNoticeType.value = "error";
+  } finally {
+    repairLoading.value = false;
+  }
+}
+
+function currentRepairRequest(): RepairDataSyncInvalidIssuesRequest {
+  const request: RepairDataSyncInvalidIssuesRequest = {};
+  if (issueCode.value) {
+    request.code = issueCode.value;
+  }
+  if (timeRange.value) {
+    request.from = new Date(timeRange.value[0]).toISOString();
+    request.to = new Date(timeRange.value[1]).toISOString();
+  }
+  return request;
 }
 
 function invalidIssueLabel(code?: string, fallback?: string) {
