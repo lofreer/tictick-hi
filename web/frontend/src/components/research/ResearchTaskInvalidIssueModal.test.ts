@@ -1,5 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { NPagination } from "naive-ui";
+import { NDatePicker, NPagination, NSelect } from "naive-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
@@ -107,6 +107,38 @@ describe("ResearchTaskInvalidIssueModal", () => {
     expect(dataApi.getTaskInvalidIssues).toHaveBeenNthCalledWith(2, "dst_1", { limit: 50, offset: 50 });
     expect(document.body.textContent).toContain("收盘价必须为正");
     expect(document.body.textContent).toContain("已显示 51/51 个异常");
+  });
+
+  it("reloads invalid issues with code and time filters", async () => {
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+    const from = Date.parse("2026-06-27T07:00:00.000Z");
+    const to = Date.parse("2026-06-27T08:00:00.000Z");
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    await wrapper.findComponent(NSelect).vm.$emit("update:value", "invalid_close_price");
+    await flushPromises();
+    await wrapper.findComponent(NDatePicker).vm.$emit("update:value", [from, to]);
+    await flushPromises();
+
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenNthCalledWith(2, "dst_1", {
+      code: "invalid_close_price",
+      limit: 50,
+      offset: 0,
+    });
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenNthCalledWith(3, "dst_1", {
+      code: "invalid_close_price",
+      from: "2026-06-27T07:00:00.000Z",
+      limit: 50,
+      offset: 0,
+      to: "2026-06-27T08:00:00.000Z",
+    });
   });
 });
 

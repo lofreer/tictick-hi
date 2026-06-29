@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -199,6 +200,30 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		t.Fatalf("unexpected invalid issue list: %#v", invalidList)
 	}
 
+	filteredInvalidRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/data/tasks/"+created.ID+"/invalid-issues?code=invalid_close_price&from="+url.QueryEscape(secondInvalidOpenTime.Format(time.RFC3339))+"&to="+url.QueryEscape(secondInvalidOpenTime.Format(time.RFC3339)),
+		"",
+	)
+	if filteredInvalidRecorder.Code != http.StatusOK {
+		t.Fatalf("filtered invalid issues status = %d body = %s", filteredInvalidRecorder.Code, filteredInvalidRecorder.Body.String())
+	}
+	var filteredInvalidList data.DataSyncInvalidIssueList
+	if err := json.NewDecoder(filteredInvalidRecorder.Body).Decode(&filteredInvalidList); err != nil {
+		t.Fatal(err)
+	}
+	if filteredInvalidList.TaskID != created.ID ||
+		filteredInvalidList.Limited ||
+		filteredInvalidList.TotalCount != 1 ||
+		filteredInvalidList.ReturnedCount != 1 ||
+		filteredInvalidList.Issues[0].Code != "invalid_close_price" ||
+		filteredInvalidList.Issues[0].OpenTime == nil ||
+		!filteredInvalidList.Issues[0].OpenTime.Equal(secondInvalidOpenTime) {
+		t.Fatalf("unexpected filtered invalid issue list: %#v", filteredInvalidList)
+	}
+
 	invalidBadQueryRecorder := serveAuthenticated(
 		server,
 		cookie,
@@ -208,6 +233,16 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	)
 	if invalidBadQueryRecorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid bad query status = %d body = %s", invalidBadQueryRecorder.Code, invalidBadQueryRecorder.Body.String())
+	}
+	invalidBadCodeRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/data/tasks/"+created.ID+"/invalid-issues?code=unknown",
+		"",
+	)
+	if invalidBadCodeRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid bad code status = %d body = %s", invalidBadCodeRecorder.Code, invalidBadCodeRecorder.Body.String())
 	}
 
 	repairRecorder := serveAuthenticated(

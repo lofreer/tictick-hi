@@ -42,18 +42,26 @@ func listDataSyncInvalidIssues(
 	id string,
 	query data.DataSyncInvalidIssueQuery,
 ) ([]data.CandleIssue, int, error) {
+	from, to := dataSyncInvalidIssueTimeBounds(query)
+	const invalidFilterSQL = `
+		 WHERE invalid_code IS NOT NULL
+		   AND ($2 = '' OR invalid_code = $2)
+		   AND ($3::timestamptz IS NULL OR open_time >= $3)
+		   AND ($4::timestamptz IS NULL OR open_time <= $4)`
+
 	var totalCount int
 	if err := queryer.QueryRow(ctx, fmt.Sprintf(`
 		WITH %s
 		SELECT COUNT(*)
 		  FROM ordered_candles
-		 WHERE invalid_code IS NOT NULL`,
+		%s`,
 		dataSyncTaskWindowGapCTESQL(`
 			SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time
 			  FROM data_sync_tasks AS t
 			 WHERE t.id = $1
 			   AND t.deleted_at IS NULL`),
-	), id).Scan(&totalCount); err != nil {
+		invalidFilterSQL,
+	), id, query.Code, from, to).Scan(&totalCount); err != nil {
 		return nil, 0, fmt.Errorf("count data sync invalid issues: %w", err)
 	}
 	if totalCount == 0 || query.Offset >= totalCount {
@@ -64,15 +72,16 @@ func listDataSyncInvalidIssues(
 		WITH %s
 		SELECT open_time, invalid_code, invalid_message
 		  FROM ordered_candles
-		 WHERE invalid_code IS NOT NULL
+		%s
 		 ORDER BY open_time
-		 LIMIT $2 OFFSET $3`,
+		 LIMIT $5 OFFSET $6`,
 		dataSyncTaskWindowGapCTESQL(`
 			SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time
 			  FROM data_sync_tasks AS t
 			 WHERE t.id = $1
 			   AND t.deleted_at IS NULL`),
-	), id, query.Limit, query.Offset)
+		invalidFilterSQL,
+	), id, query.Code, from, to, query.Limit, query.Offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list data sync invalid issues: %w", err)
 	}
@@ -93,4 +102,18 @@ func listDataSyncInvalidIssues(
 	}
 
 	return issues, totalCount, nil
+}
+
+func dataSyncInvalidIssueTimeBounds(query data.DataSyncInvalidIssueQuery) (any, any) {
+	var from any
+	if query.From != nil {
+		value := query.From.UTC()
+		from = value
+	}
+	var to any
+	if query.To != nil {
+		value := query.To.UTC()
+		to = value
+	}
+	return from, to
 }

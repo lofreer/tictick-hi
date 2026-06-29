@@ -5,6 +5,16 @@ import "time"
 type DataSyncHealth string
 type DataSyncMarketStatus string
 
+var candleIssueCodes = []string{
+	"invalid_open_price",
+	"invalid_high_price",
+	"invalid_low_price",
+	"invalid_close_price",
+	"invalid_volume",
+	"invalid_high_bound",
+	"invalid_low_bound",
+}
+
 const (
 	DataSyncHealthOK           DataSyncHealth = "ok"
 	DataSyncHealthSyncing      DataSyncHealth = "syncing"
@@ -85,6 +95,9 @@ type DataSyncInvalidIssueList struct {
 type DataSyncInvalidIssueQuery struct {
 	Limit  int
 	Offset int
+	Code   string
+	From   *time.Time
+	To     *time.Time
 }
 
 func NormalizeDataSyncInvalidIssueQuery(query DataSyncInvalidIssueQuery) DataSyncInvalidIssueQuery {
@@ -98,6 +111,19 @@ func NormalizeDataSyncInvalidIssueQuery(query DataSyncInvalidIssueQuery) DataSyn
 		query.Offset = 0
 	}
 	return query
+}
+
+func CandleIssueCodes() []string {
+	return append([]string(nil), candleIssueCodes...)
+}
+
+func IsCandleIssueCode(value string) bool {
+	for _, code := range candleIssueCodes {
+		if value == code {
+			return true
+		}
+	}
+	return false
 }
 
 type DataSyncGapRepairResult struct {

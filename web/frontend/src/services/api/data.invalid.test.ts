@@ -26,7 +26,13 @@ describe("data api invalid details", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(dataApi.getTaskInvalidIssues("dst_1", { limit: 50, offset: 50 })).resolves.toEqual({
+    await expect(dataApi.getTaskInvalidIssues("dst_1", {
+      code: "invalid_close_price",
+      from: "2026-06-27T07:00:00.000Z",
+      limit: 50,
+      offset: 50,
+      to: "2026-06-27T08:00:00.000Z",
+    })).resolves.toEqual({
       taskId: "dst_1",
       issues: [
         {
@@ -42,7 +48,7 @@ describe("data api invalid details", () => {
       offset: 50,
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/data/tasks/dst_1/invalid-issues?limit=50&offset=50",
+      "/api/data/tasks/dst_1/invalid-issues?limit=50&offset=50&code=invalid_close_price&from=2026-06-27T07%3A00%3A00.000Z&to=2026-06-27T08%3A00%3A00.000Z",
       expect.objectContaining({ method: "GET" }),
     );
   });

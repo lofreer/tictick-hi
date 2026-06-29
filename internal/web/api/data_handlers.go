@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/errtext"
@@ -277,6 +278,25 @@ func parseDataSyncInvalidIssueQuery(r *http.Request) (data.DataSyncInvalidIssueQ
 		}
 		query.Offset = offset
 	}
+	if rawCode := strings.TrimSpace(values.Get("code")); rawCode != "" {
+		if !data.IsCandleIssueCode(rawCode) {
+			return data.DataSyncInvalidIssueQuery{}, errors.New("code must be a known invalid candle issue")
+		}
+		query.Code = rawCode
+	}
+	from, err := parseOptionalTime(values.Get("from"))
+	if err != nil {
+		return data.DataSyncInvalidIssueQuery{}, fmt.Errorf("from: %w", err)
+	}
+	to, err := parseOptionalTime(values.Get("to"))
+	if err != nil {
+		return data.DataSyncInvalidIssueQuery{}, fmt.Errorf("to: %w", err)
+	}
+	if from != nil && to != nil && from.After(*to) {
+		return data.DataSyncInvalidIssueQuery{}, errors.New("from must be before or equal to to")
+	}
+	query.From = from
+	query.To = to
 	return data.NormalizeDataSyncInvalidIssueQuery(query), nil
 }
 

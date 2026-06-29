@@ -30,8 +30,11 @@ export type CandleQuery = {
 };
 
 export type DataSyncInvalidIssueQuery = {
+  code?: string;
+  from?: string;
   limit?: number;
   offset?: number;
+  to?: string;
 };
 
 export const dataApi = {
@@ -65,6 +68,15 @@ export const dataApi = {
     }
     if (query.offset !== undefined) {
       params.set("offset", String(query.offset));
+    }
+    if (query.code) {
+      params.set("code", query.code);
+    }
+    if (query.from) {
+      params.set("from", query.from);
+    }
+    if (query.to) {
+      params.set("to", query.to);
     }
     return apiClient.get<DataSyncInvalidIssueList>(`/data/tasks/${id}/invalid-issues?${params.toString()}`);
   },
@@ -205,10 +217,10 @@ function normalizeCandleResult(response: CandleResultResponse, requestedInterval
     source: response.source ?? "none",
     requestedInterval: response.requestedInterval ?? requestedInterval,
     baseInterval: response.baseInterval,
-	    health: response.health ?? (candles.length > 0 ? "ok" : "insufficient"),
-	    gaps: response.gaps ?? [],
-	    issues: response.issues ?? [],
-	    coverage: response.coverage ?? {
+    health: response.health ?? (candles.length > 0 ? "ok" : "insufficient"),
+    gaps: response.gaps ?? [],
+    issues: response.issues ?? [],
+    coverage: response.coverage ?? {
       requestedLimit: 1000,
       returnedCandles: candles.length,
       limitedByBaseWindow: false,

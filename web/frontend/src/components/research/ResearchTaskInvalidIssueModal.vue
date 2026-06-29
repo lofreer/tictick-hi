@@ -3,6 +3,26 @@
     <div v-if="task" class="research-gap-context">
       <NText depth="3">{{ task.exchange }} / {{ task.symbol }} / {{ task.interval }}</NText>
     </div>
+    <NSpace align="center" class="research-invalid-issue-filters">
+      <NSelect
+        v-model:value="issueCode"
+        clearable
+        :options="issueCodeOptions"
+        size="small"
+        :placeholder="t('research.invalidIssueFilterType')"
+        @update:value="applyFilters"
+      />
+      <NDatePicker
+        v-model:value="timeRange"
+        clearable
+        type="datetimerange"
+        size="small"
+        :start-placeholder="t('research.invalidIssueFilterFrom')"
+        :end-placeholder="t('research.invalidIssueFilterTo')"
+        @update:value="applyFilters"
+      />
+      <NButton size="small" secondary @click="resetFilters">{{ t("common.reset") }}</NButton>
+    </NSpace>
     <LoadingState v-if="loading" />
     <ErrorState v-else-if="error" :title="error" retryable @retry="task && load(task)" />
     <EmptyState v-else-if="!details || details.issues.length === 0" :title="t('research.noInvalidIssueDetails')" />
@@ -40,14 +60,26 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NDataTable, NModal, NPagination, NSpace, NTag, NText, type DataTableColumns } from "naive-ui";
+import {
+  NButton,
+  NDataTable,
+  NDatePicker,
+  NModal,
+  NPagination,
+  NSelect,
+  NSpace,
+  NTag,
+  NText,
+  type DataTableColumns,
+  type SelectOption,
+} from "naive-ui";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
-import { dataApi } from "@/services/api/data";
+import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
 import type { CandleIssue, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
 import { formatCompactDateTime } from "@/utils/displayText";
 
@@ -59,7 +91,18 @@ const error = ref("");
 const task = ref<DataSyncTask | null>(null);
 const details = ref<DataSyncInvalidIssueList | null>(null);
 const page = ref(1);
+const issueCode = ref<string | null>(null);
+const timeRange = ref<[number, number] | null>(null);
 const pageSize = 50;
+const issueCodes = [
+  "invalid_open_price",
+  "invalid_high_price",
+  "invalid_low_price",
+  "invalid_close_price",
+  "invalid_volume",
+  "invalid_high_bound",
+  "invalid_low_bound",
+];
 
 const columns = computed<DataTableColumns<CandleIssue>>(() => [
   {
@@ -81,6 +124,12 @@ const columns = computed<DataTableColumns<CandleIssue>>(() => [
     render: (row) => row.message || "-",
   },
 ]);
+const issueCodeOptions = computed<SelectOption[]>(() =>
+  issueCodes.map((code) => ({
+    label: invalidIssueLabel(code, code),
+    value: code,
+  })),
+);
 const pageCount = computed(() => (details.value ? Math.max(1, Math.ceil(details.value.totalCount / pageSize)) : 1));
 const displayedIssueCount = computed(() => {
   if (!details.value) return 0;
@@ -94,6 +143,8 @@ async function open(nextTask: DataSyncTask) {
   details.value = null;
   error.value = "";
   page.value = 1;
+  issueCode.value = null;
+  timeRange.value = null;
   modalOpen.value = true;
   await load(nextTask);
 }
@@ -102,10 +153,18 @@ async function load(currentTask: DataSyncTask) {
   loading.value = true;
   error.value = "";
   try {
-    details.value = await dataApi.getTaskInvalidIssues(currentTask.id, {
+    const query: DataSyncInvalidIssueQuery = {
       limit: pageSize,
       offset: (page.value - 1) * pageSize,
-    });
+    };
+    if (issueCode.value) {
+      query.code = issueCode.value;
+    }
+    if (timeRange.value) {
+      query.from = new Date(timeRange.value[0]).toISOString();
+      query.to = new Date(timeRange.value[1]).toISOString();
+    }
+    details.value = await dataApi.getTaskInvalidIssues(currentTask.id, query);
   } catch {
     error.value = t("research.invalidIssueDetailsLoadFailed");
   } finally {
@@ -119,6 +178,20 @@ async function changePage(nextPage: number) {
   await load(task.value);
 }
 
+async function applyFilters() {
+  if (!task.value) return;
+  page.value = 1;
+  await load(task.value);
+}
+
+async function resetFilters() {
+  if (!task.value) return;
+  issueCode.value = null;
+  timeRange.value = null;
+  page.value = 1;
+  await load(task.value);
+}
+
 function invalidIssueLabel(code?: string, fallback?: string) {
   if (!code) return fallback || t("research.invalidCandleIssue.unknown");
   const key = `research.invalidCandleIssue.${code}`;
@@ -126,3 +199,25 @@ function invalidIssueLabel(code?: string, fallback?: string) {
   return translated === key ? fallback || code : translated;
 }
 </script>
+
+<style scoped>
+.research-invalid-issue-filters {
+  margin-bottom: 12px;
+}
+
+.research-invalid-issue-filters :deep(.n-select) {
+  width: 190px;
+}
+
+.research-invalid-issue-filters :deep(.n-date-picker) {
+  width: 360px;
+  max-width: 100%;
+}
+
+@media (max-width: 680px) {
+  .research-invalid-issue-filters :deep(.n-select),
+  .research-invalid-issue-filters :deep(.n-date-picker) {
+    width: 100%;
+  }
+}
+</style>

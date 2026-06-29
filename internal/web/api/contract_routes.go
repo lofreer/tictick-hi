@@ -85,6 +85,9 @@ func addDataContractPaths(paths map[string]apiPathItem) {
 			pathParam("id", "Data sync task id"),
 			queryParam("limit", false, "Maximum returned invalid issues", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxDataSyncInvalidIssueLimit}),
 			queryParam("offset", false, "Invalid issue offset", map[string]any{"type": "integer", "minimum": 0}),
+			queryParam("code", false, "Invalid issue code filter", map[string]any{"type": "string", "enum": data.CandleIssueCodes()}),
+			queryParam("from", false, "Filter invalid issues at or after this candle time", map[string]any{"type": "string", "format": "date-time"}),
+			queryParam("to", false, "Filter invalid issues at or before this candle time", map[string]any{"type": "string", "format": "date-time"}),
 		),
 		withErrors(http.StatusBadRequest, http.StatusNotFound),
 	))
