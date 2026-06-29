@@ -8,24 +8,39 @@
     <EmptyState v-else-if="!details || details.issues.length === 0" :title="t('research.noInvalidIssueDetails')" />
     <NDataTable v-else :columns="columns" :data="details.issues" :bordered="false" size="small" />
     <template #footer>
-      <NSpace justify="end">
-        <NTag v-if="details?.limited" :bordered="false" type="warning">
+      <NSpace align="center" justify="space-between">
+        <NTag
+          v-if="details && details.totalCount > 0"
+          :bordered="false"
+          :type="details.limited ? 'warning' : 'default'"
+        >
           {{
             t("research.invalidIssueDetailsLimited", {
-              returned: details.returnedCount,
+              returned: displayedIssueCount,
               total: details.totalCount,
               limit: details.issueLimit,
             })
           }}
         </NTag>
-        <NButton @click="modalOpen = false">{{ t("common.close") }}</NButton>
+        <span v-else />
+        <NSpace align="center" justify="end">
+          <NPagination
+            v-if="pageCount > 1"
+            :disabled="loading"
+            :page="page"
+            :page-count="pageCount"
+            size="small"
+            @update:page="changePage"
+          />
+          <NButton @click="modalOpen = false">{{ t("common.close") }}</NButton>
+        </NSpace>
       </NSpace>
     </template>
   </NModal>
 </template>
 
 <script setup lang="ts">
-import { NButton, NDataTable, NModal, NSpace, NTag, NText, type DataTableColumns } from "naive-ui";
+import { NButton, NDataTable, NModal, NPagination, NSpace, NTag, NText, type DataTableColumns } from "naive-ui";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -43,6 +58,8 @@ const loading = ref(false);
 const error = ref("");
 const task = ref<DataSyncTask | null>(null);
 const details = ref<DataSyncInvalidIssueList | null>(null);
+const page = ref(1);
+const pageSize = 50;
 
 const columns = computed<DataTableColumns<CandleIssue>>(() => [
   {
@@ -64,6 +81,11 @@ const columns = computed<DataTableColumns<CandleIssue>>(() => [
     render: (row) => row.message || "-",
   },
 ]);
+const pageCount = computed(() => (details.value ? Math.max(1, Math.ceil(details.value.totalCount / pageSize)) : 1));
+const displayedIssueCount = computed(() => {
+  if (!details.value) return 0;
+  return Math.min(details.value.totalCount, details.value.offset + details.value.returnedCount);
+});
 
 defineExpose({ open });
 
@@ -71,6 +93,7 @@ async function open(nextTask: DataSyncTask) {
   task.value = nextTask;
   details.value = null;
   error.value = "";
+  page.value = 1;
   modalOpen.value = true;
   await load(nextTask);
 }
@@ -79,12 +102,21 @@ async function load(currentTask: DataSyncTask) {
   loading.value = true;
   error.value = "";
   try {
-    details.value = await dataApi.getTaskInvalidIssues(currentTask.id);
+    details.value = await dataApi.getTaskInvalidIssues(currentTask.id, {
+      limit: pageSize,
+      offset: (page.value - 1) * pageSize,
+    });
   } catch {
     error.value = t("research.invalidIssueDetailsLoadFailed");
   } finally {
     loading.value = false;
   }
+}
+
+async function changePage(nextPage: number) {
+  if (!task.value || nextPage === page.value) return;
+  page.value = nextPage;
+  await load(task.value);
 }
 
 function invalidIssueLabel(code?: string, fallback?: string) {

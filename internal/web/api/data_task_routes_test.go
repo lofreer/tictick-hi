@@ -154,8 +154,9 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 
 	invalidOpenTime := gapFrom.Add(5 * time.Minute)
+	secondInvalidOpenTime := invalidOpenTime.Add(time.Minute)
 	repository.tasks[0].InvalidSummary = &data.DataSyncInvalidSummary{
-		Count: 1,
+		Count: 2,
 		FirstIssue: &data.CandleIssue{
 			Code:     "invalid_open_price",
 			Message:  "open price value must be positive",
@@ -166,18 +167,16 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		TaskID: created.ID,
 		Issues: []data.CandleIssue{
 			{Code: "invalid_open_price", Message: "open price value must be positive", OpenTime: &invalidOpenTime},
+			{Code: "invalid_close_price", Message: "close price value must be positive", OpenTime: &secondInvalidOpenTime},
 		},
-		Limited:       false,
-		TotalCount:    1,
-		ReturnedCount: 1,
-		IssueLimit:    50,
+		TotalCount: 2,
 	}
 
 	invalidRecorder := serveAuthenticated(
 		server,
 		cookie,
 		http.MethodGet,
-		"/api/data/tasks/"+created.ID+"/invalid-issues",
+		"/api/data/tasks/"+created.ID+"/invalid-issues?limit=1&offset=1",
 		"",
 	)
 	if invalidRecorder.Code != http.StatusOK {
@@ -189,14 +188,26 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	}
 	if invalidList.TaskID != created.ID ||
 		invalidList.Limited ||
-		invalidList.TotalCount != 1 ||
+		invalidList.TotalCount != 2 ||
 		invalidList.ReturnedCount != 1 ||
-		invalidList.IssueLimit != 50 ||
+		invalidList.IssueLimit != 1 ||
+		invalidList.Offset != 1 ||
 		len(invalidList.Issues) != 1 ||
-		invalidList.Issues[0].Code != "invalid_open_price" ||
+		invalidList.Issues[0].Code != "invalid_close_price" ||
 		invalidList.Issues[0].OpenTime == nil ||
-		!invalidList.Issues[0].OpenTime.Equal(invalidOpenTime) {
+		!invalidList.Issues[0].OpenTime.Equal(secondInvalidOpenTime) {
 		t.Fatalf("unexpected invalid issue list: %#v", invalidList)
+	}
+
+	invalidBadQueryRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/data/tasks/"+created.ID+"/invalid-issues?offset=-1",
+		"",
+	)
+	if invalidBadQueryRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid bad query status = %d body = %s", invalidBadQueryRecorder.Code, invalidBadQueryRecorder.Body.String())
 	}
 
 	repairRecorder := serveAuthenticated(

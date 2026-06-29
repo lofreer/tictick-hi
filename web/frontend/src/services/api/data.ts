@@ -29,6 +29,11 @@ export type CandleQuery = {
   to?: string;
 };
 
+export type DataSyncInvalidIssueQuery = {
+  limit?: number;
+  offset?: number;
+};
+
 export const dataApi = {
   async listTasks() {
     const response = await apiClient.get<DataSyncTaskResponse[]>("/data/tasks");
@@ -53,8 +58,15 @@ export const dataApi = {
     return apiClient.get<DataSyncGapList>(`/data/tasks/${id}/gaps`);
   },
 
-  async getTaskInvalidIssues(id: string): Promise<DataSyncInvalidIssueList> {
-    return apiClient.get<DataSyncInvalidIssueList>(`/data/tasks/${id}/invalid-issues`);
+  async getTaskInvalidIssues(id: string, query: DataSyncInvalidIssueQuery = {}): Promise<DataSyncInvalidIssueList> {
+    const params = new URLSearchParams();
+    if (query.limit !== undefined) {
+      params.set("limit", String(query.limit));
+    }
+    if (query.offset !== undefined) {
+      params.set("offset", String(query.offset));
+    }
+    return apiClient.get<DataSyncInvalidIssueList>(`/data/tasks/${id}/invalid-issues?${params.toString()}`);
   },
 
   async repairTaskGaps(id: string): Promise<DataSyncGapRepairResult> {

@@ -81,7 +81,12 @@ func addDataContractPaths(paths map[string]apiPathItem) {
 	))
 	addOperation(paths, "/api/data/tasks/{id}/invalid-issues", http.MethodGet, operation(
 		"data", "listDataSyncTaskInvalidIssues", "List invalid candle issues detected in a data sync task window", http.StatusOK, schemaRef("DataSyncInvalidIssueList"),
-		withParameters(pathParam("id", "Data sync task id")), withErrors(http.StatusNotFound),
+		withParameters(
+			pathParam("id", "Data sync task id"),
+			queryParam("limit", false, "Maximum returned invalid issues", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxDataSyncInvalidIssueLimit}),
+			queryParam("offset", false, "Invalid issue offset", map[string]any{"type": "integer", "minimum": 0}),
+		),
+		withErrors(http.StatusBadRequest, http.StatusNotFound),
 	))
 	addOperation(paths, "/api/data/tasks/{id}/repair-gaps", http.MethodPost, operation(
 		"data", "repairDataSyncTaskGaps", "Create sync tasks for detected task gaps", http.StatusOK, schemaRef("DataSyncGapRepairResult"),

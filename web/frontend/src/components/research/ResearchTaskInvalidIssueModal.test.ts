@@ -1,4 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
+import { NPagination } from "naive-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
@@ -27,9 +28,10 @@ describe("ResearchTaskInvalidIssueModal", () => {
         },
       ],
       limited: true,
-      totalCount: 2,
+      totalCount: 51,
       returnedCount: 1,
       issueLimit: 50,
+      offset: 0,
     });
   });
 
@@ -49,11 +51,62 @@ describe("ResearchTaskInvalidIssueModal", () => {
     await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
     await flushPromises();
 
-    expect(dataApi.getTaskInvalidIssues).toHaveBeenCalledWith("dst_1");
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenCalledWith("dst_1", { limit: 50, offset: 0 });
     expect(document.body.textContent).toContain("binance / BTCUSDT / 1m");
     expect(document.body.textContent).toContain("开盘价必须为正");
     expect(document.body.textContent).toContain("open price value must be positive");
-    expect(document.body.textContent).toContain("已显示 1/2 个异常");
+    expect(document.body.textContent).toContain("已显示 1/51 个异常");
+  });
+
+  it("loads the selected invalid issue page", async () => {
+    dataApiMocks.getTaskInvalidIssues
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [
+          {
+            code: "invalid_open_price",
+            message: "open price value must be positive",
+            openTime: "2026-06-27T07:02:00Z",
+          },
+        ],
+        limited: true,
+        totalCount: 51,
+        returnedCount: 50,
+        issueLimit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [
+          {
+            code: "invalid_close_price",
+            message: "close price value must be positive",
+            openTime: "2026-06-27T07:52:00Z",
+          },
+        ],
+        limited: false,
+        totalCount: 51,
+        returnedCount: 1,
+        issueLimit: 50,
+        offset: 50,
+      });
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    await wrapper.findComponent(NPagination).vm.$emit("update:page", 2);
+    await flushPromises();
+
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenNthCalledWith(1, "dst_1", { limit: 50, offset: 0 });
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenNthCalledWith(2, "dst_1", { limit: 50, offset: 50 });
+    expect(document.body.textContent).toContain("收盘价必须为正");
+    expect(document.body.textContent).toContain("已显示 51/51 个异常");
   });
 });
 

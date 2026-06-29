@@ -19,13 +19,14 @@ describe("data api invalid details", () => {
           totalCount: 2,
           returnedCount: 1,
           issueLimit: 50,
+          offset: 50,
         }),
         { status: 200 },
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(dataApi.getTaskInvalidIssues("dst_1")).resolves.toEqual({
+    await expect(dataApi.getTaskInvalidIssues("dst_1", { limit: 50, offset: 50 })).resolves.toEqual({
       taskId: "dst_1",
       issues: [
         {
@@ -38,9 +39,10 @@ describe("data api invalid details", () => {
       totalCount: 2,
       returnedCount: 1,
       issueLimit: 50,
+      offset: 50,
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/data/tasks/dst_1/invalid-issues",
+      "/api/data/tasks/dst_1/invalid-issues?limit=50&offset=50",
       expect.objectContaining({ method: "GET" }),
     );
   });

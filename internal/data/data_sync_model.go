@@ -22,6 +22,11 @@ const (
 	DataSyncMarketStatusMissing  DataSyncMarketStatus = "missing"
 )
 
+const (
+	DefaultDataSyncInvalidIssueLimit = 50
+	MaxDataSyncInvalidIssueLimit     = 50
+)
+
 type DataSyncTask struct {
 	ID                   string                  `json:"id"`
 	Exchange             string                  `json:"exchange"`
@@ -74,6 +79,25 @@ type DataSyncInvalidIssueList struct {
 	TotalCount    int           `json:"totalCount"`
 	ReturnedCount int           `json:"returnedCount"`
 	IssueLimit    int           `json:"issueLimit"`
+	Offset        int           `json:"offset"`
+}
+
+type DataSyncInvalidIssueQuery struct {
+	Limit  int
+	Offset int
+}
+
+func NormalizeDataSyncInvalidIssueQuery(query DataSyncInvalidIssueQuery) DataSyncInvalidIssueQuery {
+	if query.Limit <= 0 {
+		query.Limit = DefaultDataSyncInvalidIssueLimit
+	}
+	if query.Limit > MaxDataSyncInvalidIssueLimit {
+		query.Limit = MaxDataSyncInvalidIssueLimit
+	}
+	if query.Offset < 0 {
+		query.Offset = 0
+	}
+	return query
 }
 
 type DataSyncGapRepairResult struct {

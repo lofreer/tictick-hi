@@ -35,7 +35,7 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 		false,
 		&start,
 		nil,
-		ptrTime(start.Add(2*time.Minute)),
+		ptrTime(start.Add(3*time.Minute)),
 		nil,
 		"",
 	)
@@ -43,6 +43,7 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
 	}
 	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(2*time.Minute))
+	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(3*time.Minute))
 
 	tasks, err := store.ListDataSyncTasks(ctx)
 	if err != nil {
@@ -64,8 +65,8 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 	if found.InvalidSummary == nil {
 		t.Fatal("invalid task should expose invalid summary")
 	}
-	if found.InvalidSummary.Count != 1 {
-		t.Fatalf("invalid summary count = %d, want 1", found.InvalidSummary.Count)
+	if found.InvalidSummary.Count != 2 {
+		t.Fatalf("invalid summary count = %d, want 2", found.InvalidSummary.Count)
 	}
 	if found.InvalidSummary.FirstIssue == nil {
 		t.Fatal("invalid task should expose first invalid issue")
@@ -80,16 +81,17 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 		t.Fatalf("gap summary = %#v, want nil for contiguous invalid data", found.GapSummary)
 	}
 
-	issues, err := store.ListDataSyncTaskInvalidIssues(ctx, taskID)
+	issues, err := store.ListDataSyncTaskInvalidIssues(ctx, taskID, data.DataSyncInvalidIssueQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if issues.TaskID != taskID ||
 		issues.Limited ||
-		issues.TotalCount != 1 ||
-		issues.ReturnedCount != 1 ||
+		issues.TotalCount != 2 ||
+		issues.ReturnedCount != 2 ||
 		issues.IssueLimit != maxDataSyncInvalidIssues ||
-		len(issues.Issues) != 1 {
+		issues.Offset != 0 ||
+		len(issues.Issues) != 2 {
 		t.Fatalf("unexpected invalid issue list: %#v", issues)
 	}
 	issue := issues.Issues[0]
@@ -98,6 +100,25 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 		issue.OpenTime == nil ||
 		!issue.OpenTime.Equal(start.Add(2*time.Minute)) {
 		t.Fatalf("unexpected invalid issue detail: %#v", issue)
+	}
+
+	secondPage, err := store.ListDataSyncTaskInvalidIssues(ctx, taskID, data.DataSyncInvalidIssueQuery{
+		Limit:  1,
+		Offset: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondPage.TaskID != taskID ||
+		secondPage.Limited ||
+		secondPage.TotalCount != 2 ||
+		secondPage.ReturnedCount != 1 ||
+		secondPage.IssueLimit != 1 ||
+		secondPage.Offset != 1 ||
+		len(secondPage.Issues) != 1 ||
+		secondPage.Issues[0].OpenTime == nil ||
+		!secondPage.Issues[0].OpenTime.Equal(start.Add(3*time.Minute)) {
+		t.Fatalf("unexpected paged invalid issue list: %#v", secondPage)
 	}
 }
 

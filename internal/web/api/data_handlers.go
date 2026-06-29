@@ -171,7 +171,12 @@ func (server *Server) listDataTaskGaps(w http.ResponseWriter, r *http.Request, i
 }
 
 func (server *Server) listDataTaskInvalidIssues(w http.ResponseWriter, r *http.Request, id string) {
-	issues, err := server.repository.ListDataSyncTaskInvalidIssues(r.Context(), id)
+	query, err := parseDataSyncInvalidIssueQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	issues, err := server.repository.ListDataSyncTaskInvalidIssues(r.Context(), id, query)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -248,6 +253,31 @@ func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func parseDataSyncInvalidIssueQuery(r *http.Request) (data.DataSyncInvalidIssueQuery, error) {
+	values := r.URL.Query()
+	query := data.DataSyncInvalidIssueQuery{
+		Limit: data.DefaultDataSyncInvalidIssueLimit,
+	}
+	if rawLimit := values.Get("limit"); rawLimit != "" {
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 {
+			return data.DataSyncInvalidIssueQuery{}, errors.New("limit must be a positive integer")
+		}
+		if limit > data.MaxDataSyncInvalidIssueLimit {
+			return data.DataSyncInvalidIssueQuery{}, fmt.Errorf("limit must be less than or equal to %d", data.MaxDataSyncInvalidIssueLimit)
+		}
+		query.Limit = limit
+	}
+	if rawOffset := values.Get("offset"); rawOffset != "" {
+		offset, err := strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			return data.DataSyncInvalidIssueQuery{}, errors.New("offset must be a non-negative integer")
+		}
+		query.Offset = offset
+	}
+	return data.NormalizeDataSyncInvalidIssueQuery(query), nil
 }
 
 type taskCommand struct {
