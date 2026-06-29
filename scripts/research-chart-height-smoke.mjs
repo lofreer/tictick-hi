@@ -18,7 +18,16 @@ const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
-  { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
+  {
+    label: "desktop-1440x900",
+    metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false },
+    requireInitialChartFit: true,
+  },
+  {
+    label: "desktop-2048x1152",
+    metrics: { width: 2048, height: 1152, deviceScaleFactor: 1, mobile: false },
+    requireInitialChartFit: true,
+  },
   {
     label: "narrow-desktop-812x1320",
     metrics: { width: 812, height: 1320, deviceScaleFactor: 2, mobile: false },

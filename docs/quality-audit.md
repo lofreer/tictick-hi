@@ -5830,6 +5830,55 @@ Definition of Done：
 - 本轮没有做真实浏览器点击删除的端到端 smoke；前端行为由组合逻辑单测覆盖。
 - data sync 仍缺完整统一状态机、分布式多实例限流和真实外部交易所恢复压测；研究页和项目整体仍是 `scaffold`。
 
+### 阶段 1 研究页图表首屏容器补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页虽然已把数据同步列表放在图表上方，但桌面 toolbar 左侧控件会被右侧状态区挤压换成多行，导致图表固定槽从首屏下半部开始。
+- 2048x1152 桌面视口下，图表固定槽高度为 683px、底部时间轴落在首屏外，用户看到的是被窗口底部截掉的 K 线图。
+- 既有研究页图表 smoke 只验证高度不会无限增长，没有把普通桌面和大屏桌面的“初始底轴必须在视口内”作为硬断言。
+
+Definition of Done：
+
+- 研究页保持“数据同步任务列表在上、K 线图表在下”的结构。
+- 数据同步任务列表必须使用滚动上限，不允许表格内容把图表推到首屏外。
+- 桌面 toolbar 必须有明确 flex 预算，不能让状态区把图表控件压成多行；移动端 column 布局不能继承桌面 flex-basis 造成面板虚高。
+- K 线图表固定槽必须按剩余视口高度收敛，桌面、宽桌面、窄桌面下底部时间轴和右侧价格轴必须在首屏内。
+- 研究页图表 smoke 必须覆盖 1440x900、2048x1152、812x1320 和 390x844，并继续污染内部 lightweight-charts DOM 高度验证不反向撑高。
+
+修复范围：
+
+- `ResearchPage.css` 将任务列表高度收敛为 `min(260px, 28dvh)`，保留表格内部滚动。
+- 桌面 `.research-toolbar` 左右两侧改为明确 flex 预算，symbol 输入改为响应式宽度；移动端覆盖 toolbar row 为自然高度。
+- 图表固定槽高度从大幅固定上限改为按剩余视口高度计算：桌面 `clamp(280px, calc(100dvh - 620px), 560px)`，窄桌面 `clamp(240px, calc(100dvh - 680px), 480px)`，移动 `clamp(260px, calc(100dvh - 520px), 420px)`。
+- `research-chart-height-smoke.mjs` 增加 1440x900 和 2048x1152 首屏图表适配断言。
+- `check-research-chart-layout.sh` 和 `ResearchPage.layout.test.ts` 更新为新的列表、toolbar 和图表高度契约。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- TradingViewChart ResearchPage.layout` 通过，23 个测试文件、120 条测试通过。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose build api` 通过，Docker 镜像内前端 build 和 Go build 均通过。
+- `docker compose up -d api` 后 `http://127.0.0.1:8080/research` 返回 200，API 容器 healthy。
+- `scripts/research-chart-height-smoke.mjs` 通过：1440x900、2048x1152、812x1320、390x844 均稳定，桌面 document 高度不再超过视口。
+- Headless Chrome 2048x1152 截图验证：document 高度 1152，图表面板底部 1126，chart/tv 底部 1113，底部时间轴和右侧价格轴可见。
+- `pnpm --dir web/frontend run test` 通过，23 个测试文件、120 条测试通过。
+- `scripts/quality-gate.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/stage8-visual-smoke.mjs` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 本轮只关闭研究页图表首屏容器和高度稳定问题，不升级图表交互能力、盘口/指标研究能力或数据修复语义。
+- 移动端仍需要滚动查看完整研究页上下文；本轮保证图表自身不再无限拉高和首屏桌面不裁切，不把移动端完整工作流升级为 usable。
+- 研究页仍缺完整操作语义和真实交易所长期恢复压测；项目整体仍是 `scaffold`。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

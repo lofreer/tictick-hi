@@ -19,7 +19,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(tasksStyle).toContain("width: 100%;");
     expect(tasksStyle).toContain("max-width: 100%;");
     expect(tasksStyle).toContain("min-width: 0;");
-    expect(tasksStyle).toContain("max-height: 360px;");
+    expect(tasksStyle).toContain("max-height: min(260px, 28vh);");
+    expect(tasksStyle).toContain("max-height: min(260px, 28dvh);");
     expect(tasksStyle).toContain("overflow: auto;");
     expect(tasksStyle).toContain("overscroll-behavior: contain;");
     expect(tasksStyle).not.toContain("overflow: hidden;");
@@ -55,6 +56,10 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("overflow: hidden;");
     expect(pageStyles).toContain("text-overflow: ellipsis;");
     expect(pageStyles).toContain("white-space: nowrap;");
+    expect(pageStyles).toContain("flex: 1 1 620px;");
+    expect(pageStyles).toContain("flex: 0 1 680px;");
+    expect(pageStyles).toContain("width: auto;");
+    expect(pageStyles).toContain("width: clamp(180px, 22vw, 360px);");
     expect(source).toContain('import "./ResearchPage.css";');
     expect(source).toContain('class="surface research-chart-panel"');
     expect(source).not.toContain('class="surface chart-panel research-chart-panel"');
@@ -63,11 +68,12 @@ describe("ResearchPage chart layout contract", () => {
 
   it("reduces the fixed chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100vh - 820px), 500px);");
-    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100dvh - 820px), 500px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100vh - 680px), 480px);");
+    expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100dvh - 680px), 480px);");
     expect(pageStyles).toContain("--tt-chart-inline-end-gutter: 18px;");
     expect(pageStyles).toContain("--tt-chart-block-end-gutter: 10px;");
     expect(pageStyles).toContain("flex: 0 1 auto;");
+    expect(pageStyles).toContain("width: 100%;");
   });
 
   it("lets the chart renderer fill the external viewport without inline size variables", () => {

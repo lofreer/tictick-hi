@@ -14,7 +14,8 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: 360px;
+  max-height: min(260px, 28vh);
+  max-height: min(260px, 28dvh);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -37,8 +38,8 @@
 }
 
 .research-chart-panel {
-  --research-chart-viewport-height: clamp(320px, calc(100vh - 297px), 683px);
-  --research-chart-viewport-height: clamp(320px, calc(100dvh - 297px), 683px);
+  --research-chart-viewport-height: clamp(280px, calc(100vh - 620px), 560px);
+  --research-chart-viewport-height: clamp(280px, calc(100dvh - 620px), 560px);
 
   display: flex;
   flex-direction: column;
@@ -66,14 +67,15 @@
 }
 
 .research-toolbar .toolbar-row {
+  flex: 1 1 620px;
   min-width: 0;
   max-width: 100%;
 }
 
 .research-context {
   display: flex;
-  flex: 1 1 320px;
-  width: 100%;
+  flex: 0 1 680px;
+  width: auto;
   max-width: 100%;
   min-width: 0;
   align-items: flex-end;
@@ -163,7 +165,7 @@
 }
 
 .research-symbol-input {
-  width: 172px;
+  width: clamp(180px, 22vw, 360px);
 }
 
 .research-select--compact {
@@ -196,8 +198,8 @@
   }
 
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(280px, calc(100vh - 387px), 457px);
-    --research-chart-viewport-height: clamp(280px, calc(100dvh - 387px), 457px);
+    --research-chart-viewport-height: clamp(260px, calc(100vh - 520px), 420px);
+    --research-chart-viewport-height: clamp(260px, calc(100dvh - 520px), 420px);
   }
 
   .research-toolbar {
@@ -205,9 +207,15 @@
     flex-direction: column;
   }
 
+  .research-toolbar .toolbar-row {
+    flex: 0 1 auto;
+    width: 100%;
+  }
+
   .research-context {
     align-items: flex-start;
     flex: 0 1 auto;
+    width: 100%;
   }
 
   .research-meta {
@@ -217,7 +225,7 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(240px, calc(100vh - 820px), 500px);
-    --research-chart-viewport-height: clamp(240px, calc(100dvh - 820px), 500px);
+    --research-chart-viewport-height: clamp(240px, calc(100vh - 680px), 480px);
+    --research-chart-viewport-height: clamp(240px, calc(100dvh - 680px), 480px);
   }
 }
