@@ -40,7 +40,8 @@
 .research-chart-panel {
   --research-chart-plot-height: clamp(680px, 75vh, 900px);
   --research-chart-plot-height: clamp(680px, 75dvh, 900px);
-  --research-chart-padding-x: 24px;
+  --research-chart-padding-left: 22px;
+  --research-chart-padding-right: 8px;
   --research-chart-padding-top: 14px;
   --research-chart-padding-bottom: 18px;
   --research-chart-body-height: calc(
@@ -160,7 +161,11 @@
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  padding: var(--research-chart-padding-top) var(--research-chart-padding-x) var(--research-chart-padding-bottom);
+  padding:
+    var(--research-chart-padding-top)
+    var(--research-chart-padding-right)
+    var(--research-chart-padding-bottom)
+    var(--research-chart-padding-left);
   overflow: hidden;
   contain: layout paint;
 }
@@ -245,7 +250,8 @@
   .research-chart-panel {
     --research-chart-plot-height: clamp(520px, 72vh, 680px);
     --research-chart-plot-height: clamp(520px, 72dvh, 680px);
-    --research-chart-padding-x: 14px;
+    --research-chart-padding-left: 12px;
+    --research-chart-padding-right: 6px;
     --research-chart-padding-top: 10px;
     --research-chart-padding-bottom: 14px;
   }
@@ -290,7 +296,8 @@
   .research-chart-panel {
     --research-chart-plot-height: clamp(620px, 68vh, 760px);
     --research-chart-plot-height: clamp(620px, 68dvh, 760px);
-    --research-chart-padding-x: 18px;
+    --research-chart-padding-left: 16px;
+    --research-chart-padding-right: 6px;
     --research-chart-padding-top: 12px;
     --research-chart-padding-bottom: 16px;
   }

@@ -46,7 +46,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(bodyStyle).toContain("max-height: var(--research-chart-body-height) !important;");
     expect(bodyStyle).toContain("block-size: var(--research-chart-body-height) !important;");
     expect(bodyStyle).toContain("max-block-size: var(--research-chart-body-height) !important;");
-    expect(bodyStyle).toContain("padding: var(--research-chart-padding-top) var(--research-chart-padding-x) var(--research-chart-padding-bottom);");
+    expect(bodyStyle).toContain("var(--research-chart-padding-right)");
+    expect(bodyStyle).toContain("var(--research-chart-padding-left)");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
     expect(bodyStyle).toContain("overflow: hidden;");
     expect(bodyStyle).toContain("contain: layout paint;");
@@ -96,6 +97,12 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("--research-chart-plot-height: clamp(680px, 75dvh, 900px);");
     expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, 68vh, 760px);");
     expect(pageStyles).toContain("--research-chart-plot-height: clamp(620px, 68dvh, 760px);");
+    expect(pageStyles).toContain("--research-chart-padding-left: 22px;");
+    expect(pageStyles).toContain("--research-chart-padding-right: 8px;");
+    expect(pageStyles).toContain("--research-chart-padding-left: 16px;");
+    expect(pageStyles).toContain("--research-chart-padding-right: 6px;");
+    expect(pageStyles).toContain("--research-chart-padding-left: 12px;");
+    expect(pageStyles).toContain("--research-chart-padding-right: 6px;");
     expect(pageStyles).toContain("flex-basis: min(240px, 32vw);");
     expect(pageStyles).toContain("width: clamp(180px, 15vw, 240px);");
     expect(pageStyles).toContain("flex-basis: 100%;");

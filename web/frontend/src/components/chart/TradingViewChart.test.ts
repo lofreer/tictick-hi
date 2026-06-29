@@ -188,7 +188,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 52,
+          minimumWidth: 48,
         }),
       }),
     );
@@ -199,6 +199,24 @@ describe("TradingViewChart", () => {
 
   it("uses a compact right price scale on narrow chart viewports", () => {
     viewportSize = { width: 390, height: 500 };
+    const host = createResearchHost();
+    const wrapper = mountChart(host.body);
+
+    expect(mockedCreateChart).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        rightPriceScale: expect.objectContaining({
+          minimumWidth: 40,
+        }),
+      }),
+    );
+
+    wrapper.unmount();
+    host.panel.remove();
+  });
+
+  it("uses the middle right price scale width on narrow desktop chart viewports", () => {
+    viewportSize = { width: 812, height: 760 };
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 

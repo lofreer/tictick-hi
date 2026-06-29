@@ -2,7 +2,8 @@
 .backtest-chart-panel {
   --detail-chart-plot-height: clamp(620px, 72vh, 820px);
   --detail-chart-plot-height: clamp(620px, 72dvh, 820px);
-  --detail-chart-padding-x: 18px;
+  --detail-chart-padding-left: 18px;
+  --detail-chart-padding-right: 8px;
   --detail-chart-padding-top: 16px;
   --detail-chart-padding-bottom: 18px;
   --detail-chart-panel-height: calc(
@@ -11,7 +12,11 @@
 
   box-sizing: border-box;
   height: var(--detail-chart-panel-height);
-  padding: var(--detail-chart-padding-top) var(--detail-chart-padding-x) var(--detail-chart-padding-bottom);
+  padding:
+    var(--detail-chart-padding-top)
+    var(--detail-chart-padding-right)
+    var(--detail-chart-padding-bottom)
+    var(--detail-chart-padding-left);
   min-height: 0;
   overflow: hidden;
   contain: layout paint;
@@ -43,7 +48,8 @@
   .backtest-chart-panel {
     --detail-chart-plot-height: clamp(520px, 68vh, 680px);
     --detail-chart-plot-height: clamp(520px, 68dvh, 680px);
-    --detail-chart-padding-x: 14px;
+    --detail-chart-padding-left: 12px;
+    --detail-chart-padding-right: 6px;
     --detail-chart-padding-top: 12px;
     --detail-chart-padding-bottom: 14px;
   }

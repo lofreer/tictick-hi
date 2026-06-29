@@ -30,7 +30,8 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain("--detail-chart-plot-height: clamp(620px, 72dvh, 820px);");
     expect(detailChartStyles).toContain("--detail-chart-panel-height:");
     expect(detailChartStyles).toContain("height: var(--detail-chart-panel-height);");
-    expect(detailChartStyles).toContain("padding: var(--detail-chart-padding-top) var(--detail-chart-padding-x) var(--detail-chart-padding-bottom);");
+    expect(detailChartStyles).toContain("var(--detail-chart-padding-right)");
+    expect(detailChartStyles).toContain("var(--detail-chart-padding-left)");
     expect(detailChartStyles).toContain(".trading-detail-chart-viewport,");
     expect(detailChartStyles).toContain("height: var(--detail-chart-plot-height);");
     expect(detailChartStyles).toContain(".trading-detail-chart-viewport .trading-chart,");
@@ -65,7 +66,8 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain("--detail-chart-plot-height: clamp(620px, 72dvh, 820px);");
     expect(detailChartStyles).toContain("--detail-chart-panel-height:");
     expect(detailChartStyles).toContain("height: var(--detail-chart-panel-height);");
-    expect(detailChartStyles).toContain("padding: var(--detail-chart-padding-top) var(--detail-chart-padding-x) var(--detail-chart-padding-bottom);");
+    expect(detailChartStyles).toContain("var(--detail-chart-padding-right)");
+    expect(detailChartStyles).toContain("var(--detail-chart-padding-left)");
     expect(detailChartStyles).toContain(".backtest-chart-viewport");
     expect(detailChartStyles).toContain("height: var(--detail-chart-plot-height);");
     expect(detailChartStyles).toContain(".backtest-chart-viewport .trading-chart");

@@ -49,6 +49,8 @@ export function chartTheme(mode: ThemeMode) {
   return {
     layout: {
       background: { color: dark ? "#181a20" : "#ffffff" },
+      fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+      fontSize: 11,
       textColor: dark ? "#b7bdc6" : "#474d57",
     },
     grid: {
@@ -57,7 +59,7 @@ export function chartTheme(mode: ThemeMode) {
     },
     rightPriceScale: {
       borderColor: dark ? "#2b3139" : "#eaecef",
-      minimumWidth: 56,
+      minimumWidth: 48,
     },
     timeScale: {
       borderColor: dark ? "#2b3139" : "#eaecef",

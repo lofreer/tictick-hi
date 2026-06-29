@@ -13,10 +13,11 @@ const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PA
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 260);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 72);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 68);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
+  { label: "narrow-desktop-812x1320", metrics: { width: 812, height: 1320, deviceScaleFactor: 2, mobile: false } },
   { label: "mobile-390x844", metrics: { width: 390, height: 844, deviceScaleFactor: 2, mobile: true } },
 ];
 
@@ -237,6 +238,8 @@ function visualSampleExpression(pageConfig) {
       toolbarSymbol: read('.research-symbol-input'),
       chartBody: read('.research-chart-body'),
       chartViewport: read(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport'),
+      chartInlineStartGutter: cssPixel(detailSelectors ? detailSelectors.chartPanel : '.research-chart-body', 'padding-left'),
+      chartInlineEndGutter: cssPixel(detailSelectors ? detailSelectors.chartPanel : '.research-chart-body', 'padding-right'),
       chart: read('.trading-chart'),
       tv: read('.tv-lightweight-charts'),
       priceAxisCanvas: rightPriceAxisCanvas(),
@@ -279,6 +282,13 @@ function visualSampleExpression(pageConfig) {
         display: getComputedStyle(canvas).display,
         visibility: getComputedStyle(canvas).visibility
       };
+    }
+
+    function cssPixel(selector, property) {
+      const element = document.querySelector(selector);
+      if (!element) return 0;
+      const value = Number.parseFloat(getComputedStyle(element).getPropertyValue(property));
+      return Number.isFinite(value) && value > 0 ? value : 0;
     }
   })()`;
 }
@@ -380,6 +390,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
   if (!sample.priceAxisCanvas) {
     throw new Error(`${label} missing right price-axis canvas: ${JSON.stringify(sample)}`);
   }
+  assertChartGutters(label, sample);
   if (sample.priceAxisCanvas.rectWidth > maxRightPriceAxisWidth) {
     throw new Error(
       `${label} right price-axis is too wide: ${JSON.stringify({
@@ -394,6 +405,45 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       `${label} chart renderer does not fill the fixed viewport width: ${JSON.stringify({
         chartViewport: sample.chartViewport,
         tv: sample.tv,
+      })}`,
+    );
+  }
+}
+
+function assertChartGutters(label, sample) {
+  const host = sample.detail?.chartPanel ?? sample.chartBody;
+  if (!host) return;
+  const startGutter = sample.chartViewport.left - host.left;
+  const endGutter = host.right - sample.chartViewport.right;
+  assertConfiguredGutter(label, "chart left gutter", startGutter, sample.chartInlineStartGutter, { host, chartViewport: sample.chartViewport });
+  assertConfiguredGutter(label, "chart right gutter", endGutter, sample.chartInlineEndGutter, { host, chartViewport: sample.chartViewport });
+  if (sample.chartInlineStartGutter < 10 || sample.chartInlineStartGutter > 24) {
+    throw new Error(
+      `${label} chart left gutter is outside the production range: ${JSON.stringify({
+        gutter: sample.chartInlineStartGutter,
+        host,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 10) {
+    throw new Error(
+      `${label} chart right gutter should be tight so the price scale does not create excess whitespace: ${JSON.stringify({
+        gutter: sample.chartInlineEndGutter,
+        host,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+}
+
+function assertConfiguredGutter(label, name, actual, expected, context) {
+  if (Math.abs(actual - expected) > widthTolerance + 1) {
+    throw new Error(
+      `${label} ${name} does not match configured chart padding: ${JSON.stringify({
+        actual,
+        expected,
+        ...context,
       })}`,
     );
   }

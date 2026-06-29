@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 72);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 68);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -553,6 +553,24 @@ function assertChartLayout(label, sample) {
   }
   assertConfiguredInset(label, "chart left side", tv.left - body.left, sample.chartInlineStartGutter, { body, tv });
   assertConfiguredInset(label, "chart top side", tv.top - body.top, sample.chartBlockStartGutter, { body, tv });
+  if (sample.chartInlineStartGutter < 10 || sample.chartInlineStartGutter > 24) {
+    throw new Error(
+      `${label} chart left gutter is outside the production range: ${JSON.stringify({
+        chartInlineStartGutter: sample.chartInlineStartGutter,
+        body,
+        tv,
+      })}`,
+    );
+  }
+  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 10) {
+    throw new Error(
+      `${label} chart right gutter should stay tight: ${JSON.stringify({
+        chartInlineEndGutter: sample.chartInlineEndGutter,
+        body,
+        tv,
+      })}`,
+    );
+  }
   if (!mainPaneCanvas) {
     throw new Error(
       `${label} missing bounded main pane canvas: ${JSON.stringify({
