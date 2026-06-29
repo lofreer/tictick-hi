@@ -7,13 +7,13 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="2250"
+    :scroll-x="2282"
     size="small"
   />
 </template>
 
 <script setup lang="ts">
-import { Eye, ListChecks, Play, RefreshCw, RotateCcw, Square, Trash2, Wrench } from "@lucide/vue";
+import { Eye, ListChecks, Play, RefreshCw, RotateCcw, Square, Trash2, TriangleAlert, Wrench } from "@lucide/vue";
 import {
   NButton,
   NDataTable,
@@ -39,6 +39,7 @@ const emit = defineEmits<{
   view: [task: DataSyncTask];
   delete: [task: DataSyncTask];
   "view-gaps": [task: DataSyncTask];
+  "view-invalid": [task: DataSyncTask];
   "repair-gaps": [task: DataSyncTask];
   retry: [task: DataSyncTask];
   "toggle-realtime": [task: DataSyncTask];
@@ -120,12 +121,15 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.actions"),
     key: "actions",
-    width: 292,
+    width: 324,
     render: (row) =>
       h(NSpace, { size: 4, wrap: false }, () => [
         iconButton(Eye, t("research.viewChart"), () => emit("view", row)),
         ...(hasRepairableTaskGaps(row)
           ? [iconButton(ListChecks, t("research.viewTaskGaps"), () => emit("view-gaps", row))]
+          : []),
+        ...(hasInvalidTaskIssues(row)
+          ? [iconButton(TriangleAlert, t("research.viewTaskInvalidIssues"), () => emit("view-invalid", row), "error")]
           : []),
         ...(hasRepairableTaskGaps(row)
           ? [
@@ -203,6 +207,10 @@ function marketStatusLabel(row: DataSyncTask) {
 
 function hasRepairableTaskGaps(row: DataSyncTask) {
   return (row.gapSummary?.count ?? 0) > 0;
+}
+
+function hasInvalidTaskIssues(row: DataSyncTask) {
+  return (row.invalidSummary?.count ?? 0) > 0;
 }
 
 function syncWindowCell(row: DataSyncTask) {

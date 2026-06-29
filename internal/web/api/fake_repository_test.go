@@ -26,6 +26,7 @@ type fakeRepository struct {
 	tradingTasks       []data.TradingTask
 	tasks              []data.DataSyncTask
 	taskGapDetails     map[string]data.DataSyncGapList
+	taskInvalidDetails map[string]data.DataSyncInvalidIssueList
 	candles            []data.Candle
 }
 
@@ -47,11 +48,12 @@ func (repository *failingListRepository) ListDataSyncTasks(context.Context) ([]d
 func newFakeRepository() *fakeRepository {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{
-		backtestOrders:  map[string][]data.BacktestOrder{},
-		backtestIntents: map[string][]data.StrategyIntent{},
-		passwords:       map[string]string{},
-		sessions:        map[string]data.OperatorSession{},
-		taskGapDetails:  map[string]data.DataSyncGapList{},
+		backtestOrders:     map[string][]data.BacktestOrder{},
+		backtestIntents:    map[string][]data.StrategyIntent{},
+		passwords:          map[string]string{},
+		sessions:           map[string]data.OperatorSession{},
+		taskGapDetails:     map[string]data.DataSyncGapList{},
+		taskInvalidDetails: map[string]data.DataSyncInvalidIssueList{},
 	}
 	operator := data.Operator{
 		ID:        "op_admin",

@@ -31,6 +31,7 @@
           :tasks="tasks"
           @view="selectTask"
           @view-gaps="viewTaskGaps"
+          @view-invalid="viewTaskInvalidIssues"
           @delete="deleteTask"
           @repair-gaps="repairTaskGaps"
           @retry="retryTask"
@@ -245,6 +246,8 @@
         </NSpace>
       </template>
     </NModal>
+
+    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" />
   </section>
 </template>
 
@@ -265,7 +268,7 @@ import {
   type SelectOption,
   type TagProps,
 } from "naive-ui";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import TradingViewChart from "@/components/chart/TradingViewChart.vue";
@@ -274,13 +277,15 @@ import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
 import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
+import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
-import type { CandleGap, CandleIssue, MarketInstrumentSyncStatus } from "@/types/app";
+import type { CandleGap, CandleIssue, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
 
 const { t } = useI18n();
+const invalidIssueModal = ref<InstanceType<typeof ResearchTaskInvalidIssueModal> | null>(null);
 const {
   canCreateTask,
   canLoadNextCandles,
@@ -343,6 +348,10 @@ const intervalOptions = computed<SelectOption[]>(() => [
 ]);
 
 const gapDetailColumns = computed<DataTableColumns<CandleGap>>(() => [{ title: t("research.gapFrom"), key: "from", minWidth: 180 }, { title: t("research.gapTo"), key: "to", minWidth: 180 }, { title: t("research.missingCandles"), key: "missingCandles", width: 120 }]);
+
+function viewTaskInvalidIssues(task: DataSyncTask) {
+  invalidIssueModal.value?.open(task);
+}
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));

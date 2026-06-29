@@ -187,6 +187,12 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("total: gapDetails.totalCount");
     expect(source).toContain("limit: gapDetails.repairLimit");
   });
+
+  it("keeps task invalid issue details reachable from the research page", () => {
+    expect(source).toContain('import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";');
+    expect(source).toContain('@view-invalid="viewTaskInvalidIssues"');
+    expect(source).toContain('<ResearchTaskInvalidIssueModal ref="invalidIssueModal" />');
+  });
 });
 
 function cssBlock(source: string, selector: string) {

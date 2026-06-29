@@ -79,6 +79,26 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 	if found.GapSummary != nil {
 		t.Fatalf("gap summary = %#v, want nil for contiguous invalid data", found.GapSummary)
 	}
+
+	issues, err := store.ListDataSyncTaskInvalidIssues(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issues.TaskID != taskID ||
+		issues.Limited ||
+		issues.TotalCount != 1 ||
+		issues.ReturnedCount != 1 ||
+		issues.IssueLimit != maxDataSyncInvalidIssues ||
+		len(issues.Issues) != 1 {
+		t.Fatalf("unexpected invalid issue list: %#v", issues)
+	}
+	issue := issues.Issues[0]
+	if issue.Code != "invalid_open_price" ||
+		issue.Message != "open price value must be positive" ||
+		issue.OpenTime == nil ||
+		!issue.OpenTime.Equal(start.Add(2*time.Minute)) {
+		t.Fatalf("unexpected invalid issue detail: %#v", issue)
+	}
 }
 
 func insertLegacyInvalidDataHealthCandle(t *testing.T, ctx context.Context, store *Store, symbol string, openTime time.Time) {

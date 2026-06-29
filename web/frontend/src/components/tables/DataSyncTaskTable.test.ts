@@ -28,12 +28,12 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(2250);
+    expect(table.props("scrollX")).toBe(2282);
     expect(wrapper.find(".data-sync-task-table").exists()).toBe(true);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
     const actionsColumn = columns.find((column) => column.key === "actions");
     expect(actionsColumn?.fixed).toBeUndefined();
-    expect(actionsColumn).toMatchObject({ width: 292 });
+    expect(actionsColumn).toMatchObject({ width: 324 });
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).not.toContain("/api/v3/klines");
@@ -282,6 +282,34 @@ describe("DataSyncTaskTable", () => {
     await wrapper.get('button[title="查看缺口"]').trigger("click");
 
     expect(wrapper.emitted("view-gaps")).toEqual([[gapTask]]);
+  });
+
+  it("emits view invalid for tasks with invalid summary", async () => {
+    const invalidTask = dataSyncTask({
+      id: "sync_1",
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      dataHealth: "invalid",
+      invalidSummary: {
+        count: 1,
+        firstIssue: {
+          code: "invalid_open_price",
+          message: "open price value must be positive",
+          openTime: "2026-06-27T07:02:00Z",
+        },
+      },
+    });
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [invalidTask],
+      },
+    });
+
+    await wrapper.get('button[title="查看异常"]').trigger("click");
+
+    expect(wrapper.emitted("view-invalid")).toEqual([[invalidTask]]);
   });
 
   it("emits repair for tasks with gap summary", async () => {

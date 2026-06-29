@@ -153,6 +153,52 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 		t.Fatalf("unexpected gap list: %#v", gapList)
 	}
 
+	invalidOpenTime := gapFrom.Add(5 * time.Minute)
+	repository.tasks[0].InvalidSummary = &data.DataSyncInvalidSummary{
+		Count: 1,
+		FirstIssue: &data.CandleIssue{
+			Code:     "invalid_open_price",
+			Message:  "open price value must be positive",
+			OpenTime: &invalidOpenTime,
+		},
+	}
+	repository.taskInvalidDetails[created.ID] = data.DataSyncInvalidIssueList{
+		TaskID: created.ID,
+		Issues: []data.CandleIssue{
+			{Code: "invalid_open_price", Message: "open price value must be positive", OpenTime: &invalidOpenTime},
+		},
+		Limited:       false,
+		TotalCount:    1,
+		ReturnedCount: 1,
+		IssueLimit:    50,
+	}
+
+	invalidRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodGet,
+		"/api/data/tasks/"+created.ID+"/invalid-issues",
+		"",
+	)
+	if invalidRecorder.Code != http.StatusOK {
+		t.Fatalf("invalid issues status = %d body = %s", invalidRecorder.Code, invalidRecorder.Body.String())
+	}
+	var invalidList data.DataSyncInvalidIssueList
+	if err := json.NewDecoder(invalidRecorder.Body).Decode(&invalidList); err != nil {
+		t.Fatal(err)
+	}
+	if invalidList.TaskID != created.ID ||
+		invalidList.Limited ||
+		invalidList.TotalCount != 1 ||
+		invalidList.ReturnedCount != 1 ||
+		invalidList.IssueLimit != 50 ||
+		len(invalidList.Issues) != 1 ||
+		invalidList.Issues[0].Code != "invalid_open_price" ||
+		invalidList.Issues[0].OpenTime == nil ||
+		!invalidList.Issues[0].OpenTime.Equal(invalidOpenTime) {
+		t.Fatalf("unexpected invalid issue list: %#v", invalidList)
+	}
+
 	repairRecorder := serveAuthenticated(
 		server,
 		cookie,

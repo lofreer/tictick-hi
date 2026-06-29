@@ -67,6 +67,15 @@ type DataSyncGapList struct {
 	RepairLimit   int         `json:"repairLimit"`
 }
 
+type DataSyncInvalidIssueList struct {
+	TaskID        string        `json:"taskId"`
+	Issues        []CandleIssue `json:"issues"`
+	Limited       bool          `json:"limited"`
+	TotalCount    int           `json:"totalCount"`
+	ReturnedCount int           `json:"returnedCount"`
+	IssueLimit    int           `json:"issueLimit"`
+}
+
 type DataSyncGapRepairResult struct {
 	SourceTaskID    string         `json:"sourceTaskId"`
 	CreatedTasks    []DataSyncTask `json:"createdTasks"`

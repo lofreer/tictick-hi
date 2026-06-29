@@ -40,6 +40,14 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		server.listDataTaskGaps(w, r, parts[3])
 		return
 	}
+	if len(parts) == 5 && parts[4] == "invalid-issues" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		server.listDataTaskInvalidIssues(w, r, parts[3])
+		return
+	}
 	if len(parts) == 5 && parts[4] == "repair-gaps" {
 		if r.Method != http.MethodPost {
 			writeMethodNotAllowed(w, http.MethodPost)
@@ -160,6 +168,15 @@ func (server *Server) listDataTaskGaps(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 	writeJSON(w, http.StatusOK, gaps)
+}
+
+func (server *Server) listDataTaskInvalidIssues(w http.ResponseWriter, r *http.Request, id string) {
+	issues, err := server.repository.ListDataSyncTaskInvalidIssues(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, issues)
 }
 
 func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {

@@ -17,6 +17,7 @@ import type {
   CreateTradingTask as APICreateTradingTask,
   DataSyncGapRepairResult as APIDataSyncGapRepairResult,
   DataSyncGapList as APIDataSyncGapList,
+  DataSyncInvalidIssueList as APIDataSyncInvalidIssueList,
   DataSyncTask as APIDataSyncTask,
   ExchangeAccount as APIExchangeAccount,
   Execution as APIExecution,
@@ -52,6 +53,8 @@ export type TaskStatus = APITaskStatus | "gap";
 export type DataSyncTask = APIDataSyncTask;
 
 export type DataSyncGapList = APIDataSyncGapList;
+
+export type DataSyncInvalidIssueList = APIDataSyncInvalidIssueList;
 
 export type DataSyncGapRepairResult = APIDataSyncGapRepairResult;
 

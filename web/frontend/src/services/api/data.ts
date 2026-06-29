@@ -10,6 +10,7 @@ import type {
   CreateDataSyncTask,
   DataSyncGapList,
   DataSyncGapRepairResult,
+  DataSyncInvalidIssueList,
   DataSyncTask,
   MarketCandleGapScan,
   RepairDataSyncTaskGapRequest,
@@ -50,6 +51,10 @@ export const dataApi = {
 
   async getTaskGaps(id: string): Promise<DataSyncGapList> {
     return apiClient.get<DataSyncGapList>(`/data/tasks/${id}/gaps`);
+  },
+
+  async getTaskInvalidIssues(id: string): Promise<DataSyncInvalidIssueList> {
+    return apiClient.get<DataSyncInvalidIssueList>(`/data/tasks/${id}/invalid-issues`);
   },
 
   async repairTaskGaps(id: string): Promise<DataSyncGapRepairResult> {

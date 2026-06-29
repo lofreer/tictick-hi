@@ -407,6 +407,7 @@ type Repository interface {
 	DeleteDataSyncTask(ctx context.Context, id string) error
 	RetryDataSyncTask(ctx context.Context, id string) (DataSyncTask, error)
 	ListDataSyncTaskGaps(ctx context.Context, id string) (DataSyncGapList, error)
+	ListDataSyncTaskInvalidIssues(ctx context.Context, id string) (DataSyncInvalidIssueList, error)
 	RepairDataSyncTaskGap(ctx context.Context, id string, request RepairDataSyncTaskGapRequest) (DataSyncGapRepairResult, error)
 	RepairDataSyncTaskGaps(ctx context.Context, id string) (DataSyncGapRepairResult, error)
 	SetSyncEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)

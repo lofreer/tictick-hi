@@ -79,6 +79,10 @@ func addDataContractPaths(paths map[string]apiPathItem) {
 		"data", "listDataSyncTaskGaps", "List detected data sync task gaps", http.StatusOK, schemaRef("DataSyncGapList"),
 		withParameters(pathParam("id", "Data sync task id")), withErrors(http.StatusNotFound),
 	))
+	addOperation(paths, "/api/data/tasks/{id}/invalid-issues", http.MethodGet, operation(
+		"data", "listDataSyncTaskInvalidIssues", "List invalid candle issues detected in a data sync task window", http.StatusOK, schemaRef("DataSyncInvalidIssueList"),
+		withParameters(pathParam("id", "Data sync task id")), withErrors(http.StatusNotFound),
+	))
 	addOperation(paths, "/api/data/tasks/{id}/repair-gaps", http.MethodPost, operation(
 		"data", "repairDataSyncTaskGaps", "Create sync tasks for detected task gaps", http.StatusOK, schemaRef("DataSyncGapRepairResult"),
 		withCSRF(), withParameters(pathParam("id", "Data sync task id")), withErrors(http.StatusNotFound),
