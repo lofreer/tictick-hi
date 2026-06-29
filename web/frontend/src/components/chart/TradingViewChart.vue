@@ -28,7 +28,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
-import { positiveFloor, readChartGutter, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
+import { positiveFloor, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
 import "./TradingViewChart.css";
 
 const props = defineProps<{
@@ -48,11 +48,7 @@ let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
-let lastObservedHostWidth = 0;
-let fixedViewportHeightSnapshot: number | null = null;
-let pendingFixedViewportHeightRefresh = false;
 const fallbackSize = { width: 1, height: 360 };
-const maxRenderedChartHeight = 1200;
 const maxInitialVisibleBars = 360;
 const minInitialVisibleBars = 80;
 const targetInitialBarSpacingPixels = 3;
@@ -70,7 +66,6 @@ onMounted(() => {
 
   const initialSize = readHostSize() ?? { ...fallbackSize };
   lastSize = { width: initialSize.width, height: initialSize.height };
-  lockRenderedViewport(lastSize);
   chart = createChart(containerRef.value, {
     ...responsiveChartOptions(),
     autoSize: false,
@@ -97,7 +92,6 @@ onMounted(() => {
 
   observedResizeHost = readResizeHost();
   if (observedResizeHost) {
-    lastObservedHostWidth = readHostWidth(observedResizeHost) ?? initialSize.width;
     resizeObserver = new ResizeObserver(handleObservedResize);
     resizeObserver.observe(observedResizeHost);
   }
@@ -115,9 +109,6 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
   observedResizeHost = null;
-  fixedViewportHeightSnapshot = null;
-  pendingFixedViewportHeightRefresh = false;
-  lastObservedHostWidth = 0;
   window.removeEventListener("resize", handleWindowResize);
   chart?.remove();
   chart = null;
@@ -291,24 +282,14 @@ function handleObservedResize(entries: ResizeObserverEntry[]) {
   const hostEntry = entries.find((entry) => entry.target === host);
   if (!host || !hostEntry) return;
 
-  if (!isFixedViewportHost(host)) {
-    scheduleResize();
-    return;
-  }
-
-  const nextWidth = readResizeEntryWidth(hostEntry) ?? readHostWidth(host);
-  if (!nextWidth || nextWidth === lastObservedHostWidth) return;
-
-  lastObservedHostWidth = nextWidth;
   scheduleResize();
 }
 
 function handleWindowResize() {
-  scheduleResize(true);
+  scheduleResize();
 }
 
-function scheduleResize(refreshFixedViewportHeight = false) {
-  pendingFixedViewportHeightRefresh ||= refreshFixedViewportHeight;
+function scheduleResize() {
   if (resizeFrame > 0) return;
   resizeFrame = window.requestAnimationFrame(resizeChart);
 }
@@ -317,105 +298,44 @@ function resizeChart() {
   resizeFrame = 0;
   if (!chart) return;
 
-  const nextMeasurement = readHostSize(pendingFixedViewportHeightRefresh);
-  pendingFixedViewportHeightRefresh = false;
+  const nextMeasurement = readHostSize();
   if (!nextMeasurement) return;
 
   if (nextMeasurement.width === lastSize.width && nextMeasurement.height === lastSize.height) {
-    lockRenderedViewport(lastSize);
     return;
   }
 
   lastSize = { width: nextMeasurement.width, height: nextMeasurement.height };
-  lockRenderedViewport(lastSize);
   chart.applyOptions(responsiveChartOptions());
   chart.resize(nextMeasurement.width, nextMeasurement.height);
   fitChartContent(props.data.length);
 }
 
-function lockRenderedViewport(size: { width: number; height: number }) {
-  const width = `${Math.max(1, Math.floor(size.width))}px`;
-  const height = `${Math.max(1, Math.floor(size.height))}px`;
-  for (const element of [rootRef.value, containerRef.value]) {
-    if (!element) continue;
-    element.style.setProperty("--tt-chart-render-width", width);
-    element.style.setProperty("--tt-chart-render-height", height);
-    element.style.setProperty("width", width, "important");
-    element.style.setProperty("height", height, "important");
-    element.style.setProperty("max-width", width, "important");
-    element.style.setProperty("max-height", height, "important");
-    element.style.setProperty("inline-size", width, "important");
-    element.style.setProperty("block-size", height, "important");
-    element.style.setProperty("max-inline-size", width, "important");
-    element.style.setProperty("max-block-size", height, "important");
-  }
-}
-
-function readHostSize(refreshFixedViewportHeight = false) {
+function readHostSize(): { width: number; height: number } | null {
   const host = readResizeHost();
   if (!host) return null;
 
   const bounds = host.getBoundingClientRect();
-  const style = window.getComputedStyle(host);
-  const fixedViewport = isFixedViewportHost(host);
-  const measuredWidth = (readHostWidth(host, bounds) ?? fallbackSize.width) - readChartGutter(style, "--tt-chart-inline-end-gutter");
-  const measuredHeight = fixedViewport
-    ? readFixedViewportHeight(host, bounds, refreshFixedViewportHeight)
-    : readClientHeight(host) ?? readPixelSize(host, "height") ?? positiveFloor(bounds.height);
-  const width = Math.floor(measuredWidth);
-  const height = measuredHeight
-    ? clampRenderedHeight(measuredHeight - readChartGutter(style, "--tt-chart-block-end-gutter"))
-    : fallbackSize.height;
-  if (width <= 0 || height <= 0) return null;
+  const measuredWidth = readHostWidth(host, bounds) ?? fallbackSize.width;
+  const measuredHeight = readHostHeight(host, bounds) ?? fallbackSize.height;
+  const width = positiveFloor(measuredWidth);
+  const height = positiveFloor(measuredHeight);
+  if (width === null || height === null) return null;
 
   return { width, height };
-}
-
-function readFixedViewportHeight(element: HTMLElement, bounds: DOMRect, refresh: boolean) {
-  if (fixedViewportHeightSnapshot !== null && !refresh) {
-    return fixedViewportHeightSnapshot;
-  }
-
-  const declaredHeight = readDeclaredFixedViewportHeight(element, bounds, fixedViewportHeightSnapshot);
-  fixedViewportHeightSnapshot = declaredHeight;
-  return declaredHeight;
-}
-
-function readDeclaredFixedViewportHeight(element: HTMLElement, bounds: DOMRect, previousHeight: number | null) {
-  const declaredHeight = readFixedViewportPixelSize(readPixelSize(element, "height"));
-  const declaredMaxHeight = readFixedViewportPixelSize(readPixelSize(element, "maxHeight"));
-  if (declaredHeight && (!declaredMaxHeight || declaredHeight <= declaredMaxHeight)) return declaredHeight;
-  if (declaredMaxHeight) return declaredMaxHeight;
-
-  const boundedHeight = readFixedViewportPixelSize(positiveFloor(bounds.height));
-  if (boundedHeight) return boundedHeight;
-
-  return previousHeight ?? fallbackSize.height;
-}
-
-function clampRenderedHeight(height: number) {
-  return Math.min(Math.floor(height), fixedViewportHeightCap());
-}
-
-function readFixedViewportPixelSize(value: number | null) {
-  if (!value) return null;
-  const height = Math.floor(value);
-  if (height <= 0 || height > fixedViewportHeightCap()) return null;
-  return height;
-}
-
-function fixedViewportHeightCap() {
-  const viewportHeight = window.innerHeight > 0 ? window.innerHeight : fallbackSize.height;
-  return Math.min(maxRenderedChartHeight, Math.max(fallbackSize.height, viewportHeight));
 }
 
 function readHostWidth(element: HTMLElement, bounds = element.getBoundingClientRect()) {
   return readClientWidth(element) ?? readPixelSize(element, "width") ?? positiveFloor(bounds.width);
 }
 
-function readResizeEntryWidth(entry: ResizeObserverEntry) {
-  const contentBox = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
-  return positiveFloor(contentBox?.inlineSize ?? entry.contentRect.width);
+function readHostHeight(element: HTMLElement, bounds = element.getBoundingClientRect()) {
+  const declaredHeight = readPixelSize(element, "height");
+  const declaredMaxHeight = readPixelSize(element, "maxHeight");
+  if (declaredHeight !== null && declaredMaxHeight !== null) {
+    return Math.min(declaredHeight, declaredMaxHeight);
+  }
+  return declaredHeight ?? declaredMaxHeight ?? readClientHeight(element) ?? positiveFloor(bounds.height);
 }
 
 function readResizeHost() {
@@ -429,7 +349,4 @@ function readResizeHost() {
   return parent;
 }
 
-function isFixedViewportHost(element: HTMLElement) {
-  return element.getAttribute("data-chart-viewport") === "fixed";
-}
 </script>

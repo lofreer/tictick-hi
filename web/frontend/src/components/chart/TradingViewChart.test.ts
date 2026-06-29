@@ -319,7 +319,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("prefers fixed CSS height over polluted client height", () => {
+  it("prefers fixed CSS height over polluted client height without snapshotting", () => {
     viewportSize = { width: 1180, height: 5000 };
     const host = createResearchHost();
     host.body.style.height = "603px";
@@ -398,7 +398,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("blocks fixed viewport height changes while the window is unchanged", () => {
+  it("resizes when the external fixed viewport changes size", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     chartMocks.resize.mockClear();
@@ -407,13 +407,14 @@ describe("TradingViewChart", () => {
     host.body.style.height = "641px";
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
-    expect(chartMocks.resize).not.toHaveBeenCalled();
+    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1180, 641);
 
     wrapper.unmount();
     host.panel.remove();
   });
 
-  it("does not accept fixed viewport height changes when only the width changes", () => {
+  it("resizes both width and height from the external fixed viewport", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     chartMocks.resize.mockClear();
@@ -427,25 +428,29 @@ describe("TradingViewChart", () => {
     resizeCallback?.([resizeEntry(observedTarget!, viewportSize)], {} as ResizeObserver);
 
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1190, researchRenderSize.height);
+    expect(chartMocks.resize).toHaveBeenCalledWith(1190, 603);
 
     wrapper.unmount();
     host.panel.remove();
   });
 
-  it("keeps the fixed viewport snapshot when a window resize sees polluted height", () => {
+  it("does not resize from polluted internal node dimensions on window resize", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
+    const root = wrapper.get<HTMLElement>(".trading-chart").element;
+    const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
     chartMocks.resize.mockClear();
 
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
-    viewportSize = { width: 1190, height: 9000 };
-    host.body.style.width = "1190px";
-    host.body.style.height = "9000px";
+    for (const element of [root, canvasHost]) {
+      element.style.height = "9000px";
+      element.style.maxHeight = "9000px";
+      element.style.blockSize = "9000px";
+      element.style.maxBlockSize = "9000px";
+    }
+
     window.dispatchEvent(new Event("resize"));
 
-    expect(chartMocks.resize).toHaveBeenCalledTimes(1);
-    expect(chartMocks.resize).toHaveBeenCalledWith(1190, researchRenderSize.height);
+    expect(chartMocks.resize).not.toHaveBeenCalled();
 
     wrapper.unmount();
     host.panel.remove();
@@ -469,7 +474,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("ignores observed fixed viewport height when client size is unavailable", () => {
+  it("uses declared fixed viewport size when client size is unavailable", () => {
     viewportSize = { width: 0, height: 0 };
     const host = createResearchHost();
     host.body.style.width = "1000px";
@@ -492,11 +497,6 @@ describe("TradingViewChart", () => {
     host.body.style.height = "560px";
     resizeCallback?.([resizeEntry(observedTarget!, { width: 1000, height: 9000 })], {} as ResizeObserver);
 
-    expect(chartMocks.resize).not.toHaveBeenCalled();
-
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 769 });
-    window.dispatchEvent(new Event("resize"));
-
     expect(chartMocks.resize).toHaveBeenCalledTimes(1);
     expect(chartMocks.resize).toHaveBeenCalledWith(1000, 560);
 
@@ -504,15 +504,15 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("falls back when a fixed viewport exposes only an inflated direct height", () => {
-    viewportSize = { width: 1180, height: 5000 };
+  it("falls back when a fixed viewport exposes no positive size", () => {
+    viewportSize = { width: 0, height: 0 };
     const host = createResearchHost({ declareViewportSize: false });
     const wrapper = mountChart(host.body);
 
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
-        width: researchRenderSize.width,
+        width: 1,
         height: 360,
       }),
     );
@@ -521,38 +521,17 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("locks root and canvas elements to the measured viewport size", () => {
+  it("does not write inline chart viewport locks", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     const root = wrapper.get<HTMLElement>(".trading-chart").element;
     const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
-
-    expectLockedSize(root, researchRenderSize);
-    expectLockedSize(canvasHost, researchRenderSize);
-
-    wrapper.unmount();
-    host.panel.remove();
-  });
-
-  it("restores locked chart dimensions after runtime node height pollution", () => {
-    const host = createResearchHost();
-    const wrapper = mountChart(host.body);
-    const root = wrapper.get<HTMLElement>(".trading-chart").element;
-    const canvasHost = wrapper.get<HTMLElement>(".trading-chart__canvas").element;
-    chartMocks.resize.mockClear();
 
     for (const element of [root, canvasHost]) {
-      element.style.height = "9000px";
-      element.style.maxHeight = "9000px";
-      element.style.blockSize = "9000px";
-      element.style.maxBlockSize = "9000px";
+      expect(element.getAttribute("style") ?? "").not.toContain("--tt-chart-render");
+      expect(element.style.getPropertyPriority("width")).toBe("");
+      expect(element.style.getPropertyPriority("height")).toBe("");
     }
-
-    window.dispatchEvent(new Event("resize"));
-
-    expect(chartMocks.resize).not.toHaveBeenCalled();
-    expectLockedSize(root, researchRenderSize);
-    expectLockedSize(canvasHost, researchRenderSize);
 
     wrapper.unmount();
     host.panel.remove();
@@ -619,26 +598,6 @@ function resizeEntry(target: Element, size: { width: number; height: number }) {
     contentRect: rect({ top: 0, width: size.width, height: size.height }),
     contentBoxSize: [{ inlineSize: size.width, blockSize: size.height }],
   } as unknown as ResizeObserverEntry;
-}
-
-function expectLockedSize(element: HTMLElement, size: { width: number; height: number }) {
-  expect(element.style.getPropertyValue("--tt-chart-render-width")).toBe(`${size.width}px`);
-  expect(element.style.getPropertyValue("--tt-chart-render-height")).toBe(`${size.height}px`);
-  for (const [property, value] of [
-    ["width", `${size.width}px`],
-    ["height", `${size.height}px`],
-    ["max-width", `${size.width}px`],
-    ["max-height", `${size.height}px`],
-    ["inline-size", `${size.width}px`],
-    ["block-size", `${size.height}px`],
-    ["max-inline-size", `${size.width}px`],
-    ["max-block-size", `${size.height}px`],
-  ]) {
-    expect(element.style.getPropertyValue(property)).toBe(value);
-    if (property === "width" || property === "height") {
-      expect(element.style.getPropertyPriority(property)).toBe("important");
-    }
-  }
 }
 
 function restorePrototypeProperty(name: "clientWidth" | "clientHeight", descriptor: PropertyDescriptor | undefined) {

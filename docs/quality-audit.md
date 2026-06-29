@@ -5360,6 +5360,40 @@ Definition of Done：
 - 已入库的历史 `last_error` 文本仍不做迁移清洗；清洗发生在 API/前端出口。
 - 研究页和项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页图表容器和任务表窄屏遮挡修复
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页 K 线图表组件在前几轮修复中叠加了内部高度快照、右/底 gutter 扣减和内联 `!important` 锁宽高，真实浏览器窄窗口下仍容易出现容器裁切、尺寸判断复杂且不可维护。
+- 数据同步任务表的操作列固定在右侧，窄窗口下覆盖同步窗口、最新同步时间等中间列，刷新本地页面后仍会给用户造成“列表被盖住”的质量问题。
+
+修复范围：
+
+- `TradingViewChart` 改为只测量外部 `data-chart-viewport="fixed"` 宿主，图表 root / canvas 由 CSS 填满父容器，不再写入 `--tt-chart-render-*` 和内联 `!important` 宽高。
+- 图表高度读取优先使用宿主 CSS height / max-height，再回退到 client / bounds，保留对内部节点高度污染的防线，但不再冻结真实宿主 resize。
+- 研究页图表 body 去掉 JS gutter 扣减变量，保留固定 viewport 高度、`overflow: hidden` 和 `contain: layout paint`。
+- 数据同步任务表移除 `actions` 列固定右侧，保留横向滚动和操作列宽度，避免窄窗口遮挡中间列。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run test` 通过，22 个前端测试文件、118 条测试通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose up -d --build api` 通过，`tictick-hi-api-1` 健康。
+- Headless Chrome 811x1320 登录 `/research` 复验：`chartBody` / `.trading-chart` / `.trading-chart__canvas` 均为 `777x500`，`.trading-chart` 无内联 style，固定右侧表格单元数量为 `0`，无页面横向溢出。
+
+剩余风险：
+
+- 本轮只修研究页图表容器和任务表遮挡，不补完整交互设计、任务操作语义、数据同步状态机或真实交易所稳定性。
+- 表格仍是横向滚动型工作区，不是最终生产级密度/列管理方案。
+- 研究页和项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

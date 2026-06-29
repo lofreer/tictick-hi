@@ -118,7 +118,6 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
   {
     title: t("research.actions"),
     key: "actions",
-    fixed: "right",
     width: 292,
     render: (row) =>
       h(NSpace, { size: 4, wrap: false }, () => [

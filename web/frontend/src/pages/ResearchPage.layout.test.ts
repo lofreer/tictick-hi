@@ -36,14 +36,15 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
     expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
-    expect(bodyStyle).toContain("--tt-chart-inline-end-gutter: 16px;");
-    expect(bodyStyle).toContain("--tt-chart-block-end-gutter: 12px;");
+    expect(bodyStyle).not.toContain("--tt-chart-inline-end-gutter");
+    expect(bodyStyle).not.toContain("--tt-chart-block-end-gutter");
     expect(bodyStyle).toContain("height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("block-size: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("max-block-size: var(--research-chart-viewport-height) !important;");
     expect(cssDeclarations(bodyStyle)).not.toContain("height: 100%");
-    expect(bodyStyle).toContain("contain: strict;");
+    expect(bodyStyle).toContain("overflow: hidden;");
+    expect(bodyStyle).toContain("contain: layout paint;");
     expect(pageStyles).toContain("height: 100% !important;");
     expect(pageStyles).toContain("max-height: 100% !important;");
     expect(pageStyles).toContain("block-size: 100% !important;");
@@ -65,17 +66,26 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("flex: 0 1 auto;");
   });
 
-  it("keeps the chart renderer anchored by explicit coordinates instead of inset shorthand", () => {
-    for (const selector of [".trading-chart", ".trading-chart__canvas", ".trading-chart__canvas > .tv-lightweight-charts"]) {
-      const style = cssBlock(chartStyles, selector);
-      expect(style).toContain("top: 0;");
-      expect(style).toContain("right: auto;");
-      expect(style).toContain("bottom: auto;");
-      expect(style).toContain("left: 0;");
-      expect(style).toContain("overflow: visible");
-      expect(style).toContain("contain: layout style;");
-      expect(style).not.toContain("inset: 0;");
-    }
+  it("lets the chart renderer fill the external viewport without inline size variables", () => {
+    const rootStyle = cssBlock(chartStyles, ".trading-chart");
+    const canvasStyle = cssBlock(chartStyles, ".trading-chart__canvas");
+    const lightweightStyle = cssBlock(chartStyles, ".trading-chart__canvas > .tv-lightweight-charts");
+
+    expect(rootStyle).toContain("position: relative;");
+    expect(rootStyle).toContain("width: 100%;");
+    expect(rootStyle).toContain("height: 100%;");
+    expect(rootStyle).toContain("overflow: hidden;");
+    expect(rootStyle).toContain("contain: layout style;");
+    expect(canvasStyle).toContain("position: absolute;");
+    expect(canvasStyle).toContain("inset: 0;");
+    expect(canvasStyle).toContain("width: 100%;");
+    expect(canvasStyle).toContain("height: 100%;");
+    expect(canvasStyle).toContain("overflow: hidden;");
+    expect(lightweightStyle).toContain("max-width: 100%;");
+    expect(lightweightStyle).toContain("max-height: 100%;");
+    expect(chartStyles).not.toContain("--tt-chart-render-width");
+    expect(chartStyles).not.toContain("--tt-chart-render-height");
+    expect(chartStyles).not.toContain("!important");
   });
 
   it("does not override lightweight-charts internal table geometry", () => {

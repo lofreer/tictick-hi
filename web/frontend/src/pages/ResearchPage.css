@@ -117,9 +117,6 @@
 }
 
 .research-chart-body {
-  --tt-chart-inline-end-gutter: 16px;
-  --tt-chart-block-end-gutter: 12px;
-
   position: relative;
   display: block;
   flex: 0 0 var(--research-chart-viewport-height);
@@ -134,8 +131,7 @@
   min-height: 0;
   min-block-size: 0;
   overflow: hidden;
-  overflow: clip;
-  contain: strict;
+  contain: layout paint;
 }
 
 .research-chart-body .state-block,

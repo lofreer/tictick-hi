@@ -31,7 +31,9 @@ describe("DataSyncTaskTable", () => {
     expect(table.props("scrollX")).toBe(2210);
     expect(wrapper.find(".data-sync-task-table").exists()).toBe(true);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
-    expect(columns.find((column) => column.key === "actions")).toMatchObject({ fixed: "right", width: 292 });
+    const actionsColumn = columns.find((column) => column.key === "actions");
+    expect(actionsColumn?.fixed).toBeUndefined();
+    expect(actionsColumn).toMatchObject({ width: 292 });
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).not.toContain("/api/v3/klines");
