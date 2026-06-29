@@ -14,8 +14,8 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: min(260px, 28vh);
-  max-height: min(260px, 28dvh);
+  max-height: clamp(180px, 22vh, 240px);
+  max-height: clamp(180px, 22dvh, 240px);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -38,8 +38,8 @@
 }
 
 .research-chart-panel {
-  --research-chart-viewport-height: clamp(280px, calc(100vh - 620px), 560px);
-  --research-chart-viewport-height: clamp(280px, calc(100dvh - 620px), 560px);
+  --research-chart-viewport-height: clamp(520px, 58vh, 760px);
+  --research-chart-viewport-height: clamp(520px, 58dvh, 760px);
 
   display: flex;
   flex-direction: column;
@@ -132,11 +132,28 @@
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
+  padding: 0 14px 14px;
   overflow: hidden;
   contain: layout paint;
 }
 
-.research-chart-body .state-block {
+.research-chart-viewport {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  min-block-size: 0;
+  height: calc(var(--research-chart-viewport-height) - 14px) !important;
+  max-height: calc(var(--research-chart-viewport-height) - 14px) !important;
+  block-size: calc(var(--research-chart-viewport-height) - 14px) !important;
+  max-block-size: calc(var(--research-chart-viewport-height) - 14px) !important;
+  overflow: hidden;
+}
+
+.research-chart-viewport .state-block {
   width: 100%;
   min-height: 0;
   min-block-size: 0;
@@ -146,7 +163,7 @@
   max-block-size: 100% !important;
 }
 
-.research-chart-body .trading-chart {
+.research-chart-viewport .trading-chart {
   width: 100% !important;
   height: 100% !important;
   max-height: 100% !important;
@@ -190,8 +207,8 @@
 
 @media (max-width: 760px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(260px, calc(100vh - 520px), 420px);
-    --research-chart-viewport-height: clamp(260px, calc(100dvh - 520px), 420px);
+    --research-chart-viewport-height: clamp(420px, 62vh, 560px);
+    --research-chart-viewport-height: clamp(420px, 62dvh, 560px);
   }
 
   .research-toolbar {
@@ -217,7 +234,7 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-panel {
-    --research-chart-viewport-height: clamp(240px, calc(100vh - 680px), 480px);
-    --research-chart-viewport-height: clamp(240px, calc(100dvh - 680px), 480px);
+    --research-chart-viewport-height: clamp(460px, 54vh, 640px);
+    --research-chart-viewport-height: clamp(460px, 54dvh, 640px);
   }
 }

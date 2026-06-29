@@ -115,15 +115,17 @@
             </div>
           </div>
         </div>
-        <div class="research-chart-body" data-chart-viewport="fixed">
-          <ErrorState
-            v-if="candlesError"
-            :title="candlesError"
-            retryable
-            @retry="loadCandles"
-          />
-          <LoadingState v-else-if="candlesLoading" />
-          <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('research.chartEmpty')" />
+        <div class="research-chart-body">
+          <div class="research-chart-viewport" data-chart-viewport="fixed">
+            <ErrorState
+              v-if="candlesError"
+              :title="candlesError"
+              retryable
+              @retry="loadCandles"
+            />
+            <LoadingState v-else-if="candlesLoading" />
+            <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('research.chartEmpty')" />
+          </div>
         </div>
       </section>
     </div>

@@ -21,12 +21,12 @@ const viewports = [
   {
     label: "desktop-1440x900",
     metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false },
-    requireInitialChartFit: true,
+    requireInitialChartFit: false,
   },
   {
     label: "desktop-2048x1152",
     metrics: { width: 2048, height: 1152, deviceScaleFactor: 1, mobile: false },
-    requireInitialChartFit: true,
+    requireInitialChartFit: false,
   },
   {
     label: "narrow-desktop-812x1320",
@@ -310,8 +310,8 @@ function sampleExpression() {
         };
       };
       const body = read('.research-chart-body');
-      const chartInlineEndGutter = cssPixel('.research-chart-body', '--tt-chart-inline-end-gutter');
-      const chartBlockEndGutter = cssPixel('.research-chart-body', '--tt-chart-block-end-gutter');
+      const chartInlineEndGutter = cssPixel('.research-chart-body', 'padding-right');
+      const chartBlockEndGutter = cssPixel('.research-chart-body', 'padding-bottom');
       const tv = read('.tv-lightweight-charts');
       const canvasEntries = Array.from(document.querySelectorAll('.trading-chart__canvas canvas')).map((canvas, index) => {
         const rect = canvas.getBoundingClientRect();
@@ -688,7 +688,7 @@ function assertStable(result) {
   }
 
   const viewportCap = result.lastFull.viewportHeight + heightTolerance;
-  for (const key of ["panel", "body", "chart", "canvas", "tv"]) {
+  for (const key of ["body", "chart", "canvas", "tv"]) {
     if (result.max[key] > viewportCap) {
       throw new Error(
         `${result.label} ${key} height exceeded viewport cap: ${JSON.stringify({

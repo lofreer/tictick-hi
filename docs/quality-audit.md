@@ -6040,6 +6040,54 @@ Definition of Done：
 - active catalog 仍依赖后台同步或人工刷新，不等于生产级交易所状态治理。
 - 数据同步 worker 仍缺完整统一状态机、分布式多实例限流和真实外部交易所长期恢复压测；研究页和项目整体仍是 `scaffold`。
 
+### 阶段 1/3/4 图表可读高度与详情页布局补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页虽然已经改成列表在上、图表在下，但图表高度继续按剩余视口折算，任务列表稍高时 K 线主图被压成窄条，无法承载研究页“图表是主体”的产品要求。
+- 图表内部为避免边缘裁切预留的价格轴和时间轴逻辑 padding 过大，在宽屏下形成明显右侧空白；图表左侧也缺少页面级安全边距。
+- 交易详情和回测详情仍沿用左侧图表、右侧信息栏布局，和当前要求的“上方图表、下方左窄概要右宽列表 Tab”不一致。
+
+Definition of Done：
+
+- 研究页数据同步任务列表继续在上方，但高度上限收敛为轻量工作区，内部滚动，不继续挤压 K 线图表。
+- 研究页 K 线图表使用明确的可读固定高度区间，不再用 `viewport - 大常量` 平分或挤剩余高度。
+- 研究页图表增加内层固定视口，左右和底部有受控安全边距，`TradingViewChart` 只观察该固定视口。
+- `TradingViewChart` 缩小桌面/移动价格轴最小宽度，并收紧时间轴左右逻辑 padding，减少右侧大块空白，同时保留边缘标签防裁切。
+- 交易详情页和回测详情页统一为上方全宽图表、下方两列布局；左列为概要，右列为 Tab 汇总列表信息；窄屏自动堆叠。
+- 不改变 API、数据模型、K 线查询语义、回测和交易 runner 行为。
+
+修复范围：
+
+- `web/frontend/src/pages/ResearchPage.vue` / `ResearchPage.css` 调整研究页图表固定视口、任务列表高度上限和图表安全边距。
+- `web/frontend/src/components/chart/TradingViewChart.vue` 收紧价格轴宽度和时间轴逻辑 padding。
+- `web/frontend/src/pages/TradingDetailPage.vue` 调整交易详情页为上图表、下概要 + Tab 列表。
+- `web/frontend/src/pages/BacktestDetailPage.vue` 调整回测详情页为同款布局，并将参数、意图、订单纳入 Tab 区。
+- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`web/frontend/src/pages/DetailPages.layout.test.ts` 和 `web/frontend/src/components/chart/TradingViewChart.test.ts` 锁定布局契约。
+- `scripts/check-research-chart-layout.sh` 和 `scripts/research-chart-height-smoke.mjs` 同步新的内层固定视口、可读高度和滚动语义。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过，实际执行 24 个测试文件、122 条测试通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api && docker compose up -d api` 通过，本地 `http://127.0.0.1:8080/readyz` 返回 ready。
+- `node scripts/stage8-visual-smoke.mjs` 通过，桌面/移动、浅色/深色核心页面无横向溢出和运行时错误。
+- `node scripts/research-chart-height-smoke.mjs` 通过，桌面 1440 图表体 522px、桌面 2048 图表体 668px、812x1320 图表体 640px、移动图表体 523px，内部高度污染后保持稳定。
+- 本地 headless Chrome 实际采样 `/trading/tt_a9a9801f53152b7fcf74f78e` 和 `/backtests/bt_8c9a0535e2a3f8a60a7a6918` 通过：图表在上且高度 522px，下方两列为 427px / 949px 左窄右宽，无横向溢出。
+
+剩余风险：
+
+- 本轮只修复研究页、交易详情页和回测详情页的布局可读性，不建立人工视觉基线截图审批或全语言/全主题像素基线。
+- 详情页图表仍复用当前 lightweight-charts 封装，未新增指标、画线、缩放预设或交易分析工具。
+- 项目整体仍是 `scaffold`，不能升级为 demo、usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

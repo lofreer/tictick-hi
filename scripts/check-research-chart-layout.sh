@@ -72,7 +72,8 @@ require_block_not_contains() {
 }
 
 require_order "$RESEARCH_PAGE" 'class="surface research-tasks-panel"' 'class="surface research-chart-panel"'
-require_contains "$RESEARCH_PAGE" 'class="research-chart-body" data-chart-viewport="fixed"'
+require_contains "$RESEARCH_PAGE" 'class="research-chart-body"'
+require_contains "$RESEARCH_PAGE" 'class="research-chart-viewport" data-chart-viewport="fixed"'
 require_not_contains "$RESEARCH_PAGE" 'class="surface chart-panel research-chart-panel"'
 
 require_contains "$RESEARCH_CSS" ".research-workspace"
@@ -81,8 +82,8 @@ require_contains "$RESEARCH_CSS" ".research-tasks-panel"
 require_contains "$RESEARCH_CSS" "width: 100%;"
 require_contains "$RESEARCH_CSS" "max-width: 100%;"
 require_contains "$RESEARCH_CSS" "min-width: 0;"
-require_contains "$RESEARCH_CSS" "max-height: min(260px, 28vh);"
-require_contains "$RESEARCH_CSS" "max-height: min(260px, 28dvh);"
+require_contains "$RESEARCH_CSS" "max-height: clamp(180px, 22vh, 240px);"
+require_contains "$RESEARCH_CSS" "max-height: clamp(180px, 22dvh, 240px);"
 require_contains "$RESEARCH_CSS" "overflow: auto;"
 require_contains "$RESEARCH_CSS" ".research-chart-panel"
 require_contains "$RESEARCH_CSS" "--research-chart-viewport-height:"
@@ -96,17 +97,22 @@ require_contains "$RESEARCH_CSS" ".research-chart-body"
 require_contains "$RESEARCH_CSS" "flex: 0 0 var(--research-chart-viewport-height);"
 require_contains "$RESEARCH_CSS" "height: var(--research-chart-viewport-height) !important;"
 require_contains "$RESEARCH_CSS" "max-height: var(--research-chart-viewport-height) !important;"
+require_block_contains "$RESEARCH_CSS" ".research-chart-body" "padding: 0 14px 14px;"
 require_block_contains "$RESEARCH_CSS" ".research-chart-body" "overflow: hidden;"
 require_block_contains "$RESEARCH_CSS" ".research-chart-body" "contain: layout paint;"
 require_block_not_contains "$RESEARCH_CSS" ".research-chart-body" "contain: strict;"
-require_block_contains "$RESEARCH_CSS" ".research-chart-body .trading-chart" "width: 100% !important;"
-require_block_contains "$RESEARCH_CSS" ".research-chart-body .trading-chart" "height: 100% !important;"
+require_contains "$RESEARCH_CSS" ".research-chart-viewport"
+require_block_contains "$RESEARCH_CSS" ".research-chart-viewport" "height: calc(var(--research-chart-viewport-height) - 14px) !important;"
+require_block_contains "$RESEARCH_CSS" ".research-chart-viewport" "max-height: calc(var(--research-chart-viewport-height) - 14px) !important;"
+require_block_contains "$RESEARCH_CSS" ".research-chart-viewport" "overflow: hidden;"
+require_block_contains "$RESEARCH_CSS" ".research-chart-viewport .trading-chart" "width: 100% !important;"
+require_block_contains "$RESEARCH_CSS" ".research-chart-viewport .trading-chart" "height: 100% !important;"
 require_not_contains "$RESEARCH_CSS" "--tt-chart-inline-end-gutter"
 require_not_contains "$RESEARCH_CSS" "--tt-chart-block-end-gutter"
-require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(280px, calc(100vh - 620px), 560px);"
-require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(280px, calc(100dvh - 620px), 560px);"
-require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(240px, calc(100vh - 680px), 480px);"
-require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(240px, calc(100dvh - 680px), 480px);"
+require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(520px, 58vh, 760px);"
+require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(520px, 58dvh, 760px);"
+require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(460px, 54vh, 640px);"
+require_contains "$RESEARCH_CSS" "--research-chart-viewport-height: clamp(460px, 54dvh, 640px);"
 
 require_block_contains "$CHART_CSS" ".trading-chart" "position: relative;"
 require_block_contains "$CHART_CSS" ".trading-chart" "width: 100%;"

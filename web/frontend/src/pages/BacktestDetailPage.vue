@@ -15,15 +15,15 @@
 
     <LoadingState v-if="taskLoading" />
     <ErrorState v-else-if="taskError" :title="taskError" retryable @retry="loadDetail" />
-    <div v-else-if="task" class="workspace-grid">
+    <div v-else-if="task" class="backtest-detail-workspace">
       <section class="surface chart-panel backtest-chart-panel" data-chart-viewport="fixed">
         <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
         <LoadingState v-else-if="candlesLoading" />
         <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('backtests.chartEmpty')" />
       </section>
 
-      <aside class="side-panel">
-        <section class="surface backtest-side-section">
+      <div class="backtest-detail-lower-grid">
+        <section class="surface backtest-side-section backtest-summary-panel">
           <div class="backtest-side-section__heading">
             <h2>{{ t("backtests.summary") }}</h2>
             <StatusBadge :status="task.status" />
@@ -36,60 +36,61 @@
           </dl>
         </section>
 
-        <section class="surface backtest-side-section">
-          <h2>{{ t("backtests.parameters") }}</h2>
-          <dl class="backtest-summary-list">
-            <template v-for="row in paramRows" :key="row.label">
-              <dt>{{ row.label }}</dt>
-              <dd>{{ row.value }}</dd>
-            </template>
-          </dl>
-        </section>
+        <section class="surface backtest-side-section backtest-detail-tabs">
+          <NTabs type="segment" animated>
+            <NTabPane name="parameters" :tab="t('backtests.parameters')">
+              <dl class="backtest-summary-list">
+                <template v-for="row in paramRows" :key="row.label">
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </template>
+              </dl>
+            </NTabPane>
 
-        <section class="surface backtest-side-section">
-          <h2>{{ t("backtests.intents") }}</h2>
-          <LoadingState v-if="intentsLoading" />
-          <ErrorState v-else-if="intentsError" :title="intentsError" retryable @retry="loadIntents" />
-          <EmptyState v-else-if="intents.length === 0" :title="t('backtests.noIntents')" />
-          <div v-else class="intents-list">
-            <div v-for="intent in intents" :key="intent.id" class="intents-list__item">
-              <NTag :type="intent.intentType === 'order' ? 'info' : 'warning'" size="small">
-                {{ intent.intentType }}
-              </NTag>
-              <div>
-                <strong>{{ intent.status }}</strong>
-                <span>{{ intent.policy }} / {{ formatDate(intent.createdAt) }}</span>
+            <NTabPane name="intents" :tab="t('backtests.intents')">
+              <LoadingState v-if="intentsLoading" />
+              <ErrorState v-else-if="intentsError" :title="intentsError" retryable @retry="loadIntents" />
+              <EmptyState v-else-if="intents.length === 0" :title="t('backtests.noIntents')" />
+              <div v-else class="intents-list">
+                <div v-for="intent in intents" :key="intent.id" class="intents-list__item">
+                  <NTag :type="intent.intentType === 'order' ? 'info' : 'warning'" size="small">
+                    {{ intent.intentType }}
+                  </NTag>
+                  <div>
+                    <strong>{{ intent.status }}</strong>
+                    <span>{{ intent.policy }} / {{ formatDate(intent.createdAt) }}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </section>
+            </NTabPane>
 
-        <section class="surface backtest-side-section">
-          <h2>{{ t("backtests.orders") }}</h2>
-          <LoadingState v-if="ordersLoading" />
-          <ErrorState v-else-if="ordersError" :title="ordersError" retryable @retry="loadOrders" />
-          <EmptyState v-else-if="orders.length === 0" :title="t('backtests.noOrders')" />
-          <div v-else class="orders-list">
-            <div v-for="order in orders" :key="order.id" class="orders-list__item">
-              <NTag :type="order.side === 'buy' ? 'success' : 'error'" size="small">
-                {{ order.side }}
-              </NTag>
-              <div>
-                <strong>{{ order.price }}</strong>
-                <span>{{ formatDate(order.occurredAt) }}</span>
+            <NTabPane name="orders" :tab="t('backtests.orders')">
+              <LoadingState v-if="ordersLoading" />
+              <ErrorState v-else-if="ordersError" :title="ordersError" retryable @retry="loadOrders" />
+              <EmptyState v-else-if="orders.length === 0" :title="t('backtests.noOrders')" />
+              <div v-else class="orders-list">
+                <div v-for="order in orders" :key="order.id" class="orders-list__item">
+                  <NTag :type="order.side === 'buy' ? 'success' : 'error'" size="small">
+                    {{ order.side }}
+                  </NTag>
+                  <div>
+                    <strong>{{ order.price }}</strong>
+                    <span>{{ formatDate(order.occurredAt) }}</span>
+                  </div>
+                  <NText depth="3">{{ order.quantity }} / {{ order.status }}</NText>
+                </div>
               </div>
-              <NText depth="3">{{ order.quantity }} / {{ order.status }}</NText>
-            </div>
-          </div>
+            </NTabPane>
+          </NTabs>
         </section>
-      </aside>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { ArrowLeft } from "@lucide/vue";
-import { NButton, NTag, NText } from "naive-ui";
+import { NButton, NTabPane, NTabs, NTag, NText } from "naive-ui";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
@@ -267,12 +268,31 @@ function errorMessage(loadError: unknown, fallback: string) {
 </script>
 
 <style scoped>
+.backtest-detail-workspace {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
 .backtest-chart-panel {
-  height: clamp(560px, calc(100vh - 180px), 820px);
+  height: clamp(520px, 58vh, 760px);
+  height: clamp(520px, 58dvh, 760px);
+  max-height: none;
   min-height: 0;
+  contain: layout paint;
+}
+
+.backtest-detail-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
 }
 
 .backtest-side-section {
+  min-width: 0;
   padding: 16px;
 }
 
@@ -319,9 +339,11 @@ function errorMessage(loadError: unknown, fallback: string) {
 .orders-list {
   display: grid;
   gap: 10px;
-  max-height: 280px;
+  max-height: min(520px, 54vh);
+  max-height: min(520px, 54dvh);
   overflow: auto;
   padding-right: 4px;
+  padding-top: 12px;
 }
 
 .intents-list__item,
@@ -356,5 +378,16 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .orders-list__item .n-text {
   grid-column: 2;
+}
+
+@media (max-width: 980px) {
+  .backtest-chart-panel {
+    height: clamp(420px, 58vh, 620px);
+    height: clamp(420px, 58dvh, 620px);
+  }
+
+  .backtest-detail-lower-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

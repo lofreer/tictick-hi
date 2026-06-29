@@ -15,15 +15,15 @@
 
     <LoadingState v-if="taskLoading" />
     <ErrorState v-else-if="taskError" :title="taskError" retryable @retry="loadDetail" />
-    <div v-else-if="task" class="workspace-grid">
+    <div v-else-if="task" class="trading-detail-workspace">
       <section class="surface chart-panel trading-detail-chart" data-chart-viewport="fixed">
         <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
         <LoadingState v-else-if="candlesLoading" />
         <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('trading.chartEmpty')" />
       </section>
 
-      <aside class="side-panel">
-        <section class="surface trading-detail-section">
+      <div class="trading-detail-lower-grid">
+        <section class="surface trading-detail-section trading-detail-summary">
           <div class="trading-detail-section__heading">
             <h2>{{ t("trading.summary") }}</h2>
             <StatusBadge :status="task.status" />
@@ -36,7 +36,7 @@
           </dl>
         </section>
 
-        <section class="surface trading-detail-section">
+        <section class="surface trading-detail-section trading-detail-tabs">
           <NTabs type="segment" animated>
             <NTabPane name="positions" :tab="t('trading.positions')">
               <LoadingState v-if="positionsLoading" />
@@ -109,7 +109,7 @@
             </NTabPane>
           </NTabs>
         </section>
-      </aside>
+      </div>
     </div>
   </section>
 </template>
@@ -325,12 +325,31 @@ function errorMessage(loadError: unknown, fallback: string) {
 </script>
 
 <style scoped>
+.trading-detail-workspace {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
 .trading-detail-chart {
-  height: clamp(560px, calc(100vh - 180px), 820px);
+  height: clamp(520px, 58vh, 760px);
+  height: clamp(520px, 58dvh, 760px);
+  max-height: none;
   min-height: 0;
+  contain: layout paint;
+}
+
+.trading-detail-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
 }
 
 .trading-detail-section {
+  min-width: 0;
   padding: 16px;
 }
 
@@ -376,7 +395,8 @@ function errorMessage(loadError: unknown, fallback: string) {
 .detail-list {
   display: grid;
   gap: 10px;
-  max-height: 320px;
+  max-height: min(520px, 54vh);
+  max-height: min(520px, 54dvh);
   overflow: auto;
   padding-right: 4px;
   padding-top: 12px;
@@ -406,5 +426,16 @@ function errorMessage(loadError: unknown, fallback: string) {
   grid-column: 2;
   color: var(--tt-muted);
   font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .trading-detail-chart {
+    height: clamp(420px, 58vh, 620px);
+    height: clamp(420px, 58dvh, 620px);
+  }
+
+  .trading-detail-lower-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
