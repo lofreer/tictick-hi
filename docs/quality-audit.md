@@ -6934,7 +6934,7 @@ Definition of Done：
 Definition of Done：
 
 - 新增 GitHub Actions workflow，在 pull request、`main` push 和手动触发时运行默认完整质量门禁。
-- CI 使用 `go.mod` 的 Go 版本和前端 `packageManager` 指定的 pnpm 版本，先安装前端依赖，再运行 `scripts/full-quality-gate.sh`。
+- CI 使用 `go.mod` 的 Go 版本和前端 `packageManager` 指定的 pnpm 版本，安装 `ripgrep` 和前端依赖，再运行 `scripts/full-quality-gate.sh`。
 - CI 默认不执行 Docker / Chrome 重型 Stage 8 smoke，避免把本地完整门禁和环境依赖更强的验收混在一起。
 - README 说明远程 CI 与本地完整门禁的关系。
 - 不改业务功能、不新增 migration、不升级模块等级。
@@ -6948,6 +6948,7 @@ Definition of Done：
 验证：
 
 - `scripts/full-quality-gate.sh` 本地通过，覆盖 `go test ./...`、`go vet ./...`、前端 typecheck、前端 test、前端 build 和 `scripts/quality-gate.sh`。
+- 首次远程 run `28385821859` 失败，原因是 GitHub runner 缺少 `rg`，导致 `check-trading-floats.sh`、`check-strategy-boundary.sh` 和 scaffold marker 检查无法运行；已在 workflow 中安装 `ripgrep`。
 - `git diff --check` 通过。
 
 剩余风险：

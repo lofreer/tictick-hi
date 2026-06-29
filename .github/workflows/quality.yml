@@ -35,6 +35,11 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Install quality gate tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: Set up pnpm
         run: |
           corepack enable
