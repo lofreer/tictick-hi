@@ -10,6 +10,21 @@ func ValidateCandleSeries(candles []Candle, interval string) error {
 	return validateCandleSeries(candles, interval)
 }
 
+func ValidateCandleSeriesForTarget(candles []Candle, exchange string, symbol string, interval string) error {
+	for _, candle := range candles {
+		if candle.Exchange != exchange || candle.Symbol != symbol || candle.Interval != interval {
+			return fmt.Errorf(
+				"candle %s target does not match data sync task %s/%s/%s",
+				candleIdentity(candle),
+				exchange,
+				symbol,
+				interval,
+			)
+		}
+	}
+	return validateCandleSeries(candles, interval)
+}
+
 func validateCandleSeries(candles []Candle, interval string) error {
 	duration, err := IntervalDuration(interval)
 	if err != nil {

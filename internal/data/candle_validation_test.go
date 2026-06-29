@@ -102,3 +102,17 @@ func TestValidateCandleSeriesRejectsInvalidCandles(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateCandleSeriesForTargetRejectsMismatchedTarget(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candle := testCandle(start, "10", "10", "10", "10", "1")
+	candle.Symbol = "ETHUSDT"
+
+	err := ValidateCandleSeriesForTarget([]Candle{candle}, "binance", "BTCUSDT", "1m")
+	if err == nil {
+		t.Fatal("expected target mismatch error")
+	}
+	if !strings.Contains(err.Error(), "target does not match") {
+		t.Fatalf("error = %q, want target mismatch", err.Error())
+	}
+}

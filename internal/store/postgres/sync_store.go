@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
@@ -115,6 +116,14 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 	}
 	defer tx.Rollback(ctx)
 
+	target, err := readDataSyncTaskTarget(ctx, tx, result.TaskID)
+	if err != nil {
+		return err
+	}
+	if err := data.ValidateCandleSeriesForTarget(result.Candles, target.exchange, target.symbol, target.interval); err != nil {
+		return fmt.Errorf("validate data sync result candles: %w", err)
+	}
+
 	for _, candle := range result.Candles {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO market_candles (
@@ -198,6 +207,28 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 		return fmt.Errorf("commit sync result: %w", err)
 	}
 	return nil
+}
+
+type dataSyncTaskTarget struct {
+	exchange string
+	symbol   string
+	interval string
+}
+
+func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string) (dataSyncTaskTarget, error) {
+	var target dataSyncTaskTarget
+	if err := tx.QueryRow(ctx, `
+		SELECT exchange, symbol, interval
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		taskID,
+	).Scan(&target.exchange, &target.symbol, &target.interval); err != nil {
+		if err == pgx.ErrNoRows {
+			return dataSyncTaskTarget{}, data.ErrNotFound
+		}
+		return dataSyncTaskTarget{}, fmt.Errorf("read data sync task target: %w", err)
+	}
+	return target, nil
 }
 
 func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskErr error) error {

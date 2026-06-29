@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -211,6 +212,71 @@ func TestIntegrationSaveDataSyncResultKeepsFutureExchangeBackoff(t *testing.T) {
 	}
 	if count := countIntegrationExchangeBackoffs(t, ctx, store, "binance"); count != 1 {
 		t.Fatalf("successful sync result should keep future exchange backoff, count=%d", count)
+	}
+}
+
+func TestIntegrationSaveDataSyncResultRejectsMismatchedCandleTarget(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	id := integrationID("dst")
+	symbol := integrationSymbol("MT")
+	wrongSymbol := integrationSymbol("MW")
+	openTime := time.Date(2026, 6, 29, 2, 30, 0, 0, time.UTC)
+	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, false, "save-worker")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol IN ($1, $2)`, symbol, wrongSymbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol IN ($1, $2)`, symbol, wrongSymbol)
+	})
+
+	err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
+		TaskID: id,
+		Candles: []data.Candle{
+			integrationResumeCandle(wrongSymbol, openTime, "1.8"),
+		},
+		LastOpenTime: &openTime,
+		Completed:    true,
+	})
+	if err == nil {
+		t.Fatal("expected mismatched candle target error")
+	}
+	if !strings.Contains(err.Error(), "target does not match") {
+		t.Fatalf("error = %v, want target mismatch", err)
+	}
+
+	var candleCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		  FROM market_candles
+		 WHERE symbol IN ($1, $2)`,
+		symbol,
+		wrongSymbol,
+	).Scan(&candleCount); err != nil {
+		t.Fatal(err)
+	}
+	if candleCount != 0 {
+		t.Fatalf("mismatched result should not write candles, count=%d", candleCount)
+	}
+
+	var latestSynced sql.NullTime
+	if err := store.pool.QueryRow(ctx, `
+		SELECT last_synced_open_time
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		id,
+	).Scan(&latestSynced); err != nil {
+		t.Fatal(err)
+	}
+	if latestSynced.Valid {
+		t.Fatalf("mismatched result should not advance cursor: %#v", latestSynced)
+	}
+	row := readIntegrationSyncTask(t, ctx, store, id)
+	if row.status != data.TaskStatusRunning || !row.syncEnabled {
+		t.Fatalf("mismatched result should not transition task: %#v", row)
 	}
 }
 

@@ -196,7 +196,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	if err != nil {
 		return err
 	}
-	if err := data.ValidateCandleSeries(candles, task.Interval); err != nil {
+	if err := data.ValidateCandleSeriesForTarget(candles, task.Exchange, task.Symbol, task.Interval); err != nil {
 		return fmt.Errorf("validate fetched candles: %w", err)
 	}
 
