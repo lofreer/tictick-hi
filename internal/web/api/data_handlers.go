@@ -4,17 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/lofreer/tictick-hi/internal/data"
-)
-
-var (
-	externalErrorTransportPattern = regexp.MustCompile(`\b(?:Get|Post|Put|Patch|Delete|Head|Options) "(https?://[^"]+)": ([^;]+)`)
-	externalErrorURLPattern       = regexp.MustCompile(`https?://[^\s"'<>]+`)
+	"github.com/lofreer/tictick-hi/internal/errtext"
 )
 
 func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
@@ -218,34 +211,7 @@ func sanitizeDataSyncTask(task data.DataSyncTask) data.DataSyncTask {
 }
 
 func sanitizeExternalError(value string) string {
-	normalized := strings.Join(strings.Fields(value), " ")
-	if normalized == "" {
-		return ""
-	}
-	sanitized := externalErrorTransportPattern.ReplaceAllStringFunc(normalized, func(raw string) string {
-		matches := externalErrorTransportPattern.FindStringSubmatch(raw)
-		if len(matches) != 3 {
-			return "[external-url]"
-		}
-		return externalErrorHost(matches[1]) + ": " + strings.TrimSpace(matches[2])
-	})
-	sanitized = externalErrorURLPattern.ReplaceAllStringFunc(sanitized, func(raw string) string {
-		return externalErrorHost(raw)
-	})
-	const maxRunes = 500
-	runes := []rune(sanitized)
-	if len(runes) <= maxRunes {
-		return sanitized
-	}
-	return string(runes[:maxRunes-3]) + "..."
-}
-
-func externalErrorHost(raw string) string {
-	parsed, err := url.Parse(raw)
-	if err == nil && parsed.Host != "" {
-		return parsed.Host
-	}
-	return "[external-url]"
+	return errtext.ExternalError(value)
 }
 
 func (server *Server) handleCandles(w http.ResponseWriter, r *http.Request) {

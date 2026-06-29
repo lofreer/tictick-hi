@@ -43,7 +43,7 @@ describe("DataSyncTaskTable", () => {
     expect(errorText.text()).toContain("EOF");
   });
 
-  it("shows scheduled retry time for temporary sync errors", () => {
+  it("shows scheduled retry time without printing raw ISO text in the cell", () => {
     const wrapper = mount(DataSyncTaskTable, {
       global: { plugins: [i18n] },
       props: {
@@ -61,7 +61,9 @@ describe("DataSyncTaskTable", () => {
       },
     });
 
-    expect(wrapper.text()).toContain("2026-06-28T01:30:00Z");
+    const retryTime = wrapper.get(".task-time-text");
+    expect(retryTime.attributes("title")).toBe("2026-06-28T01:30:00Z");
+    expect(retryTime.text()).not.toBe("2026-06-28T01:30:00Z");
   });
 
   it("shows exchange-level backoff without leaking request URLs", () => {
@@ -86,10 +88,29 @@ describe("DataSyncTaskTable", () => {
 
     expect(wrapper.text()).toContain("交易所退避");
     const backoff = wrapper.get(".task-exchange-backoff");
-    expect(backoff.text()).toBe("2026-06-28T01:45:00Z");
+    expect(backoff.text()).not.toBe("2026-06-28T01:45:00Z");
+    expect(backoff.attributes("title")).toContain("2026-06-28T01:45:00Z");
     expect(backoff.attributes("title")).toContain("api.binance.com");
     expect(backoff.attributes("title")).not.toContain("/api/v3/klines");
     expect(backoff.attributes("title")).not.toContain("symbol=BTCUSDT");
+  });
+
+  it("shows latest synced time as a compact cell with the raw timestamp in title", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            latestSyncedAt: "2026-06-28T01:20:00Z",
+          }),
+        ],
+      },
+    });
+
+    const syncedTime = wrapper.get(".task-time-text");
+    expect(syncedTime.attributes("title")).toBe("2026-06-28T01:20:00Z");
+    expect(syncedTime.text()).not.toBe("2026-06-28T01:20:00Z");
   });
 
   it("shows backend-derived data health", () => {

@@ -3,11 +3,11 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/errtext"
 )
 
 func (store *Store) ClaimDataSyncTask(
@@ -339,13 +339,7 @@ func (store *Store) ReleaseDataSyncTask(ctx context.Context, taskID string) erro
 }
 
 func normalizeTaskError(taskErr error) string {
-	message := strings.Join(strings.Fields(taskErr.Error()), " ")
-	const maxRunes = 500
-	runes := []rune(message)
-	if len(runes) <= maxRunes {
-		return message
-	}
-	return string(runes[:maxRunes-3]) + "..."
+	return errtext.ExternalError(taskErr.Error())
 }
 
 func intervalLiteral(duration time.Duration) string {

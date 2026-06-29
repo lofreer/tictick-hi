@@ -6243,6 +6243,49 @@ Definition of Done：
 - 研究页、交易详情、回测详情仍未建立人工截图基线审批；本轮以 DOM 几何、canvas 像素、无横向溢出和高度稳定性作为自动验收。
 - 项目整体仍是 `scaffold`，不能升级为 production-safe。
 
+### 阶段 1 数据同步错误摘要和 retry/backoff 可观察性补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 数据同步任务遇到外部交易所 EOF / 超时等临时错误时，运行时 adapter 通常已经生成 host 级错误摘要，但 store 层仍只做空白归一和 500 字截断；如果未来其他 fetcher 或测试直接传入 `Get "https://..."` 错误，`data_sync_tasks.last_error` 和 `data_sync_exchange_backoffs.last_error` 仍可能保存完整请求路径和 query。
+- 研究页任务表虽然已有错误列省略和 tooltip，但 retry / exchange backoff 时间仍直接显示原始 ISO 字符串，影响任务表密度。
+
+Definition of Done：
+
+- Go 侧外部错误清洗规则抽成共享边界，API 响应和 PostgreSQL 写入都复用同一逻辑。
+- `RecordDataSyncRetry` 和 `MarkDataSyncFailed` 写入 `last_error` 前移除外部请求 URL path / query，只保留 host 和原因摘要。
+- exchange-level backoff 表保存的 `last_error` 同样不包含完整外部请求 URL。
+- 研究页任务表的最新同步时间、下次重试时间和交易所退避时间显示为紧凑本地时间，完整原始时间保留在 title / tooltip。
+- 不改变 retry/backoff 状态机、不改变退避时长、不新增分布式限流、不自动重试所有历史失败任务。
+
+修复范围：
+
+- 新增 `internal/errtext.ExternalError`，统一清洗外部错误 URL、空白和最大长度。
+- `internal/store/postgres/sync_store.go` 的 data sync 错误持久化改为调用共享清洗函数。
+- `internal/web/api/data_handlers.go` 的 data sync API 响应清洗改为复用共享函数，避免 API / store 规则分叉。
+- `internal/store/postgres/integration_test.go` 的 data sync retry 集成路径改用原始 Binance URL 错误输入，并断言任务表与 exchange backoff 表都只保存 host 摘要。
+- `web/frontend/src/components/tables/DataSyncTaskTable.vue` 将 retry/backoff/最新同步时间渲染为紧凑本地时间。
+- 新增 `web/frontend/src/utils/displayText.ts` 承载前端短时间和文本摘要工具，避免表格组件超过文件大小硬限制。
+
+验证：
+
+- `go test ./internal/errtext ./internal/store/postgres ./internal/web/api -run 'TestExternalError|TestNormalizeTaskError|TestIntegrationDataSyncRetryReleasesAndReclaimsTask|TestDataSyncTaskRoutesSanitizeLastError' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/components/tables/DataSyncTaskTable.test.ts src/services/api/data.test.ts` 通过，2 个测试文件 / 24 条测试。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过，24 个测试文件 / 123 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过，文件大小硬门禁恢复：`DataSyncTaskTable.vue` 448 行，`internal/store/postgres/integration_test.go` 695 行。
+
+剩余风险：
+
+- 本轮只保证 data sync 任务和 exchange backoff 错误摘要不会保存完整外部请求 URL；其它领域的历史 `last_error` 文本没有迁移清洗。
+- 本轮不证明真实 Binance / OKX 网络恢复压测，也不实现多实例共享限流。
+- retry/backoff 仍是基础可观察和可恢复边界，尚未升级为 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

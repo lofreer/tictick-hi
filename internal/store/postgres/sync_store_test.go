@@ -18,6 +18,20 @@ func TestNormalizeTaskError(t *testing.T) {
 	}
 }
 
+func TestNormalizeTaskErrorHidesExternalRequestURLs(t *testing.T) {
+	err := errors.New(`binance klines: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF`)
+
+	normalized := normalizeTaskError(err)
+	if normalized != "binance klines: api.binance.com: EOF" {
+		t.Fatalf("normalized = %q", normalized)
+	}
+	for _, forbidden := range []string{`Get "`, "https://", "/api/v3/klines", "symbol=BTCUSDT", "endTime=", "startTime="} {
+		if strings.Contains(normalized, forbidden) {
+			t.Fatalf("normalized error leaks %q: %s", forbidden, normalized)
+		}
+	}
+}
+
 func TestNormalizeTaskErrorTruncatesLongMessages(t *testing.T) {
 	normalized := normalizeTaskError(errors.New(strings.Repeat("x", 700)))
 

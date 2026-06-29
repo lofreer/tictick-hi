@@ -244,7 +244,10 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	if err := store.RecordDataSyncRetry(
 		ctx,
 		id,
-		exchange.NewTemporaryError("binance klines temporary unavailable: api.binance.com: Get EOF", nil),
+		exchange.NewTemporaryError(
+			`binance klines temporary unavailable: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF`,
+			nil,
+		),
 		ptrTime(time.Now().UTC().Add(time.Hour)),
 	); err != nil {
 		t.Fatal(err)
@@ -257,9 +260,22 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	if row.lockedBy.Valid || row.lockedUntil.Valid || row.heartbeatAt.Valid {
 		t.Fatalf("retry should release lease: %#v", row)
 	}
-	if !strings.Contains(row.lastError, "temporary unavailable") || strings.Contains(row.lastError, "\n") {
-		t.Fatalf("retry should store normalized error: %q", row.lastError)
+	if row.lastError != "binance klines temporary unavailable: api.binance.com: EOF" {
+		t.Fatalf("retry should store sanitized error: %q", row.lastError)
 	}
+	assertIntegrationNoRequestURLLeak(t, row.lastError)
+	var backoffError string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT last_error
+		  FROM data_sync_exchange_backoffs
+		 WHERE exchange = 'binance'`,
+	).Scan(&backoffError); err != nil {
+		t.Fatal(err)
+	}
+	if backoffError != row.lastError {
+		t.Fatalf("exchange backoff error = %q, want %q", backoffError, row.lastError)
+	}
+	assertIntegrationNoRequestURLLeak(t, backoffError)
 	if !row.nextAttemptAt.Valid || !row.nextAttemptAt.Time.After(time.Now().UTC()) {
 		t.Fatalf("retry should schedule a future next attempt: %#v", row)
 	}
@@ -672,15 +688,6 @@ func readIntegrationExchangeBackoff(
 		t.Fatal(err)
 	}
 	return nextAttemptAt
-}
-
-func findIntegrationServiceHealth(health data.SystemHealth, name string) data.ServiceHealth {
-	for _, service := range health.Services {
-		if service.Name == name {
-			return service
-		}
-	}
-	return data.ServiceHealth{}
 }
 
 func ptrTime(value time.Time) *time.Time {

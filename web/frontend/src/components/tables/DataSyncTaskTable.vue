@@ -30,6 +30,7 @@ import { useI18n } from "vue-i18n";
 
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import type { DataSyncTask } from "@/types/app";
+import { formatCompactDateTime, summarizeText } from "@/utils/displayText";
 import { sanitizeExternalError } from "@/utils/errorText";
 
 const props = defineProps<{ tasks: DataSyncTask[]; repairingTaskId?: string }>();
@@ -68,7 +69,7 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     title: t("research.latestSyncedAt"),
     key: "latestSyncedAt",
     minWidth: 150,
-    render: (row) => row.latestSyncedAt ?? "-",
+    render: (row) => timeCell(row.latestSyncedAt),
   },
   {
     title: t("research.dataHealth"),
@@ -107,7 +108,7 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     title: t("research.nextAttemptAt"),
     key: "nextAttemptAt",
     minWidth: 150,
-    render: (row) => row.nextAttemptAt ?? "-",
+    render: (row) => timeCell(row.nextAttemptAt),
   },
   {
     title: t("research.exchangeBackoffUntil"),
@@ -304,7 +305,7 @@ function lastErrorCell(row: DataSyncTask) {
   if (!detail) {
     return h(NText, { depth: 3 }, () => "-");
   }
-  const summary = summarizeError(detail);
+  const summary = summarizeText(detail);
   return h(
     NTooltip,
     { trigger: "hover", width: 420 },
@@ -340,8 +341,9 @@ function exchangeBackoffCell(row: DataSyncTask) {
   }
   const detail = sanitizeExternalError(row.exchangeBackoffLastError);
   if (!detail) {
-    return row.exchangeBackoffUntil;
+    return timeCell(row.exchangeBackoffUntil);
   }
+  const formatted = formatCompactDateTime(row.exchangeBackoffUntil);
   return h(
     NTooltip,
     { trigger: "hover", width: 420 },
@@ -351,9 +353,9 @@ function exchangeBackoffCell(row: DataSyncTask) {
           "span",
           {
             class: "task-exchange-backoff",
-            title: detail,
+            title: `${row.exchangeBackoffUntil} · ${detail}`,
           },
-          row.exchangeBackoffUntil,
+          formatted,
         ),
       default: () =>
         h(
@@ -371,12 +373,11 @@ function exchangeBackoffCell(row: DataSyncTask) {
   );
 }
 
-function summarizeError(value: string) {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 90) {
-    return normalized;
+function timeCell(value?: string) {
+  if (!value) {
+    return h(NText, { depth: 3 }, () => "-");
   }
-  return `${normalized.slice(0, 87)}...`;
+  return h("span", { class: "task-time-text", title: value }, formatCompactDateTime(value));
 }
 
 function dataHealthTagType(health: DataSyncTask["dataHealth"]): TagProps["type"] {
@@ -402,7 +403,8 @@ function rowKey(row: DataSyncTask): DataTableRowKey {
 .task-error-text,
 .task-gap-summary,
 .task-sync-window,
-.task-exchange-backoff {
+.task-exchange-backoff,
+.task-time-text {
   display: block;
   width: 100%;
   max-width: 100%;
