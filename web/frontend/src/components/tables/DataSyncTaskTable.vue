@@ -383,7 +383,7 @@ function timeCell(value?: string) {
 function dataHealthTagType(health: DataSyncTask["dataHealth"]): TagProps["type"] {
   if (health === "ok") return "success";
   if (health === "gap" || health === "retrying") return "warning";
-  if (health === "failed") return "error";
+  if (health === "failed" || health === "invalid") return "error";
   if (health === "syncing") return "info";
   return "default";
 }

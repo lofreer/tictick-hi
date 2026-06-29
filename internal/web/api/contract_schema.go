@@ -308,6 +308,7 @@ func enumSchema(t reflect.Type) map[string]any {
 			string(data.DataSyncHealthPaused),
 			string(data.DataSyncHealthRetrying),
 			string(data.DataSyncHealthInsufficient),
+			string(data.DataSyncHealthInvalid),
 		}}
 	case reflect.TypeOf(data.DataSyncMarketStatus("")):
 		return map[string]any{"type": "string", "enum": []string{

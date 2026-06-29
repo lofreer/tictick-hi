@@ -84,11 +84,13 @@ func dataSyncTaskCandleStateLateralSQL() string {
 	return fmt.Sprintf(`
 		WITH %s
 		SELECT (SELECT candle_count FROM candle_stats) AS candle_count,
+		       (SELECT invalid_count FROM candle_stats) AS invalid_count,
 		       COUNT(*) AS gap_count,
 		       (ARRAY_AGG(gap_from ORDER BY gap_from, gap_to))[1] AS first_gap_from,
 		       (ARRAY_AGG(gap_to ORDER BY gap_from, gap_to))[1] AS first_gap_to,
 		       (ARRAY_AGG(missing_candles ORDER BY gap_from, gap_to))[1] AS first_gap_missing_candles,
-		       COUNT(*) > 0 AS has_gap
+		       COUNT(*) > 0 AS has_gap,
+		       (SELECT invalid_count > 0 FROM candle_stats) AS has_invalid
 		  FROM gaps`,
 		dataSyncTaskWindowGapCTESQL(`SELECT t.exchange, t.symbol, t.interval, t.start_time, t.end_time, t.last_synced_open_time`),
 	)
@@ -124,6 +126,11 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 		),
 		ordered_candles AS (
 			SELECT c.open_time,
+			       c.open,
+			       c.high,
+			       c.low,
+			       c.close,
+			       c.volume,
 			       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,
 			       task_window.interval_duration
 			  FROM task_window
@@ -136,6 +143,15 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 		),
 		candle_stats AS (
 			SELECT COUNT(*)::int AS candle_count,
+			       COUNT(*) FILTER (
+			         WHERE open <= 0
+			            OR high <= 0
+			            OR low <= 0
+			            OR close <= 0
+			            OR volume < 0
+			            OR high < GREATEST(open, close, low)
+			            OR low > LEAST(open, close, high)
+			       )::int AS invalid_count,
 			       MIN(open_time) AS first_open,
 			       MAX(open_time) AS last_open
 			  FROM ordered_candles
@@ -228,6 +244,7 @@ func dataSyncTaskListHealthSQL(alias string) string {
 		WHEN %s IN ('failed', 'cancelled') THEN 'failed'
 		WHEN %s IS NOT NULL AND %s > now() THEN 'retrying'
 		WHEN %s THEN 'retrying'
+		WHEN COALESCE(candle_state.has_invalid, false) THEN 'invalid'
 		WHEN candle_state.has_gap THEN 'gap'
 		WHEN %s = 'paused' THEN 'paused'
 		WHEN %s IS NULL OR COALESCE(candle_state.candle_count, 0) = 0 THEN

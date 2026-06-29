@@ -125,12 +125,20 @@ describe("DataSyncTaskTable", () => {
             interval: "1m",
             dataHealth: "gap",
           }),
+          dataSyncTask({
+            id: "sync_2",
+            exchange: "binance",
+            symbol: "ETHUSDT",
+            interval: "1m",
+            dataHealth: "invalid",
+          }),
         ],
       },
     });
 
     expect(wrapper.text()).toContain("数据健康");
     expect(wrapper.text()).toContain("有缺口");
+    expect(wrapper.text()).toContain("数据异常");
   });
 
   it("shows inactive market status and disables start commands", () => {

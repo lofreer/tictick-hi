@@ -13,6 +13,7 @@ const (
 	DataSyncHealthPaused       DataSyncHealth = "paused"
 	DataSyncHealthRetrying     DataSyncHealth = "retrying"
 	DataSyncHealthInsufficient DataSyncHealth = "insufficient"
+	DataSyncHealthInvalid      DataSyncHealth = "invalid"
 )
 
 const (
