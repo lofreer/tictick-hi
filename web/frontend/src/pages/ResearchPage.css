@@ -14,7 +14,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: 220px;
+  max-height: clamp(168px, 21vh, 210px);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -53,12 +53,12 @@
 
 .research-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-  align-items: center;
-  gap: 8px 14px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
   min-width: 0;
   max-width: 100%;
-  padding: 10px 14px;
+  padding: 10px 16px 8px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -73,7 +73,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 128px 196px 78px max-content;
+  grid-template-columns: 122px 174px 72px max-content;
   align-items: center;
   gap: 8px;
   width: auto;
@@ -86,18 +86,19 @@
 .research-toolbar-status {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px 12px;
+  justify-content: flex-start;
+  gap: 6px 10px;
   min-width: 0;
   max-width: 100%;
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .research-current-source {
-  flex: 0 1 300px;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: min(300px, 28vw);
+  max-width: min(320px, 36vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -107,11 +108,11 @@
 
 .research-meta {
   display: flex;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   align-items: center;
   max-width: 100%;
   min-width: 0;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 5px;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -145,9 +146,9 @@
 }
 
 .research-chart-body {
-  --kline-chart-plot-height: clamp(680px, 42vw, 720px);
-  --kline-chart-padding-left: 14px;
-  --kline-chart-padding-right: 2px;
+  --kline-chart-plot-height: clamp(700px, 44vw, 760px);
+  --kline-chart-padding-left: 18px;
+  --kline-chart-padding-right: 0px;
   --kline-chart-padding-top: 10px;
   --kline-chart-padding-bottom: 12px;
   --kline-chart-frame-height: calc(
@@ -166,22 +167,22 @@
 }
 
 .research-select--exchange {
-  width: 128px;
+  width: 122px;
 }
 
 .research-symbol-input {
-  width: 196px;
-  max-width: 196px;
+  width: 174px;
+  max-width: 174px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: 196px;
-  max-width: 196px;
+  width: 174px;
+  max-width: 174px;
 }
 
 .research-select--compact {
-  width: 78px;
+  width: 72px;
 }
 
 .research-modal {
@@ -205,9 +206,9 @@
 
 @media (max-width: 760px) {
   .research-chart-body {
-    --kline-chart-plot-height: 520px;
-    --kline-chart-padding-left: 10px;
-    --kline-chart-padding-right: 2px;
+    --kline-chart-plot-height: 560px;
+    --kline-chart-padding-left: 12px;
+    --kline-chart-padding-right: 0px;
     --kline-chart-padding-top: 8px;
     --kline-chart-padding-bottom: 12px;
   }
@@ -225,28 +226,28 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 116px 176px 72px max-content;
+    grid-template-columns: 112px 158px 68px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 116px;
+    width: 112px;
   }
 
   .research-select--compact {
-    width: 72px;
+    width: 68px;
   }
 
   .research-symbol-input {
-    width: 176px;
-    max-width: 176px;
+    width: 158px;
+    max-width: 158px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 176px;
-    max-width: 176px;
+    width: 158px;
+    max-width: 158px;
   }
 
   .research-toolbar-status {
@@ -274,9 +275,9 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-body {
-    --kline-chart-plot-height: 640px;
-    --kline-chart-padding-left: 12px;
-    --kline-chart-padding-right: 2px;
+    --kline-chart-plot-height: 680px;
+    --kline-chart-padding-left: 14px;
+    --kline-chart-padding-right: 0px;
     --kline-chart-padding-top: 9px;
     --kline-chart-padding-bottom: 13px;
   }
@@ -292,25 +293,25 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 118px 188px 74px max-content;
+    grid-template-columns: 116px 166px 70px max-content;
   }
 
   .research-select--exchange {
-    width: 118px;
+    width: 116px;
   }
 
   .research-symbol-input {
-    width: 188px;
-    max-width: 188px;
+    width: 166px;
+    max-width: 166px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 188px;
-    max-width: 188px;
+    width: 166px;
+    max-width: 166px;
   }
 
   .research-select--compact {
-    width: 74px;
+    width: 70px;
   }
 
   .research-toolbar-status {

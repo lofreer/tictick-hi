@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 56);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 54);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -543,7 +543,7 @@ function assertChartLayout(label, sample) {
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
   }
-  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 500 : sample.viewportWidth <= 980 ? 600 : 620;
+  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 540 : sample.viewportWidth <= 980 ? 660 : 680;
   if (tv.rectHeight < expectedMinimumPlotHeight - heightTolerance) {
     throw new Error(
       `${label} chart plot is too short for the viewport: ${JSON.stringify({
@@ -634,6 +634,16 @@ function assertChartLayout(label, sample) {
         maxRightPriceAxisWidth,
         body,
         tv,
+        rightAxisCanvas,
+      })}`,
+    );
+  }
+  if (Math.abs(rightAxisCanvas.left - mainPaneCanvas.right) > 1) {
+    throw new Error(
+      `${label} main chart pane is detached from the right price-axis: ${JSON.stringify({
+        body,
+        tv,
+        mainPaneCanvas,
         rightAxisCanvas,
       })}`,
     );
