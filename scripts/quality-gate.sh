@@ -30,6 +30,7 @@ run_audit() {
 }
 
 run_check "file size" "$ROOT_DIR/scripts/check-file-size.sh"
+run_check "stage 0 foundation" "$ROOT_DIR/scripts/check-stage0-foundation.sh"
 run_check "trading float64" "$ROOT_DIR/scripts/check-trading-floats.sh"
 run_check "strategy boundary" "$ROOT_DIR/scripts/check-strategy-boundary.sh"
 run_check "api contract drift" "$ROOT_DIR/scripts/check-api-contract-drift.sh"

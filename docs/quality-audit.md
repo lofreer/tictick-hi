@@ -169,6 +169,45 @@ scripts/quality-gate.sh
 - 阶段 0 质量底座验收通过。
 - 项目整体仍为 `scaffold`，不能称为 demo、usable、production-safe 或完成。
 
+### 阶段 0 质量底座当前复核补充
+
+复核时间：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- 把阶段 0 的基础工程要求固化为可重复脚本检查，而不是只依赖人工读文档。
+- 复核 `internal/web/api/server.go` 和 `web/frontend/src/i18n/messages.ts` 继续保持拆分后的入口规模。
+- 复核前端路由和页面不再引用 `PageStub`。
+- 复核 README 继续声明整体项目是 `scaffold`，并指向交付协议、质量审计和实施计划。
+- 复核轻量质量门禁继续保留文件规模、scaffold marker 和阶段 0 foundation 检查。
+
+范围外：
+
+- 不推进 CandleProvider、数据同步、策略、回测、模拟盘、通知或实盘能力。
+- 不升级任何模块到 demo、usable 或 production-safe。
+
+新增检查：
+
+- `scripts/check-stage0-foundation.sh`。
+- `scripts/quality-gate.sh` 已把 `stage 0 foundation` 纳入阻断性检查。
+
+验收结果：
+
+- `scripts/check-stage0-foundation.sh` 通过。
+- `scripts/quality-gate.sh` 通过，新增 `stage 0 foundation` 阻断项已进入轻量门禁。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `cd web/frontend && pnpm run typecheck` 通过。
+- `cd web/frontend && pnpm run test` 通过。
+- `cd web/frontend && pnpm run build` 通过。
+
+阶段 0 结论：
+
+- 本轮只加强质量底座检查能力。
+- 项目整体仍为 `scaffold`，不能称为 demo、usable、production-safe 或完成。
+
 ### P0：不能把 scaffold 说成 demo
 
 项目状态必须被明确标为 `scaffold`。
