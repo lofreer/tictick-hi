@@ -302,9 +302,12 @@ func (store *Store) updateTaskFlag(
 		UPDATE data_sync_tasks
 		   SET %s = $2,
 		       status = $3,
+		       market_pause_sync_enabled = false,
+		       market_pause_realtime_enabled = false,
 		       %s,
 		       next_attempt_at = CASE WHEN $2::boolean THEN NULL ELSE next_attempt_at END,
 		       finished_at = CASE WHEN $2::boolean THEN NULL ELSE now() END,
+		       last_error = CASE WHEN $2::boolean THEN NULL ELSE last_error END,
 		       updated_at = now()
 		 WHERE id = $1
 		   AND deleted_at IS NULL

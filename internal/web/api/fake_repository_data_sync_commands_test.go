@@ -17,7 +17,11 @@ func (repository *fakeRepository) SetSyncEnabled(
 		}
 	}
 	return repository.updateTask(ctx, id, func(task *data.DataSyncTask) {
+		delete(repository.catalogPausedTasks, task.ID)
 		task.SyncEnabled = enabled
+		if enabled {
+			task.LastError = ""
+		}
 		task.Status = data.TaskStatusPending
 		if !enabled {
 			task.Status = data.TaskStatusPaused
@@ -37,7 +41,11 @@ func (repository *fakeRepository) SetRealtimeEnabled(
 		}
 	}
 	return repository.updateTask(ctx, id, func(task *data.DataSyncTask) {
+		delete(repository.catalogPausedTasks, task.ID)
 		task.RealtimeEnabled = enabled
+		if enabled {
+			task.LastError = ""
+		}
 		task.Status = data.TaskStatusRunning
 		if !enabled {
 			task.Status = data.TaskStatusPaused

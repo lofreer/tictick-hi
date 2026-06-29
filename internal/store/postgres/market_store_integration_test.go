@@ -271,19 +271,33 @@ func TestIntegrationReplaceMarketInstrumentsPausesDataSyncTasksForInactiveMarket
 	}
 
 	var (
-		syncEnabled     bool
-		realtimeEnabled bool
-		status          data.TaskStatus
-		lockedBy        sql.NullString
-		lockedUntil     sql.NullTime
-		heartbeatAt     sql.NullTime
+		syncEnabled         bool
+		realtimeEnabled     bool
+		status              data.TaskStatus
+		lockedBy            sql.NullString
+		lockedUntil         sql.NullTime
+		heartbeatAt         sql.NullTime
+		marketPauseSync     bool
+		marketPauseRealtime bool
+		lastError           sql.NullString
 	)
 	if err := store.pool.QueryRow(ctx, `
-		SELECT sync_enabled, realtime_enabled, status, locked_by, locked_until, heartbeat_at
+		SELECT sync_enabled, realtime_enabled, status, locked_by, locked_until, heartbeat_at,
+		       market_pause_sync_enabled, market_pause_realtime_enabled, last_error
 		  FROM data_sync_tasks
 		 WHERE id = $1`,
 		taskID,
-	).Scan(&syncEnabled, &realtimeEnabled, &status, &lockedBy, &lockedUntil, &heartbeatAt); err != nil {
+	).Scan(
+		&syncEnabled,
+		&realtimeEnabled,
+		&status,
+		&lockedBy,
+		&lockedUntil,
+		&heartbeatAt,
+		&marketPauseSync,
+		&marketPauseRealtime,
+		&lastError,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if syncEnabled || realtimeEnabled || status != data.TaskStatusPaused {
@@ -291,6 +305,183 @@ func TestIntegrationReplaceMarketInstrumentsPausesDataSyncTasksForInactiveMarket
 	}
 	if lockedBy.Valid || lockedUntil.Valid || heartbeatAt.Valid {
 		t.Fatalf("task lease not cleared: lockedBy=%#v lockedUntil=%#v heartbeatAt=%#v", lockedBy, lockedUntil, heartbeatAt)
+	}
+	if !marketPauseSync || !marketPauseRealtime {
+		t.Fatalf("market pause flags = sync:%t realtime:%t, want previous expectations preserved", marketPauseSync, marketPauseRealtime)
+	}
+	if !lastError.Valid || lastError.String != data.MarketInstrumentNotActiveError().Error() {
+		t.Fatalf("last error = %#v, want market inactive error", lastError)
+	}
+}
+
+func TestIntegrationReplaceMarketInstrumentsRestoresCatalogPausedDataSyncTasks(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	symbol := integrationSymbol("RMI")
+	autoTaskID := integrationID("dst")
+	manualTaskID := integrationID("dst")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id IN ($1, $2)`, autoTaskID, manualTaskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+	})
+
+	existingActive, err := listAllIntegrationActiveInstruments(ctx, store, "binance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertIntegrationSyncTask(t, ctx, store, autoTaskID, symbol, data.TaskStatusRunning, true, true, "catalog-restore-worker")
+	insertIntegrationSyncTask(t, ctx, store, manualTaskID, symbol, data.TaskStatusPaused, false, false, "")
+
+	firstResult, err := store.ReplaceMarketInstruments(
+		ctx,
+		"binance",
+		append(existingActive, data.MarketInstrument{
+			Symbol:         symbol,
+			BaseAsset:      "RMI",
+			QuoteAsset:     "USDT",
+			InstrumentType: "spot",
+			Status:         "inactive",
+			ExchangeStatus: "BREAK",
+			SearchPriority: 100,
+		}),
+		time.Date(2026, 6, 29, 11, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstResult.PausedDataSyncTaskCount != 1 || firstResult.RestoredDataSyncTaskCount != 0 {
+		t.Fatalf("first sync result = %#v, want one paused and zero restored", firstResult)
+	}
+
+	activeWithoutSymbol, err := listAllIntegrationActiveInstruments(ctx, store, "binance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondResult, err := store.ReplaceMarketInstruments(
+		ctx,
+		"binance",
+		append(activeWithoutSymbol, data.MarketInstrument{
+			Symbol:         symbol,
+			BaseAsset:      "RMI",
+			QuoteAsset:     "USDT",
+			InstrumentType: "spot",
+			Status:         "active",
+			ExchangeStatus: "TRADING",
+			SearchPriority: 100,
+		}),
+		time.Date(2026, 6, 29, 11, 5, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondResult.RestoredDataSyncTaskCount != 1 || secondResult.PausedDataSyncTaskCount != 0 {
+		t.Fatalf("second sync result = %#v, want one restored and zero paused", secondResult)
+	}
+
+	rows, err := store.pool.Query(ctx, `
+		SELECT id, sync_enabled, realtime_enabled, status,
+		       market_pause_sync_enabled, market_pause_realtime_enabled, COALESCE(last_error, '')
+		  FROM data_sync_tasks
+		 WHERE id IN ($1, $2)`,
+		autoTaskID,
+		manualTaskID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	type taskState struct {
+		syncEnabled         bool
+		realtimeEnabled     bool
+		status              data.TaskStatus
+		marketPauseSync     bool
+		marketPauseRealtime bool
+		lastError           string
+	}
+	states := map[string]taskState{}
+	for rows.Next() {
+		var id string
+		var state taskState
+		if err := rows.Scan(
+			&id,
+			&state.syncEnabled,
+			&state.realtimeEnabled,
+			&state.status,
+			&state.marketPauseSync,
+			&state.marketPauseRealtime,
+			&state.lastError,
+		); err != nil {
+			t.Fatal(err)
+		}
+		states[id] = state
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	autoState := states[autoTaskID]
+	if !autoState.syncEnabled || !autoState.realtimeEnabled || autoState.status != data.TaskStatusRunning ||
+		autoState.marketPauseSync || autoState.marketPauseRealtime || autoState.lastError != "" {
+		t.Fatalf("auto restored task state = %#v, want original expectations restored", autoState)
+	}
+	manualState := states[manualTaskID]
+	if manualState.syncEnabled || manualState.realtimeEnabled || manualState.status != data.TaskStatusPaused ||
+		manualState.marketPauseSync || manualState.marketPauseRealtime || manualState.lastError != "" {
+		t.Fatalf("manual paused task state = %#v, want untouched", manualState)
+	}
+}
+
+func TestIntegrationSetSyncEnabledClearsCatalogPauseMarker(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	taskID := integrationID("dst")
+	symbol := integrationSymbol("CPC")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, taskID)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+	})
+
+	insertIntegrationSyncTask(t, ctx, store, taskID, symbol, data.TaskStatusPaused, false, false, "")
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET market_pause_sync_enabled = true,
+		       market_pause_realtime_enabled = true,
+		       last_error = $2
+		 WHERE id = $1`,
+		taskID,
+		data.MarketInstrumentNotActiveError().Error(),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	task, err := store.SetSyncEnabled(ctx, taskID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !task.SyncEnabled || task.Status != data.TaskStatusPending || task.LastError != "" {
+		t.Fatalf("started task = %#v, want sync pending with error cleared", task)
+	}
+
+	var marketPauseSync, marketPauseRealtime bool
+	var lastError sql.NullString
+	if err := store.pool.QueryRow(ctx, `
+		SELECT market_pause_sync_enabled, market_pause_realtime_enabled, last_error
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		taskID,
+	).Scan(&marketPauseSync, &marketPauseRealtime, &lastError); err != nil {
+		t.Fatal(err)
+	}
+	if marketPauseSync || marketPauseRealtime || lastError.Valid {
+		t.Fatalf("catalog pause state = sync:%t realtime:%t lastError:%#v, want cleared", marketPauseSync, marketPauseRealtime, lastError)
 	}
 }
 

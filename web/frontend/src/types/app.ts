@@ -163,6 +163,7 @@ export type MarketInstrumentSyncResult = {
   activeCount: number;
   inactiveCount: number;
   pausedDataSyncTaskCount: number;
+  restoredDataSyncTaskCount: number;
   syncedAt: string;
 };
 

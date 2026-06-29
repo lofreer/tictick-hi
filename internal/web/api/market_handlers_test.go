@@ -339,7 +339,8 @@ func TestMarketInstrumentSyncRouteRefreshesCatalog(t *testing.T) {
 	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Exchange != "binance" || result.ActiveCount != 1 || result.InactiveCount != 1 || result.PausedDataSyncTaskCount != 0 {
+	if result.Exchange != "binance" || result.ActiveCount != 1 || result.InactiveCount != 1 ||
+		result.PausedDataSyncTaskCount != 0 || result.RestoredDataSyncTaskCount != 0 {
 		t.Fatalf("unexpected sync result: %#v", result)
 	}
 
@@ -353,6 +354,71 @@ func TestMarketInstrumentSyncRouteRefreshesCatalog(t *testing.T) {
 	}
 	if len(instruments) != 1 || instruments[0].Symbol != "SOLUSDT" {
 		t.Fatalf("instruments = %#v, want SOLUSDT only", instruments)
+	}
+}
+
+func TestMarketInstrumentSyncRouteReportsRestoredDataSyncTasks(t *testing.T) {
+	repository := newFakeRepository()
+	symbol := "RESTOREUSDT"
+	repository.marketInstruments = []data.MarketInstrument{
+		{Exchange: "binance", Symbol: symbol, BaseAsset: "RESTORE", QuoteAsset: "USDT", InstrumentType: "spot", Status: "active"},
+	}
+	repository.tasks = []data.DataSyncTask{{
+		ID:              "dst_restore",
+		Exchange:        "binance",
+		Symbol:          symbol,
+		Interval:        "1m",
+		SyncEnabled:     true,
+		RealtimeEnabled: true,
+		Status:          data.TaskStatusRunning,
+	}}
+	client := &mutableInstrumentClient{instruments: []data.MarketInstrument{{
+		Symbol:         symbol,
+		BaseAsset:      "RESTORE",
+		QuoteAsset:     "USDT",
+		InstrumentType: "spot",
+		Status:         "inactive",
+		ExchangeStatus: "BREAK",
+	}}}
+	server := NewServerWithConfig(repository, Config{
+		InstrumentClients: map[string]exchange.InstrumentClient{"binance": client},
+	})
+	auth := loginTestOperator(t, server)
+
+	pauseRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/instruments/sync?exchange=binance", "")
+	if pauseRecorder.Code != http.StatusOK {
+		t.Fatalf("pause status = %d body = %s", pauseRecorder.Code, pauseRecorder.Body.String())
+	}
+	var pauseResult data.MarketInstrumentSyncResult
+	if err := json.NewDecoder(pauseRecorder.Body).Decode(&pauseResult); err != nil {
+		t.Fatal(err)
+	}
+	if pauseResult.PausedDataSyncTaskCount != 1 || pauseResult.RestoredDataSyncTaskCount != 0 {
+		t.Fatalf("pause result = %#v, want one paused and zero restored", pauseResult)
+	}
+
+	client.instruments = []data.MarketInstrument{{
+		Symbol:         symbol,
+		BaseAsset:      "RESTORE",
+		QuoteAsset:     "USDT",
+		InstrumentType: "spot",
+		Status:         "active",
+		ExchangeStatus: "TRADING",
+	}}
+	restoreRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/instruments/sync?exchange=binance", "")
+	if restoreRecorder.Code != http.StatusOK {
+		t.Fatalf("restore status = %d body = %s", restoreRecorder.Code, restoreRecorder.Body.String())
+	}
+	var restoreResult data.MarketInstrumentSyncResult
+	if err := json.NewDecoder(restoreRecorder.Body).Decode(&restoreResult); err != nil {
+		t.Fatal(err)
+	}
+	if restoreResult.PausedDataSyncTaskCount != 0 || restoreResult.RestoredDataSyncTaskCount != 1 {
+		t.Fatalf("restore result = %#v, want zero paused and one restored", restoreResult)
+	}
+	task := repository.tasks[0]
+	if !task.SyncEnabled || !task.RealtimeEnabled || task.Status != data.TaskStatusRunning || task.LastError != "" {
+		t.Fatalf("restored task = %#v, want original sync/realtime expectations", task)
 	}
 }
 
@@ -455,5 +521,13 @@ func (client fakeInstrumentClient) FetchInstruments(context.Context) ([]data.Mar
 	if client.err != nil {
 		return nil, client.err
 	}
+	return append([]data.MarketInstrument(nil), client.instruments...), nil
+}
+
+type mutableInstrumentClient struct {
+	instruments []data.MarketInstrument
+}
+
+func (client *mutableInstrumentClient) FetchInstruments(context.Context) ([]data.MarketInstrument, error) {
 	return append([]data.MarketInstrument(nil), client.instruments...), nil
 }

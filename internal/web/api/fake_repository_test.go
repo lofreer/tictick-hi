@@ -20,6 +20,7 @@ type fakeRepository struct {
 	marketInstruments  []data.MarketInstrument
 	marketSyncStatuses []data.MarketInstrumentSyncStatus
 	marketSyncFailures []marketSyncFailure
+	catalogPausedTasks map[string]fakeCatalogPauseState
 	operators          []data.Operator
 	passwords          map[string]string
 	sessions           map[string]data.OperatorSession
@@ -36,6 +37,11 @@ type marketSyncFailure struct {
 	attemptedAt time.Time
 }
 
+type fakeCatalogPauseState struct {
+	syncEnabled     bool
+	realtimeEnabled bool
+}
+
 type failingListRepository struct {
 	*fakeRepository
 	err error
@@ -50,6 +56,7 @@ func newFakeRepository() *fakeRepository {
 	repository := &fakeRepository{
 		backtestOrders:     map[string][]data.BacktestOrder{},
 		backtestIntents:    map[string][]data.StrategyIntent{},
+		catalogPausedTasks: map[string]fakeCatalogPauseState{},
 		passwords:          map[string]string{},
 		sessions:           map[string]data.OperatorSession{},
 		taskGapDetails:     map[string]data.DataSyncGapList{},

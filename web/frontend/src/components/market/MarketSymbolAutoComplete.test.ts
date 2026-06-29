@@ -53,6 +53,7 @@ describe("MarketSymbolAutoComplete", () => {
       activeCount: 1,
       inactiveCount: 0,
       pausedDataSyncTaskCount: 0,
+      restoredDataSyncTaskCount: 0,
       syncedAt: "2026-06-28T00:00:00Z",
     });
   });

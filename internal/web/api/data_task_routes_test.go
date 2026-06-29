@@ -467,7 +467,9 @@ func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 	if err := json.NewDecoder(startRecorder.Body).Decode(&started); err != nil {
 		t.Fatal(err)
 	}
-	assertSanitizedTaskError(t, started.LastError, "binance klines: api.binance.com: EOF")
+	if started.LastError != "" {
+		t.Fatalf("started last error = %q, want cleared after realtime start", started.LastError)
+	}
 	assertSanitizedTaskError(t, started.ExchangeBackoffError, "binance klines temporary unavailable: api.binance.com: EOF")
 }
 

@@ -117,12 +117,14 @@ func (repository *fakeRepository) ReplaceMarketInstruments(
 		repository.marketInstruments = append(repository.marketInstruments, instrument)
 	}
 	pausedTasks := repository.pauseDataSyncTasksForInactiveMarkets(exchangeID)
+	restoredTasks := repository.restoreDataSyncTasksForActiveMarkets(exchangeID)
 	return data.MarketInstrumentSyncResult{
-		Exchange:                exchangeID,
-		ActiveCount:             active,
-		InactiveCount:           inactive,
-		PausedDataSyncTaskCount: pausedTasks,
-		SyncedAt:                syncedAt,
+		Exchange:                  exchangeID,
+		ActiveCount:               active,
+		InactiveCount:             inactive,
+		PausedDataSyncTaskCount:   pausedTasks,
+		RestoredDataSyncTaskCount: restoredTasks,
+		SyncedAt:                  syncedAt,
 	}, nil
 }
 
@@ -153,15 +155,48 @@ func (repository *fakeRepository) pauseDataSyncTasksForInactiveMarkets(exchangeI
 		if repository.hasActiveMarketInstrument(task.Exchange, task.Symbol) {
 			continue
 		}
+		repository.catalogPausedTasks[task.ID] = fakeCatalogPauseState{
+			syncEnabled:     task.SyncEnabled,
+			realtimeEnabled: task.RealtimeEnabled,
+		}
 		task.SyncEnabled = false
 		task.RealtimeEnabled = false
 		task.Status = data.TaskStatusPaused
+		task.LastError = data.MarketInstrumentNotActiveError().Error()
 		task.MarketStatus = data.DataSyncMarketStatusInactive
 		task.MarketStatusDetail = repository.fakeMarketStatusDetail(task.Exchange, task.Symbol)
 		task.UpdatedAt = time.Now().UTC()
 		paused++
 	}
 	return paused
+}
+
+func (repository *fakeRepository) restoreDataSyncTasksForActiveMarkets(exchangeID string) int {
+	restored := 0
+	for index := range repository.tasks {
+		task := &repository.tasks[index]
+		pauseState, ok := repository.catalogPausedTasks[task.ID]
+		if !ok || task.Exchange != exchangeID || task.Status != data.TaskStatusPaused {
+			continue
+		}
+		if !repository.hasActiveMarketInstrument(task.Exchange, task.Symbol) {
+			continue
+		}
+		task.SyncEnabled = pauseState.syncEnabled
+		task.RealtimeEnabled = pauseState.realtimeEnabled
+		if pauseState.realtimeEnabled {
+			task.Status = data.TaskStatusRunning
+		} else {
+			task.Status = data.TaskStatusPending
+		}
+		task.LastError = ""
+		task.MarketStatus = data.DataSyncMarketStatusActive
+		task.MarketStatusDetail = "active"
+		task.UpdatedAt = time.Now().UTC()
+		delete(repository.catalogPausedTasks, task.ID)
+		restored++
+	}
+	return restored
 }
 
 func (repository *fakeRepository) fakeMarketStatusDetail(exchangeID string, symbol string) string {

@@ -248,6 +248,10 @@ func (store *Store) ReplaceMarketInstruments(
 	if err != nil {
 		return data.MarketInstrumentSyncResult{}, err
 	}
+	restoredTasks, err := store.restoreDataSyncTasksForActiveMarkets(ctx, tx, exchangeID)
+	if err != nil {
+		return data.MarketInstrumentSyncResult{}, err
+	}
 	if err := recordMarketInstrumentSyncSuccess(ctx, tx, exchangeID, syncedAt); err != nil {
 		return data.MarketInstrumentSyncResult{}, err
 	}
@@ -256,11 +260,12 @@ func (store *Store) ReplaceMarketInstruments(
 		return data.MarketInstrumentSyncResult{}, fmt.Errorf("commit market instrument sync: %w", err)
 	}
 	return data.MarketInstrumentSyncResult{
-		Exchange:                exchangeID,
-		ActiveCount:             activeCount,
-		InactiveCount:           int(tag.RowsAffected()),
-		PausedDataSyncTaskCount: pausedTasks,
-		SyncedAt:                syncedAt,
+		Exchange:                  exchangeID,
+		ActiveCount:               activeCount,
+		InactiveCount:             int(tag.RowsAffected()),
+		PausedDataSyncTaskCount:   pausedTasks,
+		RestoredDataSyncTaskCount: restoredTasks,
+		SyncedAt:                  syncedAt,
 	}, nil
 }
 
@@ -273,7 +278,10 @@ func (store *Store) pauseDataSyncTasksForInactiveMarkets(
 		UPDATE data_sync_tasks
 		   SET sync_enabled = false,
 		       realtime_enabled = false,
+		       market_pause_sync_enabled = sync_enabled,
+		       market_pause_realtime_enabled = realtime_enabled,
 		       status = $2,
+		       last_error = $6,
 		       %s,
 		       updated_at = now()
 		 WHERE exchange = $1
@@ -292,9 +300,51 @@ func (store *Store) pauseDataSyncTasksForInactiveMarkets(
 		data.TaskStatusPending,
 		data.TaskStatusRunning,
 		data.TaskStatusPaused,
+		data.MarketInstrumentNotActiveError().Error(),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("pause data sync tasks for inactive markets: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func (store *Store) restoreDataSyncTasksForActiveMarkets(
+	ctx context.Context,
+	exec leaseExec,
+	exchangeID string,
+) (int, error) {
+	tag, err := exec.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET sync_enabled = market_pause_sync_enabled,
+		       realtime_enabled = market_pause_realtime_enabled,
+		       status = CASE
+		         WHEN market_pause_realtime_enabled THEN $2
+		         ELSE $3
+		       END,
+		       market_pause_sync_enabled = false,
+		       market_pause_realtime_enabled = false,
+		       last_error = NULL,
+		       next_attempt_at = NULL,
+		       finished_at = NULL,
+		       updated_at = now()
+		 WHERE exchange = $1
+		   AND status = $4
+		   AND deleted_at IS NULL
+		   AND (market_pause_sync_enabled = true OR market_pause_realtime_enabled = true)
+		   AND EXISTS (
+		     SELECT 1
+		       FROM market_instruments AS instrument
+		      WHERE instrument.exchange = data_sync_tasks.exchange
+		        AND instrument.symbol = data_sync_tasks.symbol
+		        AND instrument.status = 'active'
+		   )`,
+		exchangeID,
+		data.TaskStatusRunning,
+		data.TaskStatusPending,
+		data.TaskStatusPaused,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("restore data sync tasks for active markets: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
 }

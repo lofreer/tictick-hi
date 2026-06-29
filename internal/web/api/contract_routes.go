@@ -159,13 +159,14 @@ func addMarketContractPaths(paths map[string]apiPathItem) {
 func marketInstrumentSyncResultSchema() map[string]any {
 	return map[string]any{
 		"type":     "object",
-		"required": []string{"exchange", "activeCount", "inactiveCount", "pausedDataSyncTaskCount", "syncedAt"},
+		"required": []string{"exchange", "activeCount", "inactiveCount", "pausedDataSyncTaskCount", "restoredDataSyncTaskCount", "syncedAt"},
 		"properties": map[string]any{
-			"exchange":                map[string]any{"type": "string"},
-			"activeCount":             map[string]any{"type": "integer"},
-			"inactiveCount":           map[string]any{"type": "integer"},
-			"pausedDataSyncTaskCount": map[string]any{"type": "integer"},
-			"syncedAt":                map[string]any{"type": "string", "format": "date-time"},
+			"exchange":                  map[string]any{"type": "string"},
+			"activeCount":               map[string]any{"type": "integer"},
+			"inactiveCount":             map[string]any{"type": "integer"},
+			"pausedDataSyncTaskCount":   map[string]any{"type": "integer"},
+			"restoredDataSyncTaskCount": map[string]any{"type": "integer"},
+			"syncedAt":                  map[string]any{"type": "string", "format": "date-time"},
 		},
 	}
 }

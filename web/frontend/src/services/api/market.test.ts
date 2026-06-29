@@ -46,6 +46,7 @@ describe("market api", () => {
           activeCount: 100,
           inactiveCount: 2,
           pausedDataSyncTaskCount: 1,
+          restoredDataSyncTaskCount: 3,
           syncedAt: "2026-06-28T00:00:00Z",
         }),
         { status: 200 },
@@ -57,6 +58,7 @@ describe("market api", () => {
       exchange: "binance",
       activeCount: 100,
       pausedDataSyncTaskCount: 1,
+      restoredDataSyncTaskCount: 3,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/market/instruments/sync?exchange=binance",
