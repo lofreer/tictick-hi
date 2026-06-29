@@ -17,6 +17,9 @@ LOCK_SYMBOL="S8LOCK${STAMP}USDT"
 CHANNEL="stage8-smoke-${STAMP}"
 START_TIME="2026-01-01T00:00:00Z"
 END_TIME="2026-01-01T02:00:00Z"
+# CandleProvider from/to are inclusive open_time bounds. The seeded 1m sync
+# window closes at 02:00, so the final complete 5m candle opens at 01:55.
+STRATEGY_END_TIME="2026-01-01T01:55:00Z"
 
 TMP_DIR="$(mktemp -d)"
 COOKIE_JAR="$TMP_DIR/cookies.txt"
@@ -341,6 +344,28 @@ NODE
   fail "notifications for trading task $id did not reach sent state"
 }
 
+run_browser_visual_smokes() {
+  case "${STAGE8_BROWSER_SMOKE:-1}" in
+    0|false|FALSE|no|NO)
+      log "browser visual smoke skipped"
+      printf 'WARN: STAGE8_BROWSER_SMOKE=%s skipped Stage 8 browser visual smokes\n' "${STAGE8_BROWSER_SMOKE:-0}" >&2
+      return 0
+      ;;
+  esac
+
+  log "browser visual smoke"
+  BASE_URL="$BASE_URL" \
+    SMOKE_BACKTEST_ID="$BACKTEST_ID" \
+    SMOKE_TRADING_TASK_ID="$EXECUTE_TASK_ID" \
+    SMOKE_SETTLE_MS="${STAGE8_VISUAL_SMOKE_SETTLE_MS:-500}" \
+    node scripts/stage8-visual-smoke.mjs
+
+  log "state visual smoke"
+  BASE_URL="$BASE_URL" \
+    SMOKE_SETTLE_MS="${STAGE8_STATE_VISUAL_SMOKE_SETTLE_MS:-300}" \
+    node scripts/stage8-state-visual-smoke.mjs
+}
+
 require_env POSTGRES_USER
 require_env POSTGRES_DB
 require_env BOOTSTRAP_OPERATOR_USERNAME
@@ -436,7 +461,7 @@ api_post "/api/system/notifications/channels" \
 
 log "backtest worker"
 api_post "/api/backtests" \
-  "{\"name\":\"stage8-smoke-backtest-$STAMP\",\"exchange\":\"binance\",\"symbol\":\"$SYMBOL\",\"interval\":\"5m\",\"startTime\":\"$START_TIME\",\"endTime\":\"$END_TIME\",\"strategyId\":\"ema-cross\",\"strategyParams\":{\"fastPeriod\":2,\"slowPeriod\":5,\"orderSize\":0.1,\"signalMode\":\"order\"},\"initialBalance\":\"10000\",\"feeBps\":\"1\",\"slippageBps\":\"1\",\"triggerMode\":\"closed_candle\"}" \
+  "{\"name\":\"stage8-smoke-backtest-$STAMP\",\"exchange\":\"binance\",\"symbol\":\"$SYMBOL\",\"interval\":\"5m\",\"startTime\":\"$START_TIME\",\"endTime\":\"$STRATEGY_END_TIME\",\"strategyId\":\"ema-cross\",\"strategyParams\":{\"fastPeriod\":2,\"slowPeriod\":5,\"orderSize\":0.1,\"signalMode\":\"order\"},\"initialBalance\":\"10000\",\"feeBps\":\"1\",\"slippageBps\":\"1\",\"triggerMode\":\"closed_candle\"}" \
   201
 BACKTEST_ID="$(json_get "$BODY_FILE" id)"
 wait_for_backtest "$BACKTEST_ID"
@@ -497,6 +522,8 @@ for (const name of ["sync-worker", "backtest-worker", "trading-worker", "notify-
   }
 }
 NODE
+
+run_browser_visual_smokes
 
 cat <<SUMMARY
 

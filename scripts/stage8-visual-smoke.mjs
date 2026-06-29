@@ -14,6 +14,8 @@ const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 200);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 56);
+const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
+const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -138,16 +140,19 @@ async function runVisualPass(endpoint, viewport, theme, locale) {
 }
 
 async function detailPages(cdp) {
-  const result = await evaluate(
-    cdp,
-    `Promise.all([
-      fetch('/api/backtests', { credentials: 'include' }).then(async (response) => response.ok ? response.json() : []),
-      fetch('/api/trading/tasks', { credentials: 'include' }).then(async (response) => response.ok ? response.json() : [])
-    ]).then(([backtests, tradingTasks]) => ({
-      backtestId: Array.isArray(backtests) && backtests.length > 0 ? backtests[0].id : '',
-      tradingTaskId: Array.isArray(tradingTasks) && tradingTasks.length > 0 ? tradingTasks[0].id : ''
-    }))`,
-  );
+  const result =
+    smokeBacktestId || smokeTradingTaskId
+      ? { backtestId: smokeBacktestId, tradingTaskId: smokeTradingTaskId }
+      : await evaluate(
+          cdp,
+          `Promise.all([
+            fetch('/api/backtests', { credentials: 'include' }).then(async (response) => response.ok ? response.json() : []),
+            fetch('/api/trading/tasks', { credentials: 'include' }).then(async (response) => response.ok ? response.json() : [])
+          ]).then(([backtests, tradingTasks]) => ({
+            backtestId: Array.isArray(backtests) && backtests.length > 0 ? backtests[0].id : '',
+            tradingTaskId: Array.isArray(tradingTasks) && tradingTasks.length > 0 ? tradingTasks[0].id : ''
+          }))`,
+        );
   const detailPages = [];
   if (result.backtestId) {
     detailPages.push({

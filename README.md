@@ -91,13 +91,16 @@ node scripts/research-chart-height-smoke.mjs
 
 This launches an isolated headless Chrome, signs in to the local stack, opens `/research`, and fails if the K-line chart height grows during repeated desktop or mobile sampling.
 
-Run the Stage 8 visual smoke after the stack is up:
+`scripts/stage8-smoke.sh` runs the Stage 8 browser visual smokes by default after the full-chain data is created. Use `STAGE8_BROWSER_SMOKE=0 scripts/stage8-smoke.sh` only on hosts without Chrome, and report that skip because it lowers the validation strength.
+
+Run the Stage 8 visual smokes directly after the stack is up:
 
 ```bash
 node scripts/stage8-visual-smoke.mjs
+node scripts/stage8-state-visual-smoke.mjs
 ```
 
-This signs in to the local stack and checks the core pages in desktop/mobile viewports and light/dark themes for runtime errors, horizontal overflow, and missing primary content.
+These sign in to the local stack and check the core pages, details pages, and empty/error states in desktop/mobile viewports, light/dark themes, and supported locales for runtime errors, horizontal overflow, and missing primary content.
 
 Stop the stack:
 

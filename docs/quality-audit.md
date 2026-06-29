@@ -44,10 +44,10 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言并收紧 symbol 输入、右侧价格轴和图表高度阈值，防止右侧大空白、工具栏过宽和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言并收紧 symbol 输入、右侧价格轴和图表高度阈值，防止右侧大空白、工具栏过宽和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
-| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
+| 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
 注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是迁移/删除/跨模块处置和完整交易所业务状态处置语义。
 
@@ -6833,6 +6833,54 @@ Definition of Done：
 - 这仍是 DOM/几何级状态 smoke，不是像素 PNG 快照基线。
 - 只覆盖当前列出的可见空/错误状态，不覆盖所有隐藏 tab、所有表单校验状态和所有动态详情 ID。
 - 仍缺多浏览器视觉回归和 CI 硬门禁。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 8 一键 smoke 浏览器视觉门禁接入
+
+执行时间：2026-06-29
+
+目标等级：scaffold
+
+触发问题：
+
+- 已有 `scripts/stage8-visual-smoke.mjs` 和 `scripts/stage8-state-visual-smoke.mjs` 能发现研究页、回测详情、交易详情和空/错误状态的布局回归，但原先需要人工单独运行。
+- `scripts/stage8-smoke.sh` 是 Stage 8 全链路验收入口，如果不默认串联浏览器视觉 smoke，页面布局问题容易在全链路 smoke 通过后继续漏出。
+- 首次重跑 Stage 8 smoke 暴露脚本自身窗口语义不严谨：同步 seed 窗口闭合到 `2026-01-01T02:00:00Z`，但 5m 回测直接把 `endTime=02:00` 传给 CandleProvider，provider 按 inclusive `open_time` 闭区间正确报告缺少 `02:00` open 的尾部 K 线。
+
+Definition of Done：
+
+- `scripts/stage8-smoke.sh` 在研究、回测、模拟盘、通知和系统健康全部通过后，默认执行常规视觉 smoke 和状态视觉 smoke。
+- 无 Chrome 环境必须显式设置 `STAGE8_BROWSER_SMOKE=0` 才能跳过，且跳过会降低验收强度。
+- 常规视觉 smoke 支持接收本轮 Stage 8 创建的 backtest / trading task ID，详情页检查不再依赖数据库里的首条旧记录。
+- Stage 8 smoke 的回测任务窗口和 CandleProvider inclusive `open_time` 语义一致，不用错误的 `endTime` 制造假缺口。
+- 项目整体等级不升级，仍为 `scaffold`。
+
+修复范围：
+
+- `scripts/stage8-smoke.sh` 增加 `run_browser_visual_smokes`，默认串联 `stage8-visual-smoke.mjs` 和 `stage8-state-visual-smoke.mjs`。
+- `scripts/stage8-smoke.sh` 增加 `STRATEGY_END_TIME=2026-01-01T01:55:00Z`，保留 data sync seed close boundary `END_TIME=2026-01-01T02:00:00Z`。
+- `scripts/stage8-visual-smoke.mjs` 支持 `SMOKE_BACKTEST_ID` / `SMOKE_TRADING_TASK_ID`。
+- README 标明 Stage 8 smoke 默认运行浏览器视觉 smoke 和显式跳过方式。
+
+验证：
+
+- `bash -n scripts/stage8-smoke.sh` 通过。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- `node --check scripts/stage8-state-visual-smoke.mjs` 通过。
+- 首次 `scripts/stage8-smoke.sh` 失败于 backtest `bt_bc72c740376be5e74156f13a`，错误为 `candle data health is gap`；已确认原因是 smoke 回测窗口使用了最后一根 5m K 线 close boundary 而不是 open boundary。
+- 修正后 `scripts/stage8-smoke.sh` 通过，证据：symbol `S81782748166USDT`、data task `dst_ac88c47f5085ec975b7e639e`、backtest `bt_3ce8fd3ad92f729d11c094c8`、paper execute `tt_c92f4b546e925c9b9840caa8`、paper notify `tt_fbc8ae35a33790fa48932800`、notification channel `stage8-smoke-1782748166`。
+- 串联的 visual smoke 覆盖 1440 / 812 / 390 视口、浅/深主题、`zh-CN/en-US`，每组 14 页面，通过。
+- 串联的 state visual smoke 覆盖 1440 / 390 视口、浅/深主题、`zh-CN/en-US`，每组 14 个状态用例，通过。
+
+失败：
+
+- 首次 Stage 8 smoke 的假缺口失败已修复并复跑通过。
+
+剩余风险：
+
+- 浏览器 smoke 仍是 DOM / 几何级断言，不是人工审批的像素快照基线。
+- 仍只覆盖 Chrome/CDP，不覆盖 WebKit/Firefox 或真实用户浏览器长时间 soak。
+- `STAGE8_BROWSER_SMOKE=0` 允许无 Chrome 环境跳过浏览器验收；跳过时不能把页面布局风险视为关闭。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ### 阶段 8 K 线图表生产布局第三次收口
