@@ -44,7 +44,7 @@ done            用户确认关闭
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
-| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；仍缺像素快照基线、动态详情全数据状态、错误/空状态专门视觉基线和 CI 硬门禁，整体业务体验仍需继续打磨 |
+| 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界断言，防止右侧大空白回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；仍缺像素快照基线、动态详情全数据状态、错误/空状态专门视觉基线和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；仍缺时间窗口筛选、趋势图、操作入口和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、Stage 8 smoke gate 和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
@@ -6755,6 +6755,48 @@ Definition of Done：
 
 - 当前覆盖的是登录后静态路由和有数据时的首个动态详情页，不等于所有动态详情 ID、所有空/错误/加载状态的像素基线。
 - 仍缺像素快照基线、多浏览器视觉回归和 CI 硬门禁。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
+### 阶段 8 K 线图表共享布局契约补充
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页、回测详情、交易详情已分别修过图表高度和 gutter，但 CSS 仍分散在页面私有规则里，容易后续漂移。
+- 用户反馈 K 线图表右侧仍可能出现明显空白；旧 visual smoke 只约束价格轴宽度和 renderer 宽度，没有明确约束价格轴贴近图表视口右边界。
+- `tictickbot` 的图表体验采用稳定主图高度、紧凑工具栏和下方信息面板，`tictick-hi` 需要形成相同方向的可维护布局契约。
+
+Definition of Done：
+
+- 新增共享 `klineChartLayout.css`，研究页、回测详情、交易详情复用同一个固定图表槽、图表 viewport 和内部 chart 填充规则。
+- 页面私有 CSS 只负责各自的图表高度、左右 gutter 和断点变量，不再重复声明内部 TradingView chart 填充规则。
+- 详情页继续保持上方 K 线图表、下方左窄摘要、右宽 tab 列表；研究页继续保持列表在上、图表在下。
+- visual smoke 对右侧价格轴增加贴近图表视口右边界断言，避免右侧大空白回归。
+- 保持当前不创建任务、不写数据、不声明 production-safe。
+
+修复范围：
+
+- `web/frontend/src/pages/klineChartLayout.css` 抽出共享 K 线图表槽规则。
+- `web/frontend/src/pages/ResearchPage.vue`、`BacktestDetailPage.vue`、`TradingDetailPage.vue` 引入共享图表槽类。
+- `web/frontend/src/pages/ResearchPage.css` 和 `detailChartLayout.css` 收敛为页面变量配置。
+- `ResearchPage.layout.test.ts` 和 `DetailPages.layout.test.ts` 改为检查共享契约。
+- `scripts/stage8-visual-smoke.mjs` 增加右侧价格轴贴近图表 viewport 右边界断言。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- ResearchPage.layout DetailPages.layout TradingViewChart` 通过：26 个测试文件、132 条测试。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- `pnpm --dir web/frontend run build` 通过，产物包含 `klineChartLayout` CSS/JS chunk。
+- `docker compose up -d --build api` 通过，API 使用新镜像启动；`http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=500 node scripts/stage8-visual-smoke.mjs` 通过：三视口 × light/dark × `zh-CN/en-US`，当前本地数据下每组 14 页，最大 document width 分别等于 `1440 / 812 / 390`。
+- 首次完整 `scripts/quality-gate.sh` 失败于旧 `check-research-chart-layout.sh` 仍查找 `class="research-chart-body"`；同步脚本到共享 `klineChartLayout.css` 契约后，`scripts/check-research-chart-layout.sh` 和 `scripts/quality-gate.sh` 均通过。
+- 通用检查通过：`go test ./...`、`go vet ./...`、`pnpm --dir web/frontend run typecheck`、`pnpm --dir web/frontend run test`、`pnpm --dir web/frontend run build`、`scripts/quality-gate.sh`。
+
+剩余风险：
+
+- 当前仍是几何和 DOM 级视觉 smoke，不是像素快照基线，也不是多浏览器视觉回归。
+- 详情页只覆盖当前本地数据中的首个回测/交易详情，不等于所有动态详情状态、空状态和错误状态。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
 ## 6. 保留 / 返工 / 删除 / 延后

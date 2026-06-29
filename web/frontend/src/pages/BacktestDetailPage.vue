@@ -16,8 +16,8 @@
     <LoadingState v-if="taskLoading" />
     <ErrorState v-else-if="taskError" :title="taskError" retryable @retry="loadDetail" />
     <div v-else-if="task" class="backtest-detail-workspace">
-      <section class="surface backtest-chart-panel">
-        <div class="backtest-chart-viewport" data-chart-viewport="fixed">
+      <section class="surface kline-chart-frame backtest-chart-panel">
+        <div class="kline-chart-frame__viewport backtest-chart-viewport" data-chart-viewport="fixed">
           <ErrorState v-if="candlesError" :title="candlesError" retryable @retry="loadCandles" />
           <LoadingState v-else-if="candlesLoading" />
           <TradingViewChart v-else :data="candles" :markers="chartMarkers" :empty-title="t('backtests.chartEmpty')" />
@@ -108,6 +108,7 @@ import { appColors } from "@/theme/tokens";
 import type { BacktestOrder, BacktestTask, ChartCandle, ChartMarker, StrategyIntent } from "@/types/app";
 
 import "./detailChartLayout.css";
+import "./klineChartLayout.css";
 
 const route = useRoute();
 const router = useRouter();

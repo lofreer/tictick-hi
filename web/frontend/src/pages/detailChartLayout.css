@@ -1,56 +1,29 @@
 .trading-detail-chart,
 .backtest-chart-panel {
-  --detail-chart-plot-height: clamp(600px, calc(100vh - 260px), 720px);
-  --detail-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);
-  --detail-chart-padding-left: 14px;
-  --detail-chart-padding-right: 4px;
-  --detail-chart-padding-top: 12px;
-  --detail-chart-padding-bottom: 14px;
-  --detail-chart-panel-height: calc(
-    var(--detail-chart-plot-height) + var(--detail-chart-padding-top) + var(--detail-chart-padding-bottom)
+  --kline-chart-plot-height: clamp(600px, calc(100vh - 260px), 720px);
+  --kline-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);
+  --kline-chart-padding-left: 14px;
+  --kline-chart-padding-right: 4px;
+  --kline-chart-padding-top: 12px;
+  --kline-chart-padding-bottom: 14px;
+  --kline-chart-frame-height: calc(
+    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
   );
-
-  box-sizing: border-box;
-  height: var(--detail-chart-panel-height);
-  padding:
-    var(--detail-chart-padding-top)
-    var(--detail-chart-padding-right)
-    var(--detail-chart-padding-bottom)
-    var(--detail-chart-padding-left);
-  min-height: 0;
-  overflow: hidden;
-  contain: layout paint;
 }
 
 .trading-detail-chart-viewport,
 .backtest-chart-viewport {
-  width: 100%;
-  height: var(--detail-chart-plot-height);
-  max-height: var(--detail-chart-plot-height);
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.trading-detail-chart-viewport .state-block,
-.trading-detail-chart-viewport .trading-chart,
-.backtest-chart-viewport .state-block,
-.backtest-chart-viewport .trading-chart {
-  width: 100% !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  min-width: 0;
-  min-height: 0;
+  isolation: isolate;
 }
 
 @media (max-width: 980px) {
   .trading-detail-chart,
   .backtest-chart-panel {
-    --detail-chart-plot-height: clamp(500px, calc(100vh - 270px), 620px);
-    --detail-chart-plot-height: clamp(500px, calc(100dvh - 270px), 620px);
-    --detail-chart-padding-left: 8px;
-    --detail-chart-padding-right: 2px;
-    --detail-chart-padding-top: 9px;
-    --detail-chart-padding-bottom: 11px;
+    --kline-chart-plot-height: clamp(500px, calc(100vh - 270px), 620px);
+    --kline-chart-plot-height: clamp(500px, calc(100dvh - 270px), 620px);
+    --kline-chart-padding-left: 8px;
+    --kline-chart-padding-right: 2px;
+    --kline-chart-padding-top: 9px;
+    --kline-chart-padding-bottom: 11px;
   }
 }

@@ -38,14 +38,14 @@
 }
 
 .research-chart-panel {
-  --research-chart-plot-height: clamp(620px, calc(100vh - 250px), 760px);
-  --research-chart-plot-height: clamp(620px, calc(100dvh - 250px), 760px);
-  --research-chart-padding-left: 16px;
-  --research-chart-padding-right: 4px;
-  --research-chart-padding-top: 10px;
-  --research-chart-padding-bottom: 14px;
-  --research-chart-body-height: calc(
-    var(--research-chart-plot-height) + var(--research-chart-padding-top) + var(--research-chart-padding-bottom)
+  --kline-chart-plot-height: clamp(620px, calc(100vh - 250px), 760px);
+  --kline-chart-plot-height: clamp(620px, calc(100dvh - 250px), 760px);
+  --kline-chart-padding-left: 16px;
+  --kline-chart-padding-right: 4px;
+  --kline-chart-padding-top: 10px;
+  --kline-chart-padding-bottom: 14px;
+  --kline-chart-frame-height: calc(
+    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
   );
 
   display: flex;
@@ -156,63 +156,11 @@
 }
 
 .research-chart-body {
-  position: relative;
-  display: block;
-  flex: 0 0 var(--research-chart-body-height);
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  height: var(--research-chart-body-height) !important;
-  max-height: var(--research-chart-body-height) !important;
-  block-size: var(--research-chart-body-height) !important;
-  max-block-size: var(--research-chart-body-height) !important;
-  min-width: 0;
-  min-height: 0;
-  min-block-size: 0;
-  padding:
-    var(--research-chart-padding-top)
-    var(--research-chart-padding-right)
-    var(--research-chart-padding-bottom)
-    var(--research-chart-padding-left);
-  overflow: hidden;
-  contain: layout paint;
+  flex: 0 0 var(--kline-chart-frame-height);
 }
 
 .research-chart-viewport {
-  position: relative;
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  min-height: 0;
-  min-block-size: 0;
-  height: var(--research-chart-plot-height) !important;
-  max-height: var(--research-chart-plot-height) !important;
-  block-size: var(--research-chart-plot-height) !important;
-  max-block-size: var(--research-chart-plot-height) !important;
-  overflow: hidden;
-}
-
-.research-chart-viewport .state-block {
-  width: 100%;
-  min-height: 0;
-  min-block-size: 0;
-  height: 100% !important;
-  max-height: 100% !important;
-  block-size: 100% !important;
-  max-block-size: 100% !important;
-}
-
-.research-chart-viewport .trading-chart {
-  width: 100% !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  block-size: 100% !important;
-  max-block-size: 100% !important;
-  min-width: 0;
-  min-height: 0;
-  min-block-size: 0;
+  isolation: isolate;
 }
 
 .research-select {
@@ -256,12 +204,12 @@
 
 @media (max-width: 760px) {
   .research-chart-panel {
-    --research-chart-plot-height: clamp(500px, calc(100vh - 240px), 620px);
-    --research-chart-plot-height: clamp(500px, calc(100dvh - 240px), 620px);
-    --research-chart-padding-left: 8px;
-    --research-chart-padding-right: 2px;
-    --research-chart-padding-top: 8px;
-    --research-chart-padding-bottom: 12px;
+    --kline-chart-plot-height: clamp(500px, calc(100vh - 240px), 620px);
+    --kline-chart-plot-height: clamp(500px, calc(100dvh - 240px), 620px);
+    --kline-chart-padding-left: 8px;
+    --kline-chart-padding-right: 2px;
+    --kline-chart-padding-top: 8px;
+    --kline-chart-padding-bottom: 12px;
   }
 
   .research-toolbar {
@@ -322,12 +270,12 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-panel {
-    --research-chart-plot-height: clamp(600px, calc(100vh - 290px), 720px);
-    --research-chart-plot-height: clamp(600px, calc(100dvh - 290px), 720px);
-    --research-chart-padding-left: 12px;
-    --research-chart-padding-right: 3px;
-    --research-chart-padding-top: 9px;
-    --research-chart-padding-bottom: 13px;
+    --kline-chart-plot-height: clamp(600px, calc(100vh - 290px), 720px);
+    --kline-chart-plot-height: clamp(600px, calc(100dvh - 290px), 720px);
+    --kline-chart-padding-left: 12px;
+    --kline-chart-padding-right: 3px;
+    --kline-chart-padding-top: 9px;
+    --kline-chart-padding-bottom: 13px;
   }
 
   .research-toolbar {

@@ -6,19 +6,24 @@ import backtestSource from "./BacktestDetailPage.vue?raw";
 import tradingSource from "./TradingDetailPage.vue?raw";
 
 const detailChartStyles = readFileSync("src/pages/detailChartLayout.css", "utf8");
+const klineChartStyles = readFileSync("src/pages/klineChartLayout.css", "utf8");
 
 describe("strategy detail page layout contract", () => {
   it("keeps trading detail chart above summary and tabbed lists", () => {
-    const chartIndex = tradingSource.indexOf('class="surface trading-detail-chart"');
+    const chartIndex = tradingSource.indexOf('class="surface kline-chart-frame trading-detail-chart"');
     const gridIndex = tradingSource.indexOf('class="trading-detail-lower-grid"');
     const summaryIndex = tradingSource.indexOf('class="surface trading-detail-section trading-detail-summary"');
     const tabsIndex = tradingSource.indexOf('class="surface trading-detail-section trading-detail-tabs"');
     const styles = styleBlock(tradingSource);
+    const frameStyle = cssBlock(klineChartStyles, ".kline-chart-frame");
+    const frameViewportStyle = cssBlock(klineChartStyles, ".kline-chart-frame__viewport");
 
     expect(tradingSource).toContain('class="trading-detail-workspace"');
     expect(tradingSource).toContain('import "./detailChartLayout.css";');
+    expect(tradingSource).toContain('import "./klineChartLayout.css";');
     expect(chartIndex).toBeGreaterThan(-1);
-    expect(tradingSource).toContain('class="trading-detail-chart-viewport" data-chart-viewport="fixed"');
+    expect(tradingSource).toContain('class="surface kline-chart-frame trading-detail-chart"');
+    expect(tradingSource).toContain('class="kline-chart-frame__viewport trading-detail-chart-viewport" data-chart-viewport="fixed"');
     expect(gridIndex).toBeGreaterThan(chartIndex);
     expect(summaryIndex).toBeGreaterThan(gridIndex);
     expect(tabsIndex).toBeGreaterThan(summaryIndex);
@@ -27,16 +32,15 @@ describe("strategy detail page layout contract", () => {
     expect(tradingSource).not.toContain('class="side-panel"');
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');
     expect(detailChartStyles).toContain(".trading-detail-chart,");
-    expect(detailChartStyles).toContain("--detail-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);");
-    expect(detailChartStyles).toContain("--detail-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--detail-chart-padding-right: 4px;");
-    expect(detailChartStyles).toContain("--detail-chart-panel-height:");
-    expect(detailChartStyles).toContain("height: var(--detail-chart-panel-height);");
-    expect(detailChartStyles).toContain("var(--detail-chart-padding-right)");
-    expect(detailChartStyles).toContain("var(--detail-chart-padding-left)");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(detailChartStyles).toContain("--kline-chart-frame-height:");
+    expect(frameStyle).toContain("height: var(--kline-chart-frame-height) !important;");
+    expect(frameStyle).toContain("var(--kline-chart-padding-right)");
+    expect(frameStyle).toContain("var(--kline-chart-padding-left)");
     expect(detailChartStyles).toContain(".trading-detail-chart-viewport,");
-    expect(detailChartStyles).toContain("height: var(--detail-chart-plot-height);");
-    expect(detailChartStyles).toContain(".trading-detail-chart-viewport .trading-chart,");
+    expect(frameViewportStyle).toContain("height: var(--kline-chart-plot-height) !important;");
     expect(styles).toContain(".trading-detail-lower-grid");
     expect(styles).toContain("grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);");
     expect(detailChartStyles).toContain("@media (max-width: 980px)");
@@ -44,16 +48,20 @@ describe("strategy detail page layout contract", () => {
   });
 
   it("keeps backtest detail chart above summary and tabbed lists", () => {
-    const chartIndex = backtestSource.indexOf('class="surface backtest-chart-panel"');
+    const chartIndex = backtestSource.indexOf('class="surface kline-chart-frame backtest-chart-panel"');
     const gridIndex = backtestSource.indexOf('class="backtest-detail-lower-grid"');
     const summaryIndex = backtestSource.indexOf('class="surface backtest-side-section backtest-summary-panel"');
     const tabsIndex = backtestSource.indexOf('class="surface backtest-side-section backtest-detail-tabs"');
     const styles = styleBlock(backtestSource);
+    const frameStyle = cssBlock(klineChartStyles, ".kline-chart-frame");
+    const frameViewportStyle = cssBlock(klineChartStyles, ".kline-chart-frame__viewport");
 
     expect(backtestSource).toContain('class="backtest-detail-workspace"');
     expect(backtestSource).toContain('import "./detailChartLayout.css";');
+    expect(backtestSource).toContain('import "./klineChartLayout.css";');
     expect(chartIndex).toBeGreaterThan(-1);
-    expect(backtestSource).toContain('class="backtest-chart-viewport" data-chart-viewport="fixed"');
+    expect(backtestSource).toContain('class="surface kline-chart-frame backtest-chart-panel"');
+    expect(backtestSource).toContain('class="kline-chart-frame__viewport backtest-chart-viewport" data-chart-viewport="fixed"');
     expect(gridIndex).toBeGreaterThan(chartIndex);
     expect(summaryIndex).toBeGreaterThan(gridIndex);
     expect(tabsIndex).toBeGreaterThan(summaryIndex);
@@ -65,16 +73,15 @@ describe("strategy detail page layout contract", () => {
     expect(backtestSource).not.toContain('class="side-panel"');
     expect(backtestSource).not.toContain('class="surface chart-panel backtest-chart-panel"');
     expect(detailChartStyles).toContain(".backtest-chart-panel");
-    expect(detailChartStyles).toContain("--detail-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);");
-    expect(detailChartStyles).toContain("--detail-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--detail-chart-padding-right: 4px;");
-    expect(detailChartStyles).toContain("--detail-chart-panel-height:");
-    expect(detailChartStyles).toContain("height: var(--detail-chart-panel-height);");
-    expect(detailChartStyles).toContain("var(--detail-chart-padding-right)");
-    expect(detailChartStyles).toContain("var(--detail-chart-padding-left)");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(600px, calc(100dvh - 260px), 720px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(detailChartStyles).toContain("--kline-chart-frame-height:");
+    expect(frameStyle).toContain("height: var(--kline-chart-frame-height) !important;");
+    expect(frameStyle).toContain("var(--kline-chart-padding-right)");
+    expect(frameStyle).toContain("var(--kline-chart-padding-left)");
     expect(detailChartStyles).toContain(".backtest-chart-viewport");
-    expect(detailChartStyles).toContain("height: var(--detail-chart-plot-height);");
-    expect(detailChartStyles).toContain(".backtest-chart-viewport .trading-chart");
+    expect(frameViewportStyle).toContain("height: var(--kline-chart-plot-height) !important;");
     expect(styles).toContain(".backtest-detail-lower-grid");
     expect(styles).toContain("grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);");
     expect(detailChartStyles).toContain("@media (max-width: 980px)");
@@ -89,4 +96,17 @@ function styleBlock(source: string) {
     throw new Error("missing scoped style block");
   }
   return source.slice(start, end);
+}
+
+function cssBlock(source: string, selector: string) {
+  const start = source.indexOf(`${selector} {`);
+  if (start < 0) {
+    throw new Error(`missing ${selector} style block`);
+  }
+  const bodyStart = source.indexOf("{", start) + 1;
+  const bodyEnd = source.indexOf("}", bodyStart);
+  if (bodyEnd < 0) {
+    throw new Error(`unterminated ${selector} style block`);
+  }
+  return source.slice(bodyStart, bodyEnd);
 }

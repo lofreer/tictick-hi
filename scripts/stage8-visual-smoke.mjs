@@ -472,6 +472,14 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       })}`,
     );
   }
+  if (Math.abs(sample.priceAxisCanvas.right - sample.chartViewport.right) > widthTolerance + 4) {
+    throw new Error(
+      `${label} right price-axis does not sit on the chart viewport edge: ${JSON.stringify({
+        priceAxis: sample.priceAxisCanvas,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
   if (sample.tv.right > sample.chartViewport.right + widthTolerance || sample.chartViewport.right - sample.tv.right > widthTolerance) {
     throw new Error(
       `${label} chart renderer does not fill the fixed viewport width: ${JSON.stringify({

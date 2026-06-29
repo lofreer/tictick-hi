@@ -132,8 +132,8 @@
             </div>
           </div>
         </div>
-        <div class="research-chart-body">
-          <div class="research-chart-viewport" data-chart-viewport="fixed">
+        <div class="kline-chart-frame research-chart-body">
+          <div class="kline-chart-frame__viewport research-chart-viewport" data-chart-viewport="fixed">
             <ErrorState
               v-if="candlesError"
               :title="candlesError"
@@ -283,6 +283,7 @@ import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleGap, CandleIssue, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
+import "./klineChartLayout.css";
 
 const { t } = useI18n();
 const invalidIssueModal = ref<InstanceType<typeof ResearchTaskInvalidIssueModal> | null>(null);

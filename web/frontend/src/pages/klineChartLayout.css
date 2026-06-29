@@ -1,0 +1,58 @@
+.kline-chart-frame {
+  --kline-chart-plot-height: 620px;
+  --kline-chart-padding-left: 14px;
+  --kline-chart-padding-right: 4px;
+  --kline-chart-padding-top: 10px;
+  --kline-chart-padding-bottom: 14px;
+  --kline-chart-frame-height: calc(
+    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
+  );
+
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  min-block-size: 0;
+  height: var(--kline-chart-frame-height) !important;
+  max-height: var(--kline-chart-frame-height) !important;
+  block-size: var(--kline-chart-frame-height) !important;
+  max-block-size: var(--kline-chart-frame-height) !important;
+  padding:
+    var(--kline-chart-padding-top)
+    var(--kline-chart-padding-right)
+    var(--kline-chart-padding-bottom)
+    var(--kline-chart-padding-left);
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.kline-chart-frame__viewport {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  min-block-size: 0;
+  height: var(--kline-chart-plot-height) !important;
+  max-height: var(--kline-chart-plot-height) !important;
+  block-size: var(--kline-chart-plot-height) !important;
+  max-block-size: var(--kline-chart-plot-height) !important;
+  overflow: hidden;
+}
+
+.kline-chart-frame__viewport .state-block,
+.kline-chart-frame__viewport .trading-chart {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  block-size: 100% !important;
+  max-block-size: 100% !important;
+  min-width: 0;
+  min-height: 0;
+  min-block-size: 0;
+}
