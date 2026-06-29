@@ -57,6 +57,8 @@ done            用户确认关闭
 
 补充：阶段 1 全历史 invalid repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF 写请求排队 invalid repair task，再由 `SaveDataSyncResult` 写回健康 K 线，最后通过 `GET /api/market/candle-invalid-issues` 观察 `TotalCount=0`；该证据证明路由层、认证/CSRF、active instrument 校验和 store 收敛路径可以串起来，但仍不代表自动清洗或交易所数据一定可修复。
 
+补充：阶段 1 全历史 gap repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF 写请求对 `GET /api/market/candle-gaps` 发现的相邻缺口排队 repair task，再由 `SaveDataSyncResult` 写回缺失 K 线，最后通过同一路由观察 `TotalCount=0` 且窗口 K 线数量补齐；该证据证明全历史缺口路由、认证/CSRF、active instrument 校验和 worker 写回收敛路径可以串起来，但仍不代表自动批量补全或交易所一定返回缺失数据。
+
 补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表生产高度复核补充”为准：研究页主工具栏 symbol 输入统一为 `96px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，窗口按钮收敛为 `26px / 7px`；图表左/右 gutter 为桌面 `20px/4px`、窄桌面 `16px/4px`、移动端 `12px/8px`；plot 高度为桌面 `clamp(760px, 76vh, 920px)`、窄桌面 `780px`、移动端 `608px`；右侧价格轴 minimumWidth 为 `32/34/36px`，visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、右侧价格轴最大宽度 `52px`、主图 canvas 右边界贴住右侧价格轴左边界，详情页下方摘要列保持 `minmax(240px, 280px)`。
 
 ## 3. 必须先修的问题
