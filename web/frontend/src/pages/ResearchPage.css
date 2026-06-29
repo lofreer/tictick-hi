@@ -117,6 +117,9 @@
 }
 
 .research-chart-body {
+  --tt-chart-inline-end-gutter: 28px;
+  --tt-chart-block-end-gutter: 12px;
+
   position: relative;
   display: block;
   flex: 0 0 var(--research-chart-viewport-height);
@@ -134,8 +137,7 @@
   contain: layout paint;
 }
 
-.research-chart-body .state-block,
-.research-chart-body .trading-chart {
+.research-chart-body .state-block {
   width: 100%;
   min-height: 0;
   min-block-size: 0;
@@ -143,6 +145,17 @@
   max-height: 100% !important;
   block-size: 100% !important;
   max-block-size: 100% !important;
+}
+
+.research-chart-body .trading-chart {
+  width: calc(100% - var(--tt-chart-inline-end-gutter, 0px)) !important;
+  height: calc(100% - var(--tt-chart-block-end-gutter, 0px)) !important;
+  max-height: calc(100% - var(--tt-chart-block-end-gutter, 0px)) !important;
+  block-size: calc(100% - var(--tt-chart-block-end-gutter, 0px)) !important;
+  max-block-size: calc(100% - var(--tt-chart-block-end-gutter, 0px)) !important;
+  min-width: 0;
+  min-height: 0;
+  min-block-size: 0;
 }
 
 .research-select {
@@ -177,6 +190,11 @@
 }
 
 @media (max-width: 760px) {
+  .research-chart-body {
+    --tt-chart-inline-end-gutter: 18px;
+    --tt-chart-block-end-gutter: 10px;
+  }
+
   .research-chart-panel {
     --research-chart-viewport-height: clamp(280px, calc(100vh - 387px), 457px);
     --research-chart-viewport-height: clamp(280px, calc(100dvh - 387px), 457px);

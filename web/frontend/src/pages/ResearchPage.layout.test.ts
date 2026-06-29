@@ -36,8 +36,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(panelStyle).not.toContain("display: grid;");
     expect(panelStyle).not.toContain("grid-template-rows");
     expect(bodyStyle).toContain("flex: 0 0 var(--research-chart-viewport-height);");
-    expect(bodyStyle).not.toContain("--tt-chart-inline-end-gutter");
-    expect(bodyStyle).not.toContain("--tt-chart-block-end-gutter");
+    expect(bodyStyle).toContain("--tt-chart-inline-end-gutter: 28px;");
+    expect(bodyStyle).toContain("--tt-chart-block-end-gutter: 12px;");
     expect(bodyStyle).toContain("height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("max-height: var(--research-chart-viewport-height) !important;");
     expect(bodyStyle).toContain("block-size: var(--research-chart-viewport-height) !important;");
@@ -49,6 +49,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("max-height: 100% !important;");
     expect(pageStyles).toContain("block-size: 100% !important;");
     expect(pageStyles).toContain("max-block-size: 100% !important;");
+    expect(pageStyles).toContain("height: calc(100% - var(--tt-chart-block-end-gutter, 0px)) !important;");
+    expect(pageStyles).toContain("width: calc(100% - var(--tt-chart-inline-end-gutter, 0px)) !important;");
     expect(pageStyles).toContain(".research-meta .n-tag__content");
     expect(pageStyles).toContain("overflow: hidden;");
     expect(pageStyles).toContain("text-overflow: ellipsis;");
@@ -63,6 +65,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100vh - 820px), 500px);");
     expect(pageStyles).toContain("--research-chart-viewport-height: clamp(240px, calc(100dvh - 820px), 500px);");
+    expect(pageStyles).toContain("--tt-chart-inline-end-gutter: 18px;");
+    expect(pageStyles).toContain("--tt-chart-block-end-gutter: 10px;");
     expect(pageStyles).toContain("flex: 0 1 auto;");
   });
 
@@ -72,8 +76,10 @@ describe("ResearchPage chart layout contract", () => {
     const lightweightStyle = cssBlock(chartStyles, ".trading-chart__canvas > .tv-lightweight-charts");
 
     expect(rootStyle).toContain("position: relative;");
-    expect(rootStyle).toContain("width: 100%;");
-    expect(rootStyle).toContain("height: 100%;");
+    expect(rootStyle).toContain("width: calc(100% - var(--tt-chart-inline-end-gutter, 0px));");
+    expect(rootStyle).toContain("height: calc(100% - var(--tt-chart-block-end-gutter, 0px));");
+    expect(rootStyle).toContain("max-inline-size: 100%;");
+    expect(rootStyle).toContain("max-block-size: 100%;");
     expect(rootStyle).toContain("overflow: hidden;");
     expect(rootStyle).toContain("contain: layout style;");
     expect(canvasStyle).toContain("position: absolute;");
