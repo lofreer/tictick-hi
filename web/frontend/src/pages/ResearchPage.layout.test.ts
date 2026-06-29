@@ -70,7 +70,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(toolbarStyle).toContain("padding: 8px 12px 7px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: grid;");
-    expect(controlsStyle).toContain("grid-template-columns: 96px 104px 28px 54px max-content;");
+    expect(controlsStyle).toContain("grid-template-columns: 90px 96px 26px 50px max-content;");
     expect(controlsStyle).toContain("width: max-content;");
     expect(controlsStyle).toContain("overflow-x: auto;");
     expect(statusStyle).toContain("justify-content: flex-start;");
@@ -106,18 +106,16 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(700px, 72vh, 840px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: 720px;");
-    expect(pageStyles).toContain("--kline-chart-plot-height: 560px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(760px, 76vh, 920px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: 780px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: 608px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 20px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 16px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(pageStyles).toContain("--kline-chart-padding-right: 8px;");
-    expect(pageStyles).toContain("grid-template-columns: 96px 104px 28px 54px max-content;");
-    expect(pageStyles).toContain("width: 104px;");
-    expect(pageStyles).toContain("width: 102px;");
-    expect(pageStyles).toContain("width: 100px;");
+    expect(pageStyles).toContain("grid-template-columns: 90px 96px 26px 50px max-content;");
+    expect(pageStyles).toContain("width: 96px;");
     expect(pageStyles).toContain("width: 100%;");
     expect(pageStyles).toContain("max-width: min(260px, 38vw);");
     expect(pageStyles).toContain("overflow-x: auto;");

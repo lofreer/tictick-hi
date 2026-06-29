@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 54);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 52);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -543,7 +543,7 @@ function assertChartLayout(label, sample) {
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
   }
-  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 500 : sample.viewportWidth <= 980 ? 620 : 600;
+  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 580 : sample.viewportWidth <= 980 ? 740 : 700;
   if (tv.rectHeight < expectedMinimumPlotHeight - heightTolerance) {
     throw new Error(
       `${label} chart plot is too short for the viewport: ${JSON.stringify({
@@ -572,7 +572,7 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 14) {
+  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 10) {
     throw new Error(
       `${label} chart right gutter is outside the production range: ${JSON.stringify({
         chartInlineEndGutter: sample.chartInlineEndGutter,

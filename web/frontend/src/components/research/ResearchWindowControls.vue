@@ -70,13 +70,13 @@ const timeRangePresets: ResearchTimeRangePreset[] = ["latest", "1h", "6h", "1d"]
 .research-window-controls { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 
 .research-window-controls :deep(.n-button) {
-  min-width: 28px;
-  padding: 0 8px;
+  min-width: 26px;
+  padding: 0 7px;
 }
 
 .research-window-controls :deep(.n-button--circle) {
-  width: 28px;
-  min-width: 28px;
+  width: 26px;
+  min-width: 26px;
   padding: 0;
 }
 </style>

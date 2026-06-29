@@ -12,9 +12,9 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 108);
-const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 540);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 54);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
+const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 52);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
 
@@ -453,7 +453,7 @@ function assertResearchChartSmoke(label, sample, viewport) {
       })}`,
     );
   }
-  assertChartViewportSmoke(label, sample, viewport, 620);
+  assertChartViewportSmoke(label, sample, viewport, 700);
 }
 
 function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight) {
@@ -469,7 +469,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       throw new Error(`${label} ${name} exceeded viewport height: ${JSON.stringify(node)}`);
     }
   }
-  const minimumHeight = viewport.width <= 760 ? 520 : viewport.width <= 980 ? 640 : desktopMinimumHeight;
+  const minimumHeight = viewport.width <= 760 ? 580 : viewport.width <= 980 ? 740 : desktopMinimumHeight;
   if (sample.chartViewport.rectHeight < minimumHeight - widthTolerance) {
     throw new Error(
       `${label} chart viewport is too short: ${JSON.stringify({
@@ -562,7 +562,7 @@ function assertChartGutters(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 14) {
+  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 10) {
     throw new Error(
       `${label} chart right gutter is outside the production range: ${JSON.stringify({
         gutter: sample.chartInlineEndGutter,
@@ -607,7 +607,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
   if (sample.detail.chartPanel.rectHeight > viewport.height + widthTolerance) {
     throw new Error(`${label} detail chart exceeded viewport height: ${JSON.stringify(sample.detail.chartPanel)}`);
   }
-  assertChartViewportSmoke(label, sample, viewport, 620);
+  assertChartViewportSmoke(label, sample, viewport, 700);
   if (sample.detail.lowerGrid.top <= sample.detail.chartPanel.bottom) {
     throw new Error(
       `${label} detail lower grid must sit below chart: ${JSON.stringify({
