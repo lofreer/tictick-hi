@@ -339,15 +339,23 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .trading-detail-lower-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
 }
 
 .trading-detail-section {
   min-width: 0;
   padding: 16px;
+}
+
+.trading-detail-summary {
+  align-self: start;
+}
+
+.trading-detail-tabs {
+  min-height: 320px;
 }
 
 .trading-detail-section h2 {

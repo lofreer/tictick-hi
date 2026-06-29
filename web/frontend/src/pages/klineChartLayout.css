@@ -1,9 +1,9 @@
 .kline-chart-frame {
-  --kline-chart-plot-height: 700px;
-  --kline-chart-padding-left: 22px;
+  --kline-chart-plot-height: 640px;
+  --kline-chart-padding-left: 14px;
   --kline-chart-padding-right: 2px;
   --kline-chart-padding-top: 10px;
-  --kline-chart-padding-bottom: 14px;
+  --kline-chart-padding-bottom: 12px;
   --kline-chart-frame-height: calc(
     var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
   );
@@ -16,17 +16,17 @@
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  height: var(--kline-chart-frame-height) !important;
-  max-height: var(--kline-chart-frame-height) !important;
-  block-size: var(--kline-chart-frame-height) !important;
-  max-block-size: var(--kline-chart-frame-height) !important;
+  height: var(--kline-chart-frame-height);
+  max-height: var(--kline-chart-frame-height);
+  block-size: var(--kline-chart-frame-height);
+  max-block-size: var(--kline-chart-frame-height);
   padding:
     var(--kline-chart-padding-top)
     var(--kline-chart-padding-right)
     var(--kline-chart-padding-bottom)
     var(--kline-chart-padding-left);
   overflow: hidden;
-  contain: layout paint;
+  contain: layout paint style;
 }
 
 .kline-chart-frame__viewport {
@@ -38,10 +38,10 @@
   min-width: 0;
   min-height: 0;
   min-block-size: 0;
-  height: var(--kline-chart-plot-height) !important;
-  max-height: var(--kline-chart-plot-height) !important;
-  block-size: var(--kline-chart-plot-height) !important;
-  max-block-size: var(--kline-chart-plot-height) !important;
+  height: var(--kline-chart-plot-height);
+  max-height: var(--kline-chart-plot-height);
+  block-size: var(--kline-chart-plot-height);
+  max-block-size: var(--kline-chart-plot-height);
   overflow: hidden;
 }
 

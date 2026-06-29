@@ -191,7 +191,7 @@ describe("TradingViewChart", () => {
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 42,
+          minimumWidth: 44,
           ticksVisible: false,
         }),
       }),
@@ -210,7 +210,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 34,
+          minimumWidth: 36,
         }),
       }),
     );
@@ -228,7 +228,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 38,
+          minimumWidth: 40,
         }),
       }),
     );
@@ -267,7 +267,7 @@ describe("TradingViewChart", () => {
     expect(options.timeScale).toMatchObject({
       barSpacing: 5,
       minBarSpacing: 0.75,
-      rightOffsetPixels: 8,
+      rightOffsetPixels: 2,
       secondsVisible: false,
       tickMarkMaxCharacterLength: 8,
     });
@@ -541,7 +541,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: 1,
-        height: 360,
+        height: 520,
       }),
     );
 

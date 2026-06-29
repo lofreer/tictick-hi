@@ -282,15 +282,23 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtest-detail-lower-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
 }
 
 .backtest-side-section {
   min-width: 0;
   padding: 16px;
+}
+
+.backtest-summary-panel {
+  align-self: start;
+}
+
+.backtest-detail-tabs {
+  min-height: 320px;
 }
 
 .backtest-side-section h2 {

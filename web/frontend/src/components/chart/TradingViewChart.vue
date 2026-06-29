@@ -48,7 +48,9 @@ let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
-const fallbackSize = { width: 1, height: 360 };
+const fallbackSize = { width: 1, height: 520 };
+const minRenderHeight = 280;
+const maxRenderHeight = 820;
 const maxInitialVisibleBars = 360;
 const minInitialVisibleBars = 80;
 const targetInitialBarSpacingPixels = 3;
@@ -233,7 +235,7 @@ function responsiveChartOptions(mode = themeStore.mode) {
       ...theme.timeScale,
       barSpacing: 5,
       minBarSpacing: 0.75,
-      rightOffsetPixels: 8,
+      rightOffsetPixels: 2,
       secondsVisible: false,
       tickMarkMaxCharacterLength: 8,
       tickMarkFormatter: formatChartTickMark,
@@ -242,9 +244,9 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function rightPriceScaleMinimumWidth(width: number) {
-  if (width < 520) return 34;
-  if (width < 900) return 38;
-  return 42;
+  if (width < 520) return 36;
+  if (width < 900) return 40;
+  return 44;
 }
 
 function formatChartPrice(price: number) {
@@ -332,7 +334,7 @@ function readHostSize(): { width: number; height: number } | null {
   const renderHeight = positiveFloor(height === null ? fallbackSize.height : height);
   if (renderWidth === null || renderHeight === null) return null;
 
-  return { width: renderWidth, height: renderHeight };
+  return normalizeRenderSize(renderWidth, renderHeight);
 }
 
 function readHostWidth(element: HTMLElement, bounds = element.getBoundingClientRect()) {
@@ -357,6 +359,13 @@ function readResizeHost() {
   if (!parent) return root;
   if (parent.hasAttribute("data-v-app") && parent.parentElement) return parent.parentElement;
   return parent;
+}
+
+function normalizeRenderSize(width: number, height: number) {
+  return {
+    width,
+    height: Math.min(maxRenderHeight, Math.max(minRenderHeight, height)),
+  };
 }
 
 </script>

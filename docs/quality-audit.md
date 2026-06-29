@@ -7051,6 +7051,47 @@ Definition of Done：
 - 移动端和窄桌面仍需完整矩阵 smoke 继续守护；本轮不能把前端整体升级为 usable。
 - 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
 
+### 阶段 8 K 线图表生产布局第四次收口
+
+目标等级：scaffold
+
+触发问题：
+
+- 研究页图表高度变量曾声明在 `.research-chart-panel` 父级，但共享 `.kline-chart-frame` 在真实 frame 元素上声明了默认高度，导致运行态仍读到默认 `640px`。
+- 用户继续反馈图表区域过矮、工具栏 symbol 输入过宽、右侧留白明显；这些问题必须通过真实浏览器 smoke 验证，而不是只看源码。
+
+Definition of Done：
+
+- 研究页图表高度变量声明在真实 frame 元素 `.research-chart-body` 上，避免被共享 frame 默认变量覆盖。
+- 研究页 plot height：桌面 `680-720px`、812px 窄桌面 `640px`、移动 `520px`，且连续采样不增长。
+- symbol 输入宽度收敛为桌面 `196px`、窄桌面 `188px`、移动 `176px`。
+- 研究页、回测详情、交易详情右侧外层 gutter 为 `2px`；右侧价格轴贴近图表 viewport 边界。
+- 回测详情和交易详情继续保持上方大图表、下方左窄摘要右宽 tab 列表。
+
+修复范围：
+
+- `web/frontend/src/pages/ResearchPage.css` 把 K 线高度和 gutter 变量迁移到 `.research-chart-body`，并收敛 symbol 输入宽度。
+- `web/frontend/src/pages/detailChartLayout.css` 同步详情页图表高度到桌面 `680-720px`、窄桌面 `640px`。
+- `web/frontend/src/pages/klineChartLayout.css` 保持共享 frame 固定高度和右侧紧凑 gutter。
+- `web/frontend/src/components/chart/TradingViewChart.vue` 增加渲染高度上下限并收紧右侧 price scale / time scale 偏移。
+- `scripts/check-research-chart-layout.sh`、布局测试和图表测试同步当前契约。
+
+验证：
+
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过：3 个测试文件、34 条测试。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose up -d --build api` 通过，并确认 `http://127.0.0.1:8080/readyz` 返回 ready。
+- `CHROME_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' scripts/research-chart-height-smoke.mjs` 通过：1440x900 图表 `680px`、2048x1152 图表 `720px`、812x1320 图表 `640px`、390x844 图表 `520px`，连续采样高度稳定。
+- `CHROME_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' scripts/stage8-visual-smoke.mjs` 通过：三视口 × light/dark × `zh-CN/en-US`，每组 14 页，最大 document width 分别等于 `1440 / 812 / 390`。
+- `scripts/full-quality-gate.sh` 通过，覆盖 `go test ./...`、`go vet ./...`、前端 typecheck、前端 test、前端 build 和 `scripts/quality-gate.sh`。
+
+剩余风险：
+
+- 本轮仍是 DOM 几何和运行态 smoke，不是像素快照基线。
+- 浏览器 smoke 使用当前本地数据库中的详情页样本；不能代表所有未来长文本、长列表和极端数据状态。
+- 项目整体仍是 `scaffold`，不能按 usable、done 或 production-safe 声明。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

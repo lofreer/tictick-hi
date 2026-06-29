@@ -14,8 +14,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: min(190px, 18vh);
-  max-height: min(190px, 18dvh);
+  max-height: 220px;
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -38,16 +37,6 @@
 }
 
 .research-chart-panel {
-  --kline-chart-plot-height: clamp(680px, 68vh, 820px);
-  --kline-chart-plot-height: clamp(680px, 68dvh, 820px);
-  --kline-chart-padding-left: 24px;
-  --kline-chart-padding-right: 2px;
-  --kline-chart-padding-top: 10px;
-  --kline-chart-padding-bottom: 14px;
-  --kline-chart-frame-height: calc(
-    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
-  );
-
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -59,17 +48,17 @@
   min-width: 0;
   overflow: hidden;
   align-self: start;
-  contain: layout paint;
+  contain: layout paint style;
 }
 
 .research-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 8px 14px;
   min-width: 0;
   max-width: 100%;
-  padding: 10px 16px 9px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -84,7 +73,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 128px clamp(170px, 12vw, 196px) 76px max-content;
+  grid-template-columns: 128px 196px 78px max-content;
   align-items: center;
   gap: 8px;
   width: auto;
@@ -97,7 +86,7 @@
 .research-toolbar-status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px 12px;
   min-width: 0;
   max-width: 100%;
@@ -106,9 +95,9 @@
 }
 
 .research-current-source {
-  flex: 0 1 360px;
+  flex: 0 1 300px;
   min-width: 0;
-  max-width: min(360px, 40vw);
+  max-width: min(300px, 28vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -156,6 +145,15 @@
 }
 
 .research-chart-body {
+  --kline-chart-plot-height: clamp(680px, 42vw, 720px);
+  --kline-chart-padding-left: 14px;
+  --kline-chart-padding-right: 2px;
+  --kline-chart-padding-top: 10px;
+  --kline-chart-padding-bottom: 12px;
+  --kline-chart-frame-height: calc(
+    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
+  );
+
   flex: 0 0 var(--kline-chart-frame-height);
 }
 
@@ -172,18 +170,18 @@
 }
 
 .research-symbol-input {
-  width: clamp(170px, 12vw, 196px);
-  max-width: clamp(170px, 12vw, 196px);
+  width: 196px;
+  max-width: 196px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: clamp(170px, 12vw, 196px);
-  max-width: clamp(170px, 12vw, 196px);
+  width: 196px;
+  max-width: 196px;
 }
 
 .research-select--compact {
-  width: 76px;
+  width: 78px;
 }
 
 .research-modal {
@@ -206,11 +204,10 @@
 }
 
 @media (max-width: 760px) {
-  .research-chart-panel {
-    --kline-chart-plot-height: clamp(520px, 66vh, 640px);
-    --kline-chart-plot-height: clamp(520px, 66dvh, 640px);
-    --kline-chart-padding-left: 12px;
-    --kline-chart-padding-right: 1px;
+  .research-chart-body {
+    --kline-chart-plot-height: 520px;
+    --kline-chart-padding-left: 10px;
+    --kline-chart-padding-right: 2px;
     --kline-chart-padding-top: 8px;
     --kline-chart-padding-bottom: 12px;
   }
@@ -276,10 +273,9 @@
 }
 
 @media (min-width: 761px) and (max-width: 980px) {
-  .research-chart-panel {
-    --kline-chart-plot-height: clamp(640px, 66vh, 760px);
-    --kline-chart-plot-height: clamp(640px, 66dvh, 760px);
-    --kline-chart-padding-left: 18px;
+  .research-chart-body {
+    --kline-chart-plot-height: 640px;
+    --kline-chart-padding-left: 12px;
     --kline-chart-padding-right: 2px;
     --kline-chart-padding-top: 9px;
     --kline-chart-padding-bottom: 13px;
@@ -293,6 +289,10 @@
   .research-toolbar-main,
   .research-source-controls {
     width: 100%;
+  }
+
+  .research-source-controls {
+    grid-template-columns: 118px 188px 74px max-content;
   }
 
   .research-select--exchange {
