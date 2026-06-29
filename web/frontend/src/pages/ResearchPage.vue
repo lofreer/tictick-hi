@@ -55,6 +55,7 @@
                 v-model:value="symbol"
                 class="research-symbol-input"
                 :exchange="exchange"
+                :show-sync-button="false"
                 size="small"
                 @synced="loadMarketInstrumentSyncStatuses"
               />

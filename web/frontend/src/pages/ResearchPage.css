@@ -58,7 +58,7 @@
   gap: 6px;
   min-width: 0;
   max-width: 100%;
-  padding: 8px 10px;
+  padding: 8px 12px 7px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -74,7 +74,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 102px 112px 28px 58px max-content;
+  grid-template-columns: 96px 104px 28px 54px max-content;
   align-items: center;
   gap: 6px;
   width: max-content;
@@ -148,7 +148,7 @@
 .research-chart-body {
   --kline-chart-plot-height: clamp(660px, 66vh, 800px);
   --kline-chart-padding-left: 16px;
-  --kline-chart-padding-right: 6px;
+  --kline-chart-padding-right: 4px;
   --kline-chart-padding-top: 9px;
   --kline-chart-padding-bottom: 11px;
   --kline-chart-frame-height: calc(
@@ -167,18 +167,19 @@
 }
 
 .research-select--exchange {
-  width: 102px;
+  width: 96px;
 }
 
 .research-symbol-input {
-  width: 112px;
-  max-width: 112px;
+  width: 104px;
+  max-width: 104px;
+  flex: 0 0 104px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: 112px;
-  max-width: 112px;
+  width: 104px;
+  max-width: 104px;
 }
 
 .research-refresh-button {
@@ -187,22 +188,21 @@
 }
 
 .research-select--compact {
-  width: 58px;
+  width: 54px;
 }
 
 .research-source-controls .market-symbol-autocomplete {
   gap: 4px;
 }
 
-.research-source-controls .market-symbol-autocomplete > .n-button {
-  width: 26px;
-  min-width: 26px;
-  padding: 0;
-}
-
 .research-source-controls .n-base-selection,
 .research-source-controls .n-input {
   --n-height: 30px;
+}
+
+.research-source-controls .market-symbol-autocomplete__input {
+  width: 100%;
+  min-width: 0;
 }
 
 .research-source-controls .n-base-selection-label,
@@ -233,7 +233,7 @@
   .research-chart-body {
     --kline-chart-plot-height: 540px;
     --kline-chart-padding-left: 10px;
-    --kline-chart-padding-right: 10px;
+    --kline-chart-padding-right: 8px;
     --kline-chart-padding-top: 8px;
     --kline-chart-padding-bottom: 12px;
   }
@@ -250,28 +250,29 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 94px 104px 28px 56px max-content;
+    grid-template-columns: 90px 100px 28px 52px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 94px;
+    width: 90px;
   }
 
   .research-select--compact {
-    width: 56px;
+    width: 52px;
   }
 
   .research-symbol-input {
-    width: 104px;
-    max-width: 104px;
+    width: 100px;
+    max-width: 100px;
+    flex-basis: 100px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 104px;
-    max-width: 104px;
+    width: 100px;
+    max-width: 100px;
   }
 
   .research-toolbar-status {
@@ -300,7 +301,7 @@
   .research-chart-body {
     --kline-chart-plot-height: 680px;
     --kline-chart-padding-left: 12px;
-    --kline-chart-padding-right: 6px;
+    --kline-chart-padding-right: 4px;
     --kline-chart-padding-top: 9px;
     --kline-chart-padding-bottom: 11px;
   }
@@ -315,24 +316,25 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 98px 108px 28px 56px max-content;
+    grid-template-columns: 94px 102px 28px 52px max-content;
   }
 
   .research-select--exchange {
-    width: 98px;
+    width: 94px;
   }
 
   .research-symbol-input {
-    width: 108px;
-    max-width: 108px;
+    width: 102px;
+    max-width: 102px;
+    flex-basis: 102px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 108px;
-    max-width: 108px;
+    width: 102px;
+    max-width: 102px;
   }
 
   .research-select--compact {
-    width: 56px;
+    width: 52px;
   }
 }

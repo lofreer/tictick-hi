@@ -10,6 +10,7 @@
       @update:value="handleUpdateValue"
     />
     <NButton
+      v-if="showSyncButton"
       circle
       quaternary
       :size="size"
@@ -36,9 +37,11 @@ import { normalizeSymbolInput, symbolOptionsForExchange, type MarketSymbolOption
 
 const props = withDefaults(defineProps<{
   exchange: string;
+  showSyncButton?: boolean;
   size?: "small" | "medium" | "large";
   value: string;
 }>(), {
+  showSyncButton: true,
   size: "medium",
 });
 

@@ -12,8 +12,8 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 116);
-const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 590);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 108);
+const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 540);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 54);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
@@ -279,6 +279,7 @@ function visualSampleExpression(pageConfig) {
       chartInlineEndGutter: cssPixel(detailSelectors ? detailSelectors.chartPanel : '.research-chart-body', 'padding-right'),
       chart: read('.trading-chart'),
       tv: read('.tv-lightweight-charts'),
+      mainPaneCanvas: mainPaneCanvas(),
       priceAxisCanvas: rightPriceAxisCanvas(),
       detail: detailSelectors ? {
         chartPanel: read(detailSelectors.chartPanel),
@@ -297,6 +298,18 @@ function visualSampleExpression(pageConfig) {
         .filter((entry) => entry.rect.width >= 28 && entry.rect.width <= 180)
         .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 96))
         .sort((left, right) => right.rect.right - left.rect.right);
+      const canvas = canvases[0]?.node;
+      return canvas ? readCanvas(canvas, canvases[0].index) : null;
+    }
+
+    function mainPaneCanvas() {
+      const chartViewport = document.querySelector(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport');
+      const viewportRect = chartViewport?.getBoundingClientRect();
+      const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
+        .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
+        .filter((entry) => entry.rect.width >= 160)
+        .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 120))
+        .sort((left, right) => right.rect.width - left.rect.width);
       const canvas = canvases[0]?.node;
       return canvas ? readCanvas(canvas, canvases[0].index) : null;
     }
@@ -477,7 +490,18 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
   if (!sample.priceAxisCanvas) {
     throw new Error(`${label} missing right price-axis canvas: ${JSON.stringify(sample)}`);
   }
+  if (!sample.mainPaneCanvas) {
+    throw new Error(`${label} missing main chart pane canvas: ${JSON.stringify(sample)}`);
+  }
   assertChartGutters(label, sample);
+  if (sample.mainPaneCanvas.left < sample.chartViewport.left - widthTolerance) {
+    throw new Error(
+      `${label} main chart pane starts outside the chart viewport: ${JSON.stringify({
+        mainPane: sample.mainPaneCanvas,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
   if (sample.priceAxisCanvas.rectWidth > maxRightPriceAxisWidth) {
     throw new Error(
       `${label} right price-axis is too wide: ${JSON.stringify({
@@ -490,6 +514,15 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
   if (sample.priceAxisCanvas.left < sample.chartViewport.left || sample.priceAxisCanvas.left > sample.chartViewport.right) {
     throw new Error(
       `${label} right price-axis is detached from the chart viewport: ${JSON.stringify({
+        priceAxis: sample.priceAxisCanvas,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+  if (Math.abs(sample.mainPaneCanvas.right - sample.priceAxisCanvas.left) > widthTolerance + 2) {
+    throw new Error(
+      `${label} main chart pane is detached from the right price-axis: ${JSON.stringify({
+        mainPane: sample.mainPaneCanvas,
         priceAxis: sample.priceAxisCanvas,
         chartViewport: sample.chartViewport,
       })}`,

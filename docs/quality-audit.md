@@ -55,7 +55,7 @@ done            用户确认关闭
 
 补充：阶段 1 全历史 invalid repair 已补 PostgreSQL 集成证据：通过全历史 invalid scan 找到 persisted 异常行，排补同步任务后由 `SaveDataSyncResult` 走正常 worker 写回路径覆盖为健康 K 线，随后 `ScanMarketCandleInvalidIssues` 回到无异常；该证据只证明“补同步成功写回时会收敛”，不代表自动清洗历史行或保证交易所一定返回健康数据。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表布局精细化复核补充”为准：研究页 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，图表左/右 gutter 为桌面 `16px/6px`、窄桌面 `12px/6px`、移动端 `10px/10px`，详情页下方摘要列为 `minmax(240px, 300px)`，`TradingViewChart` 只让 lightweight-charts 外层填满固定 viewport，不再覆写内部 table/canvas 几何。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表布局最终几何约束补充”为准：研究页主工具栏 symbol 输入为桌面 `104px`、窄桌面 `102px`、移动端 `100px`，主工具栏不再显示 symbol 内置 instrument sync 按钮；图表左/右 gutter 为桌面 `16px/4px`、窄桌面 `12px/4px`、移动端 `10px/8px`；右侧价格轴 minimumWidth 为 `32/34/36px`，visual smoke 同时断言主图 canvas 右边界贴住右侧价格轴左边界，详情页下方摘要列保持 `minmax(240px, 300px)`。
 
 ## 3. 必须先修的问题
 
@@ -7413,6 +7413,61 @@ Definition of Done：
 
 - 本轮只修复 K 线图表布局、工具栏密度、左右 gutter 和详情页双栏比例；未新增指标、绘图、成交联动或策略分析能力。
 - 视觉验证仍是几何 smoke，不是像素快照基线；前端基础设施仍保持 `scaffold`。
+- 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
+
+### 阶段 1 K 线图表布局最终几何约束补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 用户继续反馈研究页 K 线工具栏不够精细、symbol 输入仍过宽、右侧价格轴区域仍有明显空白。
+- 旧 visual smoke 能通过，但只约束价格轴自身宽度和价格轴贴 chart viewport 右边界，没有直接约束主图 canvas 与价格轴之间是否存在空白。
+- 本轮只处理研究页、回测详情和交易详情复用的图表几何约束，不新增指标、绘图或交易分析能力。
+
+Definition of Done：
+
+- 研究页主工具栏按紧凑 market strip 处理，symbol 输入不再携带内置 instrument sync 按钮。
+- symbol 输入实际宽度收敛为桌面 `104px`、窄桌面 `102px`、移动端 `100px`，visual smoke 最大宽度阈值收紧到 `108px`。
+- 图表槽右侧外 gutter 收敛为桌面 / 窄桌面 `4px`、移动端 `8px`；左侧保留 `16px / 12px / 10px` 读图边距。
+- `TradingViewChart` 右侧价格轴 minimumWidth 收敛为 `32/34/36px`，时间轴边缘逻辑 padding 下调，减少最新 K 线右侧空白。
+- visual smoke 必须同时检查主图 canvas 右边界贴住右侧价格轴左边界，防止“价格轴不宽但主图与价格轴之间有空白”的回归。
+- 回测详情和交易详情继续复用同一 K 线图表槽，保持上图表、下方左窄摘要右宽 tab 列表。
+
+改动范围：
+
+- `web/frontend/src/components/market/MarketSymbolAutoComplete.vue` 增加 `showSyncButton`，默认保留，研究页主工具栏关闭。
+- `web/frontend/src/pages/ResearchPage.vue`、`web/frontend/src/pages/ResearchPage.css` 收紧 toolbar、symbol 宽度和图表 gutter。
+- `web/frontend/src/pages/klineChartLayout.css`、`web/frontend/src/pages/detailChartLayout.css` 收紧共享图表槽右 gutter。
+- `web/frontend/src/components/chart/TradingViewChart.vue` 收紧价格轴和时间轴边缘 padding。
+- `scripts/stage8-visual-smoke.mjs` 增加主图 canvas 与右侧价格轴贴合断言，并收紧 toolbar 宽度阈值。
+- `scripts/check-research-chart-layout.sh`、相关 layout / chart 单测同步新几何契约。
+
+验证：
+
+- `pnpm --dir web/frontend run test -- src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts src/components/market/MarketSymbolAutoComplete.test.ts` 通过：实际执行 28 个测试文件、142 条测试。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `docker compose up -d --build api` 通过，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，`http://127.0.0.1:8080/` 已指向新 bundle `index-CebMP6ZI.js`。
+- `node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅/深主题、`zh-CN/en-US`，每组 14 页面，最大 document width 不超过对应 viewport。
+- `node scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `660px`、`2048x1152` 图表 `760px`、`812x1320` 图表 `680px`、`390x844` 图表 `540px`，污染内部 chart/table/canvas 高度后 document/panel/body/chart/tv 高度均稳定。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+失败项：
+
+- 首次在 `127.0.0.1:8080` 运行 visual smoke 时命中旧 Docker API 容器内置的旧前端资产，symbol 仍为 `112px`，按新阈值失败；已通过 `docker compose up -d --build api` 重建 API 容器并复跑通过。
+
+剩余风险：
+
+- 当前仍是几何 smoke，不是像素快照基线；细粒度视觉回归仍需后续引入截图基线。
+- 本轮未新增指标工具、绘图工具、成交点交互或策略分析能力。
 - 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
 ### 阶段 1 全历史 invalid 补同步入口补充

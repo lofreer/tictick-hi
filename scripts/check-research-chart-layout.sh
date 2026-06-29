@@ -76,6 +76,7 @@ require_order "$RESEARCH_PAGE" 'class="surface research-tasks-panel"' 'class="su
 require_contains "$RESEARCH_PAGE" 'import "./klineChartLayout.css";'
 require_contains "$RESEARCH_PAGE" 'class="kline-chart-frame research-chart-body"'
 require_contains "$RESEARCH_PAGE" 'class="kline-chart-frame__viewport research-chart-viewport" data-chart-viewport="fixed"'
+require_contains "$RESEARCH_PAGE" ':show-sync-button="false"'
 require_not_contains "$RESEARCH_PAGE" 'class="surface chart-panel research-chart-panel"'
 
 require_contains "$RESEARCH_CSS" ".research-workspace"
@@ -93,13 +94,13 @@ require_contains "$RESEARCH_CSS" "contain: layout paint style;"
 require_contains "$RESEARCH_CSS" ".research-toolbar-main"
 require_contains "$RESEARCH_CSS" ".research-source-controls"
 require_block_contains "$RESEARCH_CSS" ".research-source-controls" "display: grid;"
-require_block_contains "$RESEARCH_CSS" ".research-source-controls" "grid-template-columns: 102px 112px 28px 58px max-content;"
+require_block_contains "$RESEARCH_CSS" ".research-source-controls" "grid-template-columns: 96px 104px 28px 54px max-content;"
 require_contains "$RESEARCH_CSS" "width: max-content;"
 require_contains "$RESEARCH_CSS" "overflow-x: auto;"
 require_contains "$RESEARCH_CSS" ".research-toolbar-status"
 require_contains "$RESEARCH_CSS" ".research-current-source"
 require_block_contains "$RESEARCH_CSS" ".research-toolbar" "grid-template-columns: minmax(0, 1fr);"
-require_block_contains "$RESEARCH_CSS" ".research-toolbar" "padding: 8px 10px;"
+require_block_contains "$RESEARCH_CSS" ".research-toolbar" "padding: 8px 12px 7px;"
 require_block_contains "$RESEARCH_CSS" ".research-toolbar-status" "justify-content: flex-start;"
 require_not_contains "$RESEARCH_CSS" "flex: 1 1 620px;"
 require_not_contains "$RESEARCH_CSS" "flex: 0 1 680px;"
@@ -133,12 +134,11 @@ require_contains "$RESEARCH_CSS" "--kline-chart-plot-height: 540px;"
 require_contains "$RESEARCH_CSS" "--kline-chart-padding-left: 16px;"
 require_contains "$RESEARCH_CSS" "--kline-chart-padding-left: 12px;"
 require_contains "$RESEARCH_CSS" "--kline-chart-padding-left: 10px;"
-require_contains "$RESEARCH_CSS" "--kline-chart-padding-right: 6px;"
-require_contains "$RESEARCH_CSS" "--kline-chart-padding-right: 10px;"
-require_contains "$RESEARCH_CSS" "width: 112px;"
-require_contains "$RESEARCH_CSS" "width: 108px;"
+require_contains "$RESEARCH_CSS" "--kline-chart-padding-right: 4px;"
+require_contains "$RESEARCH_CSS" "--kline-chart-padding-right: 8px;"
 require_contains "$RESEARCH_CSS" "width: 104px;"
-require_contains "$RESEARCH_CSS" "width: 26px;"
+require_contains "$RESEARCH_CSS" "width: 102px;"
+require_contains "$RESEARCH_CSS" "width: 100px;"
 require_contains "$RESEARCH_CSS" "max-width: min(260px, 38vw);"
 
 require_block_contains "$CHART_CSS" ".trading-chart" "position: relative;"
