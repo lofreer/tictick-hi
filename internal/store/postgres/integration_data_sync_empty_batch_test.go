@@ -18,6 +18,7 @@ func TestIntegrationEmptyCompletedDataSyncResultStopsOneShotLoop(t *testing.T) {
 	id := integrationID("dst")
 	symbol := integrationSymbol("EMPTY")
 	insertDataHealthTaskWindow(t, ctx, store, id, symbol, data.TaskStatusRunning, true, false, &start, &end, nil, nil, "")
+	markIntegrationDataSyncTaskRunning(t, ctx, store, id, "empty-save-worker")
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := testContext(t)
 		defer cleanupCancel()

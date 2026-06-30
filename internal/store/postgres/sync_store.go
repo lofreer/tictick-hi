@@ -211,25 +211,39 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 }
 
 type dataSyncTaskTarget struct {
-	exchange string
-	symbol   string
-	interval string
+	exchange       string
+	symbol         string
+	interval       string
+	status         data.TaskStatus
+	hasActiveLease bool
 }
 
 func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string) (dataSyncTaskTarget, error) {
 	var target dataSyncTaskTarget
 	if err := tx.QueryRow(ctx, `
-		SELECT exchange, symbol, interval
-		  FROM data_sync_tasks
-		 WHERE id = $1
-		   AND deleted_at IS NULL
-		 FOR UPDATE`,
+			SELECT exchange, symbol, interval, status,
+			       locked_by IS NOT NULL
+			         AND locked_until IS NOT NULL
+			         AND locked_until > now() AS has_active_lease
+			  FROM data_sync_tasks
+			 WHERE id = $1
+			   AND deleted_at IS NULL
+			 FOR UPDATE`,
 		taskID,
-	).Scan(&target.exchange, &target.symbol, &target.interval); err != nil {
+	).Scan(
+		&target.exchange,
+		&target.symbol,
+		&target.interval,
+		&target.status,
+		&target.hasActiveLease,
+	); err != nil {
 		if err == pgx.ErrNoRows {
 			return dataSyncTaskTarget{}, data.ErrNotFound
 		}
 		return dataSyncTaskTarget{}, fmt.Errorf("read data sync task target: %w", err)
+	}
+	if target.status != data.TaskStatusRunning || !target.hasActiveLease {
+		return dataSyncTaskTarget{}, data.DataSyncCommandInvalidStateError()
 	}
 	return target, nil
 }
