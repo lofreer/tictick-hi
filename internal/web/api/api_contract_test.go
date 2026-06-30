@@ -61,6 +61,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodGet, "/api/market/candle-gaps"},
 		{http.MethodGet, "/api/market/candle-invalid-issues"},
 		{http.MethodPost, "/api/market/candle-gaps/repair"},
+		{http.MethodPost, "/api/market/candle-gaps/repair-batch"},
 		{http.MethodPost, "/api/market/candle-invalid-issues/repair"},
 		{http.MethodGet, "/api/market/instruments"},
 		{http.MethodGet, "/api/market/instruments/status"},

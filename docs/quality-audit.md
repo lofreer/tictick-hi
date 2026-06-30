@@ -73,6 +73,8 @@ done            用户确认关闭
 
 补充：阶段 1 K 线图表价格轴可读性在 2026-06-30 继续收紧；新的有效约束覆盖上一段中的旧价格轴字号/宽度阈值：`TradingViewChart` 价格轴 formatter 必须输出完整数值，不允许 `k/K/m/M/b/B` 紧凑缩写；chart 字体为桌面/窄桌面 `11px`、移动端 `10px`；右侧价格轴 minimumWidth 为桌面 `56px`、窄桌面 `52px`、移动端 `48px`；visual smoke 右侧价格轴最大宽度放宽到 `64px` 以优先保证完整价格可读，主图占比下限调整为桌面 `95%` / 窄桌面 `92.5%` / 移动端 `84%`，仍继续断言右侧价格轴贴住 viewport 边界、主图 canvas 贴住价格轴左边界且没有额外右侧空白。该证据只收紧 K 线图表可读性合同，不代表图表研究能力已经达到 usable 或具备像素快照基线。
 
+补充：阶段 1 全历史缺口批量 repair API contract 覆盖在 2026-06-30 继续收紧；`POST /api/market/candle-gaps/repair-batch` 已由前端 `dataApi.repairMarketCandleGaps` 使用、后端 OpenAPI contract 声明并由 handler 测试覆盖，本轮把该路由补进 `TestAPIContractCoversCurrentFrontendRoutes` 的前端路由清单，并补进 `TestAPIMethodNotAllowedContracts`，确保未来不会出现前端可调用但 contract / 405 Allow gate 漏检的隐藏写路由。该证据只补契约覆盖，不改变批量 repair 行为、单次上限、active catalog 边界或 data sync worker 调度语义。
+
 ### 阶段 1 研究页图表缺口修复入口收敛补充
 
 执行日期：2026-06-30
