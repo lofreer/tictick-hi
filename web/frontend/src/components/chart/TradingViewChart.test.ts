@@ -188,7 +188,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 8,
+          fontSize: 7,
         }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,

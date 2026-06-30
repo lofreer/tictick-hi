@@ -63,7 +63,7 @@ done            用户确认关闭
 
 补充：阶段 1 data sync task 窗口 invalid repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF `POST /api/data/tasks` 创建带 start/end 窗口的源同步任务，由 `SaveDataSyncResult` 写入 0、1、3 分钟健康 K 线，再注入 2 分钟 legacy invalid K 线形成任务窗口内异常，通过 `GET /api/data/tasks/{id}/invalid-issues` 观察异常，`POST /api/data/tasks/{id}/repair-invalid-issues` 排队带 `repairSourceTaskId` 的补同步任务，最后由 `SaveDataSyncResult` 写回 2 分钟健康 K 线，并通过 `GET /api/data/tasks` 和 `/invalid-issues` 观察源任务 `dataHealth=ok` 且异常消失；该证据证明任务窗口异常路由、认证/CSRF、active instrument 源任务创建校验、源任务关联和 worker 写回收敛路径可以串起来，但仍不代表自动清洗历史异常行或交易所一定返回健康数据。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/4px`、窄桌面 `12px/4px`、移动端 `10px/4px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；右侧价格轴不再人为增加 minimumWidth，chart 字体为桌面 `8px`、移动 `7px`，visual smoke 同时断言 symbol 最大宽度 `124px`、工具栏控件最大宽度 `560px`、工具栏高度最大 `76px`、右侧价格轴最大宽度 `44px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/2px`、窄桌面 `12px/2px`、移动端 `10px/2px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；右侧价格轴不再人为增加 minimumWidth，chart 字体统一为 `7px`，visual smoke 同时断言 symbol 最大宽度 `124px`、工具栏控件最大宽度 `560px`、工具栏高度最大 `76px`、右侧价格轴最大宽度 `42px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
 
 ## 3. 必须先修的问题
 
@@ -7816,6 +7816,57 @@ Definition of Done：
 
 - 该切片只增强研究页修复结果可观察性，不证明交易所一定能返回健康历史数据。
 - 自动批量修复、历史异常自动清洗、多任务修复调度和生产级数据修复策略仍未关闭。
+
+### 阶段 1 K 线图表生产级布局返工补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 研究页、回测详情和交易详情虽然已接入共享 K 线固定图表槽，但仍需要用真实运行态几何验证工具栏密度、图表高度、左右边距、右侧价格轴贴合和内部 canvas 裁切。
+- 本轮不能只改静态 CSS contract；必须用本地浏览器检查 `lightweight-charts` 实际生成的主图 canvas、右侧 price scale 和时间轴位置。
+
+Definition of Done：
+
+- 研究页工具栏保持一行紧凑 market strip；exchange / symbol / refresh / interval / window controls 不出现超长输入框，状态标签单独滚动且不挤压图表。
+- 研究页、回测详情和交易详情复用同一固定图表槽：图表在上，下方为概要窄列 + tab 宽列；移动和窄桌面退化为单列。
+- K 线图表在 1440、812、390 视口下有可读高度，不按首屏剩余空间机械平分；内部 canvas、右侧价格轴、时间轴必须都落在固定 viewport 内。
+- 左侧保留少量读图 gutter，右侧只保留必要 breathing room；不得出现价格轴右侧大块空白，主图 canvas 必须贴近 price scale。
+- `TradingViewChart` 不再因内部 table/canvas resize feedback 造成图表无限拉高。
+- 更新静态 layout test、浏览器几何 smoke 和质量审计；不新增业务功能，不改变后端 API。
+
+改动范围：
+
+- `web/frontend/src/pages/ResearchPage.css`、`detailChartLayout.css`、`klineChartLayout.css`、`TradingViewChart.vue/css` 按真实几何回收布局。
+- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`DetailPages.layout.test.ts`、`TradingViewChart.test.ts` 和 `scripts/*chart*smoke*` 同步生产级布局合同。
+- `docs/quality-audit.md` 记录本轮验证、失败项和剩余风险。
+
+当前验证：
+
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过：3 个测试文件、35 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、146 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api && docker compose up -d api` 通过，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=900 node scripts/research-chart-height-smoke.mjs` 通过：1440 / 2048 / 812 / 390 视口高度稳定，图表 root / TV canvas 没有增长。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅 / 深主题、`zh-CN/en-US`，每组 14 页，最大 document width 不超过对应 viewport。
+- 真实 8080 Headless Chrome 几何采样：1440 下 toolbar `47px`、controls `528px`、symbol `112px`、body `680px`、main `1332px`、price axis `42px`、right blank `2px`；812 下 toolbar `74px`、symbol `108px`、body `700px`、main `722px`、price axis `42px`、right blank `2px`；390 下 toolbar `80px`、symbol `104px`、body `580px`、main `302px`、price axis `42px`、right blank `2px`。
+
+失败项：
+
+- 未出现验证失败；本轮先用运行态几何采样确认旧问题后再收紧合同。
+
+剩余风险：
+
+- 本轮只处理图表与详情页布局，不代表研究、回测、交易业务流程达到 production-safe。
+- 仍缺像素快照基线和真实用户浏览器矩阵，当前浏览器证据来自 Headless Chrome。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

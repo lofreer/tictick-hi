@@ -113,7 +113,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(pageStyles).toContain("--kline-chart-padding-left: 14px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 10px;");
-    expect(pageStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(pageStyles).toContain("--kline-chart-padding-right: 2px;");
     expect(pageStyles).toContain("grid-template-columns: 104px 112px 30px 58px max-content;");
     expect(pageStyles).toContain("width: 112px;");
     expect(pageStyles).toContain("grid-template-columns: 96px 108px 30px 54px max-content;");

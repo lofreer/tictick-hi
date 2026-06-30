@@ -223,7 +223,7 @@ function responsiveChartOptions(mode = themeStore.mode) {
     ...theme,
     layout: {
       ...theme.layout,
-      fontSize: chartFontSize(lastSize.width),
+      fontSize: chartFontSize(),
     },
     localization: {
       priceFormatter: formatChartPrice,
@@ -248,8 +248,8 @@ function responsiveChartOptions(mode = themeStore.mode) {
   };
 }
 
-function chartFontSize(width: number) {
-  return width < 520 ? 7 : 8;
+function chartFontSize() {
+  return 7;
 }
 
 function rightPriceScaleMinimumWidth() {
