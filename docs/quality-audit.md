@@ -59,6 +59,8 @@ done            用户确认关闭
 
 补充：阶段 1 全历史 gap repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF 写请求对 `GET /api/market/candle-gaps` 发现的相邻缺口排队 repair task，再由 `SaveDataSyncResult` 写回缺失 K 线，最后通过同一路由观察 `TotalCount=0` 且窗口 K 线数量补齐；该证据证明全历史缺口路由、认证/CSRF、active instrument 校验和 worker 写回收敛路径可以串起来，但仍不代表自动批量补全或交易所一定返回缺失数据。
 
+补充：阶段 1 data sync task 窗口 gap repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF `POST /api/data/tasks` 创建带 start/end 窗口的源同步任务，由 `SaveDataSyncResult` 写入 0、1、5 分钟 K 线形成任务窗口内缺口，再通过 `GET /api/data/tasks/{id}/gaps` 观察缺口，`POST /api/data/tasks/{id}/repair-gap` 排队带 `repairSourceTaskId` 的补同步任务，最后由 `SaveDataSyncResult` 写回 2、3、4 分钟 K 线，并通过 `GET /api/data/tasks` 和 `/gaps` 观察源任务 `dataHealth=ok` 且缺口消失；该证据证明任务窗口缺口路由、认证/CSRF、active instrument 校验、源任务关联和 worker 写回收敛路径可以串起来，但仍不代表自动批量补全或交易所一定返回缺失数据。
+
 补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表生产高度复核补充”为准：研究页主工具栏 symbol 输入统一为 `92px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `18px/4px`、窄桌面 `16px/4px`、移动端 `12px/8px`；plot 高度为桌面 `clamp(640px, 72vh, 820px)`、窄桌面 `720px`、移动端 `600px`，上下 padding 归零；右侧价格轴 minimumWidth 为 `24/26/28px`，chart 字体为桌面 `9px`、移动 `8px`，visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、右侧价格轴最大宽度 `48px`、主图 canvas 右边界贴住右侧价格轴左边界，详情页下方摘要列保持 `minmax(240px, 280px)`。
 
 ## 3. 必须先修的问题
