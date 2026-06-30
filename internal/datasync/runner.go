@@ -14,10 +14,11 @@ import (
 )
 
 type Runner struct {
-	repository data.SyncRepository
-	registry   exchange.Registry
-	config     Config
-	now        func() time.Time
+	repository     data.SyncRepository
+	lockRepository data.SyncFetchLockRepository
+	registry       exchange.Registry
+	config         Config
+	now            func() time.Time
 }
 
 type Config struct {
@@ -32,6 +33,20 @@ type Config struct {
 	RetryDelay        time.Duration
 	RetryBackoff      time.Duration
 	MaxRetryBackoff   time.Duration
+}
+
+var errDataSyncExchangeFetchLockHeld = errors.New("data sync exchange fetch lock is held")
+
+type dataSyncExchangeFetchLockError struct {
+	err error
+}
+
+func (lockErr dataSyncExchangeFetchLockError) Error() string {
+	return fmt.Sprintf("data sync exchange fetch lock: %v", lockErr.err)
+}
+
+func (lockErr dataSyncExchangeFetchLockError) Unwrap() error {
+	return lockErr.err
 }
 
 func NewRunner(repository data.SyncRepository, registry exchange.Registry, config Config) *Runner {
@@ -74,12 +89,14 @@ func NewRunner(repository data.SyncRepository, registry exchange.Registry, confi
 	if config.WorkerID == "" {
 		config.WorkerID = "sync-worker"
 	}
+	lockRepository, _ := repository.(data.SyncFetchLockRepository)
 
 	return &Runner{
-		repository: repository,
-		registry:   registry,
-		config:     config,
-		now:        func() time.Time { return time.Now().UTC() },
+		repository:     repository,
+		lockRepository: lockRepository,
+		registry:       registry,
+		config:         config,
+		now:            func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -121,6 +138,24 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			return nil
 		}
+		if errors.Is(err, errDataSyncExchangeFetchLockHeld) {
+			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
+			defer cancel()
+			if releaseErr := runner.releaseDataSyncTaskAfterSkippedFetch(releaseCtx, task.ID); releaseErr != nil {
+				return fmt.Errorf("release data sync task after exchange fetch lock skip: %w", releaseErr)
+			}
+			slog.Info("data sync task released; exchange fetch lock held", "task_id", task.ID, "exchange", task.Exchange)
+			return nil
+		}
+		var lockErr dataSyncExchangeFetchLockError
+		if errors.As(err, &lockErr) {
+			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
+			defer cancel()
+			if releaseErr := runner.releaseDataSyncTaskAfterSkippedFetch(releaseCtx, task.ID); releaseErr != nil {
+				return fmt.Errorf("release data sync task after exchange fetch lock error: %w", releaseErr)
+			}
+			return lockErr
+		}
 		if exchange.IsTemporaryError(err) {
 			nextAttemptAt := runner.nextAttemptAt(task)
 			slog.Warn(
@@ -144,6 +179,13 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (runner *Runner) releaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string) error {
+	if runner.lockRepository == nil {
+		return runner.repository.ReleaseDataSyncTask(ctx, taskID)
+	}
+	return runner.lockRepository.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID)
 }
 
 func (runner *Runner) syncTaskWithHeartbeat(ctx context.Context, task data.DataSyncTask) (err error) {
@@ -190,6 +232,17 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		})
 	}
 
+	if runner.lockRepository == nil {
+		return dataSyncExchangeFetchLockError{err: errors.New("sync repository does not support exchange fetch locks")}
+	}
+	unlock, locked, err := runner.lockRepository.TryLockDataSyncExchangeFetch(ctx, task.Exchange)
+	if err != nil {
+		return dataSyncExchangeFetchLockError{err: err}
+	}
+	if !locked {
+		return errDataSyncExchangeFetchLockHeld
+	}
+
 	candles, err := runner.fetchCandles(ctx, client, exchange.CandleRequest{
 		Exchange: task.Exchange,
 		Symbol:   task.Symbol,
@@ -198,6 +251,9 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		To:       window.to,
 		Limit:    runner.config.BatchLimit,
 	})
+	if unlockErr := unlockDataSyncExchangeFetch(unlock); unlockErr != nil {
+		return dataSyncExchangeFetchLockError{err: unlockErr}
+	}
 	if err != nil {
 		return err
 	}
@@ -215,6 +271,12 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		LastOpenTime: cursorOpenTime,
 		Completed:    runner.isCompleted(task, duration, cursorOpenTime, len(candles) == 0),
 	})
+}
+
+func unlockDataSyncExchangeFetch(unlock func(context.Context) error) error {
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return unlock(releaseCtx)
 }
 
 func (runner *Runner) fetchCandles(

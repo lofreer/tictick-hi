@@ -502,6 +502,10 @@ type fakeSyncRepository struct {
 	retryError           error
 	nextAttemptAt        *time.Time
 	released             bool
+	releasedSkippedFetch bool
+	fetchLockResults     map[string]bool
+	fetchLockErr         error
+	fetchUnlocks         []string
 	heartbeats           int
 	heartbeatSignals     chan<- struct{}
 	heartbeatErrAfter    int
@@ -575,6 +579,11 @@ func (repository *fakeSyncRepository) RecordDataSyncRetry(
 
 func (repository *fakeSyncRepository) ReleaseDataSyncTask(context.Context, string) error {
 	repository.released = true
+	return nil
+}
+
+func (repository *fakeSyncRepository) ReleaseDataSyncTaskAfterSkippedFetch(context.Context, string) error {
+	repository.releasedSkippedFetch = true
 	return nil
 }
 

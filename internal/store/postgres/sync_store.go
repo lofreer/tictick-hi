@@ -338,6 +338,20 @@ func (store *Store) ReleaseDataSyncTask(ctx context.Context, taskID string) erro
 	return nil
 }
 
+func (store *Store) ReleaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string) error {
+	if _, err := store.pool.Exec(ctx, fmt.Sprintf(`
+			UPDATE data_sync_tasks
+		   SET %s,
+		       attempt_count = GREATEST(attempt_count - 1, 0),
+		       updated_at = now()
+		 WHERE id = $1`,
+		clearLeaseAssignments(dataSyncTaskLease),
+	), taskID); err != nil {
+		return fmt.Errorf("release data sync task after skipped fetch: %w", err)
+	}
+	return nil
+}
+
 func normalizeTaskError(taskErr error) string {
 	return errtext.ExternalError(taskErr.Error())
 }
