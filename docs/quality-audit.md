@@ -9173,6 +9173,37 @@ Definition of Done：
 - 当前仍缺像素快照基线和多浏览器视觉回归，浏览器 smoke 只能覆盖当前 Chrome 矩阵。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 数据同步外部临时失败恢复补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增 PostgreSQL 集成测试，串起 `data sync runner`、真实 PostgreSQL store、Binance public market adapter 和本地 `httptest` 交易所。
+- 本地交易所第一次 `/api/v3/klines` 返回 `429` 与 `Retry-After`，验证 runner 不在同一轮快速重试，而是记录 task retry 和 exchange backoff，释放 lease，且不写入 K 线。
+- 将 task / exchange backoff 推进到期后第二次运行 runner，验证同一任务成功拉取 5 根闭合 `1m` K 线、写入 `market_candles`、推进 `last_synced_open_time`、清理 task 错误与 exchange backoff，并在 `ListDataSyncTasks` 中显示 `dataHealth=ok`。
+- 新增 `scripts/stage1-data-sync-external-recovery-smoke.sh`，通过 Docker Compose postgres + 临时 Go 容器运行上述非跳过集成测试。
+- `scripts/full-quality-gate.sh` 增加 `FULL_QUALITY_STAGE1_EXTERNAL_RECOVERY=1` / `FULL_QUALITY_STAGE1=1` 可选入口。
+
+范围外：
+
+- 不访问真实外网交易所，不声明真实外部网络长期压测已关闭。
+- 不实现跨实例共享 token bucket、OKX 动态额度或交易所私有 API。
+- 不推进 live executor、实盘下单、订单幂等或生产密钥管理。
+
+当前验证：
+
+- `scripts/stage1-data-sync-external-recovery-smoke.sh` 通过：目标测试在 compose PostgreSQL 上非跳过执行，第一次 `429 Retry-After` 记录 retry/backoff，第二次恢复并落库。
+- `FULL_QUALITY_STAGE1_EXTERNAL_RECOVERY=1 scripts/full-quality-gate.sh` 通过：包含 `go test ./...`、`go vet ./...`、前端 typecheck / test / build、轻量质量门禁，并串联上述 Stage 1 外部临时失败恢复 smoke。
+
+剩余风险：
+
+- 该验证是确定性的本地交易所故障注入，不等同于真实 Binance / OKX 长时间网络恢复压测。
+- 该脚本是 Stage 1 可选重型门禁，默认 GitHub `Quality Gate` 仍不会强制拉 Docker Go 容器执行它。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
