@@ -61,6 +61,9 @@ func (server *Server) handleBacktestCollection(w http.ResponseWriter, r *http.Re
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
+			return
+		}
 		normalizedParams, err := strategy.NormalizeParams(definition, request.StrategyParams)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())

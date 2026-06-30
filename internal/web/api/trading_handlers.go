@@ -71,6 +71,9 @@ func (server *Server) handleTradingTaskCollection(w http.ResponseWriter, r *http
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
+			return
+		}
 		if err := server.validateTradingAccount(r.Context(), request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
