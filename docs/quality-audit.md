@@ -8967,6 +8967,42 @@ Definition of Done：
 - 当前仍缺真实交易所长期恢复压测、自动完成后的前端轮询/通知机制和像素视觉回归，研究页不能升级。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页图表缺口修复结果可观察性补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 研究页图表“修复首个缺口”不再只通过 toast 表达结果。
+- `repairChartGap` 返回后端 repair metadata，研究页状态条复用 `MarketRepairResultTags` 展示本次匹配数量、创建数量、跳过数量、单次上限、limited 状态和创建出的补同步窗口。
+- 切换交易所、交易对、周期或重新加载 K 线后清除旧的图表缺口修复结果，避免把上一个数据源的 repair 结果留在当前图表上下文。
+- 前端测试覆盖 repair action 返回 metadata、刷新任务/K线、页面挂载 repair result tags。
+
+范围外：
+
+- 不改变后端 gap repair API、去重、单次修复上限或 data sync worker 调度语义。
+- 不实现 repair 任务完成后的自动轮询或通知。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend exec vitest run src/composables/researchGapRepairActions.test.ts src/pages/ResearchPage.layout.test.ts src/components/research/MarketRepairResultTags.test.ts` 通过：17 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：163 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+剩余风险：
+
+- repair result 仍只是“已排队/已跳过”的返回结果，不代表缺口已经被实际数据写回。
+- repair 任务完成后仍缺自动完成状态反馈、轮询/通知机制和浏览器像素快照基线，研究页不能升级。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

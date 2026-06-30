@@ -324,7 +324,7 @@ export function useResearchWorkspace() {
 
     repairGapLoading.value = true;
     try {
-      await repairChartGap({
+      return await repairChartGap({
         exchange: exchange.value,
         gap,
         loadCandles,

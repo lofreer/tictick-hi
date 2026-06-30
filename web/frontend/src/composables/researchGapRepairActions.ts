@@ -1,5 +1,5 @@
 import { dataApi } from "@/services/api/data";
-import type { CandleGap, DataSyncTask } from "@/types/app";
+import type { CandleGap, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
 
 import {
   chartGapRepairRequest,
@@ -20,12 +20,13 @@ type RepairChartGapOptions = {
 
 export async function repairChartGap(options: RepairChartGapOptions) {
   const { exchange, gap, loadCandles, loadTasks, onSuccess, repairInterval, sourceTask, symbol } = options;
+  let result: DataSyncGapRepairResult;
   if (sourceTask) {
-    const result = await dataApi.repairTaskGap(sourceTask.id, chartGapRepairRequest(gap));
-    onSuccess(repairResultMessageKey(result));
+    result = await dataApi.repairTaskGap(sourceTask.id, chartGapRepairRequest(gap));
   } else {
-    const result = await dataApi.repairMarketCandleGap(marketGapRepairRequest(gap, exchange, symbol, repairInterval));
-    onSuccess(repairResultMessageKey(result));
+    result = await dataApi.repairMarketCandleGap(marketGapRepairRequest(gap, exchange, symbol, repairInterval));
   }
+  onSuccess(repairResultMessageKey(result));
   await Promise.all([loadTasks(), loadCandles()]);
+  return result;
 }

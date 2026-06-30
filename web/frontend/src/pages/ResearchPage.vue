@@ -67,7 +67,7 @@
                 :aria-label="t('research.refreshChart')"
                 :loading="candlesLoading"
                 :title="t('research.refreshChart')"
-                @click="loadCandles"
+                @click="refreshChartCandles"
               >
                 <template #icon>
                   <RefreshCw :size="15" />
@@ -83,9 +83,9 @@
                 :can-load-next="canLoadNextCandles"
                 :can-load-previous="canLoadPreviousCandles"
                 :loading="candlesLoading"
-                @next="loadNextCandles"
-                @previous="loadPreviousCandles"
-                @range="applyTimeRange"
+                @next="loadNextChartCandles"
+                @previous="loadPreviousChartCandles"
+                @range="applyChartTimeRange"
               />
             </div>
           </div>
@@ -141,10 +141,11 @@
                 secondary
                 type="warning"
                 :loading="repairGapLoading"
-                @click="repairFirstGap"
+                @click="repairFirstChartGap"
               >
                 {{ t("research.repairFirstGap") }}
               </NButton>
+              <MarketRepairResultTags :result="chartGapRepairResult" />
             </div>
           </div>
         </div>
@@ -251,7 +252,7 @@ import {
   type SelectOption,
   type TagProps,
 } from "naive-ui";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import TradingViewChart from "@/components/chart/TradingViewChart.vue";
@@ -261,17 +262,19 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
 import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";
+import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";
 import ResearchTaskGapDetailsModal from "@/components/research/ResearchTaskGapDetailsModal.vue";
 import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
-import type { CandleIssue, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
+import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
 import "./klineChartLayout.css";
 
 const { t } = useI18n();
 const invalidIssueModal = ref<InstanceType<typeof ResearchTaskInvalidIssueModal> | null>(null);
+const chartGapRepairResult = ref<DataSyncGapRepairResult | null>(null);
 const {
   canCreateTask,
   canLoadNextCandles,
@@ -339,6 +342,34 @@ const intervalOptions = computed<SelectOption[]>(() => [
 function viewTaskInvalidIssues(task: DataSyncTask) {
   invalidIssueModal.value?.open(task);
 }
+
+async function repairFirstChartGap() {
+  chartGapRepairResult.value = await repairFirstGap() ?? null;
+}
+
+async function refreshChartCandles() {
+  chartGapRepairResult.value = null;
+  await loadCandles();
+}
+
+function loadPreviousChartCandles() {
+  chartGapRepairResult.value = null;
+  loadPreviousCandles();
+}
+
+function loadNextChartCandles() {
+  chartGapRepairResult.value = null;
+  loadNextCandles();
+}
+
+function applyChartTimeRange(...args: Parameters<typeof applyTimeRange>) {
+  chartGapRepairResult.value = null;
+  applyTimeRange(...args);
+}
+
+watch([exchange, symbol, interval], () => {
+  chartGapRepairResult.value = null;
+});
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));

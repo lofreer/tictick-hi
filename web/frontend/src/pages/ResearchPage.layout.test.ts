@@ -190,9 +190,9 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("ResearchWindowControls");
     expect(source).toContain("canLoadPreviousCandles");
     expect(source).toContain("canLoadNextCandles");
-    expect(source).toContain('@range="applyTimeRange"');
-    expect(source).toContain('@previous="loadPreviousCandles"');
-    expect(source).toContain('@next="loadNextCandles"');
+    expect(source).toContain('@range="applyChartTimeRange"');
+    expect(source).toContain('@previous="loadPreviousChartCandles"');
+    expect(source).toContain('@next="loadNextChartCandles"');
     expect(windowControlsSource).toContain("research.previousWindow");
     expect(windowControlsSource).toContain("research.nextWindow");
     expect(windowControlsSource).toContain("timeRangePresets");
@@ -237,6 +237,14 @@ describe("ResearchPage chart layout contract", () => {
     expect(gapDetailsModalSource).toContain("research.taskGapRepairResultSummary");
     expect(gapDetailsModalSource).toContain("research.taskGapRepairTaskWindow");
     expect(gapDetailsModalSource).toContain("@click=\"emit('repair')\"");
+  });
+
+  it("keeps chart gap repair results visible in the research toolbar", () => {
+    expect(source).toContain('import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";');
+    expect(source).toContain("chartGapRepairResult");
+    expect(source).toContain("refreshChartCandles");
+    expect(source).toContain('@click="repairFirstChartGap"');
+    expect(source).toContain('<MarketRepairResultTags :result="chartGapRepairResult" />');
   });
 
   it("keeps task invalid issue details reachable from the research page", () => {
