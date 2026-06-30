@@ -92,6 +92,74 @@ func TestIntegrationSaveDataSyncResultRequiresRunningActiveLease(t *testing.T) {
 	}
 }
 
+func TestIntegrationCreateDataSyncTaskRejectsInvalidIntervalAndWindow(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 29, 6, 0, 0, 0, time.UTC)
+	end := start.Add(time.Minute)
+	cases := []struct {
+		name    string
+		request data.CreateDataSyncTask
+		wantErr string
+	}{
+		{
+			name: "unsupported interval",
+			request: data.CreateDataSyncTask{
+				Exchange: "binance",
+				Symbol:   integrationSymbol("CINV"),
+				Interval: "2m",
+			},
+			wantErr: `unsupported data sync interval "2m"`,
+		},
+		{
+			name: "equal start and end",
+			request: data.CreateDataSyncTask{
+				Exchange:  "binance",
+				Symbol:    integrationSymbol("CEQ"),
+				Interval:  "1m",
+				StartTime: &start,
+				EndTime:   &start,
+			},
+			wantErr: "startTime must be before endTime",
+		},
+		{
+			name: "reversed window",
+			request: data.CreateDataSyncTask{
+				Exchange:  "binance",
+				Symbol:    integrationSymbol("CREV"),
+				Interval:  "1m",
+				StartTime: &end,
+				EndTime:   &start,
+			},
+			wantErr: "startTime must be before endTime",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := store.CreateDataSyncTask(ctx, testCase.request)
+			if err == nil || !strings.Contains(err.Error(), testCase.wantErr) {
+				t.Fatalf("create data sync task err = %v, want %q", err, testCase.wantErr)
+			}
+
+			var count int
+			if err := store.pool.QueryRow(ctx, `
+					SELECT count(*)::int
+					  FROM data_sync_tasks
+					 WHERE symbol = $1`,
+				testCase.request.Symbol,
+			).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("invalid create persisted %d data sync tasks, want 0", count)
+			}
+		})
+	}
+}
+
 func TestIntegrationSaveDataSyncResultRejectsInvalidCursorAdvance(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

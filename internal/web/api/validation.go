@@ -21,6 +21,9 @@ func validateCreateTask(task data.CreateDataSyncTask) error {
 	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
 		return err
 	}
+	if err := data.ValidateDataSyncTaskWindow(task.Interval, task.StartTime, task.EndTime); err != nil {
+		return err
+	}
 	return nil
 }
 

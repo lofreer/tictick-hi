@@ -8667,6 +8667,50 @@ Definition of Done：
 - 价格轴最大宽度现在按完整价格标签允许到 `48px`；后续如果支持更多位数资产或法币价格，需要按真实数据重新校准标签格式和轴宽。
 - 当前浏览器验证基于 Headless Chrome，仍缺像素快照基线和多浏览器视觉回归。
 
+### 阶段 1 data sync 创建窗口校验补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- `POST /api/data/tasks` 和 `Store.CreateDataSyncTask` 共享 `ValidateDataSyncTaskWindow`。
+- 创建 data sync task 时校验 interval 必须是当前 data sync 入口明确支持的 `1m/5m/15m/1h/4h/1d`。
+- 创建 data sync task 支持无窗口或单边窗口；当 `startTime/endTime` 同时存在时必须满足 `startTime < endTime`。
+- 研究页创建弹窗在反向或相等窗口时禁用创建，并展示明确错误。
+- 单元测试、API 测试、PostgreSQL 集成测试和前端组合逻辑测试覆盖非法 interval、相等窗口和反向窗口。
+
+范围外：
+
+- 不要求 data sync 任务必须有 `startTime/endTime`。
+- 不限制最大同步跨度、不做自动拆分。
+- 不推进实盘交易所私有 API、live executor、订单提交、撤单、查单或幂等实盘下单。
+
+剩余风险：
+
+- data sync 仍缺完整统一状态机、自动批量补全、真实交易所长期恢复压测和多实例共享限流。
+- 项目整体仍是 `scaffold`，不能升级。
+
+当前验证：
+
+- `go test ./internal/data -run TestValidateDataSyncTaskWindow` 通过。
+- `go test ./internal/web/api -run TestDataSyncTaskRoutesRejectInvalidIntervalAndWindow` 通过。
+- `go test ./internal/store/postgres -run TestIntegrationCreateDataSyncTaskRejectsInvalidIntervalAndWindow` 通过。
+- `pnpm --dir web/frontend exec vitest run src/composables/useResearchWorkspace.test.ts` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：32 个测试文件、158 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `git diff --check` 通过。
+
+失败项：
+
+- 首次 targeted 测试暴露 `IntervalDuration("2m")` 会被当作可换算时长；已改为 data sync 创建入口显式支持 `1m/5m/15m/1h/4h/1d`，`2m` 会返回 `unsupported data sync interval "2m"`。
+- 首次 `scripts/quality-gate.sh` 失败于前端文件行数上限；已把 `useResearchWorkspace.ts` 压回 400 行、`useResearchWorkspace.test.ts` 压回 649 行并复跑通过。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

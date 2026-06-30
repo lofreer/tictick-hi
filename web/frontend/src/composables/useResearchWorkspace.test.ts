@@ -447,6 +447,20 @@ describe("useResearchWorkspace", () => {
     expect(messageMocks.error).toHaveBeenCalledWith("交易对格式不符合当前交易所。");
   });
 
+  it("blocks data sync task creation when the create window is not forward", async () => {
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    workspace.openCreateTask();
+    workspace.createForm.startTime = Date.parse("2026-01-01T00:01:00Z");
+    workspace.createForm.endTime = Date.parse("2026-01-01T00:00:00Z");
+    expect(workspace.canCreateTask.value).toBe(false);
+
+    await workspace.createTask();
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("结束时间必须晚于开始时间。");
+  });
+
   it("creates data sync tasks for normalized symbols that exactly match the active catalog", async () => {
     marketApiMocks.listInstruments.mockResolvedValueOnce([
       {

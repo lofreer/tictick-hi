@@ -61,6 +61,10 @@ func (store *Store) CreateDataSyncTask(
 	ctx context.Context,
 	task data.CreateDataSyncTask,
 ) (data.DataSyncTask, error) {
+	if err := data.ValidateDataSyncTaskWindow(task.Interval, task.StartTime, task.EndTime); err != nil {
+		return data.DataSyncTask{}, err
+	}
+
 	id, err := core.NewPrefixedID("dst")
 	if err != nil {
 		return data.DataSyncTask{}, err

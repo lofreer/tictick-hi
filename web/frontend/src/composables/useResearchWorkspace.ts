@@ -79,7 +79,8 @@ export function useResearchWorkspace() {
       createForm.exchange !== "" &&
       createForm.symbol !== "" &&
       createForm.interval !== "" &&
-      isSymbolFormatForExchange(createForm.exchange, createForm.symbol),
+      isSymbolFormatForExchange(createForm.exchange, createForm.symbol) &&
+      (createForm.startTime === null || createForm.endTime === null || createForm.startTime < createForm.endTime),
   );
   const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
   const canRepairGap = computed(() => firstRepairableGap.value !== null);
@@ -171,11 +172,12 @@ export function useResearchWorkspace() {
 
   async function createTask() {
     if (!canCreateTask.value) {
-      message.error(
-        createForm.exchange && createForm.symbol && createForm.interval
-          ? t("research.invalidSymbolFormat")
-          : t("research.requiredFields"),
-      );
+      const validationMessage = !createForm.exchange || !createForm.symbol || !createForm.interval
+        ? "research.requiredFields"
+        : isSymbolFormatForExchange(createForm.exchange, createForm.symbol)
+          ? "research.invalidSyncWindow"
+          : "research.invalidSymbolFormat";
+      message.error(t(validationMessage));
       return;
     }
 

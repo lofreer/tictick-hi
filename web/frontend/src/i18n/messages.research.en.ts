@@ -146,6 +146,7 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.endTime": "End time",
     "research.requiredFields": "Fill exchange, symbol, and interval.",
     "research.invalidSymbolFormat": "Symbol format does not match the selected exchange.",
+    "research.invalidSyncWindow": "End time must be later than start time.",
     "research.instrumentNotInCatalog": "The symbol is not in the active catalog for this exchange. Refresh instruments or choose another symbol.",
     "research.instrumentInactive": "The symbol exists in the catalog but is not active. Refresh instruments or choose an active market.",
     "research.instrumentCatalog": "Instrument catalog",

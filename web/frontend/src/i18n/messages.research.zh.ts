@@ -146,6 +146,7 @@ export const zhCNResearchMessages: Record<string, string> = {
     "research.endTime": "结束时间",
     "research.requiredFields": "请填写交易所、交易对和周期。",
     "research.invalidSymbolFormat": "交易对格式不符合当前交易所。",
+    "research.invalidSyncWindow": "结束时间必须晚于开始时间。",
     "research.instrumentNotInCatalog": "交易对不在当前交易所可用目录中，请先刷新交易对或更换标的。",
     "research.instrumentInactive": "交易对已不在当前交易所 active 目录中，请刷新交易对或选择仍可用的标的。",
     "research.instrumentCatalog": "交易对目录",
