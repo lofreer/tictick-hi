@@ -100,6 +100,7 @@ done            用户确认关闭
 - 全历史异常 K 线标签在用户对当前返回的异常排队补同步后，会重新调用全历史 invalid scan，刷新当前 market 的异常扫描状态。
 - 重新扫描时保留本次 repair result 展示，用户仍能看到匹配数量、创建数量、跳过数量、修复上限和创建出的补同步任务窗口。
 - 前端组件测试覆盖 invalid repair 成功后会触发第二次 `scanMarketCandleInvalidIssues`，并保留 repair result tags。
+- 前端组件测试进一步覆盖首次扫描有异常、repair 后第二次扫描返回健康时，弹窗切换为“全历史未检测到异常 K 线”，同时仍显示本次 repair result 和补同步任务窗口。
 
 范围外：
 

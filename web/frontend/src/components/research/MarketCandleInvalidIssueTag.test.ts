@@ -120,6 +120,51 @@ describe("MarketCandleInvalidIssueTag", () => {
     expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the repair result visible while showing the refreshed healthy scan", async () => {
+    dataApiMocks.scanMarketCandleInvalidIssues
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        issues: [
+          {
+            code: "invalid_open_price",
+            message: "open price value must be positive",
+            openTime: "2026-06-27T03:01:00Z",
+          },
+        ],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+      })
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        issues: [],
+        limited: false,
+        totalCount: 0,
+        returnedCount: 0,
+      });
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+    const repairButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("排队补同步当前异常"));
+    repairButton?.click();
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("当前数据源全历史未检测到异常 K 线。");
+    expect(document.body.textContent).toContain("本次匹配 2 个，已创建 1 个，跳过 1 个，单次上限 100");
+    expect(document.body.textContent).toContain("dst_market_invalid_repair_1");
+    expect(document.body.textContent).not.toContain("open price value must be positive");
+    expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
+  });
+
   it("does not expose raw provider URLs when full-history invalid repair fails", async () => {
     dataApiMocks.repairMarketCandleInvalidIssues.mockRejectedValueOnce(
       new Error('binance klines: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF'),
