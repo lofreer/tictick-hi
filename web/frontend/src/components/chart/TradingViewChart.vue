@@ -48,17 +48,17 @@ let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
-const fallbackSize = { width: 1, height: 520 };
-const minRenderHeight = 280;
-const maxRenderHeight = 980;
-const maxInitialVisibleBars = 360;
+const fallbackSize = { width: 1, height: 640 };
+const minRenderHeight = 360;
+const maxRenderHeight = 860;
+const maxInitialVisibleBars = 320;
 const minInitialVisibleBars = 80;
-const targetInitialBarSpacingPixels = 3;
+const targetInitialBarSpacingPixels = 4;
 const minTimeAxisEdgePaddingBars = 1;
-const minTimeAxisEdgePaddingPixels = 6;
-const maxTimeAxisEdgePaddingPixels = 12;
+const minTimeAxisEdgePaddingPixels = 4;
+const maxTimeAxisEdgePaddingPixels = 8;
 const timeAxisLabelInsetBars = 0;
-const timeAxisEdgePaddingRatio = 0.011;
+const timeAxisEdgePaddingRatio = 0.006;
 const volumePriceScaleId = "volume";
 const volumeUpColor = "rgba(14, 203, 129, 0.28)";
 const volumeDownColor = "rgba(246, 70, 93, 0.28)";
@@ -214,7 +214,7 @@ function timeAxisEdgePaddingBars(visibleBars: number) {
 }
 
 function chartPlotWidth() {
-  return Math.max(1, lastSize.width - rightPriceScaleMinimumWidth(lastSize.width));
+  return Math.max(1, lastSize.width - rightPriceScaleMinimumWidth());
 }
 
 function responsiveChartOptions(mode = themeStore.mode) {
@@ -234,7 +234,7 @@ function responsiveChartOptions(mode = themeStore.mode) {
       entireTextOnly: true,
       ticksVisible: false,
       ensureEdgeTickMarksVisible: false,
-      minimumWidth: rightPriceScaleMinimumWidth(lastSize.width),
+      minimumWidth: rightPriceScaleMinimumWidth(),
     },
     timeScale: {
       ...theme.timeScale,
@@ -249,13 +249,11 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function chartFontSize(width: number) {
-  return width < 520 ? 8 : 9;
+  return width < 520 ? 7 : 8;
 }
 
-function rightPriceScaleMinimumWidth(width: number) {
-  if (width < 520) return 24;
-  if (width < 900) return 26;
-  return 28;
+function rightPriceScaleMinimumWidth() {
+  return 0;
 }
 
 function formatChartPrice(price: number) {

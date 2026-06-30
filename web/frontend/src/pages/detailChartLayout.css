@@ -1,8 +1,8 @@
 .trading-detail-chart,
 .backtest-chart-panel {
-  --kline-chart-plot-height: clamp(620px, 66dvh, 760px);
-  --kline-chart-padding-left: 18px;
-  --kline-chart-padding-right: 4px;
+  --kline-chart-plot-height: clamp(680px, 72dvh, 820px);
+  --kline-chart-padding-left: 14px;
+  --kline-chart-padding-right: 0px;
   --kline-chart-padding-top: 0px;
   --kline-chart-padding-bottom: 0px;
   --kline-chart-frame-height: calc(
@@ -18,9 +18,9 @@
 @media (max-width: 980px) {
   .trading-detail-chart,
   .backtest-chart-panel {
-    --kline-chart-plot-height: 640px;
-    --kline-chart-padding-left: 16px;
-    --kline-chart-padding-right: 4px;
+    --kline-chart-plot-height: 700px;
+    --kline-chart-padding-left: 12px;
+    --kline-chart-padding-right: 0px;
     --kline-chart-padding-top: 0px;
     --kline-chart-padding-bottom: 0px;
   }
@@ -29,9 +29,9 @@
 @media (max-width: 760px) {
   .trading-detail-chart,
   .backtest-chart-panel {
-    --kline-chart-plot-height: 560px;
+    --kline-chart-plot-height: 580px;
     --kline-chart-padding-left: 10px;
-    --kline-chart-padding-right: 4px;
+    --kline-chart-padding-right: 0px;
     --kline-chart-padding-top: 0px;
     --kline-chart-padding-bottom: 0px;
   }

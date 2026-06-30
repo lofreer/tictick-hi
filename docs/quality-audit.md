@@ -63,7 +63,7 @@ done            用户确认关闭
 
 补充：阶段 1 data sync task 窗口 invalid repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF `POST /api/data/tasks` 创建带 start/end 窗口的源同步任务，由 `SaveDataSyncResult` 写入 0、1、3 分钟健康 K 线，再注入 2 分钟 legacy invalid K 线形成任务窗口内异常，通过 `GET /api/data/tasks/{id}/invalid-issues` 观察异常，`POST /api/data/tasks/{id}/repair-invalid-issues` 排队带 `repairSourceTaskId` 的补同步任务，最后由 `SaveDataSyncResult` 写回 2 分钟健康 K 线，并通过 `GET /api/data/tasks` 和 `/invalid-issues` 观察源任务 `dataHealth=ok` 且异常消失；该证据证明任务窗口异常路由、认证/CSRF、active instrument 源任务创建校验、源任务关联和 worker 写回收敛路径可以串起来，但仍不代表自动清洗历史异常行或交易所一定返回健康数据。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面 `120px`、窄桌面 `116px`、移动端 `112px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `18px/4px`、窄桌面 `16px/4px`、移动端 `10px/4px`；plot 高度为桌面 `clamp(620px, 66dvh, 760px)`、窄桌面 `640px`、移动端 `560px`，上下 padding 归零；右侧价格轴 minimumWidth 为 `24/26/28px`，chart 字体为桌面 `9px`、移动 `8px`，visual smoke 同时断言 symbol 最大宽度 `124px`、工具栏控件最大宽度 `560px`、工具栏高度最大 `76px`、右侧价格轴最大宽度 `48px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/0px`、窄桌面 `12px/0px`、移动端 `10px/0px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；右侧价格轴不再人为增加 minimumWidth，chart 字体为桌面 `8px`、移动 `7px`，visual smoke 同时断言 symbol 最大宽度 `124px`、工具栏控件最大宽度 `560px`、工具栏高度最大 `76px`、右侧价格轴最大宽度 `48px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
 
 ## 3. 必须先修的问题
 
@@ -7529,6 +7529,44 @@ Definition of Done：
 - 本轮仍是几何和浏览器 smoke，不是像素快照基线。
 - 未新增绘图工具、指标工具、成交点交互或策略分析能力。
 - 研究页和前端基础设施仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
+
+### 阶段 1 K 线图表紧凑轴和大图工作区复核补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 用户继续指出研究页工具栏输入过宽、右侧价格轴区域留白明显，并要求回测详情、交易详情沿用同一质量标准。
+- 上一轮图表高度和 gutter 数字仍偏保守，且右侧 price scale minimumWidth 会给非绘图区增加额外宽度。
+
+Definition of Done：
+
+- 研究页、回测详情、交易详情继续复用共享 K 线固定图表槽；桌面 plot height 为 `clamp(680px, 72dvh, 820px)`，窄桌面为 `700px`，移动端为 `580px`。
+- 研究页主工具栏 symbol 输入收敛为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，market strip 按内容宽布局，状态摘要在剩余空间内横向滚动。
+- 图表 gutter 收敛为桌面 `14px/0px`、窄桌面 `12px/0px`、移动端 `10px/0px`，右侧不再人为留 padding。
+- `TradingViewChart` 价格轴 `minimumWidth` 收敛为 `0`，chart 字体为桌面 `8px`、移动 `7px`，latest window 默认可见 K 线数减少到更可读的密度。
+- 不覆盖 lightweight-charts 内部 table / tbody / tr / td；只约束 lightweight root 不超过外层固定 viewport。
+
+改动范围：
+
+- `web/frontend/src/pages/klineChartLayout.css`、`web/frontend/src/pages/ResearchPage.css`、`web/frontend/src/pages/detailChartLayout.css` 更新共享图表槽高度、gutter 和工具栏几何。
+- `web/frontend/src/components/chart/TradingViewChart.vue`、`web/frontend/src/components/chart/TradingViewChart.css` 更新价格轴、字体、首屏可见密度和 root overflow 约束。
+- `web/frontend/src/components/chart/TradingViewChart.test.ts`、`web/frontend/src/pages/ResearchPage.layout.test.ts`、`web/frontend/src/pages/DetailPages.layout.test.ts`、`scripts/check-research-chart-layout.sh`、`scripts/research-chart-height-smoke.mjs` 同步布局契约。
+
+验证：
+
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `BASE_URL=http://127.0.0.1:8081 SMOKE_SAMPLES=8 SMOKE_SETTLE_MS=1000 scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `680px`、`2048x1152` 图表 `820px`、`812x1320` 图表 `700px`、`390x844` 图表 `580px`；反复污染内部 chart/table/canvas 高度后 document/panel/body/chart/tv 高度稳定。
+
+未完成 / 风险：
+
+- 该切片只收敛 K 线工作区几何和布局回归检查，不代表研究页、回测或交易业务流程达到 production-safe。
+- 仍缺像素快照基线、多浏览器视觉回归和动态详情全数据状态覆盖。
 
 ### 阶段 1 全历史 invalid 补同步入口补充
 

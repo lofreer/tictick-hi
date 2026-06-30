@@ -29,7 +29,7 @@ vi.mock("lightweight-charts", () => ({
 }));
 
 const mockedCreateChart = vi.mocked(createChart);
-const researchViewportSize = { width: 1180, height: 640 };
+const researchViewportSize = { width: 1180, height: 700 };
 const researchRenderSize = { ...researchViewportSize };
 
 function mockChartApi() {
@@ -66,7 +66,7 @@ describe("TradingViewChart", () => {
     setActivePinia(createPinia());
     observedTarget = null;
     resizeCallback = null;
-    viewportSize = { width: 1180, height: 640 };
+    viewportSize = { width: 1180, height: 700 };
     originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
     originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
     originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
@@ -188,13 +188,13 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 9,
+          fontSize: 8,
         }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 28,
+          minimumWidth: 0,
           ticksVisible: false,
         }),
       }),
@@ -213,10 +213,10 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 8,
+          fontSize: 7,
         }),
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 24,
+          minimumWidth: 0,
         }),
       }),
     );
@@ -234,7 +234,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 26,
+          minimumWidth: 0,
         }),
       }),
     );
@@ -307,7 +307,7 @@ describe("TradingViewChart", () => {
       volume: 1000 + index,
     })));
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 636, to: 1003 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 703, to: 1001 });
 
     wrapper.unmount();
     host.panel.remove();
@@ -548,7 +548,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         width: 1,
-        height: 520,
+        height: 640,
       }),
     );
 
