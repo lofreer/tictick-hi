@@ -10,6 +10,8 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
+const marketInstrumentCatalogStaleAfter = 24 * time.Hour
+
 func (store *Store) SystemHealth(ctx context.Context) (data.SystemHealth, error) {
 	checkedAt := time.Now().UTC()
 	if err := store.pool.Ping(ctx); err != nil {
@@ -174,6 +176,7 @@ func (store *Store) addSyncExchangeBackoffHealth(ctx context.Context, service *d
 }
 
 func (store *Store) marketInstrumentCatalogHealth(ctx context.Context) (data.ServiceHealth, error) {
+	now := time.Now().UTC()
 	rows, err := store.pool.Query(ctx, `
 		SELECT exchange, last_attempt_at, last_success_at, last_error, updated_at
 		  FROM market_instrument_sync_statuses
@@ -210,6 +213,13 @@ func (store *Store) marketInstrumentCatalogHealth(ctx context.Context) (data.Ser
 		case status.LastSuccessAt == nil:
 			service.Status = "warning"
 			details = append(details, fmt.Sprintf("%s never_synced", status.Exchange))
+		case now.Sub(status.LastSuccessAt.UTC()) > marketInstrumentCatalogStaleAfter:
+			service.Status = "warning"
+			details = append(details, fmt.Sprintf(
+				"%s stale_since=%s",
+				status.Exchange,
+				status.LastSuccessAt.UTC().Format(time.RFC3339),
+			))
 		default:
 			details = append(details, fmt.Sprintf(
 				"%s last_success=%s",
