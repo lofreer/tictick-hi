@@ -11,11 +11,11 @@ export const appColors = {
   info: "#848e9c",
 };
 
-export const chartAxisFontSize = 20;
+export const chartAxisFontSize = 26;
 export const chartRightPriceScaleWidth = {
-  desktop: 100,
-  narrowDesktop: 94,
-  mobile: 88,
+  desktop: 122,
+  narrowDesktop: 116,
+  mobile: 102,
 };
 
 export const themeOverrides: GlobalThemeOverrides = {

@@ -15,8 +15,8 @@ const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
 const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 110);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 14);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 136);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 18);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 10 * 60 * 1000);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
@@ -649,7 +649,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
     );
   }
   const mainPaneShare = sample.mainPaneCanvas.rectWidth / sample.chartViewport.rectWidth;
-  const minimumMainPaneShare = viewport.width <= 760 ? 0.74 : viewport.width <= 980 ? 0.875 : 0.925;
+  const minimumMainPaneShare = viewport.width <= 760 ? 0.665 : viewport.width <= 980 ? 0.84 : 0.9;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main chart pane does not use enough of the fixed viewport: ${JSON.stringify({
