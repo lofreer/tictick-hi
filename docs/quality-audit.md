@@ -59,7 +59,7 @@ done            用户确认关闭
 
 补充：阶段 1 全历史 gap repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF 写请求对 `GET /api/market/candle-gaps` 发现的相邻缺口排队 repair task，再由 `SaveDataSyncResult` 写回缺失 K 线，最后通过同一路由观察 `TotalCount=0` 且窗口 K 线数量补齐；该证据证明全历史缺口路由、认证/CSRF、active instrument 校验和 worker 写回收敛路径可以串起来，但仍不代表自动批量补全或交易所一定返回缺失数据。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表生产高度复核补充”为准：研究页主工具栏 symbol 输入统一为 `92px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，窗口按钮收敛为 `26px / 7px`；图表左/右 gutter 为桌面 `18px/4px`、窄桌面 `16px/4px`、移动端 `12px/8px`；plot 高度为桌面 `clamp(780px, 78vh, 940px)`、窄桌面 `800px`、移动端 `620px`，上下 padding 归零；右侧价格轴 minimumWidth 为 `28/30/32px`，visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、右侧价格轴最大宽度 `52px`、主图 canvas 右边界贴住右侧价格轴左边界，详情页下方摘要列保持 `minmax(240px, 280px)`。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以“阶段 1 K 线图表生产高度复核补充”为准：研究页主工具栏 symbol 输入统一为 `92px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `18px/4px`、窄桌面 `16px/4px`、移动端 `12px/8px`；plot 高度为桌面 `clamp(640px, 72vh, 820px)`、窄桌面 `720px`、移动端 `600px`，上下 padding 归零；右侧价格轴 minimumWidth 为 `24/26/28px`，chart 字体为桌面 `9px`、移动 `8px`，visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、右侧价格轴最大宽度 `48px`、主图 canvas 右边界贴住右侧价格轴左边界，详情页下方摘要列保持 `minmax(240px, 280px)`。
 
 ## 3. 必须先修的问题
 
@@ -7487,28 +7487,28 @@ Definition of Done：
 
 Definition of Done：
 
-- 研究页、回测详情、交易详情复用同一 K 线固定图表槽；桌面 plot height 不低于 `700px`，窄桌面为 `720px`，移动端为 `560px`。
-- 图表左侧留白加大，避免 K 线贴边：桌面 `20px`、窄桌面 `16px`、移动端 `12px`；右侧外 gutter 继续保持紧凑。
-- 研究页主工具栏保持紧凑 market strip，symbol 输入不超过 `108px`，整组 controls 不超过 `540px`。
-- 回测详情和交易详情继续保持上图表、下方左窄概要右宽 tab 列表，概要列收窄为 `minmax(240px, 280px)`。
+- 研究页、回测详情、交易详情复用同一 K 线固定图表槽；桌面 plot height 收敛为 `clamp(640px, 72vh, 820px)`，窄桌面为 `720px`，移动端为 `600px`，避免首屏被硬撑满但保留可读高度。
+- 图表左/右 gutter 保持可读且紧凑：桌面 `18px/4px`、窄桌面 `16px/4px`、移动端 `12px/8px`，上下 padding 为 `0px`。
+- 研究页主工具栏从上下两段式改为桌面一行工作台条：左侧 market strip、右侧状态摘要；窄屏再堆叠。symbol 输入固定 `92px`，整组 controls 不超过 `500px`。
+- 右侧价格轴减少非绘图区宽度：chart 字体桌面 `9px`、移动 `8px`，right price scale minimumWidth 为 `24/26/28px`，真实右侧价格轴 canvas 不超过 `48px`。
+- 回测详情和交易详情继续保持上图表、下方左窄概要右宽 tab 列表，概要列保持 `minmax(240px, 280px)`。
 - 本地 `127.0.0.1:8080` 必须运行新 bundle，并通过真实浏览器 smoke。
 
 改动范围：
 
-- `web/frontend/src/pages/klineChartLayout.css` 提升共享图表槽默认高度和桌面左 gutter。
-- `web/frontend/src/pages/ResearchPage.css` 同步研究页图表高度、左 gutter 和紧凑工具栏宽度。
-- `web/frontend/src/pages/detailChartLayout.css` 同步回测详情和交易详情图表高度 / gutter。
-- `web/frontend/src/pages/BacktestDetailPage.vue`、`web/frontend/src/pages/TradingDetailPage.vue` 收窄下方概要列并提高 tab 区最小高度。
-- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`web/frontend/src/pages/DetailPages.layout.test.ts`、`scripts/check-research-chart-layout.sh` 同步新布局契约。
+- `web/frontend/src/pages/klineChartLayout.css` 收敛共享图表槽高度。
+- `web/frontend/src/pages/ResearchPage.css` 同步研究页任务列表高度、图表高度、紧凑工具栏布局和控件宽度。
+- `web/frontend/src/pages/detailChartLayout.css` 同步回测详情和交易详情图表高度。
+- `web/frontend/src/components/chart/TradingViewChart.vue`、`web/frontend/src/theme/tokens.ts` 收紧 chart 字体和右侧价格轴 minimumWidth。
+- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`web/frontend/src/pages/DetailPages.layout.test.ts`、`web/frontend/src/components/chart/TradingViewChart.test.ts`、`scripts/research-chart-height-smoke.mjs`、`scripts/stage8-visual-smoke.mjs` 同步新布局契约。
 
 验证：
 
 - `pnpm --dir web/frontend run test -- --run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过：实际执行 28 个测试文件、142 条测试。
-- `scripts/check-research-chart-layout.sh` 通过。
 - `pnpm --dir web/frontend run build` 通过。
-- `docker compose build api && docker compose up -d api` 通过，`http://127.0.0.1:8080/research` 已指向新 bundle `index-C75a2Ts8.js`。
-- `SMOKE_SAMPLES=3 SMOKE_SETTLE_MS=500 SMOKE_INTERVAL_MS=100 node scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `700px`、`2048x1152` 图表 `829px`、`812x1320` 图表 `720px`、`390x844` 图表 `560px`，污染内部 chart/table/canvas 高度后 document/panel/body/chart/tv 高度稳定。
-- `SMOKE_SETTLE_MS=500 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅/深主题、`zh-CN/en-US`，每组 14 页面，最大 document width 不超过对应 viewport。
+- `docker compose build api && docker compose up -d api` 通过，`http://127.0.0.1:8080/research` 已运行新 bundle。
+- `node scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `648px`、`2048x1152` 图表 `820px`、`812x1320` 图表 `720px`、`390x844` 图表 `600px`，污染内部 chart/table/canvas 高度后 document/panel/body/chart/tv 高度稳定。
+- `node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅/深主题、`zh-CN/en-US`，每组 14 页面，最大 document width 不超过对应 viewport。
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
 - `scripts/quality-gate.sh` 通过。
@@ -7516,7 +7516,9 @@ Definition of Done：
 
 失败项：
 
-- 首次 `SMOKE_SETTLE_MS=500 node scripts/stage8-visual-smoke.mjs` 失败：桌面英文研究页 `.research-source-controls` 为 `542px`，超过 `540px` 上限；已把工具栏收回到 `96px 104px 28px 54px max-content` 并复跑通过。
+- 首次 `node scripts/research-chart-height-smoke.mjs` 失败：桌面右侧价格轴已从 `52px` 降至 `48px`，但临时 smoke 上限误设为 `46px`；已按真实稳定宽度把上限收敛为 `48px`，并补充移动端 `8px` chart 字体后复跑通过。
+- 首次 `node scripts/stage8-visual-smoke.mjs` 失败：详情页仍使用旧桌面最小高度 `700px` 断言；已同步详情页桌面下限为 `620px` 并复跑通过。
+- 首次 `scripts/quality-gate.sh` 失败：`scripts/check-research-chart-layout.sh` 仍要求旧任务列表高度和旧工具栏/plot 数字；已同步硬门禁脚本并复跑通过。
 
 剩余风险：
 

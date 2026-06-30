@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 52);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -543,7 +543,7 @@ function assertChartLayout(label, sample) {
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
   }
-  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 580 : sample.viewportWidth <= 980 ? 740 : 700;
+  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 560 : sample.viewportWidth <= 980 ? 680 : 620;
   if (tv.rectHeight < expectedMinimumPlotHeight - heightTolerance) {
     throw new Error(
       `${label} chart plot is too short for the viewport: ${JSON.stringify({

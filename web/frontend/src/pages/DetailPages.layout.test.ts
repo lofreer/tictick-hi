@@ -32,7 +32,7 @@ describe("strategy detail page layout contract", () => {
     expect(tradingSource).not.toContain('class="side-panel"');
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');
     expect(detailChartStyles).toContain(".trading-detail-chart,");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(780px, 78vh, 940px);");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(640px, 72vh, 820px);");
     expect(detailChartStyles).toContain("--kline-chart-padding-left: 18px;");
     expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
@@ -48,7 +48,7 @@ describe("strategy detail page layout contract", () => {
     expect(styles).toContain("min-height: 360px;");
     expect(detailChartStyles).toContain("@media (max-width: 980px)");
     expect(detailChartStyles).toContain("@media (max-width: 760px)");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: 620px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: 600px;");
     expect(styles).toContain("grid-template-columns: 1fr;");
   });
 
@@ -78,7 +78,7 @@ describe("strategy detail page layout contract", () => {
     expect(backtestSource).not.toContain('class="side-panel"');
     expect(backtestSource).not.toContain('class="surface chart-panel backtest-chart-panel"');
     expect(detailChartStyles).toContain(".backtest-chart-panel");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(780px, 78vh, 940px);");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(640px, 72vh, 820px);");
     expect(detailChartStyles).toContain("--kline-chart-padding-left: 18px;");
     expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
@@ -94,7 +94,7 @@ describe("strategy detail page layout contract", () => {
     expect(styles).toContain("min-height: 360px;");
     expect(detailChartStyles).toContain("@media (max-width: 980px)");
     expect(detailChartStyles).toContain("@media (max-width: 760px)");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: 620px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: 600px;");
     expect(styles).toContain("grid-template-columns: 1fr;");
   });
 });

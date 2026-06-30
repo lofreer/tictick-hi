@@ -14,7 +14,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: clamp(168px, 21vh, 210px);
+  max-height: clamp(144px, 18vh, 176px);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -53,12 +53,12 @@
 
 .research-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: 8px 12px;
   min-width: 0;
   max-width: 100%;
-  padding: 8px 12px 7px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -74,9 +74,9 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 90px 92px 26px 50px max-content;
+  grid-template-columns: 88px 92px 26px 48px max-content;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   width: max-content;
   max-width: 100%;
   min-width: 0;
@@ -87,8 +87,8 @@
 .research-toolbar-status {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 6px 8px;
+  justify-content: flex-end;
+  gap: 5px 6px;
   min-width: 0;
   max-width: 100%;
   flex-wrap: wrap;
@@ -98,7 +98,7 @@
 .research-current-source {
   flex: 0 0 auto;
   min-width: 0;
-  max-width: min(260px, 38vw);
+  max-width: min(240px, 30vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -146,7 +146,7 @@
 }
 
 .research-chart-body {
-  --kline-chart-plot-height: clamp(780px, 78vh, 940px);
+  --kline-chart-plot-height: clamp(640px, 72vh, 820px);
   --kline-chart-padding-left: 18px;
   --kline-chart-padding-right: 4px;
   --kline-chart-padding-top: 0px;
@@ -167,7 +167,7 @@
 }
 
 .research-select--exchange {
-  width: 90px;
+  width: 88px;
 }
 
 .research-symbol-input {
@@ -188,7 +188,7 @@
 }
 
 .research-select--compact {
-  width: 50px;
+  width: 48px;
 }
 
 .research-source-controls .market-symbol-autocomplete {
@@ -231,7 +231,7 @@
 
 @media (max-width: 760px) {
   .research-chart-body {
-    --kline-chart-plot-height: 620px;
+    --kline-chart-plot-height: 600px;
     --kline-chart-padding-left: 12px;
     --kline-chart-padding-right: 8px;
     --kline-chart-padding-top: 0px;
@@ -250,18 +250,18 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 86px 92px 26px 50px max-content;
+    grid-template-columns: 84px 92px 26px 48px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 86px;
+    width: 84px;
   }
 
   .research-select--compact {
-    width: 50px;
+    width: 48px;
   }
 
   .research-symbol-input {
@@ -299,7 +299,7 @@
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-body {
-    --kline-chart-plot-height: 800px;
+    --kline-chart-plot-height: 720px;
     --kline-chart-padding-left: 16px;
     --kline-chart-padding-right: 4px;
     --kline-chart-padding-top: 0px;
@@ -316,11 +316,11 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 88px 92px 26px 50px max-content;
+    grid-template-columns: 86px 92px 26px 48px max-content;
   }
 
   .research-select--exchange {
-    width: 88px;
+    width: 86px;
   }
 
   .research-symbol-input {
@@ -335,6 +335,6 @@
   }
 
   .research-select--compact {
-    width: 50px;
+    width: 48px;
   }
 }

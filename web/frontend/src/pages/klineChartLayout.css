@@ -1,5 +1,5 @@
 .kline-chart-frame {
-  --kline-chart-plot-height: clamp(780px, 78vh, 940px);
+  --kline-chart-plot-height: clamp(640px, 72vh, 820px);
   --kline-chart-padding-left: 18px;
   --kline-chart-padding-right: 4px;
   --kline-chart-padding-top: 0px;

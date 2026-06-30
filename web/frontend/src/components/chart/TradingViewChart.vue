@@ -221,6 +221,10 @@ function responsiveChartOptions(mode = themeStore.mode) {
   const theme = chartTheme(mode);
   return {
     ...theme,
+    layout: {
+      ...theme.layout,
+      fontSize: chartFontSize(lastSize.width),
+    },
     localization: {
       priceFormatter: formatChartPrice,
     },
@@ -244,10 +248,14 @@ function responsiveChartOptions(mode = themeStore.mode) {
   };
 }
 
+function chartFontSize(width: number) {
+  return width < 520 ? 8 : 9;
+}
+
 function rightPriceScaleMinimumWidth(width: number) {
-  if (width < 520) return 28;
-  if (width < 900) return 30;
-  return 32;
+  if (width < 520) return 24;
+  if (width < 900) return 26;
+  return 28;
 }
 
 function formatChartPrice(price: number) {

@@ -187,11 +187,14 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
+        layout: expect.objectContaining({
+          fontSize: 9,
+        }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 32,
+          minimumWidth: 28,
           ticksVisible: false,
         }),
       }),
@@ -209,8 +212,11 @@ describe("TradingViewChart", () => {
     expect(mockedCreateChart).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
+        layout: expect.objectContaining({
+          fontSize: 8,
+        }),
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 28,
+          minimumWidth: 24,
         }),
       }),
     );
@@ -228,7 +234,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 30,
+          minimumWidth: 26,
         }),
       }),
     );
