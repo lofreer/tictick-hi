@@ -17,20 +17,17 @@ import {
   repairSourceTask,
   researchQuery,
   selectedTaskMatchesMarket,
+  taskGapRepairFeedback,
   type ResearchTimeRangePreset,
 } from "@/composables/researchWorkspaceHelpers";
 import { researchChartGapMarkers } from "@/composables/researchChartGapMarkers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
-import {
-  retryResearchSyncTask,
-  toggleResearchRealtimeTask,
-  toggleResearchSyncTask,
-} from "@/composables/researchTaskCommandActions";
+import { retryResearchSyncTask, toggleResearchRealtimeTask, toggleResearchSyncTask } from "@/composables/researchTaskCommandActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
 import { useMarketInstrumentSyncStatuses } from "@/composables/useMarketInstrumentSyncStatuses";
 import { useMarketSymbolNormalization } from "@/composables/useMarketSymbolNormalization";
 import { dataApi } from "@/services/api/data";
-import type { CandleResult, ChartCandle, DataSyncGapList, DataSyncTask } from "@/types/app";
+import type { CandleResult, ChartCandle, DataSyncGapList, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
 import { coerceSymbolForExchange, isSymbolFormatForExchange, normalizeSymbolInput } from "@/utils/marketSymbols";
 
 export function useResearchWorkspace() {
@@ -61,6 +58,9 @@ export function useResearchWorkspace() {
   const gapDetailsError = ref("");
   const gapDetailsTask = ref<DataSyncTask | null>(null);
   const gapDetails = ref<DataSyncGapList | null>(null);
+  const taskGapRepairNotice = ref("");
+  const taskGapRepairNoticeType = ref<"success" | "error" | "warning" | "default">("default");
+  const taskGapRepairResult = ref<DataSyncGapRepairResult | null>(null);
   const tasksError = ref("");
   const candlesError = ref("");
   const createModalOpen = ref(false);
@@ -116,11 +116,7 @@ export function useResearchWorkspace() {
     void loadCandles();
   });
 
-  onMounted(() => void refreshAll());
-
-  async function refreshAll() {
-    await Promise.all([loadTasks(), loadCandles(), loadMarketInstrumentSyncStatuses()]);
-  }
+  onMounted(() => void Promise.all([loadTasks(), loadCandles(), loadMarketInstrumentSyncStatuses()]));
 
   async function loadTasks() {
     tasksLoading.value = true;
@@ -261,7 +257,10 @@ export function useResearchWorkspace() {
     await retryResearchSyncTask({ loadTasks, message, t, task });
   }
 
-  async function viewTaskGaps(task: DataSyncTask) {
+  async function viewTaskGaps(task: DataSyncTask, options: { resetRepairResult?: boolean } = {}) {
+    if (options.resetRepairResult !== false) {
+      resetTaskGapRepairResult();
+    }
     gapDetailsTask.value = task;
     gapDetails.value = null;
     gapDetailsError.value = "";
@@ -281,21 +280,36 @@ export function useResearchWorkspace() {
       return;
     }
     repairTaskGapsLoadingId.value = task.id;
+    taskGapRepairNotice.value = "";
+    taskGapRepairNoticeType.value = "default";
+    taskGapRepairResult.value = null;
     try {
       const result = await dataApi.repairTaskGaps(task.id);
-      if (result.createdTasks.length > 0) {
-        message.success(t("research.taskGapRepairQueued", { count: result.createdTasks.length }));
-      } else if (result.skippedExisting > 0) {
-        message.success(t("research.taskGapRepairAlreadyQueued"));
-      } else {
-        message.success(t("research.noRepairableTaskGaps"));
-      }
+      taskGapRepairResult.value = result;
+      const feedback = taskGapRepairFeedback(result);
+      taskGapRepairNotice.value = t(feedback.messageKey, feedback.values ?? {});
+      taskGapRepairNoticeType.value = feedback.type;
+      message.success(taskGapRepairNotice.value);
       await loadTasks();
-    } catch (error) {
-      message.error(errorMessage(error, t("research.taskGapRepairFailed")));
+      await viewTaskGaps(task, { resetRepairResult: false });
+    } catch {
+      taskGapRepairNotice.value = t("research.taskGapRepairFailed");
+      taskGapRepairNoticeType.value = "error";
+      gapDetailsTask.value = task;
+      gapDetails.value = null;
+      gapDetailsError.value = "";
+      gapDetailsLoading.value = false;
+      gapDetailsModalOpen.value = true;
+      message.error(t("research.taskGapRepairFailed"));
     } finally {
       repairTaskGapsLoadingId.value = "";
     }
+  }
+
+  function resetTaskGapRepairResult() {
+    taskGapRepairNotice.value = "";
+    taskGapRepairNoticeType.value = "default";
+    taskGapRepairResult.value = null;
   }
 
   async function repairFirstGap() {
@@ -367,7 +381,6 @@ export function useResearchWorkspace() {
     repairGapLoading,
     repairTaskGaps,
     repairTaskGapsLoadingId,
-    refreshAll,
     retryTask,
     selectTask,
     symbol,
@@ -375,6 +388,9 @@ export function useResearchWorkspace() {
     tasks,
     tasksError,
     tasksLoading,
+    taskGapRepairNotice,
+    taskGapRepairNoticeType,
+    taskGapRepairResult,
     toggleRealtime,
     toggleSync,
     viewTaskGaps,

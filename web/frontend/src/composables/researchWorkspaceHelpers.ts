@@ -160,3 +160,23 @@ export function repairResultMessageKey(result: DataSyncGapRepairResult) {
   if (result.skippedExisting > 0) return "research.taskGapRepairAlreadyQueued";
   return "research.noRepairableTaskGaps";
 }
+
+export type TaskGapRepairFeedback = {
+  messageKey: string;
+  type: "success" | "warning";
+  values?: Record<string, number>;
+};
+
+export function taskGapRepairFeedback(result: DataSyncGapRepairResult): TaskGapRepairFeedback {
+  if (result.createdTasks.length > 0) {
+    return {
+      messageKey: "research.taskGapRepairQueued",
+      type: "success",
+      values: { count: result.createdTasks.length },
+    };
+  }
+  if (result.skippedExisting > 0) {
+    return { messageKey: "research.taskGapRepairAlreadyQueued", type: "success" };
+  }
+  return { messageKey: "research.noRepairableTaskGaps", type: "warning" };
+}

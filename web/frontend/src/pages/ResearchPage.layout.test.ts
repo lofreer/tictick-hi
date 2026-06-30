@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import gapDetailsModalSource from "@/components/research/ResearchTaskGapDetailsModal.vue?raw";
 import windowControlsSource from "@/components/research/ResearchWindowControls.vue?raw";
 import source from "./ResearchPage.vue?raw";
 
@@ -215,10 +216,22 @@ describe("ResearchPage chart layout contract", () => {
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {
-    expect(source).toContain("research.gapDetailsLimited");
-    expect(source).toContain("returned: gapDetails.returnedCount");
-    expect(source).toContain("total: gapDetails.totalCount");
-    expect(source).toContain("limit: gapDetails.repairLimit");
+    expect(source).toContain('import ResearchTaskGapDetailsModal from "@/components/research/ResearchTaskGapDetailsModal.vue";');
+    expect(source).toContain("<ResearchTaskGapDetailsModal");
+    expect(source).toContain('v-model:show="gapDetailsModalOpen"');
+    expect(gapDetailsModalSource).toContain("research.gapDetailsLimited");
+    expect(gapDetailsModalSource).toContain("returned: details.returnedCount");
+    expect(gapDetailsModalSource).toContain("total: details.totalCount");
+    expect(gapDetailsModalSource).toContain("limit: details.repairLimit");
+  });
+
+  it("keeps task gap repair results visible in the gap details modal", () => {
+    expect(source).toContain("taskGapRepairResult");
+    expect(source).toContain("taskGapRepairNotice");
+    expect(source).toContain('@repair="gapDetailsTask && repairTaskGaps(gapDetailsTask)"');
+    expect(gapDetailsModalSource).toContain("research.taskGapRepairResultSummary");
+    expect(gapDetailsModalSource).toContain("research.taskGapRepairTaskWindow");
+    expect(gapDetailsModalSource).toContain("@click=\"emit('repair')\"");
   });
 
   it("keeps task invalid issue details reachable from the research page", () => {

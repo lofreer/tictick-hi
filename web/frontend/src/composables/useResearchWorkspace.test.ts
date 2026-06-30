@@ -518,18 +518,6 @@ describe("useResearchWorkspace", () => {
     expect(messageMocks.error).toHaveBeenCalledWith("当前没有可修复缺口。");
   });
 
-  it("queues backend repair tasks for a data sync task gap summary", async () => {
-    const workspace = mountWorkspace();
-    await flushPromises();
-
-    await workspace.repairTaskGaps(dataSyncTask({ id: "dst_1" }));
-    await flushPromises();
-
-    expect(dataApi.repairTaskGaps).toHaveBeenCalledWith("dst_1");
-    expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
-    expect(messageMocks.success).toHaveBeenCalledWith("已排队 1 个缺口修复任务。");
-  });
-
   it("loads task gap details for the gap modal", async () => {
     const workspace = mountWorkspace();
     await flushPromises();

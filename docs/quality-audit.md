@@ -7868,6 +7868,60 @@ Definition of Done：
 - 本轮只处理图表与详情页布局，不代表研究、回测、交易业务流程达到 production-safe。
 - 仍缺像素快照基线和真实用户浏览器矩阵，当前浏览器证据来自 Headless Chrome。
 
+### 阶段 1 任务窗口缺口修复结果可观察性补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 任务窗口 gap repair 已有 HTTP API + PostgreSQL 收敛证据，但研究页行操作只弹出“已排队/已存在/无可修复”的短提示。
+- 后端已经返回 `totalCount`、`repairLimit`、`limited`、`createdTasks` 和 `skippedExisting`，前端必须把这些结果留在当前工作流中，用户才能判断本次修复到底处理了多少缺口、是否被上限截断、排了哪些补同步窗口。
+
+Definition of Done：
+
+- 研究页缺口详情弹窗提供“修复缺口”入口，复用 `POST /api/data/tasks/{id}/repair-gaps`，不让用户只能回到表格行操作。
+- repair 成功后在缺口详情弹窗展示本次匹配总数、创建数量、跳过已存在数量、单次修复上限和受限标记。
+- 弹窗列出最多 3 个新创建补同步任务的 ID 与 start/end 窗口，超出时显示剩余数量。
+- 从任务行直接点“修复缺口”也会打开/刷新缺口详情弹窗并展示 repair result，避免只有 toast 的短暂反馈。
+- 重新打开其他任务缺口详情时清空旧 repair result，避免 stale 结果误导。
+- repair 失败只显示泛化失败文案，不展示底层交易所 URL 或原始错误。
+- 不改变后端 repair 语义，不新增 API，不直接写入或清洗 `market_candles`。
+
+改动范围：
+
+- `web/frontend/src/components/research/ResearchTaskGapDetailsModal.vue`：把任务缺口详情弹窗拆成独立组件，弹窗内展示 repair 入口、结果摘要、受限标记和最多 3 个补同步任务窗口。
+- `web/frontend/src/composables/useResearchWorkspace.ts`、`researchWorkspaceHelpers.ts`：保留行操作 repair 入口，并把 repair 结果写入弹窗状态；切换任务时清空旧结果；失败时只暴露泛化失败文案。
+- `web/frontend/src/i18n/messages.research.zh.ts`、`messages.research.en.ts`：补齐 repair 结果摘要、受限和补同步任务窗口文案。
+- `web/frontend/src/composables/useResearchWorkspace.taskGapRepair.test.ts`、`useResearchWorkspace.test.ts`、`ResearchPage.layout.test.ts`：拆分任务缺口 repair 用例，并更新页面到弹窗组件的静态布局合同。
+- 不改后端 API、repair 语义、数据库 schema 或 K 线数据写入规则。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useResearchWorkspace.test.ts src/composables/useResearchWorkspace.taskGapRepair.test.ts src/pages/ResearchPage.layout.test.ts` 通过：3 个测试文件、34 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：29 个测试文件、150 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=900 node scripts/research-chart-height-smoke.mjs` 通过：1440 / 2048 / 812 / 390 视口图表高度稳定，`body/chart/tv` 高度分别为 680 / 820 / 700 / 580。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅 / 深主题、`zh-CN/en-US`，每组 14 页，最大 document width 不超过对应 viewport。
+
+失败项：
+
+- 首次完整质量门禁失败：`useResearchWorkspace.ts` 415 行超过 400、`useResearchWorkspace.test.ts` 701 行超过 650、`ResearchPage.vue` 493 行超过 450；已通过抽出 `ResearchTaskGapDetailsModal.vue`、拆分 `useResearchWorkspace.taskGapRepair.test.ts`、抽出 `taskGapRepairFeedback` 修复，复跑 `scripts/quality-gate.sh` 通过。
+- 重构后 `pnpm --dir web/frontend run typecheck` 曾因 `t(feedback.messageKey, feedback.values)` 的 `undefined` 参数类型失败；已改成 `feedback.values ?? {}`，复跑 typecheck 通过。
+
+剩余风险：
+
+- 本轮只增强任务窗口缺口修复结果可观察性，不保证交易所一定返回缺失历史数据。
+- 弹窗可以观察补同步任务创建结果，但本轮不证明这些补同步任务后续一定收敛为健康 K 线。
+- 当前浏览器 UI 证据来自 Headless Chrome smoke，不等同于完整真实浏览器矩阵或像素快照基线。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

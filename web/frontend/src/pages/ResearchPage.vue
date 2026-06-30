@@ -218,50 +218,19 @@
       </template>
     </NModal>
 
-    <NModal
+    <ResearchTaskGapDetailsModal
       v-model:show="gapDetailsModalOpen"
-      preset="card"
-      :title="t('research.gapDetailsTitle')"
-      class="research-modal"
-    >
-      <div v-if="gapDetailsTask" class="research-gap-context">
-        <NText depth="3">
-          {{ gapDetailsTask.exchange }} / {{ gapDetailsTask.symbol }} / {{ gapDetailsTask.interval }}
-        </NText>
-      </div>
-      <LoadingState v-if="gapDetailsLoading" />
-      <ErrorState
-        v-else-if="gapDetailsError"
-        :title="gapDetailsError"
-        retryable
-        @retry="gapDetailsTask && viewTaskGaps(gapDetailsTask)"
-      />
-      <EmptyState
-        v-else-if="!gapDetails || gapDetails.gaps.length === 0"
-        :title="t('research.noGapDetails')"
-      />
-      <NDataTable
-        v-else
-        :columns="gapDetailColumns"
-        :data="gapDetails.gaps"
-        :bordered="false"
-        size="small"
-      />
-      <template #footer>
-        <NSpace justify="end">
-          <NTag v-if="gapDetails?.limited" :bordered="false" type="warning">
-            {{
-              t("research.gapDetailsLimited", {
-                returned: gapDetails.returnedCount,
-                total: gapDetails.totalCount,
-                limit: gapDetails.repairLimit,
-              })
-            }}
-          </NTag>
-          <NButton @click="gapDetailsModalOpen = false">{{ t("common.close") }}</NButton>
-        </NSpace>
-      </template>
-    </NModal>
+      :details="gapDetails"
+      :error="gapDetailsError"
+      :loading="gapDetailsLoading"
+      :repair-loading="repairTaskGapsLoadingId === gapDetailsTask?.id"
+      :repair-notice="taskGapRepairNotice"
+      :repair-notice-type="taskGapRepairNoticeType"
+      :repair-result="taskGapRepairResult"
+      :task="gapDetailsTask"
+      @repair="gapDetailsTask && repairTaskGaps(gapDetailsTask)"
+      @retry="gapDetailsTask && viewTaskGaps(gapDetailsTask)"
+    />
 
     <ResearchTaskInvalidIssueModal ref="invalidIssueModal" @repaired="loadTasks" />
   </section>
@@ -271,7 +240,6 @@
 import { Plus, RefreshCw } from "@lucide/vue";
 import {
   NButton,
-  NDataTable,
   NDatePicker,
   NForm,
   NFormItem,
@@ -280,7 +248,6 @@ import {
   NSpace,
   NTag,
   NText,
-  type DataTableColumns,
   type SelectOption,
   type TagProps,
 } from "naive-ui";
@@ -294,11 +261,12 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
 import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";
+import ResearchTaskGapDetailsModal from "@/components/research/ResearchTaskGapDetailsModal.vue";
 import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
-import type { CandleGap, CandleIssue, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
+import type { CandleIssue, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
 import "./klineChartLayout.css";
 
@@ -346,6 +314,9 @@ const {
   tasks,
   tasksError,
   tasksLoading,
+  taskGapRepairNotice,
+  taskGapRepairNoticeType,
+  taskGapRepairResult,
   toggleRealtime,
   toggleSync,
   viewTaskGaps,
@@ -364,8 +335,6 @@ const intervalOptions = computed<SelectOption[]>(() => [
   { label: "4h", value: "4h" },
   { label: "1d", value: "1d" },
 ]);
-
-const gapDetailColumns = computed<DataTableColumns<CandleGap>>(() => [{ title: t("research.gapFrom"), key: "from", minWidth: 180 }, { title: t("research.gapTo"), key: "to", minWidth: 180 }, { title: t("research.missingCandles"), key: "missingCandles", width: 120 }]);
 
 function viewTaskInvalidIssues(task: DataSyncTask) {
   invalidIssueModal.value?.open(task);
@@ -431,4 +400,5 @@ function catalogStatusDetail(status: MarketInstrumentSyncStatus) {
 function formatWindowTime(value: string) {
   return value.replace("T", " ").replace(/(?:\.\d+)?Z$/, " UTC");
 }
+
 </script>
