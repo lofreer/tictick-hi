@@ -100,6 +100,37 @@ func TestRunnerRunOnceDoesNotRetryPermanentInstrumentFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerRunOnceSkipsExchangeWhenSyncLockHeld(t *testing.T) {
+	repository := &fakeRepository{lockResults: map[string]bool{"binance": false}}
+	client := &scriptedInstrumentClient{
+		instruments: []data.MarketInstrument{
+			{Symbol: "BTCUSDT", BaseAsset: "BTC", QuoteAsset: "USDT", InstrumentType: "spot", Status: "active"},
+		},
+	}
+	runner := NewRunner(repository, map[string]exchange.InstrumentClient{"binance": client}, Config{})
+
+	results := runner.RunOnce(context.Background())
+
+	if len(results) != 1 {
+		t.Fatalf("results = %d, want 1", len(results))
+	}
+	if !results[0].Skipped || results[0].Err != nil {
+		t.Fatalf("unexpected skipped result: %#v", results[0])
+	}
+	if client.calls != 0 {
+		t.Fatalf("instrument fetch calls = %d, want 0", client.calls)
+	}
+	if len(repository.calls) != 0 {
+		t.Fatalf("replace calls = %d, want 0", len(repository.calls))
+	}
+	if len(repository.failures) != 0 {
+		t.Fatalf("failure records = %#v, want none", repository.failures)
+	}
+	if len(repository.unlocks) != 0 {
+		t.Fatalf("unlock calls = %#v, want none", repository.unlocks)
+	}
+}
+
 func TestRunnerRunSyncsOnStartAndInterval(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -131,8 +162,23 @@ type failureCall struct {
 }
 
 type fakeRepository struct {
-	calls    []replaceCall
-	failures []failureCall
+	calls       []replaceCall
+	failures    []failureCall
+	lockResults map[string]bool
+	unlocks     []string
+}
+
+func (repository *fakeRepository) TryLockMarketInstrumentSync(
+	_ context.Context,
+	exchange string,
+) (func(context.Context) error, bool, error) {
+	if locked, ok := repository.lockResults[exchange]; ok && !locked {
+		return nil, false, nil
+	}
+	return func(context.Context) error {
+		repository.unlocks = append(repository.unlocks, exchange)
+		return nil
+	}, true, nil
 }
 
 func (repository *fakeRepository) ReplaceMarketInstruments(

@@ -11,6 +11,10 @@ import (
 )
 
 type Repository interface {
+	TryLockMarketInstrumentSync(
+		ctx context.Context,
+		exchange string,
+	) (func(context.Context) error, bool, error)
 	ReplaceMarketInstruments(
 		ctx context.Context,
 		exchange string,
@@ -44,6 +48,7 @@ type ExchangeResult struct {
 	Exchange string
 	Result   data.MarketInstrumentSyncResult
 	Err      error
+	Skipped  bool
 }
 
 func NewRunner(
@@ -101,47 +106,91 @@ func (runner *Runner) Run(ctx context.Context) error {
 func (runner *Runner) RunOnce(ctx context.Context) []ExchangeResult {
 	results := make([]ExchangeResult, 0, len(runner.exchanges))
 	for _, exchangeID := range runner.exchanges {
-		client := runner.clients[exchangeID]
-		result := ExchangeResult{Exchange: exchangeID}
-		instruments, err := runner.fetchInstruments(ctx, exchangeID, client)
-		if err == nil {
-			result.Result, err = runner.repository.ReplaceMarketInstruments(
-				ctx,
-				exchangeID,
-				instruments,
-				runner.now(),
-			)
-		}
-		if err != nil {
-			result.Err = err
-			if ctx.Err() == nil {
-				if recordErr := runner.repository.RecordMarketInstrumentSyncFailure(
-					ctx,
-					exchangeID,
-					err,
-					runner.now(),
-				); recordErr != nil {
-					slog.Error(
-						"record market instrument sync failure failed",
-						"exchange", exchangeID,
-						"error", recordErr,
-					)
-				}
-			}
-			slog.Warn("market instrument sync failed", "exchange", exchangeID, "error", err)
-		} else {
-			slog.Info(
-				"market instrument catalog synced",
-				"exchange", exchangeID,
-				"active", result.Result.ActiveCount,
-				"inactive", result.Result.InactiveCount,
-				"paused_data_sync_tasks", result.Result.PausedDataSyncTaskCount,
-				"restored_data_sync_tasks", result.Result.RestoredDataSyncTaskCount,
-			)
-		}
-		results = append(results, result)
+		results = append(results, runner.runExchange(ctx, exchangeID, runner.clients[exchangeID]))
 	}
 	return results
+}
+
+func (runner *Runner) runExchange(
+	ctx context.Context,
+	exchangeID string,
+	client exchange.InstrumentClient,
+) ExchangeResult {
+	result := ExchangeResult{Exchange: exchangeID}
+	unlock, locked, err := runner.repository.TryLockMarketInstrumentSync(ctx, exchangeID)
+	if err != nil {
+		runner.recordFailure(ctx, exchangeID, err)
+		result.Err = err
+		slog.Warn("market instrument sync lock failed", "exchange", exchangeID, "error", err)
+		return result
+	}
+	if !locked {
+		result.Skipped = true
+		slog.Info("market instrument sync skipped; lock held", "exchange", exchangeID)
+		return result
+	}
+
+	instruments, err := runner.fetchInstruments(ctx, exchangeID, client)
+	if err == nil {
+		result.Result, err = runner.repository.ReplaceMarketInstruments(
+			ctx,
+			exchangeID,
+			instruments,
+			runner.now(),
+		)
+	}
+
+	if unlockErr := unlockMarketInstrumentSync(unlock); unlockErr != nil {
+		slog.Error("market instrument sync unlock failed", "exchange", exchangeID, "error", unlockErr)
+		if err == nil {
+			result.Err = unlockErr
+			return result
+		}
+	}
+
+	if err != nil {
+		result.Err = err
+		runner.recordFailure(ctx, exchangeID, err)
+		slog.Warn("market instrument sync failed", "exchange", exchangeID, "error", err)
+		return result
+	}
+
+	slog.Info(
+		"market instrument catalog synced",
+		"exchange", exchangeID,
+		"active", result.Result.ActiveCount,
+		"inactive", result.Result.InactiveCount,
+		"paused_data_sync_tasks", result.Result.PausedDataSyncTaskCount,
+		"restored_data_sync_tasks", result.Result.RestoredDataSyncTaskCount,
+	)
+	return result
+}
+
+func (runner *Runner) recordFailure(ctx context.Context, exchangeID string, err error) {
+	if ctx.Err() != nil {
+		return
+	}
+	if recordErr := runner.repository.RecordMarketInstrumentSyncFailure(
+		ctx,
+		exchangeID,
+		err,
+		runner.now(),
+	); recordErr != nil {
+		slog.Error(
+			"record market instrument sync failure failed",
+			"exchange", exchangeID,
+			"error", recordErr,
+		)
+	}
+}
+
+func unlockMarketInstrumentSync(unlock func(context.Context) error) error {
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := unlock(releaseCtx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (runner *Runner) fetchInstruments(
