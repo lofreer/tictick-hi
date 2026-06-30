@@ -30,6 +30,6 @@ docker run --rm \
   -w /src \
   -e TICTICK_TEST_DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" \
   golang:1.26-bookworm \
-  go test ./internal/store/postgres -run TestIntegrationDataSyncRunnerRecoversAfterBinanceRetryAfter -count=1 -v
+  go test ./internal/store/postgres -run 'TestIntegrationDataSyncRunnerRecoversAfter(BinanceRetryAfter|OKXRateLimitCode)' -count=1 -v
 
 printf '\nstage1 data sync external recovery smoke passed\n'
