@@ -9358,6 +9358,34 @@ Definition of Done：
 - 仍缺真实 PostgreSQL 冷缓存、长时间 soak、真实生产数据分布和持久化聚合/分段策略。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 CandleProvider 聚合分页边界缺口补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 补强 `CandleProvider` 单元测试：当 `1m` 基础 K 线聚合更高周期时，如果缺失的基础 K 线刚好跨过内部 `MaxCandleLimit` 分页边界，聚合结果必须返回 `health=gap`。
+- 测试同时断言 `requiredBaseCandles`、`baseLimit`、`returnedBaseCandles` 和 `returnedCandles`，确保分页边界缺口不会被误当成完整覆盖或基础窗口受限。
+- 测试断言包含缺口的目标聚合窗口不会被返回，避免用不完整基础 K 线伪造高周期 K 线。
+
+范围外：
+
+- 不改变 `CandleProvider` 运行语义。
+- 不新增聚合缓存、分段持久化或自动补同步策略。
+- 不推进实盘交易、私有交易所 API 或 live executor。
+
+当前验证：
+
+- `go test ./internal/data -run TestCandleProviderReportsAggregationGapAcrossBasePageBoundary -count=1 -v` 通过。
+- `go test ./internal/data -count=1` 通过。
+
+剩余风险：
+
+- 该证据只覆盖内存 store 下的分页边界缺口，不替代真实 PostgreSQL 冷缓存、真实生产数据分布、长期 soak 或超过基础窗口上限后的持久化聚合/分段策略。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
