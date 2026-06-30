@@ -9294,7 +9294,8 @@ Definition of Done：
 - 本地 OKX `/api/v5/market/history-candles` 连续返回两次业务码 `50011`，验证 runner 只做有限快速重试，耗尽后记录 task retry 和 exchange backoff，释放 lease，且不写入 K 线。
 - 将 task / exchange backoff 推进到期后第二次运行 runner，验证同一任务成功拉取 5 根闭合 `1m` K 线、写入 `market_candles`、推进 `last_synced_open_time`、清理 task 错误与 exchange backoff，并在 `ListDataSyncTasks` 中显示 `dataHealth=ok`。
 - OKX 恢复路径同样验证成功拉取 5 根闭合 `1m` K 线、写入 OKX `market_candles`、推进游标、清理 task / exchange retry 状态，并在 `ListDataSyncTasks` 中显示 `dataHealth=ok`。
-- `scripts/stage1-data-sync-external-recovery-smoke.sh` 通过 Docker Compose postgres + 临时 Go 容器运行 Binance `Retry-After` 与 OKX `50011` 两条非跳过集成测试。
+- PostgreSQL 集成测试覆盖 exchange backoff 隔离：Binance 进入交易所级冷却后，同交易所 retry / sibling 任务不会被 claim，但 OKX pending task 仍可被 claim，避免单个交易所故障全局阻塞其它交易所同步。
+- `scripts/stage1-data-sync-external-recovery-smoke.sh` 通过 Docker Compose postgres + 临时 Go 容器运行 Binance `Retry-After`、OKX `50011` 和 exchange backoff 隔离三条非跳过集成测试。
 - `scripts/full-quality-gate.sh` 增加 `FULL_QUALITY_STAGE1_EXTERNAL_RECOVERY=1` / `FULL_QUALITY_STAGE1=1` 可选入口。
 
 范围外：
@@ -9305,7 +9306,7 @@ Definition of Done：
 
 当前验证：
 
-- `scripts/stage1-data-sync-external-recovery-smoke.sh` 通过：目标测试在 compose PostgreSQL 上非跳过执行，Binance 第一次 `429 Retry-After` 记录 retry/backoff、第二次恢复并落库；OKX 两次 `50011` 后记录 retry/backoff、强制到期后第三次恢复并落库。
+- `scripts/stage1-data-sync-external-recovery-smoke.sh` 通过：目标测试在 compose PostgreSQL 上非跳过执行，Binance 第一次 `429 Retry-After` 记录 retry/backoff、第二次恢复并落库；OKX 两次 `50011` 后记录 retry/backoff、强制到期后第三次恢复并落库；Binance exchange backoff 激活期间 OKX sibling 任务仍可 claim。
 - `FULL_QUALITY_STAGE1_EXTERNAL_RECOVERY=1 scripts/full-quality-gate.sh` 通过：包含 `go test ./...`、`go vet ./...`、前端 typecheck / test / build、轻量质量门禁，并串联上述 Stage 1 外部临时失败恢复 smoke。
 
 剩余风险：
