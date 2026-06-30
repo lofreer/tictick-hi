@@ -30,6 +30,10 @@ run_check "frontend test" pnpm --dir web/frontend run test
 run_check "frontend build" pnpm --dir web/frontend run build
 run_check "lightweight quality gate" "$ROOT_DIR/scripts/quality-gate.sh"
 
+if env_enabled "${FULL_QUALITY_STAGE1_RESTART:-0}"; then
+  run_check "stage1 data sync restart smoke" "$ROOT_DIR/scripts/stage1-data-sync-restart-smoke.sh"
+fi
+
 if env_enabled "${FULL_QUALITY_STAGE8:-0}"; then
   run_check "stage8 full-chain smoke" "$ROOT_DIR/scripts/stage8-smoke.sh"
 fi

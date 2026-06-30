@@ -8841,6 +8841,36 @@ Definition of Done：
 - 价格轴可读性与主图宽度仍是取舍；后续支持更多价格位数或不同资产时，需要按真实数据重新校准轴宽。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 data sync restart smoke 门禁入口补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- `scripts/full-quality-gate.sh` 增加 `FULL_QUALITY_STAGE1_RESTART=1` 可选门禁入口。
+- 该入口运行 `scripts/stage1-data-sync-restart-smoke.sh`，用 Docker Compose、API、PostgreSQL、`hi sync` worker 和本地 Binance K 线 mock 串起恢复验收。
+- smoke 覆盖过期 realtime lease 被新 sync worker 重新 claim、从持久化 cursor overlap 继续拉取、upsert 复写 overlap K 线、推进 `last_synced_open_time`、释放 lease，并通过 `/api/data/tasks` 观察恢复后的任务状态和数据健康。
+- 默认 full gate 仍保持轻量；需要阶段 1 重型恢复验收时显式设置 `FULL_QUALITY_STAGE1_RESTART=1`。
+
+范围外：
+
+- 不改变 data sync runner / store 行为。
+- 不把 stage1 restart smoke 加入默认 CI 必跑矩阵。
+- 不实现真实外部交易所长期压测、多实例 soak、分布式 token bucket 或实盘交易。
+
+当前验证：
+
+- `bash -n scripts/full-quality-gate.sh scripts/stage1-data-sync-restart-smoke.sh` 通过。
+- `FULL_QUALITY_STAGE1_RESTART=1 scripts/full-quality-gate.sh` 通过；其中 `stage1 data sync restart smoke` 通过，验证样本为 `task=dst_s1restart_1782834280`、`cursor=2026-01-01T00:04:00Z`、`klinesHits=1`。
+
+剩余风险：
+
+- 该入口只让既有恢复 smoke 进入统一门禁调度，不新增恢复语义。
+- smoke 仍依赖 Docker Compose、本地 PostgreSQL、headless-free API 环境和本地 market mock；它不是长期真实交易所恢复压测。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
