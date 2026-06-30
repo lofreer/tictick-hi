@@ -152,23 +152,23 @@ require_contains "$RESEARCH_CSS" "max-width: min(220px, 24vw);"
 require_not_contains "$RESEARCH_CSS" "--kline-chart-plot-height: clamp(720px, 78vh, 900px);"
 require_not_contains "$RESEARCH_CSS" "grid-template-columns: 100px 132px 28px 56px max-content;"
 require_not_contains "$RESEARCH_CSS" "width: 132px;"
-require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 28;"
-require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 25;"
+require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 32;"
+require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 29;"
 require_contains "$THEME_TOKENS" "desktop: 128,"
 require_contains "$THEME_TOKENS" "narrowDesktop: 120,"
 require_contains "$THEME_TOKENS" "mobile: 104,"
-require_contains "$QUALITY_AUDIT" '坐标轴字体恢复为桌面/窄桌面 `28px`、移动端 `25px`'
+require_contains "$QUALITY_AUDIT" '坐标轴字号提升为桌面/窄桌面 `32px`、移动端 `29px`'
 require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `140px`'
-require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度桌面/窄桌面不低于 `20px` 且移动端不低于 `18px`'
+require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度下限提升为桌面/窄桌面 `23px`、移动端 `21px`'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字体统一 `14px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `84px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴超过 `84px`'
 require_contains "$CHART_VUE" "if (lastSize.width <= 480) return chartMobileAxisFontSize;"
 require_contains "$CHART_VUE" "fontSize: chartFontSize(),"
 require_contains "$CHART_VUE" "minimumWidth: rightPriceScaleMinimumWidth(),"
-require_contains "$CHART_VUE" "const minTimeAxisEdgePaddingPixels = 12;"
-require_contains "$CHART_VUE" "const maxTimeAxisEdgePaddingPixels = 18;"
-require_contains "$CHART_VUE" "const timeAxisEdgePaddingRatio = 0.012;"
+require_contains "$CHART_VUE" "const minTimeAxisEdgePaddingPixels = 30;"
+require_contains "$CHART_VUE" "const maxTimeAxisEdgePaddingPixels = 40;"
+require_contains "$CHART_VUE" "const timeAxisEdgePaddingRatio = 0.018;"
 
 require_block_contains "$CHART_CSS" ".trading-chart" "position: relative;"
 require_block_contains "$CHART_CSS" ".trading-chart" "width: 100%;"

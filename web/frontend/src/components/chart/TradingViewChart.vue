@@ -67,10 +67,10 @@ const maxInitialVisibleBars = 320;
 const minInitialVisibleBars = 80;
 const targetInitialBarSpacingPixels = 4;
 const minTimeAxisEdgePaddingBars = 1;
-const minTimeAxisEdgePaddingPixels = 12;
-const maxTimeAxisEdgePaddingPixels = 18;
+const minTimeAxisEdgePaddingPixels = 30;
+const maxTimeAxisEdgePaddingPixels = 40;
 const timeAxisLabelInsetBars = 0;
-const timeAxisEdgePaddingRatio = 0.012;
+const timeAxisEdgePaddingRatio = 0.018;
 const volumePriceScaleId = "volume";
 const volumeUpColor = "rgba(14, 203, 129, 0.28)";
 const volumeDownColor = "rgba(246, 70, 93, 0.28)";
@@ -300,7 +300,7 @@ function trimTrailingZeros(value: string) {
 function formatChartTickMark(time: Time, tickMarkType: TickMarkType) {
   const date = chartTimeToDate(time);
   if (!date) return null;
-  if (tickMarkType === TickMarkType.Year) return `${date.getUTCFullYear()}`;
+  if (tickMarkType === TickMarkType.Year) return `${date.getUTCFullYear().toString().slice(2)}`;
   if (tickMarkType === TickMarkType.Month) return `${date.getUTCFullYear().toString().slice(2)}-${pad2(date.getUTCMonth() + 1)}`;
   if (tickMarkType === TickMarkType.DayOfMonth) return `${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
   return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;

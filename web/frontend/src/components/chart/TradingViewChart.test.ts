@@ -192,7 +192,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 28,
+          fontSize: 32,
         }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,
@@ -217,7 +217,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 25,
+          fontSize: 29,
         }),
         rightPriceScale: expect.objectContaining({
           minimumWidth: 104,
@@ -286,7 +286,7 @@ describe("TradingViewChart", () => {
       tickMarkMaxCharacterLength: 8,
     });
     const time = Date.UTC(2026, 5, 27, 18, 58) / 1000;
-    for (const [tickMarkType, label] of [[3, "18:58"], [2, "06-27"], [1, "26-06"], [0, "2026"]] as const) {
+    for (const [tickMarkType, label] of [[3, "18:58"], [2, "06-27"], [1, "26-06"], [0, "26"]] as const) {
       expect(options.timeScale.tickMarkFormatter(time, tickMarkType, "en-US")).toBe(label);
     }
     wrapper.unmount();
@@ -311,7 +311,7 @@ describe("TradingViewChart", () => {
       Array.from({ length: 1000 }, (_, index) => ({ time: index + 1, open: 100, high: 110, low: 95, close: 104, volume: 1000 + index })),
     );
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 733, to: 1003 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 729, to: 1007 });
 
     wrapper.unmount();
     host.panel.remove();
