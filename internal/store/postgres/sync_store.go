@@ -249,8 +249,8 @@ func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string, worke
 	return target, nil
 }
 
-func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskErr error) error {
-	_, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
+func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, workerID string, taskErr error) error {
+	commandTag, err := store.pool.Exec(ctx, leaseTransitionUpdateSQL(leaseTransitionUpdate{
 		resource: dataSyncTaskLease,
 		assignments: []string{
 			"status = $2",
@@ -260,14 +260,18 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 			"next_attempt_at = NULL",
 			"finished_at = now()",
 		},
-		where: "id = $1 AND deleted_at IS NULL",
+		where: dataSyncOwnedActiveLeaseWhere("$1", "$4"),
 	}),
 		taskID,
 		data.TaskStatusFailed,
 		normalizeTaskError(taskErr),
+		workerID,
 	)
 	if err != nil {
 		return fmt.Errorf("mark data sync failed: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return store.dataSyncTaskOwnershipError(ctx, taskID)
 	}
 	return nil
 }
@@ -275,6 +279,7 @@ func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, taskE
 func (store *Store) RecordDataSyncRetry(
 	ctx context.Context,
 	taskID string,
+	workerID string,
 	taskErr error,
 	nextAttemptAt *time.Time,
 ) error {
@@ -295,19 +300,20 @@ func (store *Store) RecordDataSyncRetry(
 			"last_error = $4",
 			"next_attempt_at = $5",
 		},
-		where: "id = $1 AND deleted_at IS NULL",
+		where: dataSyncOwnedActiveLeaseWhere("$1", "$6"),
 	}),
 		taskID,
 		data.TaskStatusRunning,
 		data.TaskStatusPending,
 		normalizedError,
 		nextAttemptAt,
+		workerID,
 	)
 	if err != nil {
 		return fmt.Errorf("record data sync retry: %w", err)
 	}
 	if commandTag.RowsAffected() == 0 {
-		return data.ErrNotFound
+		return store.dataSyncTaskOwnershipError(ctx, taskID)
 	}
 
 	if nextAttemptAt != nil {
@@ -346,25 +352,60 @@ func (store *Store) RecordDataSyncRetry(
 	return nil
 }
 
-func (store *Store) ReleaseDataSyncTask(ctx context.Context, taskID string) error {
-	if err := releaseLease(ctx, store.pool, dataSyncTaskLease, taskID); err != nil {
+func (store *Store) ReleaseDataSyncTask(ctx context.Context, taskID string, workerID string) error {
+	commandTag, err := store.pool.Exec(ctx, fmt.Sprintf(`
+			UPDATE data_sync_tasks
+			   SET %s,
+			       updated_at = now()
+			 WHERE id = $1
+			   AND deleted_at IS NULL
+			   AND (locked_by = $2 OR locked_by IS NULL)`,
+		clearLeaseAssignments(dataSyncTaskLease),
+	), taskID, workerID)
+	if err != nil {
 		return fmt.Errorf("release data sync task: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return store.dataSyncTaskOwnershipError(ctx, taskID)
 	}
 	return nil
 }
 
-func (store *Store) ReleaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string) error {
-	if _, err := store.pool.Exec(ctx, fmt.Sprintf(`
-			UPDATE data_sync_tasks
-		   SET %s,
-		       attempt_count = GREATEST(attempt_count - 1, 0),
-		       updated_at = now()
-		 WHERE id = $1`,
+func (store *Store) ReleaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string, workerID string) error {
+	commandTag, err := store.pool.Exec(ctx, fmt.Sprintf(`
+				UPDATE data_sync_tasks
+			   SET %s,
+			       attempt_count = GREATEST(attempt_count - 1, 0),
+			       updated_at = now()
+			 WHERE id = $1
+			   AND deleted_at IS NULL
+			   AND locked_by = $2`,
 		clearLeaseAssignments(dataSyncTaskLease),
-	), taskID); err != nil {
+	), taskID, workerID)
+	if err != nil {
 		return fmt.Errorf("release data sync task after skipped fetch: %w", err)
 	}
+	if commandTag.RowsAffected() == 0 {
+		return store.dataSyncTaskOwnershipError(ctx, taskID)
+	}
 	return nil
+}
+
+func dataSyncOwnedActiveLeaseWhere(taskIDArg string, workerIDArg string) string {
+	return fmt.Sprintf(
+		"id = %s AND deleted_at IS NULL AND status = 'running' AND locked_by = %s AND locked_until IS NOT NULL AND locked_until > now()",
+		taskIDArg,
+		workerIDArg,
+	)
+}
+
+func (store *Store) dataSyncTaskOwnershipError(ctx context.Context, taskID string) error {
+	if exists, err := store.dataSyncTaskExists(ctx, taskID); err != nil {
+		return err
+	} else if !exists {
+		return data.ErrNotFound
+	}
+	return data.DataSyncCommandInvalidStateError()
 }
 
 func normalizeTaskError(taskErr error) string {

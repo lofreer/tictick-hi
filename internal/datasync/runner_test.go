@@ -242,6 +242,9 @@ func TestRunnerMarksFailedTask(t *testing.T) {
 	if repository.failed == nil {
 		t.Fatal("expected task failure to be recorded")
 	}
+	if repository.failedWorkerID != "test" {
+		t.Fatalf("failed worker id = %q, want test", repository.failedWorkerID)
+	}
 }
 
 func TestRunnerRetriesTemporaryFetchError(t *testing.T) {
@@ -329,6 +332,9 @@ func TestRunnerRecordsTemporaryFetchErrorForRetry(t *testing.T) {
 	if repository.retry == nil {
 		t.Fatal("expected retry to be recorded")
 	}
+	if repository.retryWorkerID != "test" {
+		t.Fatalf("retry worker id = %q, want test", repository.retryWorkerID)
+	}
 	if repository.nextAttemptAt == nil || !repository.nextAttemptAt.Equal(now.Add(time.Minute)) {
 		t.Fatalf("nextAttemptAt = %v, want %v", repository.nextAttemptAt, now.Add(time.Minute))
 	}
@@ -375,6 +381,9 @@ func TestRunnerDoesNotRetryPermanentFetchError(t *testing.T) {
 	}
 	if repository.failed == nil {
 		t.Fatal("expected failure")
+	}
+	if repository.failedWorkerID != "test" {
+		t.Fatalf("failed worker id = %q, want test", repository.failedWorkerID)
 	}
 }
 
@@ -492,203 +501,13 @@ func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 	if !repository.released {
 		t.Fatal("expected lease to be released on shutdown")
 	}
+	if repository.releasedWorkerID != "test" {
+		t.Fatalf("released worker id = %q, want test", repository.releasedWorkerID)
+	}
 	if repository.failed != nil {
 		t.Fatalf("shutdown should not mark task failed: %v", repository.failed)
 	}
 	if repository.saved.TaskID != "" {
 		t.Fatalf("shutdown should not save result: %#v", repository.saved)
-	}
-}
-
-type fakeSyncRepository struct {
-	task                  data.DataSyncTask
-	claimed               bool
-	saved                 data.DataSyncResult
-	failed                error
-	retry                 error
-	retryError            error
-	nextAttemptAt         *time.Time
-	released              bool
-	releasedSkippedFetch  bool
-	fetchLockResults      map[string]bool
-	fetchLockErr          error
-	fetchUnlocks          []string
-	fetchLockSkipExchange string
-	fetchLockSkippedAt    time.Time
-	heartbeats            int
-	heartbeatSignals      chan<- struct{}
-	heartbeatErrAfter     int
-	heartbeatError        error
-	heartbeatErrorSignal  chan<- struct{}
-}
-
-func (repository *fakeSyncRepository) ClaimDataSyncTask(
-	context.Context,
-	string,
-	time.Duration,
-) (data.DataSyncTask, bool, error) {
-	return repository.task, repository.claimed, nil
-}
-
-func (repository *fakeSyncRepository) HeartbeatDataSyncTask(
-	context.Context,
-	string,
-	string,
-	time.Duration,
-) error {
-	repository.heartbeats++
-	if repository.heartbeatSignals != nil {
-		select {
-		case repository.heartbeatSignals <- struct{}{}:
-		default:
-		}
-	}
-	if repository.heartbeatErrAfter > 0 && repository.heartbeats > repository.heartbeatErrAfter {
-		if repository.heartbeatErrorSignal != nil {
-			select {
-			case repository.heartbeatErrorSignal <- struct{}{}:
-			default:
-			}
-		}
-		if repository.heartbeatError != nil {
-			return repository.heartbeatError
-		}
-		return errors.New("heartbeat failed")
-	}
-	return nil
-}
-
-func (repository *fakeSyncRepository) SaveDataSyncResult(
-	_ context.Context,
-	result data.DataSyncResult,
-) error {
-	repository.saved = result
-	return nil
-}
-
-func (repository *fakeSyncRepository) MarkDataSyncFailed(
-	_ context.Context,
-	_ string,
-	err error,
-) error {
-	repository.failed = err
-	return nil
-}
-
-func (repository *fakeSyncRepository) RecordDataSyncRetry(
-	_ context.Context,
-	_ string,
-	err error,
-	nextAttemptAt *time.Time,
-) error {
-	repository.retry = err
-	repository.nextAttemptAt = nextAttemptAt
-	return repository.retryError
-}
-
-func (repository *fakeSyncRepository) ReleaseDataSyncTask(context.Context, string) error {
-	repository.released = true
-	return nil
-}
-
-func (repository *fakeSyncRepository) ReleaseDataSyncTaskAfterSkippedFetch(context.Context, string) error {
-	repository.releasedSkippedFetch = true
-	return nil
-}
-
-func (repository *fakeSyncRepository) RecordDataSyncExchangeFetchLockSkipped(
-	_ context.Context,
-	exchange string,
-	skippedAt time.Time,
-) error {
-	repository.fetchLockSkipExchange = exchange
-	repository.fetchLockSkippedAt = skippedAt
-	return nil
-}
-
-type fakeMarketClient struct {
-	candles []data.Candle
-	err     error
-	errs    []error
-	calls   int
-}
-
-func (client *fakeMarketClient) FetchCandles(
-	context.Context,
-	exchange.CandleRequest,
-) ([]data.Candle, error) {
-	client.calls++
-	if len(client.errs) > 0 {
-		err := client.errs[0]
-		client.errs = client.errs[1:]
-		if err != nil {
-			return nil, err
-		}
-		return client.candles, nil
-	}
-	if client.err != nil {
-		return nil, client.err
-	}
-	return client.candles, nil
-}
-
-type blockingMarketClient struct {
-	heartbeats <-chan struct{}
-	candles    []data.Candle
-}
-
-func (client *blockingMarketClient) FetchCandles(
-	ctx context.Context,
-	_ exchange.CandleRequest,
-) ([]data.Candle, error) {
-	for index := 0; index < 2; index++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-client.heartbeats:
-		}
-	}
-	return client.candles, nil
-}
-
-type leaseLossMarketClient struct {
-	leaseLost <-chan struct{}
-	candles   []data.Candle
-}
-
-func (client *leaseLossMarketClient) FetchCandles(
-	context.Context,
-	exchange.CandleRequest,
-) ([]data.Candle, error) {
-	<-client.leaseLost
-	return client.candles, nil
-}
-
-type cancelingMarketClient struct {
-	cancel func()
-}
-
-func (client *cancelingMarketClient) FetchCandles(
-	ctx context.Context,
-	_ exchange.CandleRequest,
-) ([]data.Candle, error) {
-	client.cancel()
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
-func syncTestCandle(openTime time.Time) data.Candle {
-	return data.Candle{
-		Exchange:  "binance",
-		Symbol:    "BTCUSDT",
-		Interval:  "1m",
-		OpenTime:  openTime,
-		CloseTime: openTime.Add(time.Minute),
-		Open:      "1",
-		High:      "2",
-		Low:       "1",
-		Close:     "2",
-		Volume:    "10",
-		IsClosed:  true,
 	}
 }

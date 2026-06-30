@@ -206,7 +206,7 @@ func TestIntegrationFailureTransitionsSetFinishedAt(t *testing.T) {
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM trading_tasks WHERE id = $1`, tradingTaskID)
 	})
 
-	if err := store.MarkDataSyncFailed(ctx, syncTaskID, errors.New("invalid symbol")); err != nil {
+	if err := store.MarkDataSyncFailed(ctx, syncTaskID, "failed-worker", errors.New("invalid symbol")); err != nil {
 		t.Fatal(err)
 	}
 	assertFinishedAtExists(ctx, t, store, "data_sync_tasks", syncTaskID)

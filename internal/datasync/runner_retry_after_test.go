@@ -45,6 +45,9 @@ func TestRunnerUsesRetryAfterForTemporaryFetchError(t *testing.T) {
 	if repository.retry == nil {
 		t.Fatal("expected retry to be recorded")
 	}
+	if repository.retryWorkerID != "test" {
+		t.Fatalf("retry worker id = %q, want test", repository.retryWorkerID)
+	}
 	if repository.nextAttemptAt == nil || !repository.nextAttemptAt.Equal(now.Add(2*time.Minute)) {
 		t.Fatalf("nextAttemptAt = %v, want %v", repository.nextAttemptAt, now.Add(2*time.Minute))
 	}

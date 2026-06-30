@@ -244,6 +244,7 @@ func TestIntegrationDataSyncRetryReleasesAndReclaimsTask(t *testing.T) {
 	if err := store.RecordDataSyncRetry(
 		ctx,
 		id,
+		"retry-worker",
 		exchange.NewTemporaryError(
 			`binance klines temporary unavailable: Get "https://api.binance.com/api/v3/klines?endTime=1782524388943&interval=1m&limit=500&startTime=1780277926000&symbol=BTCUSDT": EOF`,
 			nil,
@@ -358,7 +359,7 @@ func TestIntegrationDataSyncPermanentFailureStopsTask(t *testing.T) {
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
 	})
 
-	if err := store.MarkDataSyncFailed(ctx, id, errors.New("invalid symbol")); err != nil {
+	if err := store.MarkDataSyncFailed(ctx, id, "failed-worker", errors.New("invalid symbol")); err != nil {
 		t.Fatal(err)
 	}
 

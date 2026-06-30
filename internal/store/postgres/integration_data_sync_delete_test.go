@@ -177,6 +177,7 @@ func TestIntegrationDeletedDataSyncTaskRetryDoesNotCreateExchangeBackoff(t *test
 	err := store.RecordDataSyncRetry(
 		ctx,
 		id,
+		"deleted-retry-worker",
 		errors.New("binance klines temporary unavailable: api.binance.com: EOF"),
 		ptrTime(time.Now().UTC().Add(time.Hour)),
 	)

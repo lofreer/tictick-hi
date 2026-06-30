@@ -7,7 +7,7 @@ import (
 
 type SyncFetchLockRepository interface {
 	TryLockDataSyncExchangeFetch(ctx context.Context, exchange string) (func(context.Context) error, bool, error)
-	ReleaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string) error
+	ReleaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string, workerID string) error
 	RecordDataSyncExchangeFetchLockSkipped(ctx context.Context, exchange string, skippedAt time.Time) error
 }
 

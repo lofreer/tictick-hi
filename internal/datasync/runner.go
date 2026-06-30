@@ -133,7 +133,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		if workerlease.IsShutdown(ctx, err) {
 			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
 			defer cancel()
-			if releaseErr := runner.repository.ReleaseDataSyncTask(releaseCtx, task.ID); releaseErr != nil {
+			if releaseErr := runner.repository.ReleaseDataSyncTask(releaseCtx, task.ID, runner.config.WorkerID); releaseErr != nil {
 				return fmt.Errorf("release data sync task on shutdown: %w", releaseErr)
 			}
 			return nil
@@ -172,7 +172,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 				"next_attempt_at", nextAttemptAt,
 				"error", err,
 			)
-			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, err, &nextAttemptAt); retryErr != nil {
+			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, runner.config.WorkerID, err, &nextAttemptAt); retryErr != nil {
 				if errors.Is(retryErr, data.ErrNotFound) {
 					slog.Info("data sync task disappeared before retry was recorded", "task_id", task.ID)
 					return nil
@@ -182,7 +182,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			return nil
 		}
 		slog.Error("data sync task failed", "task_id", task.ID, "error", err)
-		if markErr := runner.repository.MarkDataSyncFailed(ctx, task.ID, err); markErr != nil {
+		if markErr := runner.repository.MarkDataSyncFailed(ctx, task.ID, runner.config.WorkerID, err); markErr != nil {
 			return fmt.Errorf("mark data sync failed: %w", markErr)
 		}
 	}
@@ -191,9 +191,9 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 
 func (runner *Runner) releaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string) error {
 	if runner.lockRepository == nil {
-		return runner.repository.ReleaseDataSyncTask(ctx, taskID)
+		return runner.repository.ReleaseDataSyncTask(ctx, taskID, runner.config.WorkerID)
 	}
-	return runner.lockRepository.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID)
+	return runner.lockRepository.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID, runner.config.WorkerID)
 }
 
 func (runner *Runner) recordDataSyncExchangeFetchLockSkipped(ctx context.Context, exchange string) error {

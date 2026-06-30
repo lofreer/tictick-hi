@@ -40,6 +40,9 @@ func TestRunnerIgnoresRetryRecordForDeletedTask(t *testing.T) {
 	if repository.retry == nil {
 		t.Fatal("temporary error should still attempt to record retry")
 	}
+	if repository.retryWorkerID != "test" {
+		t.Fatalf("retry worker id = %q, want test", repository.retryWorkerID)
+	}
 	if repository.failed != nil {
 		t.Fatalf("deleted task retry race should not mark task failed: %v", repository.failed)
 	}

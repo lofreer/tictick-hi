@@ -41,6 +41,9 @@ func TestRunnerReleasesLeaseWithoutFetchWhenExchangeFetchLockHeld(t *testing.T) 
 			repository.released,
 		)
 	}
+	if repository.releasedSkippedWorker != "test" {
+		t.Fatalf("skipped fetch released worker id = %q, want test", repository.releasedSkippedWorker)
+	}
 	if repository.saved.TaskID != "" {
 		t.Fatalf("lock-held task should not save result: %#v", repository.saved)
 	}
@@ -92,6 +95,9 @@ func TestRunnerReturnsInfrastructureErrorWhenExchangeFetchLockFails(t *testing.T
 			repository.releasedSkippedFetch,
 			repository.released,
 		)
+	}
+	if repository.releasedSkippedWorker != "test" {
+		t.Fatalf("skipped fetch released worker id = %q, want test", repository.releasedSkippedWorker)
 	}
 	if repository.failed != nil || repository.retry != nil {
 		t.Fatalf("lock error should not fail or retry task: failed=%v retry=%v", repository.failed, repository.retry)

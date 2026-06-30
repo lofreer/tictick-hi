@@ -238,8 +238,34 @@ done            用户确认关闭
 
 剩余风险：
 
-- 该切片只收紧 data sync 保存结果路径；retry / fail / release 仍需继续抽象到统一 lease transition 语义。
+- 该切片只收紧 data sync 保存结果路径；retry / fail / release 已在后续 worker ownership 切片继续收紧，仍需抽象到统一 lease transition 语义。
 - 仍缺跨 worker 类型的一致状态机封装和真实多实例长期运行证据。
+
+### 阶段 1 data sync retry/fail/release worker ownership 补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- data sync runner 在记录 retry、标记 failed、shutdown release 和 fetch-lock skipped release 时传入当前 `WorkerID`。
+- `RecordDataSyncRetry` 只允许 `running`、未过期 active lease 且 `locked_by` 匹配当前 worker 的任务释放 lease、写入 `last_error`、设置 `next_attempt_at` 并记录 exchange backoff。
+- `MarkDataSyncFailed` 只允许持有未过期 active lease 的当前 worker 将任务标为 failed、停用 sync/realtime 并释放 lease。
+- `ReleaseDataSyncTask` 和 `ReleaseDataSyncTaskAfterSkippedFetch` 不允许错误 worker 清理别人的 lease；fetch-lock skipped release 也不会让错误 worker 回滚 `attempt_count`。
+- runner 单元测试覆盖 retry/fail/release/skipped release 的 worker identity 传递；PostgreSQL 集成测试覆盖错误 worker 被拒绝且不改状态、不写 backoff、不清 lease、不回滚 attempt。
+
+范围外：
+
+- 不重构所有 worker 的统一 lease 状态机接口。
+- 不改变用户手动 retry failed 任务的 API 语义。
+- 不实现分布式 token bucket、真实外部交易所长期压测或实盘交易所私有 API。
+- 不推进 live executor、订单提交、撤单、查单或幂等实盘下单。
+
+剩余风险：
+
+- 该切片只收紧 data sync worker 的 retry/fail/release 状态变更所有权；backtest / trading / notification worker 仍未统一到同一状态机抽象。
+- 仍缺多实例长期 soak、真实交易所网络恢复压测和跨进程共享交易所额度。
 
 ### 阶段 8 browser smoke 全局超时补充
 

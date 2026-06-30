@@ -466,9 +466,9 @@ type SyncRepository interface {
 	ClaimDataSyncTask(ctx context.Context, workerID string, leaseTTL time.Duration) (DataSyncTask, bool, error)
 	HeartbeatDataSyncTask(ctx context.Context, taskID string, workerID string, leaseTTL time.Duration) error
 	SaveDataSyncResult(ctx context.Context, result DataSyncResult) error
-	RecordDataSyncRetry(ctx context.Context, taskID string, err error, nextAttemptAt *time.Time) error
-	MarkDataSyncFailed(ctx context.Context, taskID string, err error) error
-	ReleaseDataSyncTask(ctx context.Context, taskID string) error
+	RecordDataSyncRetry(ctx context.Context, taskID string, workerID string, err error, nextAttemptAt *time.Time) error
+	MarkDataSyncFailed(ctx context.Context, taskID string, workerID string, err error) error
+	ReleaseDataSyncTask(ctx context.Context, taskID string, workerID string) error
 }
 
 type BacktestRepository interface {

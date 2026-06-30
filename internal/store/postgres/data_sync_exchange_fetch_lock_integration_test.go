@@ -104,7 +104,7 @@ func TestIntegrationReleaseDataSyncTaskAfterSkippedFetchRevertsClaimAttempt(t *t
 		t.Fatal(err)
 	}
 
-	if err := store.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID); err != nil {
+	if err := store.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID, "worker-1"); err != nil {
 		t.Fatal(err)
 	}
 
