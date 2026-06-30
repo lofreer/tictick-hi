@@ -94,6 +94,17 @@ describe("MarketCandleGapTag", () => {
     expect(wrapper.find('[role="button"]').attributes("title")).toContain("2026-06-27 03:02:00 UTC");
   });
 
+  it("opens full-history gap details from the keyboard", async () => {
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("keydown.space");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("全历史缺口详情");
+    expect(document.body.textContent).toContain("2026-06-27 03:02:00 UTC");
+  });
+
   it("opens full-history gap details and repairs the first gap", async () => {
     const wrapper = mountTag();
     await flushPromises();
@@ -124,6 +135,46 @@ describe("MarketCandleGapTag", () => {
       `${formatCompactDateTime("2026-06-27T03:02:00Z")} - ${formatCompactDateTime("2026-06-27T03:03:00Z")}`,
     );
     expect(wrapper.findComponent(MarketCandleGapTag).emitted("repaired")).toHaveLength(1);
+    expect(dataApi.scanMarketCandleGaps).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the repair result visible while showing the refreshed healthy scan", async () => {
+    dataApiMocks.scanMarketCandleGaps
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        gaps: [{ from: "2026-06-27T03:02:00Z", to: "2026-06-27T03:03:00Z", missingCandles: 1 }],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+      })
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 5 },
+        gaps: [],
+        limited: false,
+        totalCount: 0,
+        returnedCount: 0,
+      });
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+    const repairButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("修复首个缺口"),
+    );
+    repairButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("当前数据源全历史未检测到缺口。");
+    expect(document.body.textContent).toContain("本次匹配 1 个，已创建 1 个，跳过 0 个，单次上限 1");
+    expect(document.body.textContent).toContain("dst_market_repair_1");
+    expect(document.body.textContent).not.toContain("2026-06-27T03:02:00Z 2026-06-27T03:03:00Z 1");
     expect(dataApi.scanMarketCandleGaps).toHaveBeenCalledTimes(2);
   });
 

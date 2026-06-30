@@ -8905,6 +8905,34 @@ Definition of Done：
 - `stage1-data-sync-restart-smoke.sh` 仍依赖本地 Docker Compose 和 mock exchange，不代表真实外部交易所长期恢复压测。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页全历史缺口修复反馈补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 全历史缺口标签补齐键盘 Space 打开详情能力，与 Enter / 点击交互一致。
+- 前端组件测试覆盖全历史缺口 repair 后会触发第二次 `scanMarketCandleGaps`。
+- 前端组件测试进一步覆盖首次扫描有缺口、repair 后第二次扫描返回健康时，弹窗切换为“全历史未检测到缺口”，同时仍显示本次 repair result 和创建出的补同步任务窗口。
+
+范围外：
+
+- 不把“排队补同步”伪装成缺口已经被交易所数据修复。
+- 不改变后端 gap scan / repair API、补同步任务调度或 worker 写回语义。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/research/MarketCandleGapTag.test.ts` 通过：7 条测试。
+
+剩余风险：
+
+- repair 后重新扫描仍只代表当前 API 返回的扫描状态；真实修复结果依赖 data sync worker 成功写回和后续 scan 观察。
+- 当前仍缺长期真实交易所恢复压测、像素快照基线和多浏览器视觉回归，研究页不能升级。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

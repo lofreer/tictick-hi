@@ -5,7 +5,18 @@
   <NTag v-else-if="error" :bordered="false" size="small" type="error">
     {{ t("research.marketGapScanFailed") }}
   </NTag>
-  <NTag v-else-if="scan" :bordered="false" role="button" size="small" tabindex="0" :title="title" :type="tagType" @click="detailsOpen = true" @keydown.enter="detailsOpen = true">
+  <NTag
+    v-else-if="scan"
+    :bordered="false"
+    role="button"
+    size="small"
+    tabindex="0"
+    :title="title"
+    :type="tagType"
+    @click="detailsOpen = true"
+    @keydown.enter="detailsOpen = true"
+    @keydown.space.prevent="detailsOpen = true"
+  >
     {{ label }}
   </NTag>
   <NModal v-model:show="detailsOpen" preset="card" :title="t('research.marketGapDetailsTitle')" class="research-modal">
