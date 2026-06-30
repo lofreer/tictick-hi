@@ -92,9 +92,14 @@ func (client *MarketClient) FetchCandles(
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		err := exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
+		err := exchange.HTTPStatusErrorFromResponse(response, time.Now().UTC())
 		if exchange.IsTemporaryEndpointError(err) {
-			return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err), err)
+			retryAfter, _ := exchange.RetryAfter(err)
+			return nil, exchange.NewTemporaryErrorWithRetryAfter(
+				"okx candles temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err),
+				err,
+				retryAfter,
+			)
 		}
 		return nil, fmt.Errorf("okx candles unavailable: %s", exchange.EndpointErrorSummary(client.baseURL, err))
 	}
@@ -149,9 +154,14 @@ func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.Market
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		err := exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
+		err := exchange.HTTPStatusErrorFromResponse(response, time.Now().UTC())
 		if exchange.IsTemporaryEndpointError(err) {
-			return nil, exchange.NewTemporaryError("okx instruments temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err), err)
+			retryAfter, _ := exchange.RetryAfter(err)
+			return nil, exchange.NewTemporaryErrorWithRetryAfter(
+				"okx instruments temporary unavailable: "+exchange.EndpointErrorSummary(client.baseURL, err),
+				err,
+				retryAfter,
+			)
 		}
 		return nil, fmt.Errorf("okx instruments unavailable: %s", exchange.EndpointErrorSummary(client.baseURL, err))
 	}

@@ -165,7 +165,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			return lockErr
 		}
 		if exchange.IsTemporaryError(err) {
-			nextAttemptAt := runner.nextAttemptAt(task)
+			nextAttemptAt := runner.nextAttemptAt(task, err)
 			slog.Warn(
 				"data sync task will retry after temporary market data error",
 				"task_id", task.ID,
@@ -307,7 +307,7 @@ func (runner *Runner) fetchCandles(
 			return candles, nil
 		}
 		lastErr = err
-		if !exchange.IsTemporaryError(err) || attempt == attempts {
+		if !exchange.IsTemporaryError(err) || attempt == attempts || hasRetryAfter(err) {
 			return nil, err
 		}
 
@@ -327,13 +327,21 @@ func (runner *Runner) fetchCandles(
 	return nil, lastErr
 }
 
-func (runner *Runner) nextAttemptAt(task data.DataSyncTask) time.Time {
+func (runner *Runner) nextAttemptAt(task data.DataSyncTask, taskErr error) time.Time {
 	attempt := task.AttemptCount
 	if attempt < 1 {
 		attempt = 1
 	}
 	delay := boundedExponentialBackoff(runner.config.RetryBackoff, runner.config.MaxRetryBackoff, attempt)
+	if retryAfter, ok := exchange.RetryAfter(taskErr); ok && retryAfter > delay {
+		delay = retryAfter
+	}
 	return runner.now().Add(delay)
+}
+
+func hasRetryAfter(err error) bool {
+	retryAfter, ok := exchange.RetryAfter(err)
+	return ok && retryAfter > 0
 }
 
 func boundedExponentialBackoff(base time.Duration, maxDelay time.Duration, attempt int) time.Duration {

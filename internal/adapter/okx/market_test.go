@@ -174,6 +174,31 @@ func TestFetchCandlesMarksRateLimitCodeTemporary(t *testing.T) {
 	}
 }
 
+func TestFetchCandlesPreservesRetryAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "8")
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	retryAfter, ok := exchange.RetryAfter(err)
+	if !ok || retryAfter != 8*time.Second {
+		t.Fatalf("RetryAfter = %s, %t; want 8s, true", retryAfter, ok)
+	}
+}
+
 func TestFetchCandlesDoesNotMarkInstrumentCodeTemporary(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

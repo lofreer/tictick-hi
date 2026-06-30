@@ -166,6 +166,33 @@ done            用户确认关闭
 - 该能力只在单进程内使用交易所返回的 public request weight 窗口，不提供多实例共享额度或公平调度。
 - exchangeInfo 成功前仍使用保守默认窗口；真实网络韧性和更完整交易所业务码分类仍未关闭。
 
+### 阶段 1 HTTP Retry-After 退避传递补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- 临时错误模型支持可选 `Retry-After` 等待时间，并可通过 `exchange.RetryAfter` 在错误链中读取。
+- HTTP 状态错误会解析 `Retry-After` 秒数和 HTTP-date；无效、空值、零值或过期时间不会生成等待时间。
+- Binance 多 base URL fallback 会在所有 endpoint 均为临时错误时保留最大的 `Retry-After`。
+- OKX public candles / instruments 的 HTTP 429 / 5xx 临时错误会保留 `Retry-After`。
+- data sync runner 遇到带 `Retry-After` 的临时 fetch error 时不做本地快速重试，释放任务并把任务级 `next_attempt_at` 和交易所 backoff 至少推迟到该等待时间。
+- 单元测试覆盖 `Retry-After` 解析、临时错误承载、Binance / OKX adapter 传递和 runner 使用较大的退避。
+
+范围外：
+
+- 不新增数据库字段或迁移。
+- 不实现跨实例共享 token bucket。
+- 不实现私有交易 API 或 live executor。
+- 不改变永久错误、数据校验错误或 fetch lock skip 的状态语义。
+
+剩余风险：
+
+- 当前只尊重 HTTP 标准 `Retry-After`，不解析交易所私有响应体中的全部限流元数据。
+- 多实例额度、公平调度、真实外部网络长期恢复压测和实盘安全边界仍未关闭。
+
 ### 阶段 8 browser smoke 全局超时补充
 
 执行日期：2026-06-30

@@ -84,6 +84,7 @@ func (client *MarketClient) FetchCandles(
 ) ([]data.Candle, error) {
 	var endpointErrors []string
 	allTemporary := true
+	var retryAfter time.Duration
 	for _, baseURL := range client.baseURLs {
 		candles, err := client.fetchCandlesFrom(ctx, baseURL, request)
 		if err == nil {
@@ -95,11 +96,14 @@ func (client *MarketClient) FetchCandles(
 		if !exchange.IsTemporaryEndpointError(err) {
 			allTemporary = false
 		}
+		if delay, ok := exchange.RetryAfter(err); ok && delay > retryAfter {
+			retryAfter = delay
+		}
 		endpointErrors = append(endpointErrors, exchange.EndpointErrorSummary(baseURL, err))
 	}
 	message := strings.Join(endpointErrors, "; ")
 	if allTemporary {
-		return nil, exchange.NewTemporaryError("binance klines temporary unavailable: "+message, nil)
+		return nil, exchange.NewTemporaryErrorWithRetryAfter("binance klines temporary unavailable: "+message, nil, retryAfter)
 	}
 	return nil, fmt.Errorf("binance klines unavailable: %s", message)
 }
@@ -107,6 +111,7 @@ func (client *MarketClient) FetchCandles(
 func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.MarketInstrument, error) {
 	var endpointErrors []string
 	allTemporary := true
+	var retryAfter time.Duration
 	for _, baseURL := range client.baseURLs {
 		instruments, err := client.fetchInstrumentsFrom(ctx, baseURL)
 		if err == nil {
@@ -118,11 +123,14 @@ func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.Market
 		if !exchange.IsTemporaryEndpointError(err) {
 			allTemporary = false
 		}
+		if delay, ok := exchange.RetryAfter(err); ok && delay > retryAfter {
+			retryAfter = delay
+		}
 		endpointErrors = append(endpointErrors, exchange.EndpointErrorSummary(baseURL, err))
 	}
 	message := strings.Join(endpointErrors, "; ")
 	if allTemporary {
-		return nil, exchange.NewTemporaryError("binance instruments temporary unavailable: "+message, nil)
+		return nil, exchange.NewTemporaryErrorWithRetryAfter("binance instruments temporary unavailable: "+message, nil, retryAfter)
 	}
 	return nil, fmt.Errorf("binance instruments unavailable: %s", message)
 }
@@ -150,7 +158,7 @@ func (client *MarketClient) fetchInstrumentsFrom(
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return nil, exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
+		return nil, exchange.HTTPStatusErrorFromResponse(response, time.Now().UTC())
 	}
 
 	var envelope binanceExchangeInfo
@@ -201,7 +209,7 @@ func (client *MarketClient) fetchCandlesFrom(
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return nil, exchange.HTTPStatusError{Code: response.StatusCode, Status: response.Status}
+		return nil, exchange.HTTPStatusErrorFromResponse(response, time.Now().UTC())
 	}
 
 	var rows []binanceKline

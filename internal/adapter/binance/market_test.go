@@ -285,6 +285,31 @@ func TestFetchCandlesMarksTransportFailuresTemporary(t *testing.T) {
 	}
 }
 
+func TestFetchCandlesPreservesRetryAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "9")
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
+		Limit:    1,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	retryAfter, ok := exchange.RetryAfter(err)
+	if !ok || retryAfter != 9*time.Second {
+		t.Fatalf("RetryAfter = %s, %t; want 9s, true", retryAfter, ok)
+	}
+}
+
 func TestFetchCandlesDoesNotMarkBadRequestTemporary(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
