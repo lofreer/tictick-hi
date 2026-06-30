@@ -69,9 +69,9 @@ done            用户确认关闭
 
 补充：阶段 1 CandleProvider repository target 守卫已补证据：`CandleProvider.GetCandles` 会在读取 native store 前调用 `ValidateCandleQueryTarget`，直接 repository 调用缺少 exchange / symbol / interval 或 interval 非法时会直接返回错误，不再静默查成空结果；单元测试覆盖缺 symbol 不触碰 store，PostgreSQL 集成测试覆盖 `Store.GetCandles` 对缺 target 直接返回错误。该证据只证明查询入口 target 自守，不替代 API 层交易所 symbol 格式校验、active instrument catalog 校验或真实生产数据压测。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效布局约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面/窄桌面 `96px`、移动端 `92px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/2px`、窄桌面 `12px/2px`、移动端 `10px/2px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；价格轴可读性以后一段和“坐标轴字号恢复补充”为准：坐标轴字体统一 `14px`，右侧价格轴 minimumWidth 为桌面 `76px`、窄桌面 `74px`、移动端 `72px`，价格标签保持完整数值显示；visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、工具栏高度最大 `72px`、右侧价格轴最大宽度 `84px`、主图占比下限桌面 `94%` / 窄桌面 `90%` / 移动端 `78%`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效布局约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面/窄桌面 `96px`、移动端 `92px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/2px`、窄桌面 `12px/2px`、移动端 `10px/2px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；价格轴可读性以后一段和“坐标轴字号恢复补充”为准：坐标轴字体统一 `18px`，右侧价格轴 minimumWidth 为桌面 `92px`、窄桌面 `90px`、移动端 `86px`，价格标签保持完整数值显示；visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、工具栏高度最大 `72px`、右侧价格轴最大宽度 `110px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
 
-补充：阶段 1 K 线图表价格轴可读性在 2026-07-01 继续收紧；新的有效约束覆盖上一段中的旧价格轴字号/宽度阈值：`TradingViewChart` 价格轴 formatter 必须输出完整数值，不允许 `k/K/m/M/b/B` 紧凑缩写；chart 字体统一为 `14px`；右侧价格轴 minimumWidth 为桌面 `76px`、窄桌面 `74px`、移动端 `72px`；visual smoke 右侧价格轴最大宽度放宽到 `84px` 以优先保证完整价格可读，主图占比下限调整为桌面 `94%` / 窄桌面 `90%` / 移动端 `78%`，仍继续断言右侧价格轴贴住 viewport 边界、主图 canvas 贴住价格轴左边界且没有额外右侧空白。该证据只收紧 K 线图表可读性合同，不代表图表研究能力已经达到 usable 或具备像素快照基线。
+补充：阶段 1 K 线图表价格轴可读性在 2026-07-01 继续收紧；新的有效约束覆盖上一段中的旧价格轴字号/宽度阈值：`TradingViewChart` 价格轴 formatter 必须输出完整数值，不允许 `k/K/m/M/b/B` 紧凑缩写；chart 字体统一为 `18px`；右侧价格轴 minimumWidth 为桌面 `92px`、窄桌面 `90px`、移动端 `86px`；visual smoke 右侧价格轴最大宽度放宽到 `110px` 以优先保证完整价格可读，坐标轴文字墨迹高度下限提高到 `13px`，仍继续断言右侧价格轴贴住 viewport 边界、主图 canvas 贴住价格轴左边界且没有额外右侧空白。该证据只收紧 K 线图表可读性合同，不代表图表研究能力已经达到 usable 或具备像素快照基线。
 
 补充：阶段 1 全历史缺口批量 repair API contract 覆盖在 2026-06-30 继续收紧；`POST /api/market/candle-gaps/repair-batch` 已由前端 `dataApi.repairMarketCandleGaps` 使用、后端 OpenAPI contract 声明并由 handler 测试覆盖，本轮把该路由补进 `TestAPIContractCoversCurrentFrontendRoutes` 的前端路由清单，并补进 `TestAPIMethodNotAllowedContracts`，确保未来不会出现前端可调用但 contract / 405 Allow gate 漏检的隐藏写路由。该证据只补契约覆盖，不改变批量 repair 行为、单次上限、active catalog 边界或 data sync worker 调度语义。
 
@@ -9130,6 +9130,47 @@ Definition of Done：
 - 轮询是有界兜底，不是实时订阅；长时间运行或卡住的补同步任务仍可能在轮询结束后需要用户手动刷新。
 - 真实交易所返回空窗口、持续异常或限流时，仍依赖现有 failed/retry/backoff/数据健康路径暴露。
 - 当前仍缺真实外部交易所恢复压测、像素快照和多浏览器视觉回归，研究页不能升级。
+- 项目整体仍是 `scaffold`，不能升级。
+
+### 阶段 1 K 线图表坐标轴字号恢复补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 研究页、回测详情和交易详情共享 K 线图表轴字号从 `16px` 提升到 `18px`。
+- 右侧价格轴 minimumWidth 调整为桌面 `92px`、窄桌面 `90px`、移动端 `86px`，继续保持完整价格数值显示，不恢复 `k/K/m/M/b/B` 紧凑缩写。
+- 研究页图表布局硬门禁同步锁定 `18px` 轴字号和新的价格轴宽度，避免后续回退到小字号。
+- 浏览器 visual smoke 把坐标轴文字墨迹高度下限提升到 `13px`，并同步校准价格轴最大宽度与主图占比阈值。
+
+范围外：
+
+- 不改变 K 线数据查询、同步、回测、交易或订单执行语义。
+- 不引入 TradingView 高级图表库或新的图表依赖。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts` 通过：38 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：34 个测试文件、169 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- 本地 `docker compose up -d --build api` 通过，`http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，`/research` 返回 HTTP 200。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440x900、812x1320、390x844 三个视口 × light/dark × zh-CN/en-US，每组 14 页，最大 document width 均等于视口宽度。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：1440x900、2048x1152、812x1320、390x844 四个视口高度稳定。
+- 真实 8080 Headless Chrome 聚焦采样：1440x900 研究页固定图表 viewport `1374x680`，右侧价格轴 canvas `92x640`，价格轴单行文字最大墨迹高度 `13px`，时间轴单行文字最大墨迹高度 `13px`。
+
+剩余风险：
+
+- 坐标轴可读性和主图宽度存在取舍；更长价格、更多小数位或超窄屏仍需要重新校准。
+- 当前仍缺像素快照基线和多浏览器视觉回归，浏览器 smoke 只能覆盖当前 Chrome 矩阵。
 - 项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后
