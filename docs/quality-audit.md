@@ -7718,6 +7718,58 @@ Definition of Done：
 - 仍不保证交易所一定返回可覆盖异常 open_time 的健康历史数据。
 - 阶段 1 研究核心仍为 `scaffold`，项目整体仍不能声明 usable 或 production-safe。
 
+### 阶段 1 K 线图表右侧 gutter 合同统一补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 用户继续指出研究页、回测详情、交易详情的 K 线图表右侧视觉留白和工具栏密度仍不稳定，不能只修单页。
+- 本地 `stage8-visual-smoke.mjs` 暴露研究页右侧图表 gutter 合同冲突：`research-chart-height-smoke` 允许 `0px`，但 Stage 8 visual 要求生产级右侧呼吸空间。
+- 窄桌面 `812px` 视口下研究页 toolbar 实测高度 `77px`，超过 `76px` 合同，说明工具栏仍有 1px 级别的密度回归。
+
+Definition of Done：
+
+- 研究页、回测详情、交易详情继续复用同一固定 K 线图表槽。
+- 图表右侧外层 gutter 统一为 `4px`，左侧保持桌面 `14px`、窄桌面 `12px`、移动端 `10px`。
+- 右侧价格轴 canvas 默认上限从 `48px` 收紧到 `44px`，主图 canvas 必须贴住右侧价格轴左边界。
+- 研究页窄桌面 toolbar 压缩到 Stage 8 visual 合同内，不通过放宽阈值解决。
+- 不覆盖 lightweight-charts 内部 table / tbody / tr / td；不新增指标、绘图工具或交易分析功能。
+
+改动范围：
+
+- `web/frontend/src/pages/klineChartLayout.css` 统一共享图表槽右侧 gutter。
+- `web/frontend/src/pages/ResearchPage.css` 同步研究页 gutter，并收紧窄桌面 toolbar `gap` / `padding`。
+- `web/frontend/src/pages/detailChartLayout.css` 同步回测详情和交易详情右侧 gutter。
+- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`web/frontend/src/pages/DetailPages.layout.test.ts`、`scripts/check-research-chart-layout.sh` 同步静态布局合同。
+- `scripts/research-chart-height-smoke.mjs`、`scripts/stage8-visual-smoke.mjs` 统一右侧 gutter 范围并把价格轴宽度上限收紧到 `44px`。
+
+当前验证：
+
+- `scripts/check-research-chart-layout.sh` 通过。
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts src/components/chart/TradingViewChart.test.ts` 通过：3 个测试文件、35 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、142 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `docker compose build api && docker compose up -d api` 通过，`curl -fsS http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=8 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：`1440x900` 图表 `680px`、`2048x1152` 图表 `820px`、`812x1320` 图表 `700px`、`390x844` 图表 `580px`，连续采样稳定。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅 / 深主题、`zh-CN/en-US`，每组 14 页，最大 document width 不超过对应 viewport。
+
+失败项：
+
+- 首次 `stage8-visual-smoke.mjs` 失败：研究页右侧 gutter 为 `0px`，不满足 Stage 8 visual 的 `2-8px` 合同；已统一为 `4px` 并复跑通过。
+- 第二次 `stage8-visual-smoke.mjs` 失败：`812px` 窄桌面研究页 toolbar 实测 `77px`，超过 `76px`；已收紧窄桌面 toolbar gap / padding 并复跑通过。
+
+剩余风险：
+
+- 该切片只修复 K 线布局几何合同，不代表研究页、回测或交易业务流程达到 production-safe。
+- 仍缺多浏览器视觉回归、图表指标/绘图工具、成交点交互和完整交易分析能力。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

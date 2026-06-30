@@ -34,7 +34,7 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain(".trading-detail-chart,");
     expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(680px, 72dvh, 820px);");
     expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 0px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");
@@ -81,7 +81,7 @@ describe("strategy detail page layout contract", () => {
     expect(detailChartStyles).toContain(".backtest-chart-panel");
     expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(680px, 72dvh, 820px);");
     expect(detailChartStyles).toContain("--kline-chart-padding-left: 14px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 0px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");

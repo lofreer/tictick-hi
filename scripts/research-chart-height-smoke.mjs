@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 44);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -572,7 +572,7 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 0 || sample.chartInlineEndGutter > 4) {
+  if (sample.chartInlineEndGutter < 2 || sample.chartInlineEndGutter > 8) {
     throw new Error(
       `${label} chart right gutter is outside the production range: ${JSON.stringify({
         chartInlineEndGutter: sample.chartInlineEndGutter,
