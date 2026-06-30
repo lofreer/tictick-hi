@@ -73,6 +73,8 @@ done            用户确认关闭
 
 补充：阶段 1 K 线图表价格轴可读性在 2026-07-01 继续收紧；新的有效约束覆盖上一段中的旧价格轴字号/宽度阈值：`TradingViewChart` 价格轴 formatter 必须输出完整数值，不允许 `k/K/m/M/b/B` 紧凑缩写；chart 坐标轴字体恢复为桌面/窄桌面 `28px`、移动端 `25px`，覆盖研究页、回测详情和交易详情共用 K 线图表；右侧价格轴 minimumWidth 为桌面 `128px`、窄桌面 `120px`、移动端 `104px`；visual smoke 右侧价格轴最大宽度为 `140px`，坐标轴文字墨迹高度下限为桌面/窄桌面 `20px`、移动端 `18px`，仍继续断言右侧价格轴贴住 viewport 边界、主图 canvas 贴住价格轴左边界且没有额外右侧空白。该证据只收紧 K 线图表可读性合同，不代表图表研究能力已经达到 usable 或具备像素快照基线。
 
+补充：阶段 1 真实 public exchange smoke 在 2026-07-01 继续收紧；`real_exchange_data_sync_integration_test.go` 不再要求真实交易所 public K 线请求第一次运行 runner 必须成功，遇到 temporary EOF / retrying / exchange backoff 时会按任务 `nextAttemptAt` 和 `exchangeBackoffUntil` 做最多 6 次有界恢复尝试，最终仍必须通过 `/api/candles` 读回 3 根 healthy native `1m` K 线才算通过。默认 Binance public smoke 通过；OKX opt-in 在当前环境连续 EOF，直接 `curl https://www.okx.com/api/v5/market/history-candles?...` 也返回 TLS `SSL_ERROR_SYSCALL`，因此该项记录为外部连通性风险，不能作为 OKX 真实外网成功证据。该补充只增强真实 public market data smoke 的恢复语义，不代表私有交易 API、live executor、实盘下单或长期外网压测已完成。
+
 补充：阶段 1 全历史缺口批量 repair API contract 覆盖在 2026-06-30 继续收紧；`POST /api/market/candle-gaps/repair-batch` 已由前端 `dataApi.repairMarketCandleGaps` 使用、后端 OpenAPI contract 声明并由 handler 测试覆盖，本轮把该路由补进 `TestAPIContractCoversCurrentFrontendRoutes` 的前端路由清单，并补进 `TestAPIMethodNotAllowedContracts`，确保未来不会出现前端可调用但 contract / 405 Allow gate 漏检的隐藏写路由。该证据只补契约覆盖，不改变批量 repair 行为、单次上限、active catalog 边界或 data sync worker 调度语义。
 
 ### 阶段 1 研究页图表缺口修复入口收敛补充

@@ -143,11 +143,8 @@ func runRealDataSyncRouteServesNativeCandles(t *testing.T, smoke realExchangeSmo
 			MaxRetryBackoff:   10 * time.Second,
 		},
 	)
-	if err := runner.RunOnce(ctx); err != nil {
-		t.Fatal(err)
-	}
 
-	after := getAPIIntegrationDataSyncTask(t, server, auth, task.ID)
+	after := runRealDataSyncRunnerUntilSucceeded(t, ctx, server, auth, runner, task.ID)
 	if after.Status != data.TaskStatusSucceeded || after.SyncEnabled || after.RealtimeEnabled {
 		t.Fatalf("real data sync task state = %#v, want succeeded one-shot sync", after)
 	}
@@ -182,6 +179,74 @@ func runRealDataSyncRouteServesNativeCandles(t *testing.T, smoke realExchangeSmo
 			end,
 		)
 	}
+}
+
+func runRealDataSyncRunnerUntilSucceeded(
+	t *testing.T,
+	ctx context.Context,
+	server http.Handler,
+	auth *authTestSession,
+	runner *datasync.Runner,
+	taskID string,
+) data.DataSyncTask {
+	t.Helper()
+
+	const maxAttempts = 6
+
+	var after data.DataSyncTask
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err := runner.RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+		after = getAPIIntegrationDataSyncTask(t, server, auth, taskID)
+		if after.Status == data.TaskStatusSucceeded {
+			return after
+		}
+		if after.Status == data.TaskStatusFailed || after.Status == data.TaskStatusCancelled {
+			t.Fatalf("real data sync task reached terminal failure on attempt %d: %#v", attempt, after)
+		}
+		if attempt == maxAttempts {
+			break
+		}
+
+		waitUntil := latestRetryWindow(after.NextAttemptAt, after.ExchangeBackoffUntil)
+		if waitUntil == nil {
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+		wait := time.Until(waitUntil.UTC().Add(100 * time.Millisecond))
+		if wait <= 0 {
+			continue
+		}
+		if wait > 12*time.Second {
+			t.Fatalf("real data sync retry window too far away on attempt %d: wait=%s task=%#v", attempt, wait, after)
+		}
+		t.Logf("real data sync task retrying after temporary market error: attempt=%d wait=%s task=%s health=%s", attempt, wait, after.ID, after.DataHealth)
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			t.Fatal(ctx.Err())
+		case <-timer.C:
+		}
+	}
+
+	t.Fatalf("real data sync task did not recover after bounded retries: %#v", after)
+	return data.DataSyncTask{}
+}
+
+func latestRetryWindow(times ...*time.Time) *time.Time {
+	var latest *time.Time
+	for _, value := range times {
+		if value == nil {
+			continue
+		}
+		current := value.UTC()
+		if latest == nil || current.After(*latest) {
+			latest = &current
+		}
+	}
+	return latest
 }
 
 func upsertRealAPIIntegrationMarketInstrument(
