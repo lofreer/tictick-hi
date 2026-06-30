@@ -1,10 +1,10 @@
 import type {
   CandleGap,
   CandleResult,
-  CreateDataSyncTask,
   DataSyncGapRepairResult,
   DataSyncTask,
   RepairDataSyncTaskGapRequest,
+  RepairMarketCandleGapRequest,
 } from "@/types/app";
 
 export type ResearchForm = {
@@ -140,18 +140,18 @@ export function chartGapRepairRequest(gap: CandleGap): RepairDataSyncTaskGapRequ
   };
 }
 
-export function fallbackGapRepairTask(
+export function marketGapRepairRequest(
   gap: CandleGap,
   exchange: string,
   symbol: string,
   interval: string,
-): CreateDataSyncTask {
+): RepairMarketCandleGapRequest {
   return {
     exchange,
     symbol,
     interval,
-    startTime: gap.from,
-    endTime: gap.to,
+    from: gap.from,
+    to: gap.to,
   };
 }
 

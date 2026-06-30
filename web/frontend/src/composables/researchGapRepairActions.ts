@@ -3,7 +3,7 @@ import type { CandleGap, DataSyncTask } from "@/types/app";
 
 import {
   chartGapRepairRequest,
-  fallbackGapRepairTask,
+  marketGapRepairRequest,
   repairResultMessageKey,
 } from "./researchWorkspaceHelpers";
 
@@ -23,10 +23,8 @@ export async function repairChartGap(options: RepairChartGapOptions) {
     const result = await dataApi.repairTaskGap(sourceTask.id, chartGapRepairRequest(gap));
     onSuccess(repairResultMessageKey(result));
   } else {
-    const request = fallbackGapRepairTask(gap, exchange, symbol, repairInterval);
-    const task = await dataApi.createTask(request);
-    await dataApi.setSync(task.id, true);
-    onSuccess("research.gapRepairQueued");
+    const result = await dataApi.repairMarketCandleGap(marketGapRepairRequest(gap, exchange, symbol, repairInterval));
+    onSuccess(repairResultMessageKey(result));
   }
   await loadTasks();
 }

@@ -65,6 +65,30 @@ done            用户确认关闭
 
 补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面/窄桌面 `96px`、移动端 `92px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/2px`、窄桌面 `12px/2px`、移动端 `10px/2px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；右侧价格轴 minimumWidth 为 `32/34/36px`，价格标签保持完整数值显示，chart 字体为桌面/窄桌面 `7px`、移动端 `8px`，visual smoke 同时断言 symbol 最大宽度 `100px`、工具栏控件最大宽度 `500px`、工具栏高度最大 `72px`、右侧价格轴最大宽度 `48px`、主图占比下限桌面 `96%` / 窄桌面 `94%` / 移动端 `87%`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
 
+### 阶段 1 研究页图表缺口修复入口收敛补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- 研究页图表“修复首个缺口”在没有选中源 data sync task 时，不再由前端手工创建普通同步任务并启动 sync。
+- 该入口改为调用后端全历史 market gap repair API，由后端验证请求窗口是真实已落库相邻缺口，并复用 `skippedExisting` / `createdTasks` / `repairLimit` 的返回语义。
+- 已选中且匹配当前 market/base interval 的源任务时，仍优先调用任务窗口 `repair-gap` API，保留 `repairSourceTaskId`。
+- 前端单元测试覆盖无源任务图表缺口修复必须走 `repairMarketCandleGap`，且不再调用 `createTask` / `setSync`。
+
+范围外：
+
+- 不实现自动批量修复所有全历史缺口。
+- 不新增后端 repair API 或改变补同步任务调度语义。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+剩余风险：
+
+- 该入口只修复图表首个缺口，仍依赖用户手动触发和后续 data sync worker 成功写回。
+- 真实交易所返回缺失窗口为空或异常时，仍需要现有失败/重试/数据健康路径暴露。
+
 ### 阶段 1 instrument catalog 同步调度锁补充
 
 执行日期：2026-06-30

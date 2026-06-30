@@ -13,6 +13,7 @@ const dataApiMocks = vi.hoisted(() => ({
   getCandles: vi.fn(),
   getTaskGaps: vi.fn(),
   listTasks: vi.fn(),
+  repairMarketCandleGap: vi.fn(),
   repairTaskGap: vi.fn(),
   repairTaskGaps: vi.fn(),
   retryTask: vi.fn(),
@@ -67,6 +68,14 @@ describe("useResearchWorkspace", () => {
       repairLimit: 20,
     });
     dataApiMocks.createTask.mockResolvedValue({ id: "dst_repair" });
+    dataApiMocks.repairMarketCandleGap.mockResolvedValue({
+      sourceTaskId: "",
+      createdTasks: [{ id: "dst_market_repair_1" }],
+      skippedExisting: 0,
+      limited: false,
+      totalCount: 1,
+      repairLimit: 1,
+    });
     dataApiMocks.repairTaskGap.mockResolvedValue({
       sourceTaskId: "dst_source_1",
       createdTasks: [{ id: "dst_repair_1" }],
@@ -97,7 +106,7 @@ describe("useResearchWorkspace", () => {
     ]);
   });
 
-  it("queues a sync task for the first chart gap using the base interval", async () => {
+  it("repairs the first chart gap through validated market gap repair when no source task is selected", async () => {
     dataApiMocks.getCandles.mockResolvedValue(
       candleResult({
         baseInterval: "1m",
@@ -113,14 +122,15 @@ describe("useResearchWorkspace", () => {
     await workspace.repairFirstGap();
     await flushPromises();
 
-    expect(dataApi.createTask).toHaveBeenCalledWith({
+    expect(dataApi.repairMarketCandleGap).toHaveBeenCalledWith({
       exchange: "binance",
       symbol: "BTCUSDT",
       interval: "1m",
-      startTime: "2026-06-28T00:01:00Z",
-      endTime: "2026-06-28T00:03:00Z",
+      from: "2026-06-28T00:01:00Z",
+      to: "2026-06-28T00:03:00Z",
     });
-    expect(dataApi.setSync).toHaveBeenCalledWith("dst_repair", true);
+    expect(dataApi.createTask).not.toHaveBeenCalled();
+    expect(dataApi.setSync).not.toHaveBeenCalled();
     expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
     expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
   });
@@ -514,6 +524,7 @@ describe("useResearchWorkspace", () => {
 
     expect(dataApi.createTask).not.toHaveBeenCalled();
     expect(dataApi.repairTaskGap).not.toHaveBeenCalled();
+    expect(dataApi.repairMarketCandleGap).not.toHaveBeenCalled();
     expect(dataApi.setSync).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledWith("当前没有可修复缺口。");
   });
