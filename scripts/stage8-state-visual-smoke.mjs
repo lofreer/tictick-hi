@@ -12,6 +12,7 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 600);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
+const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 6 * 60 * 1000);
 
 const viewports = [
   { label: "desktop-1440x900", metrics: { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false } },
@@ -155,11 +156,23 @@ const stateCases = [
 
 let chrome = null;
 let chromeProfileDir = null;
+let smokeTimedOut = false;
+const activeSockets = new Set();
 
 process.once("SIGINT", () => shutdownFromSignal("SIGINT", 130));
 process.once("SIGTERM", () => shutdownFromSignal("SIGTERM", 143));
 
 try {
+  await withTotalTimeout(runSmoke(), totalTimeoutMs, "stage8 state visual smoke");
+} catch (error) {
+  console.error("stage8 state visual smoke failed");
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+} finally {
+  cleanupChrome();
+}
+
+async function runSmoke() {
   const endpoint = process.env.CDP_ENDPOINT ?? (await launchChrome());
   const results = [];
   for (const viewport of viewports) {
@@ -176,12 +189,6 @@ try {
     );
   }
   console.log("stage8 state visual smoke passed");
-} catch (error) {
-  console.error("stage8 state visual smoke failed");
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-} finally {
-  cleanupChrome();
 }
 
 async function runStatePass(endpoint, viewport, theme, locale) {
@@ -611,6 +618,7 @@ function assertVisibleNode(label, name, node) {
 async function launchChrome() {
   const chromePath = findChromePath();
   const port = await findOpenPort(parsePositiveInt(process.env.CHROME_REMOTE_DEBUGGING_PORT, 9235));
+  if (smokeTimedOut) throw new Error("stage8 state visual smoke aborted after total timeout");
   chromeProfileDir = fs.mkdtempSync(path.join(os.tmpdir(), "tictick-hi-state-visual-smoke-"));
   chrome = spawn(
     chromePath,
@@ -632,6 +640,7 @@ async function launchChrome() {
   const endpoint = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
+    if (smokeTimedOut) throw new Error("stage8 state visual smoke aborted after total timeout");
     try {
       const response = await fetch(`${endpoint}/json/version`);
       if (response.ok) return endpoint;
@@ -686,6 +695,8 @@ async function createPage(endpoint, url) {
 
 function connect(wsUrl) {
   const ws = new WebSocket(wsUrl);
+  activeSockets.add(ws);
+  ws.addEventListener("close", () => activeSockets.delete(ws), { once: true });
   let nextId = 0;
   const pending = new Map();
   const handlers = new Map();
@@ -779,13 +790,43 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withTotalTimeout(promise, timeoutMs, label) {
+  let timeout;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          smokeTimedOut = true;
+          cleanupChrome();
+          reject(new Error(`${label} exceeded total timeout ${timeoutMs}ms`));
+        }, timeoutMs);
+        timeout.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+    promise.catch(() => {
+      // Timeout cleanup can reject the still-unwinding browser flow after the race settles.
+    });
+  }
+}
+
 function cleanupChrome() {
+  for (const socket of activeSockets) {
+    try {
+      socket.close();
+    } catch {
+      // Best-effort cleanup; Chrome process cleanup follows.
+    }
+  }
+  activeSockets.clear();
   if (chrome) {
     chrome.kill("SIGTERM");
     chrome = null;
   }
   if (chromeProfileDir) {
-    fs.rmSync(chromeProfileDir, { recursive: true, force: true });
+    fs.rmSync(chromeProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     chromeProfileDir = null;
   }
 }

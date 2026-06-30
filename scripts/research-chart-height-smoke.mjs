@@ -17,6 +17,7 @@ const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
+const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 5 * 60 * 1000);
 
 const viewports = [
   {
@@ -36,11 +37,23 @@ const viewports = [
 
 let chrome = null;
 let chromeProfileDir = null;
+let smokeTimedOut = false;
+const activeSockets = new Set();
 
 process.once("SIGINT", () => shutdownFromSignal("SIGINT", 130));
 process.once("SIGTERM", () => shutdownFromSignal("SIGTERM", 143));
 
 try {
+  await withTotalTimeout(runSmoke(), totalTimeoutMs, "research chart height smoke");
+} catch (error) {
+  console.error("research chart height smoke failed");
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+} finally {
+  cleanupChrome();
+}
+
+async function runSmoke() {
   const endpoint = process.env.CDP_ENDPOINT ?? (await launchChrome());
   const results = [];
   for (const viewport of viewports) {
@@ -60,12 +73,6 @@ try {
     );
   }
   console.log("research chart height smoke passed");
-} catch (error) {
-  console.error("research chart height smoke failed");
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-} finally {
-  cleanupChrome();
 }
 
 async function runViewport(endpoint, viewport) {
@@ -140,6 +147,7 @@ async function runViewport(endpoint, viewport) {
 async function launchChrome() {
   const chromePath = findChromePath();
   const port = await findOpenPort(parsePositiveInt(process.env.CHROME_REMOTE_DEBUGGING_PORT, 9223));
+  if (smokeTimedOut) throw new Error("research chart height smoke aborted after total timeout");
   chromeProfileDir = fs.mkdtempSync(path.join(os.tmpdir(), "tictick-hi-chart-smoke-"));
   chrome = spawn(
     chromePath,
@@ -161,6 +169,7 @@ async function launchChrome() {
   const endpoint = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
+    if (smokeTimedOut) throw new Error("research chart height smoke aborted after total timeout");
     try {
       const response = await fetch(`${endpoint}/json/version`);
       if (response.ok) return endpoint;
@@ -228,6 +237,8 @@ async function closePage(endpoint, targetId) {
 
 function connect(wsUrl) {
   const ws = new WebSocket(wsUrl);
+  activeSockets.add(ws);
+  ws.addEventListener("close", () => activeSockets.delete(ws), { once: true });
   let nextId = 0;
   const pending = new Map();
   const handlers = new Map();
@@ -839,7 +850,37 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withTotalTimeout(promise, timeoutMs, label) {
+  let timeout;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          smokeTimedOut = true;
+          cleanupChrome();
+          reject(new Error(`${label} exceeded total timeout ${timeoutMs}ms`));
+        }, timeoutMs);
+        timeout.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+    promise.catch(() => {
+      // Timeout cleanup can reject the still-unwinding browser flow after the race settles.
+    });
+  }
+}
+
 function cleanupChrome() {
+  for (const socket of activeSockets) {
+    try {
+      socket.close();
+    } catch {
+      // Best-effort cleanup; Chrome process cleanup follows.
+    }
+  }
+  activeSockets.clear();
   if (chrome) {
     chrome.kill("SIGTERM");
     chrome = null;

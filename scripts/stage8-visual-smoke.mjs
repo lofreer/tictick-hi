@@ -17,6 +17,7 @@ const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_C
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
+const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 10 * 60 * 1000);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
 
@@ -46,11 +47,23 @@ const pages = [
 
 let chrome = null;
 let chromeProfileDir = null;
+let smokeTimedOut = false;
+const activeSockets = new Set();
 
 process.once("SIGINT", () => shutdownFromSignal("SIGINT", 130));
 process.once("SIGTERM", () => shutdownFromSignal("SIGTERM", 143));
 
 try {
+  await withTotalTimeout(runSmoke(), totalTimeoutMs, "stage8 visual smoke");
+} catch (error) {
+  console.error("stage8 visual smoke failed");
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+} finally {
+  cleanupChrome();
+}
+
+async function runSmoke() {
   const endpoint = process.env.CDP_ENDPOINT ?? (await launchChrome());
   const results = [];
   for (const viewport of viewports) {
@@ -67,12 +80,6 @@ try {
     );
   }
   console.log("stage8 visual smoke passed");
-} catch (error) {
-  console.error("stage8 visual smoke failed");
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-} finally {
-  cleanupChrome();
 }
 
 async function runVisualPass(endpoint, viewport, theme, locale) {
@@ -718,6 +725,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
 async function launchChrome() {
   const chromePath = findChromePath();
   const port = await findOpenPort(parsePositiveInt(process.env.CHROME_REMOTE_DEBUGGING_PORT, 9233));
+  if (smokeTimedOut) throw new Error("stage8 visual smoke aborted after total timeout");
   chromeProfileDir = fs.mkdtempSync(path.join(os.tmpdir(), "tictick-hi-visual-smoke-"));
   chrome = spawn(
     chromePath,
@@ -739,6 +747,7 @@ async function launchChrome() {
   const endpoint = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
+    if (smokeTimedOut) throw new Error("stage8 visual smoke aborted after total timeout");
     try {
       const response = await fetch(`${endpoint}/json/version`);
       if (response.ok) return endpoint;
@@ -806,6 +815,8 @@ async function closePage(endpoint, targetId) {
 
 function connect(wsUrl) {
   const ws = new WebSocket(wsUrl);
+  activeSockets.add(ws);
+  ws.addEventListener("close", () => activeSockets.delete(ws), { once: true });
   let nextId = 0;
   const pending = new Map();
   const handlers = new Map();
@@ -901,13 +912,43 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function withTotalTimeout(promise, timeoutMs, label) {
+  let timeout;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          smokeTimedOut = true;
+          cleanupChrome();
+          reject(new Error(`${label} exceeded total timeout ${timeoutMs}ms`));
+        }, timeoutMs);
+        timeout.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+    promise.catch(() => {
+      // Timeout cleanup can reject the still-unwinding browser flow after the race settles.
+    });
+  }
+}
+
 function cleanupChrome() {
+  for (const socket of activeSockets) {
+    try {
+      socket.close();
+    } catch {
+      // Best-effort cleanup; Chrome process cleanup follows.
+    }
+  }
+  activeSockets.clear();
   if (chrome) {
     chrome.kill("SIGTERM");
     chrome = null;
   }
   if (chromeProfileDir) {
-    fs.rmSync(chromeProfileDir, { recursive: true, force: true });
+    fs.rmSync(chromeProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     chromeProfileDir = null;
   }
 }

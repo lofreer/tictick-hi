@@ -140,6 +140,31 @@ done            用户确认关闭
 - 该指标只证明锁竞争可观察，不提供共享交易所额度、调度公平性或容量自适应。
 - 仍缺真实外部交易所网络恢复压测和多实例长期运行证据。
 
+### 阶段 8 browser smoke 全局超时补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- `scripts/stage8-visual-smoke.mjs`、`scripts/stage8-state-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 增加 `SMOKE_TOTAL_TIMEOUT_MS` 总运行时限。
+- 总超时时会打印明确失败原因，关闭已建立的 CDP WebSocket，停止本脚本拉起的 headless Chrome，并清理临时 Chrome profile。
+- 保留原有 per-selector / per-sample 等细粒度等待超时，不改变视觉断言语义。
+- 超时清理后仍在 unwind 的浏览器流程 reject 会被抑制，避免 Node 进程出现未处理拒绝。
+
+范围外：
+
+- 不新增像素快照基线。
+- 不把 browser smoke 升级为多浏览器视觉回归。
+- 不把视觉 smoke 改成 CI 独立硬门禁。
+- 不修正业务页面布局或产品语义。
+
+剩余风险：
+
+- browser smoke 仍依赖本地 API、数据状态和 headless Chrome 环境；正常全量通过不等于多浏览器像素级无回归。
+- 总超时只能防止脚本无限挂起，不能替代后续视觉基线、真实数据状态覆盖和长期运行验证。
+
 ## 3. 必须先修的问题
 
 ### 阶段 0 Definition of Done：质量底座
