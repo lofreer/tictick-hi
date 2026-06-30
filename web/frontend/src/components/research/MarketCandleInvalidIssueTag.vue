@@ -120,12 +120,14 @@ watch(
   { immediate: true },
 );
 
-async function loadScan() {
+async function loadScan(options: { clearRepairResult?: boolean } = {}) {
   const seq = ++requestSeq;
   loading.value = true;
   error.value = "";
   repairError.value = false;
-  repairResult.value = null;
+  if (options.clearRepairResult ?? true) {
+    repairResult.value = null;
+  }
   scan.value = null;
   try {
     const result = await dataApi.scanMarketCandleInvalidIssues({
@@ -156,6 +158,7 @@ async function repairReturnedIssues() {
     });
     repairResult.value = result;
     emit("repaired");
+    await loadScan({ clearRepairResult: false });
   } catch (repairFailure) {
     repairError.value = true;
   } finally {

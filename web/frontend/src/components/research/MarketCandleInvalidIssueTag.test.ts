@@ -117,6 +117,7 @@ describe("MarketCandleInvalidIssueTag", () => {
       `${formatCompactDateTime("2026-06-27T03:01:00Z")} - ${formatCompactDateTime("2026-06-27T03:02:00Z")}`,
     );
     expect(wrapper.findComponent(MarketCandleInvalidIssueTag).emitted("repaired")).toHaveLength(1);
+    expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
   });
 
   it("does not expose raw provider URLs when full-history invalid repair fails", async () => {
