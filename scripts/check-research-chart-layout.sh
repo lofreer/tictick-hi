@@ -11,6 +11,7 @@ CHART_CSS="$ROOT_DIR/web/frontend/src/components/chart/TradingViewChart.css"
 CHART_VUE="$ROOT_DIR/web/frontend/src/components/chart/TradingViewChart.vue"
 THEME_TOKENS="$ROOT_DIR/web/frontend/src/theme/tokens.ts"
 CHART_SMOKE="$ROOT_DIR/scripts/research-chart-height-smoke.mjs"
+QUALITY_AUDIT="$ROOT_DIR/docs/quality-audit.md"
 
 fail() {
   echo "research chart layout check failed: $1" >&2
@@ -156,6 +157,12 @@ require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 25;"
 require_contains "$THEME_TOKENS" "desktop: 128,"
 require_contains "$THEME_TOKENS" "narrowDesktop: 120,"
 require_contains "$THEME_TOKENS" "mobile: 104,"
+require_contains "$QUALITY_AUDIT" '坐标轴字体恢复为桌面/窄桌面 `28px`、移动端 `25px`'
+require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `140px`'
+require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度桌面/窄桌面不低于 `20px` 且移动端不低于 `18px`'
+require_not_contains "$QUALITY_AUDIT" '坐标轴字体统一 `14px`'
+require_not_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `84px`'
+require_not_contains "$QUALITY_AUDIT" '右侧价格轴超过 `84px`'
 require_contains "$CHART_VUE" "if (lastSize.width <= 480) return chartMobileAxisFontSize;"
 require_contains "$CHART_VUE" "fontSize: chartFontSize(),"
 require_contains "$CHART_VUE" "minimumWidth: rightPriceScaleMinimumWidth(),"
