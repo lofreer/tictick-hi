@@ -31,6 +31,10 @@ func (store *Store) RepairMarketCandleGap(
 	}
 	defer tx.Rollback(ctx)
 
+	if err := ensureRepairMarketActive(ctx, tx, request.Exchange, request.Symbol); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+
 	window, ok, err := marketCandleRepairWindow(ctx, tx, request, intervalDuration)
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err
@@ -81,6 +85,10 @@ func (store *Store) RepairMarketCandleGaps(
 		return data.DataSyncGapRepairResult{}, fmt.Errorf("begin repair market candle gaps: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	if err := ensureRepairMarketActive(ctx, tx, request.Exchange, request.Symbol); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 
 	result := data.DataSyncGapRepairResult{
 		CreatedTasks: []data.DataSyncTask{},

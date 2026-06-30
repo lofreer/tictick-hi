@@ -64,6 +64,31 @@ func dropPositivePriceConstraint(t *testing.T, ctx context.Context, store *Store
 	}
 }
 
+func dropOHLCBoundsConstraint(t *testing.T, ctx context.Context, store *Store) {
+	t.Helper()
+	if _, err := store.pool.Exec(ctx, `
+		ALTER TABLE market_candles
+		DROP CONSTRAINT IF EXISTS market_candles_ohlc_bounds_check`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func ensureOHLCBoundsConstraint(t *testing.T, ctx context.Context, store *Store) {
+	t.Helper()
+	if _, err := store.pool.Exec(ctx, `
+		ALTER TABLE market_candles
+		DROP CONSTRAINT IF EXISTS market_candles_ohlc_bounds_check`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		ALTER TABLE market_candles
+		ADD CONSTRAINT market_candles_ohlc_bounds_check
+		CHECK (high >= GREATEST(open, close, low) AND low <= LEAST(open, close, high))
+		NOT VALID`); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func ensurePositivePriceConstraint(t *testing.T, ctx context.Context, store *Store) {
 	t.Helper()
 	if _, err := store.pool.Exec(ctx, `

@@ -145,8 +145,10 @@ func TestIntegrationRepairMarketCandleInvalidIssuesCreatesSyncTasks(t *testing.T
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 		ensurePositivePriceConstraint(t, cleanupCtx, store)
 	})
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 0))
 	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(time.Minute))
 	insertLegacyInvalidCloseDataHealthCandle(t, ctx, store, symbol, start.Add(2*time.Minute))
@@ -199,8 +201,10 @@ func TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan(t *te
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 		ensurePositivePriceConstraint(t, cleanupCtx, store)
 	})
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 0))
 	insertLegacyInvalidDataHealthCandle(t, ctx, store, symbol, start.Add(time.Minute))
 	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 2))
@@ -319,7 +323,9 @@ func TestIntegrationRepairMarketCandleGapCreatesSyncTask(t *testing.T) {
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 	})
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	for _, minute := range []int{0, 1, 4} {
 		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
 	}
@@ -423,7 +429,9 @@ func TestIntegrationRepairMarketCandleGapIgnoresSoftDeletedRepairTask(t *testing
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 	})
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	for _, minute := range []int{0, 1, 4} {
 		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
 	}
@@ -521,7 +529,9 @@ func TestIntegrationRepairMarketCandleGapsCreatesSyncTasks(t *testing.T) {
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 	})
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	for _, minute := range []int{0, 1, 3, 6} {
 		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
 	}
@@ -576,7 +586,9 @@ func TestIntegrationRepairMarketCandleGapsRollsBackWhenAnyGapIsInvalid(t *testin
 		defer cleanupCancel()
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 	})
+	upsertIntegrationMarketInstrument(t, ctx, store, "binance", symbol, "active")
 	for _, minute := range []int{0, 1, 3, 6} {
 		insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, minute))
 	}

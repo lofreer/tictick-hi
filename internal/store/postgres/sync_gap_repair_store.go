@@ -202,6 +202,15 @@ func ensureDataSyncRepairSourceMarketActive(
 	queryer dataSyncGapQueryer,
 	source data.DataSyncTask,
 ) error {
+	return ensureRepairMarketActive(ctx, queryer, source.Exchange, source.Symbol)
+}
+
+func ensureRepairMarketActive(
+	ctx context.Context,
+	queryer dataSyncGapQueryer,
+	exchange string,
+	symbol string,
+) error {
 	var active bool
 	if err := queryer.QueryRow(ctx, `
 		SELECT EXISTS (
@@ -211,10 +220,10 @@ func ensureDataSyncRepairSourceMarketActive(
 			   AND symbol = $2
 			   AND status = 'active'
 		)`,
-		source.Exchange,
-		strings.ToUpper(strings.TrimSpace(source.Symbol)),
+		exchange,
+		strings.ToUpper(strings.TrimSpace(symbol)),
 	).Scan(&active); err != nil {
-		return fmt.Errorf("check repair source market instrument: %w", err)
+		return fmt.Errorf("check repair market instrument: %w", err)
 	}
 	if !active {
 		return data.MarketInstrumentNotActiveError()

@@ -88,11 +88,11 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 	}
 	if issues.TaskID != taskID ||
 		issues.Limited ||
-		issues.TotalCount != 2 ||
-		issues.ReturnedCount != 2 ||
+		issues.TotalCount != 3 ||
+		issues.ReturnedCount != 3 ||
 		issues.IssueLimit != maxDataSyncInvalidIssues ||
 		issues.Offset != 0 ||
-		len(issues.Issues) != 2 {
+		len(issues.Issues) != 3 {
 		t.Fatalf("unexpected invalid issue list: %#v", issues)
 	}
 	issue := issues.Issues[0]
@@ -111,8 +111,8 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	if secondPage.TaskID != taskID ||
-		secondPage.Limited ||
-		secondPage.TotalCount != 2 ||
+		!secondPage.Limited ||
+		secondPage.TotalCount != 3 ||
 		secondPage.ReturnedCount != 1 ||
 		secondPage.IssueLimit != 1 ||
 		secondPage.Offset != 1 ||
@@ -238,6 +238,9 @@ func insertLegacyInvalidDataHealthCandle(t *testing.T, ctx context.Context, stor
 func insertLegacyInvalidCloseDataHealthCandle(t *testing.T, ctx context.Context, store *Store, symbol string, openTime time.Time) {
 	t.Helper()
 	dropPositivePriceConstraint(t, ctx, store)
+	dropOHLCBoundsConstraint(t, ctx, store)
+	defer ensurePositivePriceConstraint(t, ctx, store)
+	defer ensureOHLCBoundsConstraint(t, ctx, store)
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO market_candles (
 			exchange, symbol, interval, open_time, close_time,
@@ -250,5 +253,4 @@ func insertLegacyInvalidCloseDataHealthCandle(t *testing.T, ctx context.Context,
 	); err != nil {
 		t.Fatal(err)
 	}
-	ensurePositivePriceConstraint(t, ctx, store)
 }

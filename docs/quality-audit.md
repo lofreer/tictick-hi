@@ -8756,6 +8756,49 @@ Definition of Done：
 - data sync 仍缺完整统一状态机、自动批量补全、真实交易所长期恢复压测和多实例共享限流。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 全历史 market repair active catalog store 守卫补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- 全历史 `RepairMarketCandleGap`、`RepairMarketCandleGaps` 和 `RepairMarketCandleInvalidIssues` 在同一 PostgreSQL 事务内先校验 `market_instruments` exact active 记录。
+- 该校验下沉到 store 层共享 helper，直接调用 store 时也不能绕过 API 层 active market 守卫。
+- inactive 或 missing market 会返回 `market_instrument_not_active` 领域错误，且不会插入 `data_sync_tasks` 补同步任务。
+- 成功 repair 的 PostgreSQL fixture 明确插入 active instrument，避免测试依赖无 catalog 市场。
+- legacy invalid close 测试 fixture 临时放开并恢复 OHLC bounds 约束，使真实 PostgreSQL 中历史异常 close 行可被扫描和分页测试覆盖。
+
+范围外：
+
+- 不实现自动批量修复。
+- 不改变 worker 调度、repair 上限或已存在的 API 请求/响应语义。
+- 不推进实盘交易所私有 API、live executor、订单提交、撤单、查单或幂等实盘下单。
+
+当前验证：
+
+- 真实 PostgreSQL targeted 测试通过：`TestIntegrationRepairMarketCandleInvalidIssuesCreatesSyncTasks`、`TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan`、`TestIntegrationRepairMarketCandleGapCreatesSyncTask`、`TestIntegrationMarketCandleRepairsRequireActiveMarketInstrument`、`TestIntegrationRepairMarketCandleGapIgnoresSoftDeletedRepairTask`、`TestIntegrationRepairMarketCandleGapsCreatesSyncTasks`、`TestIntegrationRepairMarketCandleGapsRollsBackWhenAnyGapIsInvalid` 和 `TestIntegrationListDataSyncTasksReportsInvalidCandleHealth`。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：32 个测试文件、158 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+失败项：
+
+- 首次宿主 targeted 集成测试因未设置 `TICTICK_TEST_DATABASE_URL` 被跳过；已改用当前 Docker Compose PostgreSQL 容器所在 network 运行真实 PostgreSQL targeted 测试。
+- 首次真实 PostgreSQL targeted 测试暴露 legacy invalid close fixture 会违反 `market_candles_ohlc_bounds_check`；已为该测试 helper 临时放开并恢复 OHLC bounds 约束。
+- 随后真实 PostgreSQL targeted 测试暴露 invalid issue 列表旧断言只期望 2 条；已修正为覆盖 3 条历史异常和分页 `Limited=true` 语义。
+- 首次 `scripts/quality-gate.sh` 失败于 `market_candle_gap_store_integration_test.go` 超过 700 行；已把新增 active catalog 守卫测试拆到独立文件并复跑通过。
+
+剩余风险：
+
+- 该守卫只证明补同步任务排队边界收紧，不代表自动修复、真实交易所一定返回缺失数据或长期多实例同步已验证。
+- data sync 仍缺完整统一状态机、自动批量补全、真实交易所长期恢复压测和多实例共享限流。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -162,6 +162,10 @@ func (store *Store) RepairMarketCandleInvalidIssues(
 	}
 	defer tx.Rollback(ctx)
 
+	if err := ensureRepairMarketActive(ctx, tx, request.Exchange, request.Symbol); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+
 	result := data.DataSyncGapRepairResult{
 		CreatedTasks: []data.DataSyncTask{},
 		TotalCount:   len(request.OpenTimes),
