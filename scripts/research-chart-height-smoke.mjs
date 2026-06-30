@@ -15,7 +15,7 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 42);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 
 const viewports = [
@@ -348,7 +348,7 @@ function sampleExpression() {
       });
       const canvases = canvasEntries.map((entry) => entry.metrics);
       const rightAxisCanvas = canvases
-        .filter((canvas) => canvas.rectWidth >= 40 && canvas.rectWidth <= 180)
+        .filter((canvas) => canvas.rectWidth >= 24 && canvas.rectWidth <= 180)
         .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
         .sort((left, right) => right.right - left.right)[0] ?? null;
       const mainPaneCanvases = canvases
@@ -601,6 +601,19 @@ function assertChartLayout(label, sample) {
         body,
         tv,
         mainPaneCanvas,
+      })}`,
+    );
+  }
+  const mainPaneShare = mainPaneCanvas.rectWidth / tv.rectWidth;
+  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.87 : sample.viewportWidth <= 980 ? 0.94 : 0.96;
+  if (mainPaneShare < minimumMainPaneShare) {
+    throw new Error(
+      `${label} main pane does not use enough chart width: ${JSON.stringify({
+        minimumMainPaneShare,
+        mainPaneShare,
+        body,
+        mainPaneCanvas,
+        rightAxisCanvas,
       })}`,
     );
   }

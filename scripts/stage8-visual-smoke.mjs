@@ -12,10 +12,10 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 124);
-const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 560);
-const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 76);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 42);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
+const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
+const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
@@ -554,6 +554,19 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       `${label} main chart pane starts outside the chart viewport: ${JSON.stringify({
         mainPane: sample.mainPaneCanvas,
         chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+  const mainPaneShare = sample.mainPaneCanvas.rectWidth / sample.chartViewport.rectWidth;
+  const minimumMainPaneShare = viewport.width <= 760 ? 0.87 : viewport.width <= 980 ? 0.94 : 0.96;
+  if (mainPaneShare < minimumMainPaneShare) {
+    throw new Error(
+      `${label} main chart pane does not use enough of the fixed viewport: ${JSON.stringify({
+        minimumMainPaneShare,
+        mainPaneShare,
+        mainPane: sample.mainPaneCanvas,
+        chartViewport: sample.chartViewport,
+        priceAxis: sample.priceAxisCanvas,
       })}`,
     );
   }

@@ -58,7 +58,7 @@
   gap: 6px 12px;
   min-width: 0;
   max-width: 100%;
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -74,7 +74,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 104px 112px 30px 58px max-content;
+  grid-template-columns: 96px 96px 28px 52px max-content;
   align-items: center;
   gap: 6px;
   width: max-content;
@@ -162,28 +162,28 @@
 }
 
 .research-select--exchange {
-  width: 104px;
+  width: 96px;
 }
 
 .research-symbol-input {
-  width: 112px;
-  max-width: 112px;
-  flex: 0 0 112px;
+  width: 96px;
+  max-width: 96px;
+  flex: 0 0 96px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: 112px;
-  max-width: 112px;
+  width: 96px;
+  max-width: 96px;
 }
 
 .research-refresh-button {
-  width: 30px;
-  min-width: 30px;
+  width: 28px;
+  min-width: 28px;
 }
 
 .research-select--compact {
-  width: 58px;
+  width: 52px;
 }
 
 .research-source-controls .market-symbol-autocomplete {
@@ -192,7 +192,7 @@
 
 .research-source-controls .n-base-selection,
 .research-source-controls .n-input {
-  --n-height: 30px;
+  --n-height: 28px;
 }
 
 .research-source-controls .market-symbol-autocomplete__input {
@@ -202,7 +202,7 @@
 
 .research-source-controls .n-base-selection-label,
 .research-source-controls .n-input-wrapper {
-  min-height: 30px;
+  min-height: 28px;
 }
 
 .research-modal {
@@ -237,29 +237,29 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 92px 104px 30px 54px max-content;
+    grid-template-columns: 88px 92px 28px 50px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 92px;
+    width: 88px;
   }
 
   .research-select--compact {
-    width: 54px;
+    width: 50px;
   }
 
   .research-symbol-input {
-    width: 104px;
-    max-width: 104px;
-    flex-basis: 104px;
+    width: 92px;
+    max-width: 92px;
+    flex-basis: 92px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 104px;
-    max-width: 104px;
+    width: 92px;
+    max-width: 92px;
   }
 
   .research-toolbar-status {
@@ -299,25 +299,25 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 96px 108px 30px 54px max-content;
+    grid-template-columns: 92px 96px 28px 50px max-content;
   }
 
   .research-select--exchange {
-    width: 96px;
+    width: 92px;
   }
 
   .research-symbol-input {
-    width: 108px;
-    max-width: 108px;
-    flex-basis: 108px;
+    width: 96px;
+    max-width: 96px;
+    flex-basis: 96px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 108px;
-    max-width: 108px;
+    width: 96px;
+    max-width: 96px;
   }
 
   .research-select--compact {
-    width: 54px;
+    width: 50px;
   }
 }

@@ -71,10 +71,10 @@ describe("ResearchPage chart layout contract", () => {
     expect(frameViewportChartStyle).toContain("width: 100%;");
     expect(toolbarStyle).toContain("display: grid;");
     expect(toolbarStyle).toContain("grid-template-columns: max-content minmax(0, 1fr);");
-    expect(toolbarStyle).toContain("padding: 8px 12px;");
+    expect(toolbarStyle).toContain("padding: 7px 12px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: grid;");
-    expect(controlsStyle).toContain("grid-template-columns: 104px 112px 30px 58px max-content;");
+    expect(controlsStyle).toContain("grid-template-columns: 96px 96px 28px 52px max-content;");
     expect(controlsStyle).toContain("width: max-content;");
     expect(controlsStyle).toContain("overflow-x: auto;");
     expect(statusStyle).toContain("justify-content: flex-start;");
@@ -120,10 +120,10 @@ describe("ResearchPage chart layout contract", () => {
     expect(klineChartStyles).toContain("--kline-chart-padding-right: 2px;");
     expect(pageStyles).not.toContain("--kline-chart-plot-height: 700px;");
     expect(pageStyles).not.toContain("--kline-chart-padding-left: 12px;");
-    expect(pageStyles).toContain("grid-template-columns: 104px 112px 30px 58px max-content;");
-    expect(pageStyles).toContain("width: 112px;");
-    expect(pageStyles).toContain("grid-template-columns: 96px 108px 30px 54px max-content;");
-    expect(pageStyles).toContain("grid-template-columns: 92px 104px 30px 54px max-content;");
+    expect(pageStyles).toContain("grid-template-columns: 96px 96px 28px 52px max-content;");
+    expect(pageStyles).toContain("width: 96px;");
+    expect(pageStyles).toContain("grid-template-columns: 92px 96px 28px 50px max-content;");
+    expect(pageStyles).toContain("grid-template-columns: 88px 92px 28px 50px max-content;");
     expect(pageStyles).toContain("width: 100%;");
     expect(pageStyles).toContain("max-width: min(220px, 24vw);");
     expect(pageStyles).toContain("overflow-x: auto;");
