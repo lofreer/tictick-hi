@@ -18,11 +18,13 @@ func TestIntegrationSaveDataSyncResultRequiresRunningActiveLease(t *testing.T) {
 		name     string
 		status   data.TaskStatus
 		lockedBy string
+		workerID string
 		expire   bool
 	}{
-		{name: "pending task", status: data.TaskStatusPending},
-		{name: "running without lease", status: data.TaskStatusRunning},
-		{name: "running expired lease", status: data.TaskStatusRunning, lockedBy: "stale-save-worker", expire: true},
+		{name: "pending task", status: data.TaskStatusPending, workerID: "save-state-worker"},
+		{name: "running without lease", status: data.TaskStatusRunning, workerID: "save-state-worker"},
+		{name: "running expired lease", status: data.TaskStatusRunning, lockedBy: "stale-save-worker", workerID: "stale-save-worker", expire: true},
+		{name: "running different worker lease", status: data.TaskStatusRunning, lockedBy: "owner-save-worker", workerID: "other-save-worker"},
 	}
 
 	for _, testCase := range cases {
@@ -51,7 +53,8 @@ func TestIntegrationSaveDataSyncResultRequiresRunningActiveLease(t *testing.T) {
 			}
 
 			err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-				TaskID: id,
+				TaskID:   id,
+				WorkerID: testCase.workerID,
 				Candles: []data.Candle{
 					integrationResumeCandle(symbol, openTime, "1.5"),
 				},

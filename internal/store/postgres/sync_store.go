@@ -117,7 +117,7 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 	}
 	defer tx.Rollback(ctx)
 
-	target, err := readDataSyncTaskTarget(ctx, tx, result.TaskID)
+	target, err := readDataSyncTaskTarget(ctx, tx, result.TaskID, result.WorkerID)
 	if err != nil {
 		return err
 	}
@@ -218,11 +218,11 @@ type dataSyncTaskTarget struct {
 	hasActiveLease bool
 }
 
-func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string) (dataSyncTaskTarget, error) {
+func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string, workerID string) (dataSyncTaskTarget, error) {
 	var target dataSyncTaskTarget
 	if err := tx.QueryRow(ctx, `
 			SELECT exchange, symbol, interval, status,
-			       locked_by IS NOT NULL
+			       locked_by = $2
 			         AND locked_until IS NOT NULL
 			         AND locked_until > now() AS has_active_lease
 			  FROM data_sync_tasks
@@ -230,6 +230,7 @@ func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string) (data
 			   AND deleted_at IS NULL
 			 FOR UPDATE`,
 		taskID,
+		workerID,
 	).Scan(
 		&target.exchange,
 		&target.symbol,

@@ -60,7 +60,8 @@ func TestIntegrationDataSyncTaskInvalidRepairRouteConvergesSourceHealth(t *testi
 	markAPIIntegrationDataSyncTaskRunning(t, ctx, pool, source.ID, "api-data-invalid-source-worker")
 	lastOpenTime := end
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID: source.ID,
+		TaskID:   source.ID,
+		WorkerID: "api-data-invalid-source-worker",
 		Candles: []data.Candle{
 			apiIntegrationCandle(symbol, start, 0),
 			apiIntegrationCandle(symbol, start, 1),
@@ -152,6 +153,7 @@ func TestIntegrationDataSyncTaskInvalidRepairRouteConvergesSourceHealth(t *testi
 	lastRepairOpenTime := invalidOpenTime
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       repairTask.ID,
+		WorkerID:     "api-data-invalid-repair-worker",
 		Candles:      []data.Candle{apiIntegrationCandle(symbol, start, 2)},
 		LastOpenTime: &lastRepairOpenTime,
 		Completed:    true,

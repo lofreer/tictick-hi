@@ -63,7 +63,8 @@ func TestIntegrationRepairTaskExecutionConvergesSourceDataHealth(t *testing.T) {
 
 	lastRepairOpenTime := start.Add(4 * time.Minute)
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID: repairTask.ID,
+		TaskID:   repairTask.ID,
+		WorkerID: "repair-converge-worker",
 		Candles: []data.Candle{
 			integrationDataHealthCandle(symbol, start, 2),
 			integrationDataHealthCandle(symbol, start, 3),

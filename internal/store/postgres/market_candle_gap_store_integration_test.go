@@ -249,6 +249,7 @@ func TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan(t *te
 	lastOpenTime := repairedCandle.OpenTime
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       repairTask.ID,
+		WorkerID:     "invalid-repair-converge-worker",
 		Candles:      []data.Candle{repairedCandle},
 		LastOpenTime: &lastOpenTime,
 		Completed:    true,

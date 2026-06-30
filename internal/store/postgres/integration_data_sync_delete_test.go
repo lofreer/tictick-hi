@@ -107,7 +107,8 @@ func TestIntegrationDeleteDataSyncTaskSoftDeletesAndKeepsCandles(t *testing.T) {
 		t.Fatalf("start deleted task err = %v, want ErrNotFound", err)
 	}
 	err = store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID: id,
+		TaskID:   id,
+		WorkerID: "delete-worker",
 		Candles: []data.Candle{{
 			Exchange:  "binance",
 			Symbol:    symbol,

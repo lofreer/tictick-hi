@@ -27,7 +27,11 @@ func TestIntegrationEmptyCompletedDataSyncResultStopsOneShotLoop(t *testing.T) {
 		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
 	})
 
-	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{TaskID: id, Completed: true}); err != nil {
+	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
+		TaskID:    id,
+		WorkerID:  "empty-save-worker",
+		Completed: true,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	row := readIntegrationSyncTask(t, ctx, store, id)

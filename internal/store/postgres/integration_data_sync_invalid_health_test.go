@@ -203,6 +203,7 @@ func TestIntegrationRepairDataSyncTaskInvalidIssuesConvergesSourceHealth(t *test
 	markIntegrationDataSyncTaskRunning(t, ctx, store, repairTask.ID, "invalid-repair-save-worker")
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       repairTask.ID,
+		WorkerID:     "invalid-repair-save-worker",
 		Candles:      []data.Candle{integrationDataHealthCandle(symbol, start, 2)},
 		LastOpenTime: &lastRepairOpenTime,
 		Completed:    true,

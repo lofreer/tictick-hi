@@ -230,6 +230,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	if isAlreadySyncedThroughEnd(task, duration) {
 		return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
 			TaskID:    task.ID,
+			WorkerID:  runner.config.WorkerID,
 			Completed: true,
 		})
 	}
@@ -243,6 +244,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	if !window.from.Before(window.to) {
 		return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
 			TaskID:    task.ID,
+			WorkerID:  runner.config.WorkerID,
 			Completed: !task.RealtimeEnabled,
 		})
 	}
@@ -282,6 +284,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	}
 	return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       task.ID,
+		WorkerID:     runner.config.WorkerID,
 		Candles:      candles,
 		LastOpenTime: cursorOpenTime,
 		Completed:    runner.isCompleted(task, duration, cursorOpenTime, len(candles) == 0),

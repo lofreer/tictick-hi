@@ -102,6 +102,7 @@ func TestIntegrationMarketCandleInvalidIssueRepairRouteConvergesPostgresScan(t *
 	lastOpenTime := repairedCandle.OpenTime
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       repairTask.ID,
+		WorkerID:     "api-invalid-repair-worker",
 		Candles:      []data.Candle{repairedCandle},
 		LastOpenTime: &lastOpenTime,
 		Completed:    true,

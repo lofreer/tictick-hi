@@ -61,7 +61,8 @@ func TestIntegrationDataSyncTaskGapRepairRouteConvergesSourceHealth(t *testing.T
 	markAPIIntegrationDataSyncTaskRunning(t, ctx, pool, source.ID, "api-data-gap-source-worker")
 	lastOpenTime := start.Add(5 * time.Minute)
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID: source.ID,
+		TaskID:   source.ID,
+		WorkerID: "api-data-gap-source-worker",
 		Candles: []data.Candle{
 			apiIntegrationCandle(symbol, start, 0),
 			apiIntegrationCandle(symbol, start, 1),
@@ -125,7 +126,8 @@ func TestIntegrationDataSyncTaskGapRepairRouteConvergesSourceHealth(t *testing.T
 	markAPIIntegrationDataSyncTaskRunning(t, ctx, pool, repairTask.ID, "api-data-gap-repair-worker")
 	lastRepairOpenTime := start.Add(4 * time.Minute)
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID: repairTask.ID,
+		TaskID:   repairTask.ID,
+		WorkerID: "api-data-gap-repair-worker",
 		Candles: []data.Candle{
 			apiIntegrationCandle(symbol, start, 2),
 			apiIntegrationCandle(symbol, start, 3),

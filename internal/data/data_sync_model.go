@@ -158,6 +158,7 @@ type RepairDataSyncInvalidIssuesRequest struct {
 
 type DataSyncResult struct {
 	TaskID       string
+	WorkerID     string
 	Candles      []Candle
 	LastOpenTime *time.Time
 	Completed    bool

@@ -206,6 +206,7 @@ func TestIntegrationSaveDataSyncResultKeepsFutureExchangeBackoff(t *testing.T) {
 
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       id,
+		WorkerID:     "save-worker",
 		LastOpenTime: ptrTime(time.Now().UTC().Truncate(time.Minute)),
 	}); err != nil {
 		t.Fatal(err)
@@ -234,7 +235,8 @@ func TestIntegrationSaveDataSyncResultRejectsMismatchedCandleTarget(t *testing.T
 	})
 
 	err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID: id,
+		TaskID:   id,
+		WorkerID: "save-worker",
 		Candles: []data.Candle{
 			integrationResumeCandle(wrongSymbol, openTime, "1.8"),
 		},

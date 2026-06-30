@@ -50,6 +50,9 @@ func TestRunnerSyncsClaimedTask(t *testing.T) {
 	if len(repository.saved.Candles) != 1 {
 		t.Fatalf("saved candles = %d, want 1", len(repository.saved.Candles))
 	}
+	if repository.saved.WorkerID != "test" {
+		t.Fatalf("saved worker id = %q, want test", repository.saved.WorkerID)
+	}
 	if repository.saved.LastOpenTime == nil || !repository.saved.Completed {
 		t.Fatalf("unexpected result: %#v", repository.saved)
 	}
@@ -82,7 +85,8 @@ func TestRunnerCompletesOneShotTaskAlreadySyncedThroughEndWithoutExchangeClient(
 	if err := runner.RunOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if repository.saved.TaskID != "dst_1" || !repository.saved.Completed || len(repository.saved.Candles) != 0 {
+	if repository.saved.TaskID != "dst_1" || repository.saved.WorkerID != "test" ||
+		!repository.saved.Completed || len(repository.saved.Candles) != 0 {
 		t.Fatalf("unexpected saved result: %#v", repository.saved)
 	}
 	if repository.failed != nil || repository.retry != nil {
@@ -125,6 +129,9 @@ func TestRunnerDoesNotAdvanceCursorPastFetchedGap(t *testing.T) {
 	wantCursor := start.Add(time.Minute)
 	if repository.saved.LastOpenTime == nil || !repository.saved.LastOpenTime.Equal(wantCursor) {
 		t.Fatalf("cursor = %v, want %v", repository.saved.LastOpenTime, wantCursor)
+	}
+	if repository.saved.WorkerID != "test" {
+		t.Fatalf("saved worker id = %q, want test", repository.saved.WorkerID)
 	}
 	if repository.saved.Completed {
 		t.Fatalf("gapped batch should not complete task: %#v", repository.saved)
