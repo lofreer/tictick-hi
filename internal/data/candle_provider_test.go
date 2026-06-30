@@ -466,6 +466,26 @@ func TestCandleProviderReportsInvalidAggregationBaseCandleSeries(t *testing.T) {
 	}
 }
 
+func TestCandleProviderRejectsInvalidRangeBeforeStoreRead(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tooFar := start.Add(MaxCandleQuerySpan(time.Minute) + time.Minute)
+	store := &recordingCandleStore{}
+
+	_, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     &start,
+		To:       &tooFar,
+	})
+	if err == nil || !strings.Contains(err.Error(), "time range must cover at most") {
+		t.Fatalf("err = %v, want oversized range error", err)
+	}
+	if store.nativeCalls != 0 || store.latestCalls != 0 {
+		t.Fatalf("provider read store before rejecting invalid range: native=%d latest=%d", store.nativeCalls, store.latestCalls)
+	}
+}
+
 type fakeCandleStore struct {
 	candles []Candle
 }
@@ -642,4 +662,19 @@ func assertGap(t *testing.T, actual CandleGap, from time.Time, to time.Time, mis
 
 func dataQuery(interval string) CandleQuery {
 	return CandleQuery{Exchange: "binance", Symbol: "BTCUSDT", Interval: interval}
+}
+
+type recordingCandleStore struct {
+	nativeCalls int
+	latestCalls int
+}
+
+func (store *recordingCandleStore) ListNativeCandles(context.Context, CandleQuery) ([]Candle, error) {
+	store.nativeCalls++
+	return nil, nil
+}
+
+func (store *recordingCandleStore) ListLatestNativeCandles(context.Context, CandleQuery) ([]Candle, error) {
+	store.latestCalls++
+	return nil, nil
 }

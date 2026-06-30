@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,4 +174,23 @@ func TestIntegrationCandleProviderReportsRequestedRangeBoundaryGaps(t *testing.T
 	}
 	assertTaskGap(t, result.Gaps[0], start, start.Add(time.Minute), 1)
 	assertTaskGap(t, result.Gaps[1], start.Add(4*time.Minute), start.Add(5*time.Minute), 1)
+}
+
+func TestIntegrationCandleProviderRejectsOversizedRepositoryRange(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 5, 0, 0, 0, time.UTC)
+	to := start.Add(data.MaxCandleQuerySpan(time.Minute) + time.Minute)
+	_, err := store.GetCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   integrationSymbol("OR"),
+		Interval: "1m",
+		From:     &start,
+		To:       &to,
+	})
+	if err == nil || !strings.Contains(err.Error(), "time range must cover at most") {
+		t.Fatalf("err = %v, want oversized range error", err)
+	}
 }

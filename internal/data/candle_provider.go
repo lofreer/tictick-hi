@@ -16,6 +16,10 @@ func NewCandleProvider(store NativeCandleStore) *CandleProvider {
 }
 
 func (provider *CandleProvider) GetCandles(ctx context.Context, query CandleQuery) (CandleResult, error) {
+	if err := ValidateCandleQueryRange(query); err != nil {
+		return CandleResult{}, err
+	}
+
 	nativeCandles, err := provider.store.ListNativeCandles(ctx, query)
 	if err != nil {
 		return CandleResult{}, err
