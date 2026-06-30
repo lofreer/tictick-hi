@@ -213,3 +213,38 @@ func TestRunnerDoesNotCompleteWhenFetchReturnsOnlyOpenCandles(t *testing.T) {
 		t.Fatalf("open-only batch should not fail or retry, failed=%v retry=%v", repository.failed, repository.retry)
 	}
 }
+
+func TestRunnerDoesNotCompleteUnboundedTaskWhenFetchReturnsOnlyOpenCandles(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 10, 0, 0, time.UTC)
+	openCandle := syncTestCandle(now.Add(-time.Minute))
+	openCandle.IsClosed = false
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:          "dst_1",
+			Exchange:    "binance",
+			Symbol:      "BTCUSDT",
+			Interval:    "1m",
+			SyncEnabled: true,
+			Status:      data.TaskStatusRunning,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{candles: []data.Candle{openCandle}}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.saved.Candles) != 0 || repository.saved.LastOpenTime != nil {
+		t.Fatalf("open-only batch should not save candles or cursor: %#v", repository.saved)
+	}
+	if repository.saved.Completed {
+		t.Fatalf("open-only batch should not complete unbounded task: %#v", repository.saved)
+	}
+	if repository.failed != nil || repository.retry != nil {
+		t.Fatalf("open-only batch should not fail or retry, failed=%v retry=%v", repository.failed, repository.retry)
+	}
+}

@@ -297,7 +297,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		WorkerID:     runner.config.WorkerID,
 		Candles:      closedCandles,
 		LastOpenTime: cursorOpenTime,
-		Completed:    runner.isCompleted(task, duration, cursorOpenTime, len(candles) == 0),
+		Completed:    runner.isCompleted(task, duration, cursorOpenTime, len(candles) == 0, len(closedCandles) > 0),
 	})
 }
 
@@ -416,12 +416,13 @@ func (runner *Runner) isCompleted(
 	interval time.Duration,
 	cursorOpenTime *time.Time,
 	emptyBatch bool,
+	hasClosedCandles bool,
 ) bool {
 	if task.RealtimeEnabled {
 		return false
 	}
 	if task.EndTime == nil {
-		return true
+		return emptyBatch || cursorOpenTime != nil || hasClosedCandles
 	}
 	if cursorOpenTime == nil {
 		return emptyBatch
