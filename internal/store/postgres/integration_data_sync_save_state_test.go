@@ -160,6 +160,59 @@ func TestIntegrationCreateDataSyncTaskRejectsInvalidIntervalAndWindow(t *testing
 	}
 }
 
+func TestIntegrationDataSyncTaskRepairsRejectUnsupportedInterval(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	sourceID := integrationID("dst_bad_repair_interval")
+	symbol := integrationSymbol("BRI")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1 OR repair_source_task_id = $1`, sourceID)
+	})
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO data_sync_tasks (id, exchange, symbol, interval, status)
+		VALUES ($1, 'binance', $2, '2m', 'pending')`,
+		sourceID,
+		symbol,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Date(2026, 6, 29, 7, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "task gaps", run: func() error { _, err := store.RepairDataSyncTaskGaps(ctx, sourceID); return err }},
+		{name: "single task gap", run: func() error {
+			_, err := store.RepairDataSyncTaskGap(ctx, sourceID, data.RepairDataSyncTaskGapRequest{From: start, To: start.Add(2 * time.Minute)})
+			return err
+		}},
+		{name: "task invalid issues", run: func() error {
+			_, err := store.RepairDataSyncTaskInvalidIssues(ctx, sourceID, data.RepairDataSyncInvalidIssuesRequest{})
+			return err
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := testCase.run()
+			if err == nil || !strings.Contains(err.Error(), `unsupported data sync interval "2m"`) {
+				t.Fatalf("repair err = %v, want unsupported interval", err)
+			}
+		})
+	}
+	var repairCount int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*)::int FROM data_sync_tasks WHERE repair_source_task_id = $1`, sourceID).Scan(&repairCount); err != nil {
+		t.Fatal(err)
+	}
+	if repairCount != 0 {
+		t.Fatalf("unsupported repair created %d tasks, want 0", repairCount)
+	}
+}
+
 func TestIntegrationSaveDataSyncResultRejectsInvalidCursorAdvance(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

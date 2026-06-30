@@ -8711,6 +8711,45 @@ Definition of Done：
 - 首次 targeted 测试暴露 `IntervalDuration("2m")` 会被当作可换算时长；已改为 data sync 创建入口显式支持 `1m/5m/15m/1h/4h/1d`，`2m` 会返回 `unsupported data sync interval "2m"`。
 - 首次 `scripts/quality-gate.sh` 失败于前端文件行数上限；已把 `useResearchWorkspace.ts` 压回 400 行、`useResearchWorkspace.test.ts` 压回 649 行并复跑通过。
 
+### 阶段 1 data sync repair 创建校验补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- market 全历史缺口单个 repair、批量 repair 和全历史异常 repair 的 API 校验复用 `ValidateDataSyncTaskWindow`，不再只用 `IntervalDuration` 判断周期。
+- market repair store 入口和最终 `insertMarketCandleRepairTask` 插入点都复用 data sync 支持周期和窗口顺序校验。
+- task 窗口缺口 repair、单缺口 repair、异常 repair 在读取源任务后校验源任务 interval，最终 `insertDataSyncRepairTask` 也校验 repair window。
+- 直接调用 store 或绕过 API 时，`2m` 等非 data sync 支持周期不能创建补同步任务。
+
+范围外：
+
+- 不新增 data sync 支持周期。
+- 不改变 CandleProvider 聚合周期或图表周期选择。
+- 不推进实盘交易所私有 API、live executor、订单提交、撤单、查单或幂等实盘下单。
+
+当前验证：
+
+- `go test ./internal/web/api -run TestMarketCandleRepairRoutesRejectUnsupportedDataSyncInterval` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegration(DataSyncTaskRepairsRejectUnsupportedInterval|MarketCandleRepairsRejectUnsupportedDataSyncInterval)'` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：32 个测试文件、158 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+
+失败项：
+
+- 首次 PostgreSQL targeted 测试编译失败：新增测试用了 `strings` 但所在文件没有 import；已改为精确比较错误文本且保持文件 650 行上限内。
+
+剩余风险：
+
+- data sync 仍缺完整统一状态机、自动批量补全、真实交易所长期恢复压测和多实例共享限流。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

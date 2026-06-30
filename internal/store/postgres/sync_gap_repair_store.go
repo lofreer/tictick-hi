@@ -58,6 +58,9 @@ func (store *Store) RepairDataSyncTaskGaps(
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
+	if err := data.ValidateDataSyncTaskWindow(source.Interval, nil, nil); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 
 	windows, totalCount, limited, err := listDataSyncRepairWindows(ctx, tx, id)
 	if err != nil {
@@ -107,6 +110,9 @@ func (store *Store) RepairDataSyncTaskGap(
 
 	source, err := lockDataSyncTask(ctx, tx, id)
 	if err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	if err := data.ValidateDataSyncTaskWindow(source.Interval, nil, nil); err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
 
@@ -296,6 +302,11 @@ func insertDataSyncRepairTask(
 	source data.DataSyncTask,
 	window dataSyncGapRepairWindow,
 ) (data.DataSyncTask, error) {
+	from := window.from.UTC()
+	to := window.to.UTC()
+	if err := data.ValidateDataSyncTaskWindow(source.Interval, &from, &to); err != nil {
+		return data.DataSyncTask{}, err
+	}
 	id, err := core.NewPrefixedID("dst")
 	if err != nil {
 		return data.DataSyncTask{}, err
@@ -311,8 +322,8 @@ func insertDataSyncRepairTask(
 		source.Exchange,
 		source.Symbol,
 		source.Interval,
-		window.from,
-		window.to,
+		from,
+		to,
 		source.ID,
 		data.TaskStatusPending,
 	)

@@ -148,6 +148,9 @@ func (store *Store) RepairMarketCandleInvalidIssues(
 	ctx context.Context,
 	request data.RepairMarketCandleInvalidIssuesRequest,
 ) (data.DataSyncGapRepairResult, error) {
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, nil, nil); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 	intervalDuration, err := data.IntervalDuration(request.Interval)
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err

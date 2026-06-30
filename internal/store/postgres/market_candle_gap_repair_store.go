@@ -15,12 +15,15 @@ func (store *Store) RepairMarketCandleGap(
 	ctx context.Context,
 	request data.RepairMarketCandleGapRequest,
 ) (data.DataSyncGapRepairResult, error) {
+	request.From = request.From.UTC()
+	request.To = request.To.UTC()
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, &request.From, &request.To); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 	intervalDuration, err := data.IntervalDuration(request.Interval)
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
-	request.From = request.From.UTC()
-	request.To = request.To.UTC()
 
 	tx, err := store.pool.Begin(ctx)
 	if err != nil {
@@ -65,6 +68,9 @@ func (store *Store) RepairMarketCandleGaps(
 	ctx context.Context,
 	request data.RepairMarketCandleGapsRequest,
 ) (data.DataSyncGapRepairResult, error) {
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, nil, nil); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 	intervalDuration, err := data.IntervalDuration(request.Interval)
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err
@@ -82,12 +88,17 @@ func (store *Store) RepairMarketCandleGaps(
 		RepairLimit:  data.MaxMarketCandleGapScanLimit,
 	}
 	for _, gap := range request.Gaps {
+		from := gap.From.UTC()
+		to := gap.To.UTC()
+		if err := data.ValidateDataSyncTaskWindow(request.Interval, &from, &to); err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
 		gapRequest := data.RepairMarketCandleGapRequest{
 			Exchange: request.Exchange,
 			Symbol:   request.Symbol,
 			Interval: request.Interval,
-			From:     gap.From.UTC(),
-			To:       gap.To.UTC(),
+			From:     from,
+			To:       to,
 		}
 		window, ok, err := marketCandleRepairWindow(ctx, tx, gapRequest, intervalDuration)
 		if err != nil {
@@ -203,6 +214,11 @@ func insertMarketCandleRepairTask(
 	request data.RepairMarketCandleGapRequest,
 	window dataSyncGapRepairWindow,
 ) (data.DataSyncTask, error) {
+	from := window.from.UTC()
+	to := window.to.UTC()
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, &from, &to); err != nil {
+		return data.DataSyncTask{}, err
+	}
 	id, err := core.NewPrefixedID("dst")
 	if err != nil {
 		return data.DataSyncTask{}, err
@@ -218,8 +234,8 @@ func insertMarketCandleRepairTask(
 		request.Exchange,
 		request.Symbol,
 		request.Interval,
-		window.from,
-		window.to,
+		from,
+		to,
 		data.TaskStatusPending,
 	)
 	task, err := scanDataSyncTaskRow(row)

@@ -281,6 +281,46 @@ func TestMarketCandleGapRepairRouteRequiresActiveMarketInstrument(t *testing.T) 
 	}
 }
 
+func TestMarketCandleRepairRoutesRejectUnsupportedDataSyncInterval(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "single gap",
+			path: "/api/market/candle-gaps/repair",
+			body: `{"exchange":"binance","symbol":"BTCUSDT","interval":"2m","from":"2026-06-27T04:02:00Z","to":"2026-06-27T04:04:00Z"}`,
+		},
+		{
+			name: "batch gaps",
+			path: "/api/market/candle-gaps/repair-batch",
+			body: `{"exchange":"binance","symbol":"BTCUSDT","interval":"2m","gaps":[{"from":"2026-06-27T04:02:00Z","to":"2026-06-27T04:04:00Z"}]}`,
+		},
+		{
+			name: "invalid issues",
+			path: "/api/market/candle-invalid-issues/repair",
+			body: `{"exchange":"binance","symbol":"BTCUSDT","interval":"2m","openTimes":["2026-06-27T04:02:00Z"]}`,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			repository, server, auth := newAuthenticatedTestServer(t)
+			recorder := serveAuthenticated(server, auth, http.MethodPost, testCase.path, testCase.body)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Code != "invalid_request" || response.Message != `unsupported data sync interval "2m"` {
+				t.Fatalf("unexpected response: %#v", response)
+			}
+			if len(repository.tasks) != 0 {
+				t.Fatalf("repair route created tasks for unsupported interval: %#v", repository.tasks)
+			}
+		})
+	}
+}
+
 func TestMarketCandleGapBatchRepairRouteQueuesReturnedGaps(t *testing.T) {
 	repository, server, auth := newAuthenticatedTestServer(t)
 	start := time.Date(2026, 6, 27, 5, 0, 0, 0, time.UTC)

@@ -354,6 +354,11 @@ func validateRepairMarketCandleGapRequest(request *data.RepairMarketCandleGapReq
 	if request.From.IsZero() || request.To.IsZero() || !request.From.Before(request.To) {
 		return fmt.Errorf("from and to are required and from must be before to")
 	}
+	from := request.From.UTC()
+	to := request.To.UTC()
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, &from, &to); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -395,7 +400,7 @@ func validateRepairMarketCandleInvalidIssuesRequest(request *data.RepairMarketCa
 	if err := validateExchangeSymbol(request.Exchange, request.Symbol); err != nil {
 		return err
 	}
-	if _, err := data.IntervalDuration(request.Interval); err != nil {
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, nil, nil); err != nil {
 		return err
 	}
 	if len(request.OpenTimes) == 0 {

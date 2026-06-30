@@ -359,6 +359,58 @@ func TestIntegrationRepairMarketCandleGapCreatesSyncTask(t *testing.T) {
 	}
 }
 
+func TestIntegrationMarketCandleRepairsRejectUnsupportedDataSyncInterval(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 9, 30, 0, 0, time.UTC)
+	symbol := integrationSymbol("MRI")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+	})
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "single gap", run: func() error {
+			_, err := store.RepairMarketCandleGap(ctx, data.RepairMarketCandleGapRequest{
+				Exchange: "binance", Symbol: symbol, Interval: "2m", From: start, To: start.Add(2 * time.Minute),
+			})
+			return err
+		}},
+		{name: "batch gaps", run: func() error {
+			_, err := store.RepairMarketCandleGaps(ctx, data.RepairMarketCandleGapsRequest{
+				Exchange: "binance", Symbol: symbol, Interval: "2m", Gaps: []data.RepairMarketCandleGapWindow{{From: start, To: start.Add(2 * time.Minute)}},
+			})
+			return err
+		}},
+		{name: "invalid issues", run: func() error {
+			_, err := store.RepairMarketCandleInvalidIssues(ctx, data.RepairMarketCandleInvalidIssuesRequest{
+				Exchange: "binance", Symbol: symbol, Interval: "2m", OpenTimes: []time.Time{start},
+			})
+			return err
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := testCase.run()
+			if err == nil || err.Error() != `unsupported data sync interval "2m"` {
+				t.Fatalf("repair err = %v, want unsupported interval", err)
+			}
+		})
+	}
+	var taskCount int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*)::int FROM data_sync_tasks WHERE symbol = $1`, symbol).Scan(&taskCount); err != nil {
+		t.Fatal(err)
+	}
+	if taskCount != 0 {
+		t.Fatalf("unsupported market repair created %d tasks, want 0", taskCount)
+	}
+}
+
 func TestIntegrationRepairMarketCandleGapIgnoresSoftDeletedRepairTask(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
