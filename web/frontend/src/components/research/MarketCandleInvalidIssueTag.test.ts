@@ -6,6 +6,7 @@ import { defineComponent } from "vue";
 import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";
 import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
+import { formatCompactDateTime } from "@/utils/displayText";
 
 const dataApiMocks = vi.hoisted(() => ({
   repairMarketCandleInvalidIssues: vi.fn(),
@@ -110,8 +111,31 @@ describe("MarketCandleInvalidIssueTag", () => {
       interval: "1m",
       openTimes: ["2026-06-27T03:01:00Z"],
     });
-    expect(document.body.textContent).toContain("已排队 1 个全历史异常补同步任务，跳过 1 个已存在任务。");
+    expect(document.body.textContent).toContain("本次匹配 2 个，已创建 1 个，跳过 1 个，单次上限 100");
+    expect(document.body.textContent).toContain("dst_market_invalid_repair_1");
+    expect(document.body.textContent).toContain(
+      `${formatCompactDateTime("2026-06-27T03:01:00Z")} - ${formatCompactDateTime("2026-06-27T03:02:00Z")}`,
+    );
     expect(wrapper.findComponent(MarketCandleInvalidIssueTag).emitted("repaired")).toHaveLength(1);
+  });
+
+  it("does not expose raw provider URLs when full-history invalid repair fails", async () => {
+    dataApiMocks.repairMarketCandleInvalidIssues.mockRejectedValueOnce(
+      new Error('binance klines: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF'),
+    );
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+    const repairButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("排队补同步当前异常"));
+    repairButton?.click();
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("全历史异常补同步失败");
+    expect(document.body.textContent).not.toContain("api.binance.com");
+    expect(document.body.textContent).not.toContain("symbol=BTCUSDT");
   });
 
   it("shows a healthy full-history invalid scan", async () => {

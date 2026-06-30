@@ -6,6 +6,7 @@ import { defineComponent } from "vue";
 import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
+import { formatCompactDateTime } from "@/utils/displayText";
 
 const dataApiMocks = vi.hoisted(() => ({
   repairMarketCandleGap: vi.fn(),
@@ -117,6 +118,11 @@ describe("MarketCandleGapTag", () => {
       from: "2026-06-27T03:02:00Z",
       to: "2026-06-27T03:03:00Z",
     });
+    expect(document.body.textContent).toContain("本次匹配 1 个，已创建 1 个，跳过 0 个，单次上限 1");
+    expect(document.body.textContent).toContain("dst_market_repair_1");
+    expect(document.body.textContent).toContain(
+      `${formatCompactDateTime("2026-06-27T03:02:00Z")} - ${formatCompactDateTime("2026-06-27T03:03:00Z")}`,
+    );
     expect(wrapper.findComponent(MarketCandleGapTag).emitted("repaired")).toHaveLength(1);
     expect(dataApi.scanMarketCandleGaps).toHaveBeenCalledTimes(2);
   });
@@ -157,8 +163,32 @@ describe("MarketCandleGapTag", () => {
         { from: "2026-06-27T03:05:00Z", to: "2026-06-27T03:07:00Z" },
       ],
     });
+    expect(document.body.textContent).toContain("本次匹配 2 个，已创建 1 个，跳过 1 个，单次上限 100");
+    expect(document.body.textContent).toContain("dst_market_repair_1");
     expect(wrapper.findComponent(MarketCandleGapTag).emitted("repaired")).toHaveLength(1);
     expect(dataApi.scanMarketCandleGaps).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not expose raw provider URLs when full-history gap repair fails", async () => {
+    dataApiMocks.repairMarketCandleGaps.mockRejectedValueOnce(
+      new Error('binance klines: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF'),
+    );
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+
+    const repairReturnedButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("修复当前 1 个"),
+    );
+    expect(repairReturnedButton).toBeDefined();
+    repairReturnedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("创建全历史缺口修复失败");
+    expect(document.body.textContent).not.toContain("api.binance.com");
+    expect(document.body.textContent).not.toContain("symbol=BTCUSDT");
   });
 
   it("shows a failed scan state without throwing", async () => {

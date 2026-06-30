@@ -8031,6 +8031,58 @@ Definition of Done：
 - 当前浏览器证据仍来自 Headless Chrome smoke，缺真实浏览器矩阵和像素快照基线。
 - 图表工具栏、OHLCV readout 和详情页双栏布局仍是基础工作台能力，策略指标、画线工具、成交点联动和完整交易分析能力未关闭。
 
+### 阶段 1 全历史缺口和异常修复结果可观察性补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 任务窗口 gap / invalid repair 已经能在弹窗里显示 total / limit / created / skipped 和补同步任务窗口。
+- 全历史 gap / invalid repair 仍主要依赖 toast 或简单数量标签，用户不能在当前全历史详情弹窗里持续看到本次修复创建了哪些补同步任务、是否跳过已有任务、是否受单次上限截断。
+
+Definition of Done：
+
+- `MarketCandleGapTag` 在修复首个缺口或当前返回缺口后，在全历史缺口详情弹窗内展示本次匹配总数、创建数量、跳过已存在数量、单次修复上限和受限标记。
+- `MarketCandleInvalidIssueTag` 在修复当前返回异常后，在全历史异常详情弹窗内展示同样的修复结果摘要。
+- 两个全历史详情弹窗都列出最多 3 个新创建补同步任务的 ID 与 start/end 窗口，超出时显示剩余数量。
+- 切换 exchange / symbol / interval 或重新扫描时清空旧 repair result，避免 stale 结果误导当前数据源。
+- repair 失败只显示泛化失败文案，不展示底层交易所 URL 或原始错误。
+- 不新增 API、不改变后端 repair 语义、不直接修改 `market_candles`、不做自动批量清洗。
+
+改动范围：
+
+- `web/frontend/src/components/research/MarketRepairResultTags.vue`：新增全历史修复结果展示组件，统一 summary、limited 标记、最多 3 个补同步任务窗口和剩余数量。
+- `web/frontend/src/components/research/MarketCandleGapTag.vue`：修复首个缺口或当前返回缺口后，在全历史缺口详情弹窗中保留本次 repair result；修复后刷新扫描但不清空本次结果；repair 失败只显示泛化失败文案。
+- `web/frontend/src/components/research/MarketCandleInvalidIssueTag.vue`：全历史异常修复后保留完整 repair result；repair 失败不再把原始 provider URL 写入 `title`。
+- `web/frontend/src/components/research/MarketRepairResultTags.test.ts`、`MarketCandleGapTag.test.ts`、`MarketCandleInvalidIssueTag.test.ts`：覆盖 summary、limited、任务窗口、隐藏数量和失败不泄漏 URL。
+- `web/frontend/src/i18n/messages.research.zh.ts`、`messages.research.en.ts`：补全全历史 repair result 中英文文案。
+- 不改后端 API、数据库 schema、repair 创建语义或 `market_candles` 写入规则。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/research/MarketRepairResultTags.test.ts src/components/research/MarketCandleGapTag.test.ts src/components/research/MarketCandleInvalidIssueTag.test.ts` 通过：3 个测试文件、12 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：31 个测试文件、155 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api && docker compose up -d api && curl -fsS http://127.0.0.1:8080/readyz` 通过，readyz 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅 / 深主题、`zh-CN/en-US`，每组 14 页，最大 document width 不超过对应 viewport。
+
+失败项：
+
+- 首次目标组件测试失败：测试写死 UTC 字符串，但新共享组件复用 `formatCompactDateTime` 的本地紧凑时间格式；已改为测试侧复用同一格式化函数，复跑通过。
+
+剩余风险：
+
+- 该切片只增强全历史 gap / invalid repair 的前端可观察性，不证明交易所一定返回缺失或健康 K 线。
+- 全历史修复仍是用户触发的有限批次排队，不是自动全量修复、历史清洗或生产级数据修复调度。
+- 当前浏览器回归来自 Headless Chrome smoke，弹窗细节主要由组件测试覆盖，仍缺像素快照基线和真实浏览器矩阵。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
