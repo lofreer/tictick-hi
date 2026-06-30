@@ -9320,6 +9320,42 @@ Definition of Done：
 - 该脚本是 Stage 1 可选重型门禁，默认 GitHub `Quality Gate` 仍不会强制拉 Docker Go 容器执行它。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 CandleProvider 受限聚合分页合同补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 补强 `CandleProvider` 单元测试：当聚合请求超过基础 `1m` 窗口上限并触发 `limitedByBaseWindow` 时，返回结果必须同时暴露 `previousCursor`，让调用方可以继续向前分页观察更早窗口。
+- 验证受限聚合窗口不能伪装成完整结果：`health=insufficient`、`returnedCandles < requestedLimit`、`returnedBaseCandles == baseLimit` 和 `limitedByBaseWindow=true` 继续作为硬断言。
+- 验证受限 latest 聚合窗口只暴露 previous pagination，不暴露 next cursor，避免把最新受限窗口误导为仍有后续数据。
+- 验证 previous cursor 保留原始 `exchange/symbol/interval/limit` 查询上下文，前端和 API 可以继续使用 opaque cursor，而不是手工拼接相邻窗口语义。
+
+范围外：
+
+- 不实现超过 1440000 根基础 K 线的无限历史查询、持久化聚合缓存或分段聚合策略。
+- 不改变 `CandleProvider` 运行语义、API contract、前端图表、回测或交易 runner。
+- 不关闭长期 soak、冷缓存、真实生产数据分布和超过基础窗口上限的产品级查询策略风险。
+
+当前验证：
+
+- `go test ./internal/data -run TestCandleProviderReportsLimitedAggregationCoverage -count=1 -v` 通过。
+- `go test ./internal/data -run TestCandleProvider -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过；首轮因 `internal/data/candle_provider_test.go` 超过 700 行硬上限失败，已拆出 `internal/data/candle_provider_limited_test.go` 后复跑通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：34 个测试文件、169 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+
+剩余风险：
+
+- 该补充只是把受限窗口的 pagination 语义锁进测试，仍不是超过 1440000 根基础 K 线的完整查询方案。
+- 仍缺真实 PostgreSQL 冷缓存、长时间 soak、真实生产数据分布和持久化聚合/分段策略。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
