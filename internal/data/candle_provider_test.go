@@ -486,6 +486,21 @@ func TestCandleProviderRejectsInvalidRangeBeforeStoreRead(t *testing.T) {
 	}
 }
 
+func TestCandleProviderRejectsMissingTargetBeforeStoreRead(t *testing.T) {
+	store := &recordingCandleStore{}
+
+	_, err := NewCandleProvider(store).GetCandles(context.Background(), CandleQuery{
+		Exchange: "binance",
+		Interval: "1m",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exchange, symbol and interval are required") {
+		t.Fatalf("err = %v, want missing target error", err)
+	}
+	if store.nativeCalls != 0 || store.latestCalls != 0 {
+		t.Fatalf("provider read store before rejecting missing target: native=%d latest=%d", store.nativeCalls, store.latestCalls)
+	}
+}
+
 type fakeCandleStore struct {
 	candles []Candle
 }

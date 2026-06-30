@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -44,6 +45,18 @@ func NormalizeMarketCandleInvalidIssueScanLimit(limit int) int {
 		return MaxMarketCandleInvalidIssueScanLimit
 	}
 	return limit
+}
+
+func ValidateCandleQueryTarget(query CandleQuery) error {
+	if strings.TrimSpace(query.Exchange) == "" ||
+		strings.TrimSpace(query.Symbol) == "" ||
+		strings.TrimSpace(query.Interval) == "" {
+		return fmt.Errorf("exchange, symbol and interval are required")
+	}
+	if _, err := IntervalDuration(query.Interval); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ValidateCandleQueryRange(query CandleQuery) error {

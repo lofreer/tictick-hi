@@ -194,3 +194,17 @@ func TestIntegrationCandleProviderRejectsOversizedRepositoryRange(t *testing.T) 
 		t.Fatalf("err = %v, want oversized range error", err)
 	}
 }
+
+func TestIntegrationCandleProviderRejectsMissingRepositoryTarget(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	_, err := store.GetCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Interval: "1m",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exchange, symbol and interval are required") {
+		t.Fatalf("err = %v, want missing target error", err)
+	}
+}
