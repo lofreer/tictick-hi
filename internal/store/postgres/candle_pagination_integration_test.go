@@ -176,6 +176,85 @@ func TestIntegrationCandleProviderReportsRequestedRangeBoundaryGaps(t *testing.T
 	assertTaskGap(t, result.Gaps[1], start.Add(4*time.Minute), start.Add(5*time.Minute), 1)
 }
 
+func TestIntegrationCandleProviderReportsAggregationGapAcrossBasePageBoundary(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	symbol := integrationSymbol("PGB")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	start := time.Date(2026, 6, 27, 6, 0, 0, 0, time.UTC)
+	targetLimit := data.MaxCandleLimit/60 + 2
+	requiredBaseCandles := targetLimit * 60
+	missingBaseIndex := data.MaxCandleLimit
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_candles (
+			exchange, symbol, interval, open_time, close_time,
+			open, high, low, close, volume, is_closed, updated_at
+		)
+		SELECT 'binance',
+		       $1,
+		       '1m',
+		       $2::timestamptz + (series.idx * interval '1 minute'),
+		       $2::timestamptz + ((series.idx + 1) * interval '1 minute'),
+		       (10000 + series.idx)::numeric,
+		       (10001 + series.idx)::numeric,
+		       (9999 + series.idx)::numeric,
+		       (10000 + series.idx)::numeric,
+		       1,
+		       true,
+		       now()
+		  FROM generate_series(0, $3::int - 1) AS series(idx)
+		 WHERE series.idx <> $4::int`,
+		symbol,
+		start,
+		requiredBaseCandles,
+		missingBaseIndex,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := store.GetCandles(ctx, data.CandleQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1h",
+		From:     &start,
+		Limit:    targetLimit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != data.CandleSourceAggregated ||
+		result.BaseInterval != "1m" ||
+		result.Health != data.CandleHealthGap {
+		t.Fatalf("unexpected metadata: %#v", result)
+	}
+	if result.Coverage.RequiredBaseCandles != requiredBaseCandles ||
+		result.Coverage.BaseLimit != requiredBaseCandles ||
+		result.Coverage.ReturnedBaseCandles != requiredBaseCandles-1 ||
+		result.Coverage.ReturnedCandles != targetLimit-1 ||
+		result.Coverage.LimitedByBaseWindow {
+		t.Fatalf("unexpected coverage: %#v", result.Coverage)
+	}
+	if len(result.Gaps) != 1 {
+		t.Fatalf("expected one base gap across page boundary: %#v", result.Gaps)
+	}
+	missingOpen := start.Add(time.Duration(missingBaseIndex) * time.Minute)
+	assertTaskGap(t, result.Gaps[0], missingOpen, missingOpen.Add(time.Minute), 1)
+
+	gappedWindowOpen := missingOpen.Truncate(time.Hour)
+	for _, candle := range result.Candles {
+		if candle.OpenTime.Equal(gappedWindowOpen) {
+			t.Fatalf("aggregated candle for gapped window was returned: %#v", candle)
+		}
+	}
+}
+
 func TestIntegrationCandleProviderRejectsOversizedRepositoryRange(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
