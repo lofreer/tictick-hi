@@ -7974,6 +7974,63 @@ Definition of Done：
 - 本轮只增强图表读数，不代表策略指标、画线工具、成交点联动或完整交易分析能力已具备。
 - readout 只展示当前/悬停 K 线的基础 OHLCV，不包含 MA/EMA、指标模板、区间统计或订单成交联动。
 
+### 阶段 1 K 线图表工作台布局合同复核
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 用户指出研究页、回测详情和交易详情的 K 线图表曾出现工具栏粗糙、symbol 输入过宽、图表高度过窄、左侧贴边、右侧大空白和内容裁切等问题。
+- 这些问题必须固化为共享布局合同和运行态 smoke，而不是只靠单次截图人工纠错。
+
+Definition of Done：
+
+- 研究页图表工具栏保持工作台密度：exchange / symbol / refresh / interval / window controls 在桌面为单行紧凑 market strip，symbol 输入不超过生产阈值，状态摘要独立滚动且不挤压主图。
+- 研究页、回测详情和交易详情共用同一个固定 K 线图表槽合同：图表是上方主体，下方详情页摘要左窄、列表右宽；窄屏可堆叠但不得水平溢出。
+- 图表 plot 高度在桌面、窄桌面和移动视口都有明确下限，不能为了平分首屏导致图表不可读，也不能因 ResizeObserver 或图表内部 DOM 反馈无限增高。
+- 图表左侧 gutter 只保留视觉呼吸空间，右侧 gutter 只允许价格轴贴边所需空间；右侧价格轴必须贴近 viewport 右边界，不允许出现肉眼可见的大空白。
+- visual smoke 必须同时验证工具栏宽高、symbol 控件宽度、左右 gutter、右侧价格轴宽度、主图 canvas 和价格轴/viewport 的贴合关系、详情页上下两栏和下方左右列比例。
+- 不改 CandleProvider、后端 API、数据库 schema、交易/回测业务语义或新增空壳功能。
+
+改动范围：
+
+- `web/frontend/src/pages/klineChartLayout.css`：把 K 线图表 plot 高度、左右 gutter 和响应式断点集中到共享图表槽，作为研究页、回测详情和交易详情的单一尺寸来源。
+- `web/frontend/src/pages/ResearchPage.css`：删除研究页重复声明的图表高度和 gutter 变量，只保留研究页工具栏、任务列表和 frame flex 承载职责。
+- `web/frontend/src/pages/detailChartLayout.css`：删除回测详情 / 交易详情重复声明的图表高度和 gutter 变量，只保留详情页 viewport isolation。
+- `web/frontend/src/pages/ResearchPage.layout.test.ts`、`DetailPages.layout.test.ts`：静态合同改为断言共享 `klineChartLayout.css` 承担尺寸来源，并禁止研究页 / 详情页重新私有声明图表尺寸。
+- `scripts/check-research-chart-layout.sh`：轻量门禁同步单一尺寸来源合同，并检查详情页 CSS 不再重复声明图表尺寸变量。
+- `scripts/stage8-visual-smoke.mjs`：新增 `SMOKE_MAX_CHART_EDGE_GAP`，把右侧 canvas / 价格轴贴边容差收紧为默认 `3px`，避免右侧大空白回归。
+- 不改后端 API、CandleProvider、数据库 schema、交易 / 回测业务语义或 K 线数据语义。
+
+当前验证：
+
+- `scripts/check-research-chart-layout.sh` 通过。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- `pnpm --dir web/frontend exec vitest run src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts` 通过：2 个测试文件、15 条测试。
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/components/chart/TradingViewChart.readout.test.ts src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts` 通过：4 个测试文件、38 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：30 个测试文件、152 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api && docker compose up -d api && curl -fsS http://127.0.0.1:8080/readyz` 通过，readyz 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=900 node scripts/research-chart-height-smoke.mjs` 通过：1440 / 2048 / 812 / 390 视口图表高度稳定，`body/chart/tv` 高度分别为 680 / 820 / 700 / 580。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅 / 深主题、`zh-CN/en-US`，每组 14 页，最大 document width 不超过对应 viewport，右侧图表边缘合同使用默认 `3px` 上限。
+
+失败项：
+
+- 无。
+
+剩余风险：
+
+- 本轮是布局合同复核和维护性收敛，不代表研究、回测、交易流程达到 `usable` 或 `production-safe`。
+- 当前浏览器证据仍来自 Headless Chrome smoke，缺真实浏览器矩阵和像素快照基线。
+- 图表工具栏、OHLCV readout 和详情页双栏布局仍是基础工作台能力，策略指标、画线工具、成交点联动和完整交易分析能力未关闭。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

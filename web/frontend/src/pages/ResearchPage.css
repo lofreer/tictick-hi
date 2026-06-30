@@ -150,15 +150,6 @@
 }
 
 .research-chart-body {
-  --kline-chart-plot-height: clamp(680px, 72dvh, 820px);
-  --kline-chart-padding-left: 14px;
-  --kline-chart-padding-right: 2px;
-  --kline-chart-padding-top: 0px;
-  --kline-chart-padding-bottom: 0px;
-  --kline-chart-frame-height: calc(
-    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
-  );
-
   flex: 0 0 var(--kline-chart-frame-height);
 }
 
@@ -234,14 +225,6 @@
 }
 
 @media (max-width: 760px) {
-  .research-chart-body {
-    --kline-chart-plot-height: 580px;
-    --kline-chart-padding-left: 10px;
-    --kline-chart-padding-right: 2px;
-    --kline-chart-padding-top: 0px;
-    --kline-chart-padding-bottom: 0px;
-  }
-
   .research-toolbar {
     grid-template-columns: minmax(0, 1fr);
     gap: 7px;
@@ -305,14 +288,6 @@
 }
 
 @media (min-width: 761px) and (max-width: 980px) {
-  .research-chart-body {
-    --kline-chart-plot-height: 700px;
-    --kline-chart-padding-left: 12px;
-    --kline-chart-padding-right: 2px;
-    --kline-chart-padding-top: 0px;
-    --kline-chart-padding-bottom: 0px;
-  }
-
   .research-toolbar {
     grid-template-columns: minmax(0, 1fr);
     gap: 5px;

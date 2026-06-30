@@ -16,6 +16,7 @@ const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDT
 const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 560);
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 76);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 42);
+const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
 
@@ -539,9 +540,10 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
     throw new Error(`${label} missing chart canvas geometry: ${JSON.stringify(sample)}`);
   }
   assertChartGutters(label, sample);
-  if (Math.abs(sample.rightmostChartCanvas.right - sample.chartViewport.right) > widthTolerance + 4) {
+  if (Math.abs(sample.rightmostChartCanvas.right - sample.chartViewport.right) > maxChartEdgeGap) {
     throw new Error(
       `${label} chart canvases leave an uncontrolled right-side gap: ${JSON.stringify({
+        maxChartEdgeGap,
         rightmostCanvas: sample.rightmostChartCanvas,
         chartViewport: sample.chartViewport,
       })}`,
@@ -581,9 +583,10 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       })}`,
     );
   }
-  if (Math.abs(sample.priceAxisCanvas.right - sample.chartViewport.right) > widthTolerance + 4) {
+  if (Math.abs(sample.priceAxisCanvas.right - sample.chartViewport.right) > maxChartEdgeGap) {
     throw new Error(
       `${label} right price-axis does not sit on the chart viewport edge: ${JSON.stringify({
+        maxChartEdgeGap,
         priceAxis: sample.priceAxisCanvas,
         chartViewport: sample.chartViewport,
       })}`,

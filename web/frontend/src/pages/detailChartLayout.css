@@ -1,38 +1,4 @@
-.trading-detail-chart,
-.backtest-chart-panel {
-  --kline-chart-plot-height: clamp(680px, 72dvh, 820px);
-  --kline-chart-padding-left: 14px;
-  --kline-chart-padding-right: 2px;
-  --kline-chart-padding-top: 0px;
-  --kline-chart-padding-bottom: 0px;
-  --kline-chart-frame-height: calc(
-    var(--kline-chart-plot-height) + var(--kline-chart-padding-top) + var(--kline-chart-padding-bottom)
-  );
-}
-
 .trading-detail-chart-viewport,
 .backtest-chart-viewport {
   isolation: isolate;
-}
-
-@media (max-width: 980px) {
-  .trading-detail-chart,
-  .backtest-chart-panel {
-    --kline-chart-plot-height: 700px;
-    --kline-chart-padding-left: 12px;
-    --kline-chart-padding-right: 2px;
-    --kline-chart-padding-top: 0px;
-    --kline-chart-padding-bottom: 0px;
-  }
-}
-
-@media (max-width: 760px) {
-  .trading-detail-chart,
-  .backtest-chart-panel {
-    --kline-chart-plot-height: 580px;
-    --kline-chart-padding-left: 10px;
-    --kline-chart-padding-right: 2px;
-    --kline-chart-padding-top: 0px;
-    --kline-chart-padding-bottom: 0px;
-  }
 }

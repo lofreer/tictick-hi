@@ -56,3 +56,23 @@
   min-height: 0;
   min-block-size: 0;
 }
+
+@media (max-width: 980px) {
+  .kline-chart-frame {
+    --kline-chart-plot-height: 700px;
+    --kline-chart-padding-left: 12px;
+    --kline-chart-padding-right: 2px;
+    --kline-chart-padding-top: 0px;
+    --kline-chart-padding-bottom: 0px;
+  }
+}
+
+@media (max-width: 760px) {
+  .kline-chart-frame {
+    --kline-chart-plot-height: 580px;
+    --kline-chart-padding-left: 10px;
+    --kline-chart-padding-right: 2px;
+    --kline-chart-padding-top: 0px;
+    --kline-chart-padding-bottom: 0px;
+  }
+}
