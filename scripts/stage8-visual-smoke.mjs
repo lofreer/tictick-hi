@@ -15,8 +15,9 @@ const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
 const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 124);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 16);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 140);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 20);
+const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 18);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 10 * 60 * 1000);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
@@ -670,11 +671,11 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       })}`,
     );
   }
-  assertAxisTextInk(label, "right price-axis", sample.priceAxisTextInk, {
+  assertAxisTextInk(label, "right price-axis", sample.priceAxisTextInk, axisLabelInkMinimum(viewport), {
     priceAxis: sample.priceAxisCanvas,
     chartViewport: sample.chartViewport,
   });
-  assertAxisTextInk(label, "bottom time-axis", sample.timeAxisTextInk, {
+  assertAxisTextInk(label, "bottom time-axis", sample.timeAxisTextInk, axisLabelInkMinimum(viewport), {
     bottomTimeAxis: sample.bottomTimeAxisCanvas,
     chartViewport: sample.chartViewport,
   });
@@ -714,11 +715,15 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
   }
 }
 
-function assertAxisTextInk(label, name, textInk, context) {
-  if (!textInk || textInk.maxRunCssHeight < minAxisLabelInkHeight) {
+function axisLabelInkMinimum(viewport) {
+  return viewport.width <= 760 ? minMobileAxisLabelInkHeight : minAxisLabelInkHeight;
+}
+
+function assertAxisTextInk(label, name, textInk, minimumInkHeight, context) {
+  if (!textInk || textInk.maxRunCssHeight < minimumInkHeight) {
     throw new Error(
       `${label} ${name} text is too small or missing: ${JSON.stringify({
-        minAxisLabelInkHeight,
+        minimumInkHeight,
         textInk,
         ...context,
       })}`,

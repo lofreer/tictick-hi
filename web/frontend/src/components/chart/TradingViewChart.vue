@@ -36,7 +36,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
-import { appColors, chartAxisFontSize, chartRightPriceScaleWidth, chartTheme } from "@/theme/tokens";
+import { appColors, chartAxisFontSize, chartMobileAxisFontSize, chartRightPriceScaleWidth, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
 import { chartCandleForTime, chartReadoutFromCandle, type ChartReadout } from "./chartReadout";
 import { positiveFloor, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
@@ -272,6 +272,7 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function chartFontSize() {
+  if (lastSize.width <= 480) return chartMobileAxisFontSize;
   return chartAxisFontSize;
 }
 
