@@ -8799,6 +8799,48 @@ Definition of Done：
 - data sync 仍缺完整统一状态机、自动批量补全、真实交易所长期恢复压测和多实例共享限流。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 K 线图表坐标轴字号恢复补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- `TradingViewChart` 坐标轴字体恢复为统一 `12px`，该约束覆盖前文仍保留的桌面 `11px` / 移动 `10px` 旧记录。
+- 右侧价格轴最小宽度调整为桌面 `64px`、窄桌面 `62px`、移动端 `60px`，继续保持完整数值显示，不恢复 `k/m/b` 缩写。
+- browser visual smoke 的右侧价格轴上限调整到 `72px`，主图占比下限调整为桌面 `94.5%`、窄桌面 `91%`、移动端 `82%`；价格轴贴住 viewport 右边、主图贴住价格轴左边和无额外右侧空白断言继续保留。
+- 研究页、回测详情和交易详情继续复用同一图表组件，字号恢复一次覆盖三处图表。
+
+范围外：
+
+- 不改 K 线数据、同步、回测、交易或实盘链路。
+- 不恢复价格缩写。
+- 不改变研究页工具栏和详情页上下双栏布局。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts` 通过：21 条测试。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：32 个测试文件、158 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- 最新前端产物经临时 API `http://127.0.0.1:18080` 验证，`node scripts/research-chart-height-smoke.mjs` 通过。
+- 最新前端产物经临时 API `http://127.0.0.1:18080` 验证，`node scripts/stage8-visual-smoke.mjs` 通过：桌面、窄桌面、移动端，浅/深主题，中/英文共 12 组矩阵，每组 14 页。
+
+失败项：
+
+- 首次 chart 单元测试失败于 dense candle window 的 logical range 精确预期；原因是右侧价格轴恢复正常宽度后主图 plot width 变化，已更新预期并复跑通过。
+
+剩余风险：
+
+- 该补充只恢复坐标轴基础可读字号，不代表图表研究能力达到 usable，也不替代像素快照基线或多浏览器视觉回归。
+- 价格轴可读性与主图宽度仍是取舍；后续支持更多价格位数或不同资产时，需要按真实数据重新校准轴宽。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
