@@ -280,6 +280,8 @@ function visualSampleExpression(pageConfig) {
       chartInlineStartGutter: cssPixel(detailSelectors ? detailSelectors.chartPanel : '.research-chart-body', 'padding-left'),
       chartInlineEndGutter: cssPixel(detailSelectors ? detailSelectors.chartPanel : '.research-chart-body', 'padding-right'),
       chart: read('.trading-chart'),
+      chartEmpty: read('.trading-chart__empty'),
+      chartReadout: read('.trading-chart__readout'),
       tv: read('.tv-lightweight-charts'),
       mainPaneCanvas: mainPaneCanvas(),
       priceAxisCanvas: rightPriceAxisCanvas(),
@@ -505,6 +507,25 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       `${label} chart height escaped fixed viewport: ${JSON.stringify({
         viewport: sample.chartViewport,
         chart: sample.chart,
+      })}`,
+    );
+  }
+  if (!sample.chartReadout && !sample.chartEmpty) {
+    throw new Error(`${label} chart has neither an OHLCV readout nor an empty state: ${JSON.stringify(sample)}`);
+  }
+  if (sample.chartReadout && (sample.chartReadout.rectHeight > 28 || sample.chartReadout.left < sample.chartViewport.left)) {
+    throw new Error(
+      `${label} chart readout is not a compact in-viewport overlay: ${JSON.stringify({
+        readout: sample.chartReadout,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
+  if (sample.chartReadout && sample.chartReadout.right > sample.chartViewport.right + widthTolerance) {
+    throw new Error(
+      `${label} chart readout overflows the chart viewport: ${JSON.stringify({
+        readout: sample.chartReadout,
+        chartViewport: sample.chartViewport,
       })}`,
     );
   }

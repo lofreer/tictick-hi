@@ -7922,6 +7922,58 @@ Definition of Done：
 - 弹窗可以观察补同步任务创建结果，但本轮不证明这些补同步任务后续一定收敛为健康 K 线。
 - 当前浏览器 UI 证据来自 Headless Chrome smoke，不等同于完整真实浏览器矩阵或像素快照基线。
 
+### 阶段 1 K 线图表 OHLCV 可读性补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 研究页、回测详情和交易详情已经共用固定 K 线图表槽，但图表只呈现 K 线形状、成交量和 marker。
+- 研究工作台需要让用户直接读到当前 K 线的 open/high/low/close/volume、涨跌和时间；否则用户只能靠视觉估算，图表研究能力仍薄。
+
+Definition of Done：
+
+- `TradingViewChart` 在有数据时显示紧凑 OHLCV readout，默认展示最新一根 K 线。
+- 鼠标十字光标移动到某根 K 线时，readout 切换为该 K 线；鼠标离开或无命中时恢复最新一根。
+- readout 展示 UTC 时间、O/H/L/C/V、涨跌绝对值和涨跌百分比，并按涨跌方向使用成功/危险/中性色，不遮挡图表交互。
+- 研究页、回测详情、交易详情通过共享 `TradingViewChart` 自动获得该能力，不新增页面级重复实现。
+- 不新增指标系统、不改后端 API、不改 CandleProvider 语义、不改变 K 线渲染数据。
+
+改动范围：
+
+- `web/frontend/src/components/chart/TradingViewChart.vue`：新增共享 OHLCV readout，默认显示最新 K 线，十字光标命中时切换到对应 K 线，离开或未命中时恢复最新 K 线。
+- `web/frontend/src/components/chart/chartReadout.ts`：封装 UTC 时间、价格、成交量、涨跌和涨跌百分比格式化，避免继续膨胀图表组件。
+- `web/frontend/src/components/chart/TradingViewChart.css`：新增轻量 readout overlay，`pointer-events: none`，不拦截图表交互。
+- `web/frontend/src/components/chart/TradingViewChart.readout.test.ts`、`TradingViewChart.test.ts`：覆盖最新 K 线读数、十字光标切换、卸载退订和既有 chart mock API。
+- `scripts/stage8-visual-smoke.mjs`：有数据图表必须出现 OHLCV readout，且 readout 必须在固定图表 viewport 内、保持紧凑高度；空图表允许 empty state。
+- 不改后端 API、CandleProvider、数据库 schema、K 线数据语义或页面级重复实现。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts src/components/chart/TradingViewChart.readout.test.ts` 通过：2 个测试文件、23 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：30 个测试文件、152 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- `docker compose build api && docker compose up -d api && curl -fsS http://127.0.0.1:8080/readyz` 通过，readyz 返回 `{"status":"ok"}`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=900 node scripts/research-chart-height-smoke.mjs` 通过：1440 / 2048 / 812 / 390 视口图表高度稳定，`body/chart/tv` 高度分别为 680 / 820 / 700 / 580。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440 / 812 / 390 视口、浅 / 深主题、`zh-CN/en-US`，每组 14 页，最大 document width 不超过对应 viewport。
+
+失败项：
+
+- 首次 `TradingViewChart` 目标测试失败：既有测试 mock 未提供 `subscribeCrosshairMove` / `unsubscribeCrosshairMove`，新增 readout 测试也未等待 Vue DOM 刷新；已补 mock API 和 `nextTick`，复跑目标测试通过。
+
+剩余风险：
+
+- 本轮只增强图表读数，不代表策略指标、画线工具、成交点联动或完整交易分析能力已具备。
+- readout 只展示当前/悬停 K 线的基础 OHLCV，不包含 MA/EMA、指标模板、区间统计或订单成交联动。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

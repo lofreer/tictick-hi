@@ -53,6 +53,50 @@
   box-sizing: border-box;
 }
 
+.trading-chart__readout {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 20px);
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--tt-line) 78%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tt-chart-bg) 88%, transparent);
+  color: var(--tt-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: none;
+}
+
+.trading-chart__readout::-webkit-scrollbar {
+  display: none;
+}
+
+.trading-chart__readout-time {
+  color: var(--tt-text-soft);
+  font-weight: 650;
+}
+
+.trading-chart__readout--up {
+  color: var(--tt-success);
+}
+
+.trading-chart__readout--down {
+  color: var(--tt-danger);
+}
+
+.trading-chart__readout--flat {
+  color: var(--tt-muted);
+}
+
 .trading-chart__empty {
   position: absolute;
   inset: 0;

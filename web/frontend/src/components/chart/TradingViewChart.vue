@@ -1,6 +1,15 @@
 <template>
   <div ref="rootRef" class="trading-chart">
     <div ref="containerRef" class="trading-chart__canvas" />
+    <div v-if="readout" class="trading-chart__readout" :class="`trading-chart__readout--${readout.direction}`">
+      <span class="trading-chart__readout-time">{{ readout.timeLabel }}</span>
+      <span>O {{ readout.open }}</span>
+      <span>H {{ readout.high }}</span>
+      <span>L {{ readout.low }}</span>
+      <span>C {{ readout.close }}</span>
+      <span>V {{ readout.volume }}</span>
+      <span>{{ readout.change }} / {{ readout.changePct }}</span>
+    </div>
     <div v-if="data.length === 0" class="trading-chart__empty">
       <EmptyState :title="emptyTitle" />
     </div>
@@ -13,6 +22,7 @@ import {
   createChart,
   createSeriesMarkers,
   HistogramSeries,
+  type MouseEventParams,
   TickMarkType,
   type CandlestickData,
   type HistogramData,
@@ -28,6 +38,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
+import { chartCandleForTime, chartReadoutFromCandle, type ChartReadout } from "./chartReadout";
 import { positiveFloor, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
 import "./TradingViewChart.css";
 
@@ -40,6 +51,7 @@ const props = defineProps<{
 const themeStore = useThemeStore();
 const rootRef = ref<HTMLDivElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
+const readout = ref<ChartReadout | null>(null);
 let chart: IChartApi | null = null;
 let series: ISeriesApi<"Candlestick"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
@@ -97,6 +109,7 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(handleObservedResize);
     resizeObserver.observe(observedResizeHost);
   }
+  chart.subscribeCrosshairMove(handleCrosshairMove);
   window.addEventListener("resize", handleWindowResize);
 
   syncData();
@@ -112,6 +125,7 @@ onBeforeUnmount(() => {
   resizeObserver = null;
   observedResizeHost = null;
   window.removeEventListener("resize", handleWindowResize);
+  chart?.unsubscribeCrosshairMove(handleCrosshairMove);
   chart?.remove();
   chart = null;
   series = null;
@@ -155,8 +169,17 @@ function syncData() {
 
   series?.setData(candleData);
   volumeSeries?.setData(volumeData);
+  updateLatestReadout();
   syncMarkers();
   fitChartContent(candleData.length);
+}
+
+function updateLatestReadout() {
+  readout.value = chartReadoutFromCandle(props.data.at(-1));
+}
+
+function handleCrosshairMove(param: MouseEventParams<Time>) {
+  readout.value = chartReadoutFromCandle(chartCandleForTime(props.data, param.time) ?? props.data.at(-1));
 }
 
 function configurePriceScales() {

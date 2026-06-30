@@ -18,6 +18,8 @@ const chartMocks = vi.hoisted(() => ({
   setVisibleLogicalRange: vi.fn(),
   setMarkers: vi.fn(),
   setVolumeData: vi.fn(),
+  subscribeCrosshairMove: vi.fn(),
+  unsubscribeCrosshairMove: vi.fn(),
 }));
 
 vi.mock("lightweight-charts", () => ({
@@ -47,10 +49,12 @@ function mockChartApi() {
     }),
     remove: chartMocks.remove,
     resize: chartMocks.resize,
+    subscribeCrosshairMove: chartMocks.subscribeCrosshairMove,
     timeScale: vi.fn(() => ({
       fitContent: chartMocks.fitContent,
       setVisibleLogicalRange: chartMocks.setVisibleLogicalRange,
     })),
+    unsubscribeCrosshairMove: chartMocks.unsubscribeCrosshairMove,
   });
 }
 
