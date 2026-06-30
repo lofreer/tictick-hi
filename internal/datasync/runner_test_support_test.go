@@ -15,6 +15,7 @@ type fakeSyncRepository struct {
 	saved                 data.DataSyncResult
 	failed                error
 	failedWorkerID        string
+	failedError           error
 	retry                 error
 	retryWorkerID         string
 	retryError            error
@@ -87,7 +88,7 @@ func (repository *fakeSyncRepository) MarkDataSyncFailed(
 ) error {
 	repository.failed = err
 	repository.failedWorkerID = workerID
-	return nil
+	return repository.failedError
 }
 
 func (repository *fakeSyncRepository) RecordDataSyncRetry(

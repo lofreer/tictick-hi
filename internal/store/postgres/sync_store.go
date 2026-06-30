@@ -105,7 +105,7 @@ func (store *Store) HeartbeatDataSyncTask(
 		return fmt.Errorf("heartbeat data sync task: %w", err)
 	}
 	if !alive {
-		return fmt.Errorf("heartbeat data sync task: lease lost for %s", taskID)
+		return data.DataSyncCommandInvalidStateError()
 	}
 	return nil
 }

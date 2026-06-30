@@ -240,6 +240,54 @@ func TestIntegrationDataSyncSkippedFetchReleaseRequiresWorkerLeaseOwner(t *testi
 	}
 }
 
+func TestIntegrationDataSyncHeartbeatRequiresWorkerLeaseOwner(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	cases := []struct {
+		name        string
+		lockedBy    string
+		workerID    string
+		expireLease bool
+	}{
+		{name: "wrong worker", lockedBy: "owner-worker", workerID: "other-worker"},
+		{name: "expired lease", lockedBy: "owner-worker", workerID: "owner-worker", expireLease: true},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			id := integrationID("dst_heartbeat_owner")
+			symbol := integrationSymbol("HBO")
+			insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, true, testCase.lockedBy)
+			t.Cleanup(func() {
+				cleanupCtx, cleanupCancel := testContext(t)
+				defer cleanupCancel()
+				_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+				_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+			})
+			if testCase.expireLease {
+				if _, err := store.pool.Exec(ctx, `
+					UPDATE data_sync_tasks
+					   SET locked_until = now() - interval '1 second'
+					 WHERE id = $1`,
+					id,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			err := store.HeartbeatDataSyncTask(ctx, id, testCase.workerID, time.Minute)
+			assertDataSyncCommandInvalidState(t, err)
+
+			row := readIntegrationSyncTask(t, ctx, store, id)
+			if !row.lockedBy.Valid || row.lockedBy.String != testCase.lockedBy {
+				t.Fatalf("heartbeat ownership race changed locked_by: %#v", row)
+			}
+		})
+	}
+}
+
 func markIntegrationDataSyncTaskRunning(
 	t *testing.T,
 	ctx context.Context,

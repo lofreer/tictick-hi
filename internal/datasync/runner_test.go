@@ -2,7 +2,6 @@ package datasync
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -444,7 +443,7 @@ func TestRunnerDoesNotSaveAfterHeartbeatLeaseLoss(t *testing.T) {
 		},
 		claimed:              true,
 		heartbeatErrAfter:    1,
-		heartbeatError:       errors.New("lease lost"),
+		heartbeatError:       data.DataSyncCommandInvalidStateError(),
 		heartbeatErrorSignal: leaseLost,
 	}
 	fetcher := &leaseLossMarketClient{
@@ -474,8 +473,77 @@ func TestRunnerDoesNotSaveAfterHeartbeatLeaseLoss(t *testing.T) {
 	if repository.saved.TaskID != "" {
 		t.Fatalf("result should not be saved after lease loss: %#v", repository.saved)
 	}
+	if repository.failed != nil {
+		t.Fatalf("lease loss should not be recorded as task failure: %v", repository.failed)
+	}
+}
+
+func TestRunnerIgnoresRetryRecordLeaseRace(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 10, 0, 0, time.UTC)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:    true,
+		retryError: data.DataSyncCommandInvalidStateError(),
+	}
+	fetcher := &fakeMarketClient{err: exchange.NewTemporaryError("temporary EOF", nil)}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{
+		WorkerID:        "test",
+		BatchLimit:      10,
+		FetchRetries:    1,
+		RetryDelay:      time.Nanosecond,
+		RetryBackoff:    30 * time.Second,
+		MaxRetryBackoff: 5 * time.Minute,
+	})
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.retry == nil {
+		t.Fatal("temporary error should still attempt to record retry")
+	}
+	if repository.failed != nil {
+		t.Fatalf("retry ownership race should not mark task failed: %v", repository.failed)
+	}
+	if repository.saved.TaskID != "" {
+		t.Fatalf("retry ownership race should not save result: %#v", repository.saved)
+	}
+}
+
+func TestRunnerIgnoresFailureRecordLeaseRace(t *testing.T) {
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:     true,
+		failedError: data.DataSyncCommandInvalidStateError(),
+	}
+	fetcher := &fakeMarketClient{err: context.Canceled}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10, FetchRetries: 3, RetryDelay: time.Nanosecond})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if repository.failed == nil {
-		t.Fatal("expected lease loss to be recorded as failure")
+		t.Fatal("permanent error should still attempt to record failure")
+	}
+	if repository.failedWorkerID != "test" {
+		t.Fatalf("failed worker id = %q, want test", repository.failedWorkerID)
+	}
+	if repository.saved.TaskID != "" {
+		t.Fatalf("failure ownership race should not save result: %#v", repository.saved)
 	}
 }
 

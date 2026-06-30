@@ -267,6 +267,29 @@ done            用户确认关闭
 - 该切片只收紧 data sync worker 的 retry/fail/release 状态变更所有权；backtest / trading / notification worker 仍未统一到同一状态机抽象。
 - 仍缺多实例长期 soak、真实交易所网络恢复压测和跨进程共享交易所额度。
 
+### 阶段 1 data sync lease race 收敛补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- `HeartbeatDataSyncTask` 在当前 worker 不再持有 data sync active lease 时返回 `data_sync_command_invalid_state` 领域错误。
+- data sync runner 遇到 heartbeat ownership lost、保存结果 ownership lost、retry 记录 ownership race、failed 记录 ownership race 或任务已删除时，只跳过当前任务并交还调度，不把旧 worker 的失效 lease 继续升级成任务 failed 或整个 worker 退出。
+- 单元测试覆盖 heartbeat lease lost、retry 记录 invalid-state race 和 failed 记录 invalid-state race；PostgreSQL 集成测试覆盖错误 worker / 过期 lease heartbeat 返回领域 invalid-state 且不改锁。
+
+范围外：
+
+- 不改变任务 claim、公平性、退避算法、fetch lock 或 candle 写入语义。
+- 不重构 backtest / trading / notification worker。
+- 不实现跨进程共享交易所额度、真实外部交易所长期压测或实盘交易所私有 API。
+
+剩余风险：
+
+- 该切片只避免 data sync 旧 worker 在 lease race 后错误退出或错误标失败；完整统一 worker 状态机仍未实现。
+- 仍缺多实例长期 soak 和真实交易所网络恢复压测。
+
 ### 阶段 8 browser smoke 全局超时补充
 
 执行日期：2026-06-30
