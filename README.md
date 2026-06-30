@@ -34,7 +34,15 @@ Full local quality gate:
 scripts/full-quality-gate.sh
 ```
 
-This runs the protocol's common checks in one repeatable entrypoint: Go tests, Go vet, frontend typecheck, frontend tests, frontend production build, and the lightweight quality gate. Add the heavier Docker / browser checks explicitly when validating Stage 8 behavior:
+This runs the protocol's common checks in one repeatable entrypoint: Go tests, Go vet, frontend typecheck, frontend tests, frontend production build, and the lightweight quality gate. Add the heavier Stage 1 data checks explicitly when validating research/data-sync behavior:
+
+```bash
+FULL_QUALITY_STAGE1=1 scripts/full-quality-gate.sh
+```
+
+`FULL_QUALITY_STAGE1=1` runs the data sync restart smoke and the CandleProvider large aggregation perf smoke. The individual switches are `FULL_QUALITY_STAGE1_RESTART=1` and `FULL_QUALITY_STAGE1_CANDLE_PERF=1`.
+
+Add the heavier Docker / browser checks explicitly when validating Stage 8 behavior:
 
 ```bash
 FULL_QUALITY_STAGE8=1 FULL_QUALITY_SIGTERM=1 scripts/full-quality-gate.sh

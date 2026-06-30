@@ -8871,6 +8871,39 @@ Definition of Done：
 - smoke 仍依赖 Docker Compose、本地 PostgreSQL、headless-free API 环境和本地 market mock；它不是长期真实交易所恢复压测。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 重型数据门禁总入口补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- `scripts/full-quality-gate.sh` 增加 `FULL_QUALITY_STAGE1=1` 阶段 1 重型数据验收总开关。
+- `FULL_QUALITY_STAGE1=1` 会在通用完整门禁后连续运行 `scripts/stage1-data-sync-restart-smoke.sh` 和 `scripts/stage1-candle-provider-perf-smoke.sh`。
+- 保留单项开关：`FULL_QUALITY_STAGE1_RESTART=1` 只运行 data sync restart smoke，`FULL_QUALITY_STAGE1_CANDLE_PERF=1` 只运行 CandleProvider 大窗口聚合性能 smoke。
+- README 记录 Stage 1 总开关和两个单项开关，避免阶段 1 重型验收入口只存在于脚本实现里。
+
+范围外：
+
+- 不改变 CandleProvider、data sync runner、PostgreSQL schema 或 API 行为。
+- 不把 Stage 1 重型 smoke 加入默认 CI 必跑矩阵。
+- 不关闭长期 soak、冷缓存、真实生产数据分布、多实例共享额度或真实交易所恢复压测风险。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `bash -n scripts/full-quality-gate.sh scripts/stage1-data-sync-restart-smoke.sh scripts/stage1-candle-provider-perf-smoke.sh` 通过。
+- `FULL_QUALITY_STAGE1=1 scripts/full-quality-gate.sh` 通过；其中 `stage1 data sync restart smoke` 验证样本为 `task=dst_s1restart_1782834897`、`cursor=2026-01-01T00:04:00Z`、`klinesHits=1`。
+- 同一次 Stage 1 总门禁中的 `stage1 candle provider perf smoke` 通过；真实 PostgreSQL 中读取 `240000` 根基础 `1m` K 线并聚合成 `1000` 根 `4h` K 线，查询耗时 `2.535631876s`。
+
+剩余风险：
+
+- 该补充只把已有 Stage 1 重型 smoke 收敛到统一入口，不新增业务语义。
+- `stage1-candle-provider-perf-smoke.sh` 仍是短时真实 PostgreSQL 大窗口聚合 smoke，不代表长期冷缓存或真实生产分布压测。
+- `stage1-data-sync-restart-smoke.sh` 仍依赖本地 Docker Compose 和 mock exchange，不代表真实外部交易所长期恢复压测。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
