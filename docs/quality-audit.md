@@ -75,6 +75,8 @@ done            用户确认关闭
 
 补充：阶段 1 真实 public exchange smoke 在 2026-07-01 继续收紧；`real_exchange_data_sync_integration_test.go` 不再要求真实交易所 public K 线请求第一次运行 runner 必须成功，遇到 temporary EOF / retrying / exchange backoff 时会按任务 `nextAttemptAt` 和 `exchangeBackoffUntil` 做最多 6 次有界恢复尝试，最终仍必须通过 `/api/candles` 读回 3 根 healthy native `1m` K 线才算通过。默认 Binance public smoke 通过；OKX opt-in 在当前环境连续 EOF，直接 `curl https://www.okx.com/api/v5/market/history-candles?...` 也返回 TLS `SSL_ERROR_SYSCALL`，因此该项记录为外部连通性风险，不能作为 OKX 真实外网成功证据。该补充只增强真实 public market data smoke 的恢复语义，不代表私有交易 API、live executor、实盘下单或长期外网压测已完成。
 
+补充：阶段 1 API 级临时 public market 失败恢复在 2026-07-01 增加确定性证据；`TestIntegrationDataSyncRouteRecoversAfterTemporaryPublicMarketError` 通过真实 API handler 创建并启动 data sync task，使用本地 Binance-compatible K 线 endpoint 第一次返回 `429 Retry-After`，验证任务进入 `pending/retrying`、记录任务级 retry 和 exchange backoff、错误摘要不泄露请求路径/交易对 query，随后按 `nextAttemptAt` 恢复 runner，写入 PostgreSQL，任务回到 `succeeded/dataHealth=ok`，并通过 `/api/candles` 读回 3 根 `source=native`、`health=ok` 的 `1m` K 线。该测试只证明 public market data 临时失败恢复链路，不代表真实 OKX 外网、长期 soak、多实例共享额度或任何实盘交易能力。
+
 补充：阶段 1 全历史缺口批量 repair API contract 覆盖在 2026-06-30 继续收紧；`POST /api/market/candle-gaps/repair-batch` 已由前端 `dataApi.repairMarketCandleGaps` 使用、后端 OpenAPI contract 声明并由 handler 测试覆盖，本轮把该路由补进 `TestAPIContractCoversCurrentFrontendRoutes` 的前端路由清单，并补进 `TestAPIMethodNotAllowedContracts`，确保未来不会出现前端可调用但 contract / 405 Allow gate 漏检的隐藏写路由。该证据只补契约覆盖，不改变批量 repair 行为、单次上限、active catalog 边界或 data sync worker 调度语义。
 
 ### 阶段 1 研究页图表缺口修复入口收敛补充
@@ -9274,7 +9276,8 @@ Definition of Done：
 
 - `go test ./internal/web/api -run 'TestIntegrationReal(Binance|OKX)DataSyncRouteServesNativeCandles' -count=1 -v` 通过编译并按预期跳过：未设置真实外网 env 时不访问外网。
 - `scripts/stage1-real-exchange-data-sync-smoke.sh` 通过：临时 PostgreSQL database 中 Binance 非跳过执行，真实 `data-api.binance.vision` public K 线被 data sync runner 写入 PostgreSQL，并由 `/api/candles` 返回 native/ok；OKX 在未设置 `STAGE1_REAL_EXCHANGE_SMOKE_OKX=1` 时跳过。
-- `STAGE1_REAL_EXCHANGE_SMOKE_OKX=1 scripts/stage1-real-exchange-data-sync-smoke.sh` 失败于当前环境访问 OKX public endpoint：Binance 部分通过，OKX `/api/v5/market/history-candles` 返回 `okx candles temporary unavailable: www.okx.com: EOF`，runner 按预期把任务置回 `pending`、记录 retry/backoff，测试因未达到 succeeded 失败。
+- `STAGE1_REAL_EXCHANGE_SMOKE_OKX=1 scripts/stage1-real-exchange-data-sync-smoke.sh` 失败于当前环境访问 OKX public endpoint：Binance 部分通过，OKX `/api/v5/market/history-candles` 连续返回 `okx candles temporary unavailable: www.okx.com: EOF`，runner 按预期把任务置回 `pending`、记录 retry/backoff，并按 `nextAttemptAt` / `exchangeBackoffUntil` 做 6 次有界恢复尝试后仍未达到 `succeeded`；直接 `curl https://www.okx.com/api/v5/market/history-candles?...` 同样返回 TLS `SSL_ERROR_SYSCALL`。
+- `docker run --rm --network tictick-hi_default ... go test ./internal/web/api -run TestIntegrationDataSyncRouteRecoversAfterTemporaryPublicMarketError -count=1 -v` 通过：真实 API handler 创建/启动 data sync task，本地 Binance-compatible endpoint 首次 `429 Retry-After` 后，任务进入 `pending/retrying` 且错误不泄露请求 URL，随后按 retry/backoff 恢复，写入 PostgreSQL，并由 `/api/candles` 返回 3 根 healthy native `1m` K 线。
 - `FULL_QUALITY_STAGE1_REAL_EXCHANGE=1 scripts/full-quality-gate.sh` 通过：包含 `go test ./...`、`go vet ./...`、前端 typecheck / test / build、轻量质量门禁，并串联默认真实 public exchange data sync smoke。
 
 剩余风险：

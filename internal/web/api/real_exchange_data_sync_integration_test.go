@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,6 +53,118 @@ func TestIntegrationRealOKXDataSyncRouteServesNativeCandles(t *testing.T) {
 			return okx.NewMarketClientForURL(baseURL, &http.Client{Timeout: 20 * time.Second})
 		},
 	})
+}
+
+func TestIntegrationDataSyncRouteRecoversAfterTemporaryPublicMarketError(t *testing.T) {
+	store, pool, ctx := openAPIIntegrationStore(t)
+	server := NewServer(store, "")
+
+	symbol := apiIntegrationSymbol("APIRR")
+	username := fmt.Sprintf("api-retry-sync-%d", time.Now().UTC().UnixNano())
+	password := "secret123"
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Minute)
+	market := newAPITransientBinanceKlineServer(symbol, start)
+	defer market.Close()
+
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := contextWithShortTimeout()
+		defer cleanupCancel()
+		cleanupAPIIntegrationMarket(t, cleanupCtx, pool, symbol, username)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = 'binance'`)
+	})
+
+	if _, _, err := store.EnsureOperator(ctx, data.CreateOperator{
+		Username: username,
+		Password: password,
+		Enabled:  true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	auth := loginIntegrationOperator(t, server, username, password)
+	upsertAPIIntegrationMarketInstrument(t, ctx, pool, symbol)
+
+	createBody := fmt.Sprintf(
+		`{"exchange":"binance","symbol":%q,"interval":"1m","startTime":%q,"endTime":%q}`,
+		symbol,
+		start.Format(time.RFC3339),
+		end.Format(time.RFC3339),
+	)
+	createRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/data/tasks", createBody)
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create data sync task status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var task data.DataSyncTask
+	if err := json.NewDecoder(createRecorder.Body).Decode(&task); err != nil {
+		t.Fatal(err)
+	}
+
+	startRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/data/tasks/"+task.ID+"/sync/start", "{}")
+	if startRecorder.Code != http.StatusOK {
+		t.Fatalf("start data sync task status = %d body = %s", startRecorder.Code, startRecorder.Body.String())
+	}
+
+	runner := datasync.NewRunner(
+		store,
+		exchange.NewRegistry(map[string]exchange.MarketDataClient{
+			"binance": binance.NewMarketClientForURL(market.URL, market.Client()),
+		}),
+		datasync.Config{
+			WorkerID:          "api-retry-smoke-worker",
+			LeaseTTL:          time.Minute,
+			HeartbeatInterval: time.Second,
+			BatchLimit:        10,
+			FetchRetries:      3,
+			RetryDelay:        time.Nanosecond,
+			RetryBackoff:      100 * time.Millisecond,
+			MaxRetryBackoff:   2 * time.Second,
+		},
+	)
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	retrying := getAPIIntegrationDataSyncTask(t, server, auth, task.ID)
+	if retrying.Status != data.TaskStatusPending || retrying.DataHealth != data.DataSyncHealthRetrying ||
+		retrying.NextAttemptAt == nil || retrying.ExchangeBackoffUntil == nil ||
+		retrying.LastError == "" || retrying.ExchangeBackoffError == "" ||
+		retrying.LatestSyncedOpenTime != nil {
+		t.Fatalf("task after first temporary failure = %#v, want retrying without cursor", retrying)
+	}
+	if strings.Contains(retrying.LastError, "/api/v3/klines") || strings.Contains(retrying.LastError, "symbol="+symbol) {
+		t.Fatalf("temporary error leaked request details: %q", retrying.LastError)
+	}
+	if market.Hits() != 1 {
+		t.Fatalf("transient market hits after first run = %d, want 1", market.Hits())
+	}
+
+	after := runAPIDataSyncRunnerUntilSucceeded(t, ctx, server, auth, runner, task.ID)
+	if after.LatestSyncedOpenTime == nil || !after.LatestSyncedOpenTime.Equal(end) ||
+		after.DataHealth != data.DataSyncHealthOK || after.LastError != "" ||
+		after.NextAttemptAt != nil || after.ExchangeBackoffUntil != nil {
+		t.Fatalf("recovered task = %#v, want healthy succeeded task", after)
+	}
+	if market.Hits() != 2 {
+		t.Fatalf("transient market hits after recovery = %d, want 2", market.Hits())
+	}
+
+	candlesPath := "/api/candles?exchange=binance&symbol=" + url.QueryEscape(symbol) +
+		"&interval=1m&from=" + url.QueryEscape(start.Format(time.RFC3339)) +
+		"&to=" + url.QueryEscape(end.Format(time.RFC3339)) +
+		"&limit=10"
+	candlesRecorder := serveAuthenticated(server, auth, http.MethodGet, candlesPath, "")
+	if candlesRecorder.Code != http.StatusOK {
+		t.Fatalf("candles status = %d body = %s", candlesRecorder.Code, candlesRecorder.Body.String())
+	}
+	var result data.CandleResult
+	if err := json.NewDecoder(candlesRecorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != data.CandleSourceNative || result.Health != data.CandleHealthOK ||
+		result.Window.Count != 3 || len(result.Candles) != 3 ||
+		!result.Candles[0].OpenTime.Equal(start) || !result.Candles[2].OpenTime.Equal(end) {
+		t.Fatalf("recovered API candle result = %#v, want 3 healthy native candles", result)
+	}
 }
 
 type realExchangeSmokeCase struct {
@@ -144,7 +258,7 @@ func runRealDataSyncRouteServesNativeCandles(t *testing.T, smoke realExchangeSmo
 		},
 	)
 
-	after := runRealDataSyncRunnerUntilSucceeded(t, ctx, server, auth, runner, task.ID)
+	after := runAPIDataSyncRunnerUntilSucceeded(t, ctx, server, auth, runner, task.ID)
 	if after.Status != data.TaskStatusSucceeded || after.SyncEnabled || after.RealtimeEnabled {
 		t.Fatalf("real data sync task state = %#v, want succeeded one-shot sync", after)
 	}
@@ -181,7 +295,7 @@ func runRealDataSyncRouteServesNativeCandles(t *testing.T, smoke realExchangeSmo
 	}
 }
 
-func runRealDataSyncRunnerUntilSucceeded(
+func runAPIDataSyncRunnerUntilSucceeded(
 	t *testing.T,
 	ctx context.Context,
 	server http.Handler,
@@ -247,6 +361,77 @@ func latestRetryWindow(times ...*time.Time) *time.Time {
 		}
 	}
 	return latest
+}
+
+type apiTransientBinanceKlineServer struct {
+	*httptest.Server
+
+	mu     sync.Mutex
+	hits   int
+	symbol string
+	start  time.Time
+}
+
+func newAPITransientBinanceKlineServer(symbol string, start time.Time) *apiTransientBinanceKlineServer {
+	server := &apiTransientBinanceKlineServer{symbol: symbol, start: start}
+	server.Server = httptest.NewServer(http.HandlerFunc(server.handle))
+	return server
+}
+
+func (server *apiTransientBinanceKlineServer) Hits() int {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	return server.hits
+}
+
+func (server *apiTransientBinanceKlineServer) handle(response http.ResponseWriter, request *http.Request) {
+	if request.URL.Path != "/api/v3/klines" {
+		http.NotFound(response, request)
+		return
+	}
+
+	server.mu.Lock()
+	server.hits++
+	hit := server.hits
+	server.mu.Unlock()
+
+	if hit == 1 {
+		response.Header().Set("Retry-After", "1")
+		http.Error(response, "rate limited", http.StatusTooManyRequests)
+		return
+	}
+	if request.URL.Query().Get("symbol") != server.symbol || request.URL.Query().Get("interval") != "1m" {
+		http.Error(response, "invalid kline request", http.StatusBadRequest)
+		return
+	}
+
+	response.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(response).Encode(server.klines()); err != nil {
+		panic(err)
+	}
+}
+
+func (server *apiTransientBinanceKlineServer) klines() [][]any {
+	rows := make([][]any, 0, 3)
+	for index := 0; index < 3; index++ {
+		openTime := server.start.Add(time.Duration(index) * time.Minute)
+		price := 100 + index
+		rows = append(rows, []any{
+			openTime.UnixMilli(),
+			fmt.Sprintf("%d.00", price),
+			fmt.Sprintf("%d.00", price+1),
+			fmt.Sprintf("%d.00", price-1),
+			fmt.Sprintf("%d.00", price),
+			fmt.Sprintf("%d.00", 10+index),
+			openTime.Add(time.Minute).Add(-time.Millisecond).UnixMilli(),
+			"0",
+			0,
+			"0",
+			"0",
+			"0",
+		})
+	}
+	return rows
 }
 
 func upsertRealAPIIntegrationMarketInstrument(
