@@ -184,7 +184,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("reserves responsive right price scale width for visible price labels", () => {
+  it("reserves readable right price scale width for full price labels", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 
@@ -192,13 +192,13 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 7,
+          fontSize: 11,
         }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 36,
+          minimumWidth: 56,
           ticksVisible: false,
         }),
       }),
@@ -208,7 +208,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("uses a compact right price scale on narrow chart viewports", () => {
+  it("keeps mobile price labels readable without abbreviating values", () => {
     viewportSize = { width: 390, height: 500 };
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
@@ -217,10 +217,10 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 8,
+          fontSize: 10,
         }),
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 32,
+          minimumWidth: 48,
         }),
       }),
     );
@@ -238,7 +238,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 34,
+          minimumWidth: 52,
         }),
       }),
     );
@@ -247,7 +247,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("formats large price labels without trailing decimal noise", () => {
+  it("formats price labels as full values without compact shorthand", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
     const options = mockedCreateChart.mock.calls[0]?.[1] as {
@@ -256,6 +256,8 @@ describe("TradingViewChart", () => {
 
     expect(options.localization.priceFormatter(1_234_567.8)).toBe("1234568");
     expect(options.localization.priceFormatter(60_664.22)).toBe("60664");
+    expect(options.localization.priceFormatter(59_454)).toBe("59454");
+    expect(options.localization.priceFormatter(59_454)).not.toMatch(/[kKmMbB]/);
     expect(options.localization.priceFormatter(9_999.4)).toBe("9999");
     expect(options.localization.priceFormatter(248.5)).toBe("248.5");
     expect(options.localization.priceFormatter(99.123)).toBe("99.12");
@@ -304,16 +306,12 @@ describe("TradingViewChart", () => {
 
   it("scales the logical edge padding with dense candle windows", () => {
     const host = createResearchHost();
-    const wrapper = mountChart(host.body, Array.from({ length: 1000 }, (_, index) => ({
-      time: index + 1,
-      open: 100,
-      high: 110,
-      low: 95,
-      close: 104,
-      volume: 1000 + index,
-    })));
+    const wrapper = mountChart(
+      host.body,
+      Array.from({ length: 1000 }, (_, index) => ({ time: index + 1, open: 100, high: 110, low: 95, close: 104, volume: 1000 + index })),
+    );
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 712, to: 1001 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 717, to: 1001 });
 
     wrapper.unmount();
     host.panel.remove();

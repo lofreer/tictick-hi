@@ -272,14 +272,14 @@ function responsiveChartOptions(mode = themeStore.mode) {
 }
 
 function chartFontSize() {
-  if (lastSize.width <= 480) return 8;
-  return 7;
+  if (lastSize.width <= 480) return 10;
+  return 11;
 }
 
 function rightPriceScaleMinimumWidth() {
-  if (lastSize.width <= 480) return 32;
-  if (lastSize.width <= 980) return 34;
-  return 36;
+  if (lastSize.width <= 480) return 48;
+  if (lastSize.width <= 980) return 52;
+  return 56;
 }
 
 function formatChartPrice(price: number) {
