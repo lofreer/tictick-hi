@@ -8960,6 +8960,8 @@ Definition of Done：
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
 - `scripts/quality-gate.sh` 通过。
+- 本地 `docker compose up -d --build api` 通过，`http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，`/research` 返回 HTTP 200。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440x900、812x1320、390x844 三个视口 × light/dark × zh-CN/en-US，每组 14 页，最大 document width 均等于视口宽度。
 
 剩余风险：
 
@@ -9087,6 +9089,47 @@ Definition of Done：
 
 - 该补充只恢复坐标轴可读性和几何 guard；仍没有像素快照基线、多浏览器视觉回归或设计评审关闭。
 - 价格轴可读性与主图宽度仍是取舍；后续支持更长价格文本或更多资产报价精度时，需要重新校准轴宽。
+- 项目整体仍是 `scaffold`，不能升级。
+
+### 阶段 1 研究页补同步任务状态自动刷新补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 研究页新增有界 repair task 状态轮询 composable：默认每 4 秒刷新一次 data sync task 列表，最多 6 次，重复启动会取消上一轮，组件卸载会清理定时器。
+- 图表首个缺口 repair、任务窗口缺口 repair、全历史缺口 repair、全历史异常 repair 和任务窗口异常 repair 成功排队后，都会启动同一轮有界任务列表刷新。
+- 如果 repair 入口本身已经同步刷新过任务列表，轮询第一轮延后执行，避免立刻重复打同一个任务列表请求。
+- 任务窗口缺口详情弹窗和任务窗口异常详情弹窗复用 `MarketRepairResultTags`，并接收研究页最新 tasks；repair result 中创建出的补同步任务会随任务列表刷新显示最新 `status` 和 `dataHealth`。
+- 前端测试覆盖轮询 immediate / delayed / restart / unmount 清理行为，以及研究页所有 repair 入口接线。
+
+范围外：
+
+- 不实现 WebSocket / SSE / worker push。
+- 不把“补同步任务已排队”解释为缺口或异常已经实际修复；最终收敛仍依赖 data sync worker 写回健康 K 线。
+- 不改变后端 repair API、任务状态机、data sync worker 调度或 K 线写回语义。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend exec vitest run src/composables/useResearchRepairTaskPolling.test.ts src/pages/ResearchPage.layout.test.ts src/components/research/MarketRepairResultTags.test.ts src/components/research/ResearchTaskInvalidIssueModal.test.ts` 通过：29 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：34 个测试文件、169 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- 本地 `docker compose up -d --build api` 通过，`http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，`/research` 返回 HTTP 200。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440x900、812x1320、390x844 三个视口 × light/dark × zh-CN/en-US，每组 14 页，最大 document width 均等于视口宽度。
+
+剩余风险：
+
+- 轮询是有界兜底，不是实时订阅；长时间运行或卡住的补同步任务仍可能在轮询结束后需要用户手动刷新。
+- 真实交易所返回空窗口、持续异常或限流时，仍依赖现有 failed/retry/backoff/数据健康路径暴露。
+- 当前仍缺真实外部交易所恢复压测、像素快照和多浏览器视觉回归，研究页不能升级。
 - 项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后

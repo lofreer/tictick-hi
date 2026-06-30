@@ -44,30 +44,7 @@
             }}
           </NTag>
           <NText v-if="repairNotice" :type="repairNoticeType">{{ repairNotice }}</NText>
-          <NTag v-if="repairResult" :bordered="false" :type="repairResult.limited ? 'warning' : 'default'">
-            {{
-              t("research.invalidIssueRepairResultSummary", {
-                created: repairResult.createdTasks.length,
-                limit: repairResult.repairLimit,
-                skipped: repairResult.skippedExisting,
-                total: repairResult.totalCount,
-              })
-            }}
-          </NTag>
-          <NTag v-if="repairResult?.limited" :bordered="false" type="warning">
-            {{ t("research.invalidIssueRepairResultLimited") }}
-          </NTag>
-          <NTag
-            v-for="repairTask in repairTaskWindowTags"
-            :key="repairTask.key"
-            :bordered="false"
-            :title="repairTask.title"
-          >
-            {{ repairTask.label }}
-          </NTag>
-          <NTag v-if="hiddenRepairTaskCount > 0" :bordered="false">
-            {{ t("research.invalidIssueRepairTaskMore", { count: hiddenRepairTaskCount }) }}
-          </NTag>
+          <MarketRepairResultTags :result="repairResult" :tasks="tasks" />
         </NSpace>
         <NSpace align="center" justify="end">
           <NPagination
@@ -115,12 +92,16 @@ import { useI18n } from "vue-i18n";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";
 import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
 import type { RepairDataSyncInvalidIssuesRequest } from "@/types/app";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const { t } = useI18n();
+defineProps<{
+  tasks?: DataSyncTask[];
+}>();
 const emit = defineEmits<{ repaired: [] }>();
 
 const modalOpen = ref(false);
@@ -177,18 +158,6 @@ const displayedIssueCount = computed(() => {
   if (!details.value) return 0;
   return Math.min(details.value.totalCount, details.value.offset + details.value.returnedCount);
 });
-const repairTaskWindowTags = computed(() => (repairResult.value?.createdTasks ?? []).slice(0, 3).map((repairTask) => ({
-  key: repairTask.id,
-  label: t("research.invalidIssueRepairTaskWindow", {
-    id: repairTask.id,
-    window: repairTaskWindow(repairTask),
-  }),
-  title: `${repairTask.exchange} / ${repairTask.symbol} / ${repairTask.interval}`,
-})));
-const hiddenRepairTaskCount = computed(() =>
-  Math.max(0, (repairResult.value?.createdTasks.length ?? 0) - repairTaskWindowTags.value.length),
-);
-
 defineExpose({ open });
 
 async function open(nextTask: DataSyncTask) {
@@ -291,12 +260,6 @@ function currentRepairRequest(): RepairDataSyncInvalidIssuesRequest {
     request.to = new Date(timeRange.value[1]).toISOString();
   }
   return request;
-}
-
-function repairTaskWindow(repairTask: DataSyncTask) {
-  const from = repairTask.startTime ? formatCompactDateTime(repairTask.startTime) : "-";
-  const to = repairTask.endTime ? formatCompactDateTime(repairTask.endTime) : "-";
-  return `${from} - ${to}`;
 }
 
 function invalidIssueLabel(code?: string, fallback?: string) {

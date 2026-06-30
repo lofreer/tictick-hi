@@ -20,30 +20,7 @@
             }}
           </NTag>
           <NText v-if="repairNotice" :type="repairNoticeType">{{ repairNotice }}</NText>
-          <NTag v-if="repairResult" :bordered="false" :type="repairResult.limited ? 'warning' : 'default'">
-            {{
-              t("research.taskGapRepairResultSummary", {
-                created: repairResult.createdTasks.length,
-                limit: repairResult.repairLimit,
-                skipped: repairResult.skippedExisting,
-                total: repairResult.totalCount,
-              })
-            }}
-          </NTag>
-          <NTag v-if="repairResult?.limited" :bordered="false" type="warning">
-            {{ t("research.taskGapRepairResultLimited") }}
-          </NTag>
-          <NTag
-            v-for="repairTask in repairTaskWindowTags"
-            :key="repairTask.key"
-            :bordered="false"
-            :title="repairTask.title"
-          >
-            {{ repairTask.label }}
-          </NTag>
-          <NTag v-if="hiddenRepairTaskCount > 0" :bordered="false">
-            {{ t("research.taskGapRepairTaskMore", { count: hiddenRepairTaskCount }) }}
-          </NTag>
+          <MarketRepairResultTags :result="repairResult" :tasks="tasks" />
         </NSpace>
         <NSpace align="center" justify="end">
           <NButton
@@ -71,6 +48,7 @@ import { useI18n } from "vue-i18n";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";
 import type { CandleGap, DataSyncGapList, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
 
 const props = defineProps<{
@@ -83,6 +61,7 @@ const props = defineProps<{
   repairResult: DataSyncGapRepairResult | null;
   show: boolean;
   task: DataSyncTask | null;
+  tasks?: DataSyncTask[];
 }>();
 
 const emit = defineEmits<{
@@ -101,25 +80,4 @@ const columns = computed<DataTableColumns<CandleGap>>(() => [
   { title: t("research.gapTo"), key: "to", minWidth: 180 },
   { title: t("research.missingCandles"), key: "missingCandles", width: 120 },
 ]);
-const repairTaskWindowTags = computed(() => (props.repairResult?.createdTasks ?? []).slice(0, 3).map((repairTask) => ({
-  key: repairTask.id,
-  label: t("research.taskGapRepairTaskWindow", {
-    id: repairTask.id,
-    window: repairTaskWindow(repairTask),
-  }),
-  title: `${repairTask.exchange} / ${repairTask.symbol} / ${repairTask.interval}`,
-})));
-const hiddenRepairTaskCount = computed(() =>
-  Math.max(0, (props.repairResult?.createdTasks.length ?? 0) - repairTaskWindowTags.value.length),
-);
-
-function repairTaskWindow(repairTask: DataSyncTask) {
-  const from = repairTask.startTime ? formatWindowTime(repairTask.startTime) : "-";
-  const to = repairTask.endTime ? formatWindowTime(repairTask.endTime) : "-";
-  return `${from} - ${to}`;
-}
-
-function formatWindowTime(value: string) {
-  return value.replace("T", " ").replace(/(?:\.\d+)?Z$/, " UTC");
-}
 </script>

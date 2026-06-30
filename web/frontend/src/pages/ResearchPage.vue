@@ -33,7 +33,7 @@
           @view-gaps="viewTaskGaps"
           @view-invalid="viewTaskInvalidIssues"
           @delete="deleteTask"
-          @repair-gaps="repairTaskGaps"
+          @repair-gaps="repairTaskGapsAndPoll"
           @retry="retryTask"
           @toggle-realtime="toggleRealtime"
           @toggle-sync="toggleSync"
@@ -130,8 +130,8 @@
               <NTag v-if="candleResult && candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
-              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="loadTasks" />
-              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="loadTasks" />
+              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />
+              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />
               <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
                 {{ coverageLabel }}
               </NTag>
@@ -229,11 +229,12 @@
       :repair-notice-type="taskGapRepairNoticeType"
       :repair-result="taskGapRepairResult"
       :task="gapDetailsTask"
-      @repair="gapDetailsTask && repairTaskGaps(gapDetailsTask)"
+      :tasks="tasks"
+      @repair="gapDetailsTask && repairTaskGapsAndPoll(gapDetailsTask)"
       @retry="gapDetailsTask && viewTaskGaps(gapDetailsTask)"
     />
 
-    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" @repaired="loadTasks" />
+    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairTaskPolling" />
   </section>
 </template>
 
@@ -267,6 +268,7 @@ import ResearchTaskGapDetailsModal from "@/components/research/ResearchTaskGapDe
 import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
+import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
 import "./ResearchPage.css";
@@ -324,6 +326,7 @@ const {
   toggleSync,
   viewTaskGaps,
 } = useResearchWorkspace();
+const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadTasks);
 
 const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "Binance", value: "binance" },
@@ -345,6 +348,12 @@ function viewTaskInvalidIssues(task: DataSyncTask) {
 
 async function repairFirstChartGap() {
   chartGapRepairResult.value = await repairFirstGap() ?? null;
+  if (chartGapRepairResult.value) startRepairTaskPolling({ immediate: false });
+}
+
+async function repairTaskGapsAndPoll(task: DataSyncTask) {
+  await repairTaskGaps(task);
+  if (taskGapRepairResult.value) startRepairTaskPolling({ immediate: false });
 }
 
 async function refreshChartCandles() {
