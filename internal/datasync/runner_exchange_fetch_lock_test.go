@@ -11,6 +11,7 @@ import (
 )
 
 func TestRunnerReleasesLeaseWithoutFetchWhenExchangeFetchLockHeld(t *testing.T) {
+	now := time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC)
 	repository := &fakeSyncRepository{
 		task: data.DataSyncTask{
 			ID:       "dst_1",
@@ -25,6 +26,7 @@ func TestRunnerReleasesLeaseWithoutFetchWhenExchangeFetchLockHeld(t *testing.T) 
 	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
 		"binance": fetcher,
 	}), Config{WorkerID: "test", BatchLimit: 10})
+	runner.now = func() time.Time { return now }
 
 	if err := runner.RunOnce(context.Background()); err != nil {
 		t.Fatal(err)
@@ -47,6 +49,14 @@ func TestRunnerReleasesLeaseWithoutFetchWhenExchangeFetchLockHeld(t *testing.T) 
 	}
 	if len(repository.fetchUnlocks) != 0 {
 		t.Fatalf("fetch unlocks = %#v, want none", repository.fetchUnlocks)
+	}
+	if repository.fetchLockSkipExchange != "binance" || !repository.fetchLockSkippedAt.Equal(now) {
+		t.Fatalf(
+			"fetch lock skip = exchange %q at %s, want binance at %s",
+			repository.fetchLockSkipExchange,
+			repository.fetchLockSkippedAt,
+			now,
+		)
 	}
 }
 
@@ -85,6 +95,9 @@ func TestRunnerReturnsInfrastructureErrorWhenExchangeFetchLockFails(t *testing.T
 	}
 	if repository.failed != nil || repository.retry != nil {
 		t.Fatalf("lock error should not fail or retry task: failed=%v retry=%v", repository.failed, repository.retry)
+	}
+	if repository.fetchLockSkipExchange != "" {
+		t.Fatalf("lock infrastructure error should not record lock-held skip: %q", repository.fetchLockSkipExchange)
 	}
 }
 

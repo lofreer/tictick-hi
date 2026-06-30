@@ -88,6 +88,9 @@ func (store *Store) SystemHealth(ctx context.Context) (data.SystemHealth, error)
 			if err := store.addSyncExchangeBackoffHealth(ctx, &service); err != nil {
 				return data.SystemHealth{}, err
 			}
+			if err := store.addSyncFetchLockSkipHealth(ctx, &service); err != nil {
+				return data.SystemHealth{}, err
+			}
 		}
 		if service.Status != "ok" {
 			status = "degraded"
@@ -171,6 +174,27 @@ func (store *Store) addSyncExchangeBackoffHealth(ctx context.Context, service *d
 	if backoffCount > 0 {
 		service.Status = "warning"
 		service.Detail = fmt.Sprintf("%s exchange_backoff=%d", service.Detail, backoffCount)
+	}
+	return nil
+}
+
+func (store *Store) addSyncFetchLockSkipHealth(ctx context.Context, service *data.ServiceHealth) error {
+	var skipCount int64
+	var lastSkipped sql.NullTime
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COALESCE(sum(skip_count), 0)::bigint,
+		       max(last_skipped_at)
+		  FROM data_sync_exchange_fetch_lock_skips`,
+	).Scan(&skipCount, &lastSkipped); err != nil {
+		return fmt.Errorf("read sync fetch lock skip health: %w", err)
+	}
+
+	service.FetchLockSkipCount = &skipCount
+	if lastSkipped.Valid {
+		service.LastFetchLockSkippedAt = &lastSkipped.Time
+	}
+	if skipCount > 0 {
+		service.Detail = fmt.Sprintf("%s fetch_lock_skips=%d", service.Detail, skipCount)
 	}
 	return nil
 }

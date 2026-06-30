@@ -3,6 +3,7 @@ package postgres
 import (
 	"database/sql"
 	"testing"
+	"time"
 )
 
 func TestIntegrationDataSyncExchangeFetchLockIsExclusivePerExchange(t *testing.T) {
@@ -124,5 +125,60 @@ func TestIntegrationReleaseDataSyncTaskAfterSkippedFetchRevertsClaimAttempt(t *t
 	}
 	if attemptCount != 2 {
 		t.Fatalf("attempt_count = %d, want 2", attemptCount)
+	}
+}
+
+func TestIntegrationRecordDataSyncExchangeFetchLockSkippedExposesHealth(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_fetch_lock_skips`)
+	})
+	if _, err := store.pool.Exec(ctx, `DELETE FROM data_sync_exchange_fetch_lock_skips`); err != nil {
+		t.Fatal(err)
+	}
+
+	older := time.Date(2026, 6, 30, 8, 0, 0, 0, time.UTC)
+	newer := older.Add(5 * time.Minute)
+	if err := store.RecordDataSyncExchangeFetchLockSkipped(ctx, "okx", newer); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordDataSyncExchangeFetchLockSkipped(ctx, "okx", older); err != nil {
+		t.Fatal(err)
+	}
+
+	var skipCount int64
+	var lastSkipped time.Time
+	if err := store.pool.QueryRow(ctx, `
+		SELECT skip_count, last_skipped_at
+		  FROM data_sync_exchange_fetch_lock_skips
+		 WHERE exchange = 'okx'`,
+	).Scan(&skipCount, &lastSkipped); err != nil {
+		t.Fatal(err)
+	}
+	if skipCount != 2 {
+		t.Fatalf("skip_count = %d, want 2", skipCount)
+	}
+	if !lastSkipped.Equal(newer) {
+		t.Fatalf("last_skipped_at = %s, want %s", lastSkipped, newer)
+	}
+
+	health, err := store.SystemHealth(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncHealth := findIntegrationServiceHealth(health, "sync-worker")
+	if syncHealth.FetchLockSkipCount == nil || *syncHealth.FetchLockSkipCount != 2 {
+		t.Fatalf("system health fetch lock skip count = %#v, want 2", syncHealth)
+	}
+	if syncHealth.LastFetchLockSkippedAt == nil || !syncHealth.LastFetchLockSkippedAt.Equal(newer) {
+		t.Fatalf("system health last fetch lock skip = %#v, want %s", syncHealth, newer)
+	}
+	if syncHealth.Status != "ok" {
+		t.Fatalf("fetch lock skip metric should not degrade service by itself: %#v", syncHealth)
 	}
 }

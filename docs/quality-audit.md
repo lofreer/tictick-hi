@@ -112,7 +112,33 @@ done            用户确认关闭
 剩余风险：
 
 - 当前只把同一交易所 K 线 fetch 串行化，降低多实例并发放大风险；它不是完整共享额度系统。
-- 释放 task lease 后仍依赖下一轮 claim 调度，未提供专门的“锁占用跳过次数”可观察指标。
+- 释放 task lease 后仍依赖下一轮 claim 调度，不提供公平排队或容量控制。
+
+### 阶段 1 K 线同步 fetch 锁竞争可观察性补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- data sync runner 在交易所 fetch advisory lock 被占用时记录按交易所聚合的跳过次数和最近跳过时间。
+- 锁占用跳过统计落库到 `data_sync_exchange_fetch_lock_skips`，同 exchange 多次记录会递增 `skip_count`，`last_skipped_at` 只保留较新的时间。
+- `GET /api/system/health` 的 `sync-worker` 服务返回 `fetchLockSkipCount` 和 `lastFetchLockSkippedAt`。
+- 运维健康页展示 K 线 fetch 锁跳过次数和最近跳过时间。
+- 单元测试覆盖 runner 锁占用记录、基础设施锁错误不记录锁占用跳过；PostgreSQL 集成测试覆盖统计递增、最近时间和系统健康字段；前端测试覆盖运维页展示。
+
+范围外：
+
+- 不实现分布式 token bucket。
+- 不动态读取 Binance `rateLimits` 或 OKX 额度。
+- 不做真实外部交易所长期压测。
+- 不推进实盘交易所私有 API。
+
+剩余风险：
+
+- 该指标只证明锁竞争可观察，不提供共享交易所额度、调度公平性或容量自适应。
+- 仍缺真实外部交易所网络恢复压测和多实例长期运行证据。
 
 ## 3. 必须先修的问题
 

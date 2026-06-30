@@ -54,6 +54,14 @@
                   <dt>{{ t("system.nextExchangeAttempt") }}</dt>
                   <dd>{{ formatDate(service.nextExchangeAttemptAt) }}</dd>
                 </div>
+                <div v-if="service.fetchLockSkipCount !== undefined">
+                  <dt>{{ t("system.fetchLockSkips") }}</dt>
+                  <dd>{{ service.fetchLockSkipCount }}</dd>
+                </div>
+                <div v-if="service.lastFetchLockSkippedAt !== undefined">
+                  <dt>{{ t("system.lastFetchLockSkipped") }}</dt>
+                  <dd>{{ formatDate(service.lastFetchLockSkippedAt) }}</dd>
+                </div>
                 <div>
                   <dt>{{ t("system.lastHeartbeat") }}</dt>
                   <dd>{{ formatDate(service.lastHeartbeatAt) }}</dd>
@@ -118,6 +126,8 @@ function hasWorkerStats(service: ServiceHealth) {
     service.staleLeaseCount !== undefined ||
     service.exchangeBackoffCount !== undefined ||
     service.nextExchangeAttemptAt !== undefined ||
+    service.fetchLockSkipCount !== undefined ||
+    service.lastFetchLockSkippedAt !== undefined ||
     service.lastHeartbeatAt !== undefined ||
     service.lockedUntil !== undefined
   );

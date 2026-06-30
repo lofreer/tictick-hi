@@ -494,23 +494,25 @@ func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 }
 
 type fakeSyncRepository struct {
-	task                 data.DataSyncTask
-	claimed              bool
-	saved                data.DataSyncResult
-	failed               error
-	retry                error
-	retryError           error
-	nextAttemptAt        *time.Time
-	released             bool
-	releasedSkippedFetch bool
-	fetchLockResults     map[string]bool
-	fetchLockErr         error
-	fetchUnlocks         []string
-	heartbeats           int
-	heartbeatSignals     chan<- struct{}
-	heartbeatErrAfter    int
-	heartbeatError       error
-	heartbeatErrorSignal chan<- struct{}
+	task                  data.DataSyncTask
+	claimed               bool
+	saved                 data.DataSyncResult
+	failed                error
+	retry                 error
+	retryError            error
+	nextAttemptAt         *time.Time
+	released              bool
+	releasedSkippedFetch  bool
+	fetchLockResults      map[string]bool
+	fetchLockErr          error
+	fetchUnlocks          []string
+	fetchLockSkipExchange string
+	fetchLockSkippedAt    time.Time
+	heartbeats            int
+	heartbeatSignals      chan<- struct{}
+	heartbeatErrAfter     int
+	heartbeatError        error
+	heartbeatErrorSignal  chan<- struct{}
 }
 
 func (repository *fakeSyncRepository) ClaimDataSyncTask(
@@ -584,6 +586,16 @@ func (repository *fakeSyncRepository) ReleaseDataSyncTask(context.Context, strin
 
 func (repository *fakeSyncRepository) ReleaseDataSyncTaskAfterSkippedFetch(context.Context, string) error {
 	repository.releasedSkippedFetch = true
+	return nil
+}
+
+func (repository *fakeSyncRepository) RecordDataSyncExchangeFetchLockSkipped(
+	_ context.Context,
+	exchange string,
+	skippedAt time.Time,
+) error {
+	repository.fetchLockSkipExchange = exchange
+	repository.fetchLockSkippedAt = skippedAt
 	return nil
 }
 

@@ -141,6 +141,14 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		if errors.Is(err, errDataSyncExchangeFetchLockHeld) {
 			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
 			defer cancel()
+			if recordErr := runner.recordDataSyncExchangeFetchLockSkipped(releaseCtx, task.Exchange); recordErr != nil {
+				slog.Error(
+					"record data sync exchange fetch lock skip failed",
+					"task_id", task.ID,
+					"exchange", task.Exchange,
+					"error", recordErr,
+				)
+			}
 			if releaseErr := runner.releaseDataSyncTaskAfterSkippedFetch(releaseCtx, task.ID); releaseErr != nil {
 				return fmt.Errorf("release data sync task after exchange fetch lock skip: %w", releaseErr)
 			}
@@ -186,6 +194,13 @@ func (runner *Runner) releaseDataSyncTaskAfterSkippedFetch(ctx context.Context, 
 		return runner.repository.ReleaseDataSyncTask(ctx, taskID)
 	}
 	return runner.lockRepository.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID)
+}
+
+func (runner *Runner) recordDataSyncExchangeFetchLockSkipped(ctx context.Context, exchange string) error {
+	if runner.lockRepository == nil {
+		return nil
+	}
+	return runner.lockRepository.RecordDataSyncExchangeFetchLockSkipped(ctx, exchange, runner.now())
 }
 
 func (runner *Runner) syncTaskWithHeartbeat(ctx context.Context, task data.DataSyncTask) (err error) {
