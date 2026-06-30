@@ -361,6 +361,30 @@ done            用户确认关闭
 - release race 处理仍是 data sync runner 局部修补；完整统一 worker 状态机和跨 worker 类型一致 release 语义仍未实现。
 - 仍缺真实多实例长期运行验证。
 
+### 阶段 1 data sync claim 并发互斥证据补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增 PostgreSQL 集成测试 `TestIntegrationClaimDataSyncTaskIsExclusiveUnderConcurrentWorkers`。
+- 测试构造单个 active catalog 的 pending data sync task，并用两个 worker goroutine 同时调用 `ClaimDataSyncTask`。
+- 断言并发 claim 中只有一个 worker 能领取该任务，第三个 worker 在 lease 未过期时不能再次领取同一任务。
+- 测试回查 `data_sync_tasks`，确认 `locked_by` 只属于实际领取 worker，`attempt_count` 只增加一次。
+
+范围外：
+
+- 不改变 claim SQL、任务优先级、lease TTL、retry/backoff、fetch lock 或 K 线写入语义。
+- 不把该测试扩展为 Docker Compose 多 sync 容器长期运行压测。
+- 不实现分布式 token bucket、跨实例公平调度或实盘交易所私有 API。
+
+剩余风险：
+
+- 该证据只证明单个 PostgreSQL claim 入口在并发调用时不会让同一任务被双 worker 同时领取。
+- 仍缺真实多实例长期 soak、真实交易所网络恢复压测和跨进程共享交易所额度。
+
 ### 阶段 8 browser smoke 全局超时补充
 
 执行日期：2026-06-30
