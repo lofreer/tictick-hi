@@ -129,3 +129,87 @@ func TestRunnerRejectsMismatchedFetchedCandleTargetBeforeSaving(t *testing.T) {
 		t.Fatalf("failure = %v, want target mismatch validation error", repository.failed)
 	}
 }
+
+func TestRunnerSavesOnlyClosedFetchedCandles(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(3 * time.Minute)
+	openCandle := syncTestCandle(start.Add(time.Minute))
+	openCandle.IsClosed = false
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:          "dst_1",
+			Exchange:    "binance",
+			Symbol:      "BTCUSDT",
+			Interval:    "1m",
+			StartTime:   &start,
+			EndTime:     &end,
+			SyncEnabled: true,
+			Status:      data.TaskStatusRunning,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{
+		candles: []data.Candle{
+			syncTestCandle(start),
+			openCandle,
+		},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+	runner.now = func() time.Time { return end }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.saved.Candles) != 1 || !repository.saved.Candles[0].OpenTime.Equal(start) {
+		t.Fatalf("saved candles = %#v, want only first closed candle", repository.saved.Candles)
+	}
+	if repository.saved.LastOpenTime == nil || !repository.saved.LastOpenTime.Equal(start) {
+		t.Fatalf("cursor = %#v, want %s", repository.saved.LastOpenTime, start)
+	}
+	if repository.saved.Completed {
+		t.Fatalf("open trailing candle should not complete bounded task: %#v", repository.saved)
+	}
+	if repository.failed != nil || repository.retry != nil {
+		t.Fatalf("open trailing candle should not fail or retry, failed=%v retry=%v", repository.failed, repository.retry)
+	}
+}
+
+func TestRunnerDoesNotCompleteWhenFetchReturnsOnlyOpenCandles(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Minute)
+	openCandle := syncTestCandle(start)
+	openCandle.IsClosed = false
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:          "dst_1",
+			Exchange:    "binance",
+			Symbol:      "BTCUSDT",
+			Interval:    "1m",
+			StartTime:   &start,
+			EndTime:     &end,
+			SyncEnabled: true,
+			Status:      data.TaskStatusRunning,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{candles: []data.Candle{openCandle}}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+	runner.now = func() time.Time { return end }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.saved.Candles) != 0 || repository.saved.LastOpenTime != nil {
+		t.Fatalf("open-only batch should not save candles or cursor: %#v", repository.saved)
+	}
+	if repository.saved.Completed {
+		t.Fatalf("open-only batch should not complete bounded task: %#v", repository.saved)
+	}
+	if repository.failed != nil || repository.retry != nil {
+		t.Fatalf("open-only batch should not fail or retry, failed=%v retry=%v", repository.failed, repository.retry)
+	}
+}

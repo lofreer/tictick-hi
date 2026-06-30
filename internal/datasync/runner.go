@@ -283,18 +283,19 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 	if err != nil {
 		return err
 	}
-	if err := data.ValidateCandleSeriesForTarget(candles, task.Exchange, task.Symbol, task.Interval); err != nil {
+	closedCandles := data.ClosedCandles(candles)
+	if err := data.ValidateCandleSeriesForTarget(closedCandles, task.Exchange, task.Symbol, task.Interval); err != nil {
 		return fmt.Errorf("validate fetched candles: %w", err)
 	}
 
-	cursorOpenTime := nextCursorOpenTime(task, duration, candles)
+	cursorOpenTime := nextCursorOpenTime(task, duration, closedCandles)
 	if err := runner.repository.HeartbeatDataSyncTask(ctx, task.ID, runner.config.WorkerID, runner.config.LeaseTTL); err != nil {
 		return err
 	}
 	return runner.repository.SaveDataSyncResult(ctx, data.DataSyncResult{
 		TaskID:       task.ID,
 		WorkerID:     runner.config.WorkerID,
-		Candles:      candles,
+		Candles:      closedCandles,
 		LastOpenTime: cursorOpenTime,
 		Completed:    runner.isCompleted(task, duration, cursorOpenTime, len(candles) == 0),
 	})

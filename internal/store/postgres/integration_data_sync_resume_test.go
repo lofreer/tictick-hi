@@ -174,6 +174,102 @@ func TestIntegrationDataSyncRunnerResumesRealtimeTaskFromExpiredLease(t *testing
 	}
 }
 
+func TestIntegrationDataSyncRunnerDoesNotPersistOpenFetchedCandle(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	clearIntegrationExchangeBackoff(t, ctx, store, "binance")
+
+	id := integrationID("dst_open_candle")
+	symbol := integrationSymbol("OC")
+	start := time.Now().UTC().Add(-10 * time.Minute).Truncate(time.Minute)
+	end := start.Add(3 * time.Minute)
+	insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusPending, true, false, "")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_exchange_backoffs WHERE exchange = 'binance'`)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+	})
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE data_sync_tasks
+		   SET start_time = $2,
+		       end_time = $3
+		 WHERE id = $1`,
+		id,
+		start,
+		end,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	openCandle := integrationResumeCandle(symbol, start.Add(time.Minute), "1.9")
+	openCandle.IsClosed = false
+	client := &recordingIntegrationMarketClient{
+		candles: []data.Candle{
+			integrationResumeCandle(symbol, start, "1.8"),
+			openCandle,
+		},
+	}
+	runner := datasync.NewRunner(
+		store,
+		exchange.NewRegistry(map[string]exchange.MarketDataClient{"binance": client}),
+		datasync.Config{
+			WorkerID:          "open-candle-worker",
+			LeaseTTL:          time.Minute,
+			HeartbeatInterval: time.Second,
+			BatchLimit:        10,
+		},
+	)
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if client.calls != 1 {
+		t.Fatalf("fetch calls = %d, want 1", client.calls)
+	}
+
+	var candleCount, openCandleCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)::int,
+		       (count(*) FILTER (WHERE is_closed = false))::int
+		  FROM market_candles
+		 WHERE exchange = 'binance'
+		   AND symbol = $1
+		   AND interval = '1m'`,
+		symbol,
+	).Scan(&candleCount, &openCandleCount); err != nil {
+		t.Fatal(err)
+	}
+	if candleCount != 1 || openCandleCount != 0 {
+		t.Fatalf("persisted candle count=%d open=%d, want one closed candle only", candleCount, openCandleCount)
+	}
+
+	row := readIntegrationSyncTask(t, ctx, store, id)
+	if row.status != data.TaskStatusPending || !row.syncEnabled || row.realtimeEnabled {
+		t.Fatalf("task should remain pending for missing closed candles: %#v", row)
+	}
+	if row.lockedBy.Valid || row.lockedUntil.Valid || row.heartbeatAt.Valid {
+		t.Fatalf("saved result should release lease: %#v", row)
+	}
+
+	var latestSynced sql.NullTime
+	if err := store.pool.QueryRow(ctx, `
+		SELECT last_synced_open_time
+		  FROM data_sync_tasks
+		 WHERE id = $1`,
+		id,
+	).Scan(&latestSynced); err != nil {
+		t.Fatal(err)
+	}
+	if !latestSynced.Valid || !latestSynced.Time.Equal(start) {
+		t.Fatalf("latest synced cursor = %#v, want %s", latestSynced, start)
+	}
+}
+
 func normalizeDecimalText(value string) string {
 	value = strings.TrimRight(value, "0")
 	value = strings.TrimRight(value, ".")
