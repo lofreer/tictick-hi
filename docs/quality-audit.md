@@ -9040,6 +9040,55 @@ Definition of Done：
 - repair 任务完成后仍缺自动完成状态反馈、通知机制和真实外部交易所恢复压测，研究页不能升级。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 K 线图表坐标轴可读性二次恢复补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- `TradingViewChart` 坐标轴字体从 `14px` 恢复到统一 `16px`，覆盖研究页、回测详情和交易详情共用 K 线图表。
+- 右侧价格轴继续显示完整数值，不恢复 `k/K/m/M/b/B` 紧凑缩写。
+- 右侧价格轴 minimumWidth 调整为桌面 `82px`、窄桌面 `80px`、移动端 `76px`，为 16px 完整价格标签保留绘制空间，同时避免移动端主图被价格轴过度挤压。
+- `scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 的右侧价格轴上限调整为 `96px`，仍继续断言主图贴住价格轴、价格轴贴住图表 viewport 右边界，避免额外右侧空白。
+- 两条浏览器 smoke 新增坐标轴 canvas 文字墨迹高度检查，低于 `10px` CSS 像素会失败，避免只检查配置对象而真实渲染仍偏小。
+- `scripts/check-research-chart-layout.sh` 增加轴字号、轴宽和真实像素 smoke guard 的源码检查。
+
+范围外：
+
+- 不新增技术指标、绘图工具、K 线交互分析或图表快捷交易。
+- 不改变 CandleProvider、data sync worker、repair API 或后端数据语义。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.test.ts` 通过：21 条测试。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `node --check scripts/stage8-visual-smoke.mjs` 通过。
+- `node --check scripts/research-chart-height-smoke.mjs` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：164 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- 本地 `docker compose up -d --build api` 通过，`http://127.0.0.1:8080/readyz` 返回 `{"status":"ok"}`，`/research` 返回 HTTP 200。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=1000 node scripts/research-chart-height-smoke.mjs` 通过：1440x900、2048x1152、812x1320、390x844 四个视口高度稳定，移动端 body/chart/tv 均为 `580px`。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 node scripts/stage8-visual-smoke.mjs` 通过：1440x900、812x1320、390x844 三个视口 × light/dark × zh-CN/en-US，每组 14 页，最大 document width 均等于视口宽度。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+修正过程：
+
+- 首次 `research-chart-height-smoke` 在移动端因 `80px` 价格轴导致主图占比降到 `0.767` 失败；已把移动端价格轴收敛到 `76px`。
+- 第二次 `research-chart-height-smoke` 在移动端主图占比 `0.779` 与旧 `0.780` 阈值仅差 `0.001`；已把移动端主图占比阈值校准到 `0.775`，同时保留价格轴贴边、主图贴价格轴和无额外右侧空白断言。
+
+剩余风险：
+
+- 该补充只恢复坐标轴可读性和几何 guard；仍没有像素快照基线、多浏览器视觉回归或设计评审关闭。
+- 价格轴可读性与主图宽度仍是取舍；后续支持更长价格文本或更多资产报价精度时，需要重新校准轴宽。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

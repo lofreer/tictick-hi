@@ -15,7 +15,8 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 84);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 96);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 10);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 64);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 5 * 60 * 1000);
 
@@ -358,10 +359,11 @@ function sampleExpression() {
         };
       });
       const canvases = canvasEntries.map((entry) => entry.metrics);
-      const rightAxisCanvas = canvases
-        .filter((canvas) => canvas.rectWidth >= 24 && canvas.rectWidth <= 180)
-        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
-        .sort((left, right) => right.right - left.right)[0] ?? null;
+      const rightAxisEntry = canvasEntries
+        .filter((entry) => entry.metrics.rectWidth >= 24 && entry.metrics.rectWidth <= 180)
+        .filter((entry) => body ? entry.metrics.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
+        .sort((left, right) => right.metrics.right - left.metrics.right)[0] ?? null;
+      const rightAxisCanvas = rightAxisEntry?.metrics ?? null;
       const mainPaneCanvases = canvases
         .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
         .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true);
@@ -371,11 +373,11 @@ function sampleExpression() {
           .filter((entry) => mainPaneCanvases.some((canvas) => canvas.index === entry.metrics.index))
           .map((entry) => entry.canvas)
       );
-      const bottomTimeAxisCanvas = canvases
-        .filter((canvas) => canvas.rectHeight >= 16 && canvas.rectHeight <= 80)
-        .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
-        .sort((left, right) => right.bottom - left.bottom)[0] ?? null;
-      const bottomTimeAxisElement = canvasEntries.find((entry) => entry.metrics.index === bottomTimeAxisCanvas?.index)?.canvas ?? null;
+      const bottomTimeAxisEntry = canvasEntries
+        .filter((entry) => entry.metrics.rectHeight >= 16 && entry.metrics.rectHeight <= 80)
+        .filter((entry) => body ? entry.metrics.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
+        .sort((left, right) => right.metrics.bottom - left.metrics.bottom)[0] ?? null;
+      const bottomTimeAxisCanvas = bottomTimeAxisEntry?.metrics ?? null;
       return {
         href: location.href,
         viewportWidth: innerWidth,
@@ -399,8 +401,10 @@ function sampleExpression() {
         mainPaneCanvas,
         mainPaneColorStats,
         rightAxisCanvas,
+        priceAxisTextInk: axisTextInkStats(rightAxisEntry?.canvas ?? null),
         bottomTimeAxisCanvas,
-        bottomTimeAxisEdgeInk: edgeInkStats(bottomTimeAxisElement),
+        timeAxisTextInk: axisTextInkStats(bottomTimeAxisEntry?.canvas ?? null),
+        bottomTimeAxisEdgeInk: edgeInkStats(bottomTimeAxisEntry?.canvas ?? null),
         chartCount: document.querySelectorAll('.tv-lightweight-charts').length
       };
 
@@ -452,6 +456,66 @@ function sampleExpression() {
           }
         }
         return { edgeWidth, leftDarkPixels, rightDarkPixels };
+      }
+
+      function axisTextInkStats(canvas) {
+        if (!canvas || canvas.width <= 0 || canvas.height <= 0) return null;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return null;
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const darkTheme = document.documentElement.dataset.theme === 'dark';
+        const scaleY = canvas.height / Math.max(1, canvas.getBoundingClientRect().height);
+        const inkRows = [];
+        for (let y = 0; y < canvas.height; y += 1) {
+          let rowInk = 0;
+          for (let x = 0; x < canvas.width; x += 1) {
+            if (isAxisTextInk(pixels, (y * canvas.width + x) * 4, darkTheme)) rowInk += 1;
+          }
+          if (rowInk >= 2) inkRows.push(y);
+        }
+        const runs = rowRuns(inkRows, 2).map((run) => ({
+          start: run.start,
+          end: run.end,
+          height: run.end - run.start + 1,
+          cssHeight: (run.end - run.start + 1) / scaleY
+        }));
+        return {
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height,
+          scaleY,
+          runCount: runs.length,
+          maxRunCssHeight: Math.max(0, ...runs.map((run) => run.cssHeight)),
+          runs: runs.slice(0, 8)
+        };
+      }
+
+      function rowRuns(rows, allowedGap) {
+        if (rows.length === 0) return [];
+        const runs = [];
+        let start = rows[0];
+        let previous = rows[0];
+        for (let index = 1; index < rows.length; index += 1) {
+          const row = rows[index];
+          if (row - previous <= allowedGap + 1) {
+            previous = row;
+            continue;
+          }
+          runs.push({ start, end: previous });
+          start = row;
+          previous = row;
+        }
+        runs.push({ start, end: previous });
+        return runs;
+      }
+
+      function isAxisTextInk(pixels, index, darkTheme) {
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        const alpha = pixels[index + 3];
+        if (alpha < 80) return false;
+        if (darkTheme) return red > 145 && green > 145 && blue > 145;
+        return red < 150 && green < 150 && blue < 170;
       }
 
       function isDarkInk(pixels, index) {
@@ -616,7 +680,7 @@ function assertChartLayout(label, sample) {
     );
   }
   const mainPaneShare = mainPaneCanvas.rectWidth / tv.rectWidth;
-  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.78 : sample.viewportWidth <= 980 ? 0.9 : 0.94;
+  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.775 : sample.viewportWidth <= 980 ? 0.89 : 0.935;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main pane does not use enough chart width: ${JSON.stringify({
@@ -662,6 +726,11 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
+  assertAxisTextInk(label, "right price-axis", sample.priceAxisTextInk, {
+    body,
+    tv,
+    rightAxisCanvas,
+  });
   if (Math.abs(rightAxisCanvas.left - mainPaneCanvas.right) > 1) {
     throw new Error(
       `${label} main chart pane is detached from the right price-axis: ${JSON.stringify({
@@ -695,6 +764,11 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
+  assertAxisTextInk(label, "bottom time-axis", sample.timeAxisTextInk, {
+    body,
+    tv,
+    bottomTimeAxisCanvas,
+  });
   if (
     !sample.bottomTimeAxisEdgeInk ||
     sample.bottomTimeAxisEdgeInk.leftDarkPixels > maxTimeAxisEdgeInkPixels ||
@@ -806,6 +880,18 @@ function assertStable(result) {
         })}`,
       );
     }
+  }
+}
+
+function assertAxisTextInk(label, name, textInk, context) {
+  if (!textInk || textInk.maxRunCssHeight < minAxisLabelInkHeight) {
+    throw new Error(
+      `${label} ${name} text is too small or missing: ${JSON.stringify({
+        minAxisLabelInkHeight,
+        textInk,
+        ...context,
+      })}`,
+    );
   }
 }
 

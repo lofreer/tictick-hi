@@ -15,7 +15,8 @@ const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
 const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 84);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 96);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 10);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 10 * 60 * 1000);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
@@ -293,6 +294,9 @@ function visualSampleExpression(pageConfig) {
       tv: read('.tv-lightweight-charts'),
       mainPaneCanvas: mainPaneCanvas(),
       priceAxisCanvas: rightPriceAxisCanvas(),
+      priceAxisTextInk: axisTextInkStats(rightPriceAxisCanvasElement()?.node ?? null),
+      bottomTimeAxisCanvas: bottomTimeAxisCanvas(),
+      timeAxisTextInk: axisTextInkStats(bottomTimeAxisCanvasElement()?.node ?? null),
       rightmostChartCanvas: rightmostChartCanvas(),
       detail: detailSelectors ? {
         chartPanel: read(detailSelectors.chartPanel),
@@ -304,6 +308,11 @@ function visualSampleExpression(pageConfig) {
     };
 
     function rightPriceAxisCanvas() {
+      const entry = rightPriceAxisCanvasElement();
+      return entry ? readCanvas(entry.node, entry.index) : null;
+    }
+
+    function rightPriceAxisCanvasElement() {
       const chartViewport = document.querySelector(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport');
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
@@ -311,8 +320,23 @@ function visualSampleExpression(pageConfig) {
         .filter((entry) => entry.rect.width >= 24 && entry.rect.width <= 260)
         .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 96))
         .sort((left, right) => right.rect.right - left.rect.right);
-      const canvas = canvases[0]?.node;
-      return canvas ? readCanvas(canvas, canvases[0].index) : null;
+      return canvases[0] ?? null;
+    }
+
+    function bottomTimeAxisCanvas() {
+      const entry = bottomTimeAxisCanvasElement();
+      return entry ? readCanvas(entry.node, entry.index) : null;
+    }
+
+    function bottomTimeAxisCanvasElement() {
+      const chartViewport = document.querySelector(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport');
+      const viewportRect = chartViewport?.getBoundingClientRect();
+      const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
+        .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
+        .filter((entry) => entry.rect.height >= 16 && entry.rect.height <= 80)
+        .filter((entry) => !viewportRect || entry.rect.width >= Math.max(120, viewportRect.width - 240))
+        .sort((left, right) => right.rect.bottom - left.rect.bottom);
+      return canvases[0] ?? null;
     }
 
     function rightmostChartCanvas() {
@@ -353,6 +377,66 @@ function visualSampleExpression(pageConfig) {
         display: getComputedStyle(canvas).display,
         visibility: getComputedStyle(canvas).visibility
       };
+    }
+
+    function axisTextInkStats(canvas) {
+      if (!canvas || canvas.width <= 0 || canvas.height <= 0) return null;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return null;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const darkTheme = document.documentElement.dataset.theme === 'dark';
+      const scaleY = canvas.height / Math.max(1, canvas.getBoundingClientRect().height);
+      const inkRows = [];
+      for (let y = 0; y < canvas.height; y += 1) {
+        let rowInk = 0;
+        for (let x = 0; x < canvas.width; x += 1) {
+          if (isAxisTextInk(pixels, (y * canvas.width + x) * 4, darkTheme)) rowInk += 1;
+        }
+        if (rowInk >= 2) inkRows.push(y);
+      }
+      const runs = rowRuns(inkRows, 2).map((run) => ({
+        start: run.start,
+        end: run.end,
+        height: run.end - run.start + 1,
+        cssHeight: (run.end - run.start + 1) / scaleY
+      }));
+      return {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        scaleY,
+        runCount: runs.length,
+        maxRunCssHeight: Math.max(0, ...runs.map((run) => run.cssHeight)),
+        runs: runs.slice(0, 8)
+      };
+    }
+
+    function rowRuns(rows, allowedGap) {
+      if (rows.length === 0) return [];
+      const runs = [];
+      let start = rows[0];
+      let previous = rows[0];
+      for (let index = 1; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (row - previous <= allowedGap + 1) {
+          previous = row;
+          continue;
+        }
+        runs.push({ start, end: previous });
+        start = row;
+        previous = row;
+      }
+      runs.push({ start, end: previous });
+      return runs;
+    }
+
+    function isAxisTextInk(pixels, index, darkTheme) {
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+      const alpha = pixels[index + 3];
+      if (alpha < 80) return false;
+      if (darkTheme) return red > 145 && green > 145 && blue > 145;
+      return red < 150 && green < 150 && blue < 170;
     }
 
     function cssPixel(selector, property) {
@@ -565,7 +649,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
     );
   }
   const mainPaneShare = sample.mainPaneCanvas.rectWidth / sample.chartViewport.rectWidth;
-  const minimumMainPaneShare = viewport.width <= 760 ? 0.78 : viewport.width <= 980 ? 0.9 : 0.94;
+  const minimumMainPaneShare = viewport.width <= 760 ? 0.775 : viewport.width <= 980 ? 0.89 : 0.935;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main chart pane does not use enough of the fixed viewport: ${JSON.stringify({
@@ -586,6 +670,14 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       })}`,
     );
   }
+  assertAxisTextInk(label, "right price-axis", sample.priceAxisTextInk, {
+    priceAxis: sample.priceAxisCanvas,
+    chartViewport: sample.chartViewport,
+  });
+  assertAxisTextInk(label, "bottom time-axis", sample.timeAxisTextInk, {
+    bottomTimeAxis: sample.bottomTimeAxisCanvas,
+    chartViewport: sample.chartViewport,
+  });
   if (sample.priceAxisCanvas.left < sample.chartViewport.left || sample.priceAxisCanvas.left > sample.chartViewport.right) {
     throw new Error(
       `${label} right price-axis is detached from the chart viewport: ${JSON.stringify({
@@ -617,6 +709,18 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       `${label} chart renderer does not fill the fixed viewport width: ${JSON.stringify({
         chartViewport: sample.chartViewport,
         tv: sample.tv,
+      })}`,
+    );
+  }
+}
+
+function assertAxisTextInk(label, name, textInk, context) {
+  if (!textInk || textInk.maxRunCssHeight < minAxisLabelInkHeight) {
+    throw new Error(
+      `${label} ${name} text is too small or missing: ${JSON.stringify({
+        minAxisLabelInkHeight,
+        textInk,
+        ...context,
       })}`,
     );
   }

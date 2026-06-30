@@ -11,6 +11,13 @@ export const appColors = {
   info: "#848e9c",
 };
 
+export const chartAxisFontSize = 16;
+export const chartRightPriceScaleWidth = {
+  desktop: 82,
+  narrowDesktop: 80,
+  mobile: 76,
+};
+
 export const themeOverrides: GlobalThemeOverrides = {
   common: {
     primaryColor: appColors.gold,
@@ -50,7 +57,7 @@ export function chartTheme(mode: ThemeMode) {
     layout: {
       background: { color: dark ? "#181a20" : "#ffffff" },
       fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
-      fontSize: 14,
+      fontSize: chartAxisFontSize,
       textColor: dark ? "#b7bdc6" : "#474d57",
     },
     grid: {
@@ -59,7 +66,7 @@ export function chartTheme(mode: ThemeMode) {
     },
     rightPriceScale: {
       borderColor: dark ? "#2b3139" : "#eaecef",
-      minimumWidth: 76,
+      minimumWidth: chartRightPriceScaleWidth.desktop,
     },
     timeScale: {
       borderColor: dark ? "#2b3139" : "#eaecef",
