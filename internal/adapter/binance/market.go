@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -30,9 +31,11 @@ var defaultBaseURLs = []string{
 }
 
 type MarketClient struct {
-	baseURLs    []string
-	httpClient  *http.Client
-	rateLimiter exchange.RateLimiter
+	baseURLs             []string
+	httpClient           *http.Client
+	rateLimiterMu        sync.RWMutex
+	rateLimiter          exchange.RateLimiter
+	useExchangeRateLimit bool
 }
 
 type MarketClientOptions struct {
@@ -62,13 +65,16 @@ func NewMarketClientWithOptions(options MarketClientOptions) *MarketClient {
 		httpClient = &http.Client{Timeout: 15 * time.Second}
 	}
 	rateLimiter := options.RateLimiter
+	useExchangeRateLimit := false
 	if rateLimiter == nil {
 		rateLimiter = exchange.NewFixedWindowRateLimiter(defaultRequestWeightLimit, defaultRequestWeightWindow)
+		useExchangeRateLimit = true
 	}
 	return &MarketClient{
-		baseURLs:    normalizeBaseURLs(options.BaseURLs),
-		httpClient:  httpClient,
-		rateLimiter: rateLimiter,
+		baseURLs:             normalizeBaseURLs(options.BaseURLs),
+		httpClient:           httpClient,
+		rateLimiter:          rateLimiter,
+		useExchangeRateLimit: useExchangeRateLimit,
 	}
 }
 
@@ -151,6 +157,7 @@ func (client *MarketClient) fetchInstrumentsFrom(
 	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
 		return nil, fmt.Errorf("decode binance instruments: %w", err)
 	}
+	client.configureExchangeRateLimits(envelope.RateLimits)
 
 	instruments := make([]data.MarketInstrument, 0, len(envelope.Symbols))
 	for _, symbol := range envelope.Symbols {
@@ -229,19 +236,84 @@ func normalizeBaseURLs(baseURLs []string) []string {
 }
 
 func (client *MarketClient) wait(ctx context.Context, weight int) error {
-	if client.rateLimiter == nil {
+	client.rateLimiterMu.RLock()
+	limiter := client.rateLimiter
+	client.rateLimiterMu.RUnlock()
+	if limiter == nil {
 		return nil
 	}
-	if err := client.rateLimiter.Wait(ctx, weight); err != nil {
+	if err := limiter.Wait(ctx, weight); err != nil {
 		return fmt.Errorf("binance rate limit wait: %w", err)
 	}
 	return nil
 }
 
+func (client *MarketClient) configureExchangeRateLimits(rateLimits []binanceRateLimit) {
+	if !client.useExchangeRateLimit || len(rateLimits) == 0 {
+		return
+	}
+	windows := make([]exchange.RateLimitWindow, 0, len(rateLimits))
+	for _, rateLimit := range rateLimits {
+		window, ok := rateLimit.toWindow()
+		if ok {
+			windows = append(windows, window)
+		}
+	}
+	if len(windows) == 0 {
+		return
+	}
+	limiter, err := exchange.NewMultiWindowRateLimiterWithInitialUsage(windows, exchangeInfoRequestWeight)
+	if err != nil {
+		return
+	}
+	client.rateLimiterMu.Lock()
+	client.rateLimiter = limiter
+	client.rateLimiterMu.Unlock()
+}
+
 type binanceKline []json.RawMessage
 
 type binanceExchangeInfo struct {
-	Symbols []binanceSymbol `json:"symbols"`
+	RateLimits []binanceRateLimit `json:"rateLimits"`
+	Symbols    []binanceSymbol    `json:"symbols"`
+}
+
+type binanceRateLimit struct {
+	Type        string `json:"rateLimitType"`
+	Interval    string `json:"interval"`
+	IntervalNum int    `json:"intervalNum"`
+	Limit       int    `json:"limit"`
+}
+
+func (rateLimit binanceRateLimit) toWindow() (exchange.RateLimitWindow, bool) {
+	if strings.ToUpper(strings.TrimSpace(rateLimit.Type)) != "REQUEST_WEIGHT" ||
+		rateLimit.IntervalNum <= 0 ||
+		rateLimit.Limit <= 0 {
+		return exchange.RateLimitWindow{}, false
+	}
+	base, ok := binanceRateLimitInterval(rateLimit.Interval)
+	if !ok {
+		return exchange.RateLimitWindow{}, false
+	}
+	return exchange.RateLimitWindow{
+		Limit:  rateLimit.Limit,
+		Window: time.Duration(rateLimit.IntervalNum) * base,
+	}, true
+}
+
+func binanceRateLimitInterval(interval string) (time.Duration, bool) {
+	switch strings.ToUpper(strings.TrimSpace(interval)) {
+	case "SECOND":
+		return time.Second, true
+	case "MINUTE":
+		return time.Minute, true
+	case "HOUR":
+		return time.Hour, true
+	case "DAY":
+		return 24 * time.Hour, true
+	default:
+		return 0, false
+	}
 }
 
 type binanceSymbol struct {

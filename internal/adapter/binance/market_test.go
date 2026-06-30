@@ -103,6 +103,90 @@ func TestFetchInstruments(t *testing.T) {
 	}
 }
 
+func TestFetchInstrumentsConfiguresExchangeInfoRequestWeightLimits(t *testing.T) {
+	klineRequests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v3/exchangeInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"rateLimits":[{"rateLimitType":"REQUEST_WEIGHT","interval":"SECOND","intervalNum":1,"limit":22}],"symbols":[{"symbol":"BTCUSDT","status":"TRADING","baseAsset":"BTC","quoteAsset":"USDT","isSpotTradingAllowed":true}]}`))
+		case "/api/v3/klines":
+			klineRequests++
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[[1767225600000,"100.1","101.2","99.8","100.7","12.5",1767225659999]]`))
+		default:
+			t.Fatalf("unexpected path = %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	if _, err := client.FetchInstruments(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	request := exchange.CandleRequest{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
+		Limit:    1,
+	}
+	if _, err := client.FetchCandles(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+	defer cancel()
+	_, err := client.fetchCandlesFrom(ctx, server.URL, request)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("second kline request error = %v, want deadline exceeded from dynamic limiter", err)
+	}
+	if klineRequests != 1 {
+		t.Fatalf("kline HTTP requests = %d, want 1", klineRequests)
+	}
+}
+
+func TestFetchInstrumentsKeepsCustomRateLimiter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v3/exchangeInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"rateLimits":[{"rateLimitType":"REQUEST_WEIGHT","interval":"SECOND","intervalNum":1,"limit":1}],"symbols":[{"symbol":"BTCUSDT","status":"TRADING","baseAsset":"BTC","quoteAsset":"USDT","isSpotTradingAllowed":true}]}`))
+		case "/api/v3/klines":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[[1767225600000,"100.1","101.2","99.8","100.7","12.5",1767225659999]]`))
+		default:
+			t.Fatalf("unexpected path = %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	limiter := &recordingRateLimiter{}
+	client := NewMarketClientWithOptions(MarketClientOptions{
+		BaseURLs:    []string{server.URL},
+		HTTPClient:  server.Client(),
+		RateLimiter: limiter,
+	})
+	if _, err := client.FetchInstruments(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "binance",
+		Symbol:   "BTCUSDT",
+		Interval: "1m",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC),
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(limiter.weights) != 2 || limiter.weights[0] != exchangeInfoRequestWeight || limiter.weights[1] != klinesRequestWeight {
+		t.Fatalf("rate limiter weights = %#v, want [%d %d]", limiter.weights, exchangeInfoRequestWeight, klinesRequestWeight)
+	}
+}
+
 func TestFetchInstrumentsConsumesExchangeInfoWeightBeforeRequest(t *testing.T) {
 	limiter := &recordingRateLimiter{err: context.Canceled}
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
