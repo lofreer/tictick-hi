@@ -14,7 +14,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: clamp(144px, 18vh, 176px);
+  max-height: clamp(156px, 18vh, 188px);
   overflow: auto;
   overscroll-behavior: contain;
 }
@@ -48,17 +48,17 @@
   min-width: 0;
   overflow: hidden;
   align-self: start;
-  contain: layout paint style;
+  contain: layout paint;
 }
 
 .research-toolbar {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  gap: 8px 12px;
+  gap: 6px 12px;
   min-width: 0;
   max-width: 100%;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--tt-line);
   overflow: hidden;
 }
@@ -74,7 +74,7 @@
 
 .research-source-controls {
   display: grid;
-  grid-template-columns: 88px 92px 26px 48px max-content;
+  grid-template-columns: 100px 132px 28px 56px max-content;
   align-items: center;
   gap: 4px;
   width: max-content;
@@ -91,8 +91,10 @@
   gap: 5px 6px;
   min-width: 0;
   max-width: 100%;
-  flex-wrap: wrap;
-  overflow: hidden;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .research-current-source {
@@ -114,8 +116,10 @@
   min-width: 0;
   justify-content: flex-start;
   gap: 5px;
-  flex-wrap: wrap;
-  overflow: visible;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .research-current-source,
@@ -146,9 +150,9 @@
 }
 
 .research-chart-body {
-  --kline-chart-plot-height: clamp(640px, 72vh, 820px);
-  --kline-chart-padding-left: 18px;
-  --kline-chart-padding-right: 4px;
+  --kline-chart-plot-height: clamp(720px, 78vh, 900px);
+  --kline-chart-padding-left: 22px;
+  --kline-chart-padding-right: 6px;
   --kline-chart-padding-top: 0px;
   --kline-chart-padding-bottom: 0px;
   --kline-chart-frame-height: calc(
@@ -167,28 +171,28 @@
 }
 
 .research-select--exchange {
-  width: 88px;
+  width: 100px;
 }
 
 .research-symbol-input {
-  width: 92px;
-  max-width: 92px;
-  flex: 0 0 92px;
+  width: 132px;
+  max-width: 132px;
+  flex: 0 0 132px;
   min-width: 0;
 }
 
 .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-  width: 92px;
-  max-width: 92px;
+  width: 132px;
+  max-width: 132px;
 }
 
 .research-refresh-button {
-  width: 26px;
-  min-width: 26px;
+  width: 28px;
+  min-width: 28px;
 }
 
 .research-select--compact {
-  width: 48px;
+  width: 56px;
 }
 
 .research-source-controls .market-symbol-autocomplete {
@@ -250,29 +254,29 @@
 
   .research-source-controls {
     display: grid;
-    grid-template-columns: 84px 92px 26px 48px max-content;
+    grid-template-columns: 96px 120px 28px 54px max-content;
     flex-wrap: nowrap;
     align-items: center;
     overflow-x: auto;
   }
 
   .research-select--exchange {
-    width: 84px;
+    width: 96px;
   }
 
   .research-select--compact {
-    width: 48px;
+    width: 54px;
   }
 
   .research-symbol-input {
-    width: 92px;
-    max-width: 92px;
-    flex-basis: 92px;
+    width: 120px;
+    max-width: 120px;
+    flex-basis: 120px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 92px;
-    max-width: 92px;
+    width: 120px;
+    max-width: 120px;
   }
 
   .research-toolbar-status {
@@ -280,7 +284,8 @@
     flex-direction: row;
     justify-content: flex-start;
     width: 100%;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .research-current-source {
@@ -294,21 +299,23 @@
     justify-content: flex-start;
     width: auto;
     max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 }
 
 @media (min-width: 761px) and (max-width: 980px) {
   .research-chart-body {
-    --kline-chart-plot-height: 720px;
-    --kline-chart-padding-left: 16px;
-    --kline-chart-padding-right: 4px;
+    --kline-chart-plot-height: 760px;
+    --kline-chart-padding-left: 18px;
+    --kline-chart-padding-right: 6px;
     --kline-chart-padding-top: 0px;
     --kline-chart-padding-bottom: 0px;
   }
 
   .research-toolbar {
     grid-template-columns: minmax(0, 1fr);
-    gap: 7px;
+    gap: 6px;
   }
 
   .research-toolbar-main {
@@ -316,25 +323,25 @@
   }
 
   .research-source-controls {
-    grid-template-columns: 86px 92px 26px 48px max-content;
+    grid-template-columns: 98px 126px 28px 54px max-content;
   }
 
   .research-select--exchange {
-    width: 86px;
+    width: 98px;
   }
 
   .research-symbol-input {
-    width: 92px;
-    max-width: 92px;
-    flex-basis: 92px;
+    width: 126px;
+    max-width: 126px;
+    flex-basis: 126px;
   }
 
   .research-source-controls > .research-symbol-input.market-symbol-autocomplete {
-    width: 92px;
-    max-width: 92px;
+    width: 126px;
+    max-width: 126px;
   }
 
   .research-select--compact {
-    width: 48px;
+    width: 54px;
   }
 }

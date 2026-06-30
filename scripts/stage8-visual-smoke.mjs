@@ -12,8 +12,9 @@ const username = process.env.SMOKE_USERNAME ?? process.env.BOOTSTRAP_OPERATOR_US
 const password = process.env.SMOKE_PASSWORD ?? process.env.BOOTSTRAP_OPERATOR_PASSWORD ?? "tictick-local-admin-password";
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 1200);
 const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
-const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
-const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
+const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 136);
+const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 560);
+const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 76);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 48);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
 const smokeTradingTaskId = process.env.SMOKE_TRADING_TASK_ID ?? "";
@@ -272,6 +273,7 @@ function visualSampleExpression(pageConfig) {
       title: read('.page-title'),
       required: read(${JSON.stringify(pageConfig.selector)}),
       toolbarControls: read('.research-source-controls'),
+      researchToolbar: read('.research-toolbar'),
       toolbarSymbol: read('.research-symbol-input'),
       chartBody: read('.research-chart-body'),
       chartViewport: read(detailSelectors ? detailSelectors.chartViewport : '.research-chart-viewport'),
@@ -281,6 +283,7 @@ function visualSampleExpression(pageConfig) {
       tv: read('.tv-lightweight-charts'),
       mainPaneCanvas: mainPaneCanvas(),
       priceAxisCanvas: rightPriceAxisCanvas(),
+      rightmostChartCanvas: rightmostChartCanvas(),
       detail: detailSelectors ? {
         chartPanel: read(detailSelectors.chartPanel),
         chartViewport: read(detailSelectors.chartViewport),
@@ -295,8 +298,16 @@ function visualSampleExpression(pageConfig) {
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
-        .filter((entry) => entry.rect.width >= 28 && entry.rect.width <= 180)
+        .filter((entry) => entry.rect.width >= 24 && entry.rect.width <= 260)
         .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 96))
+        .sort((left, right) => right.rect.right - left.rect.right);
+      const canvas = canvases[0]?.node;
+      return canvas ? readCanvas(canvas, canvases[0].index) : null;
+    }
+
+    function rightmostChartCanvas() {
+      const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
+        .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
         .sort((left, right) => right.rect.right - left.rect.right);
       const canvas = canvases[0]?.node;
       return canvas ? readCanvas(canvas, canvases[0].index) : null;
@@ -435,7 +446,17 @@ function assertVisibleNode(label, name, node) {
 
 function assertResearchChartSmoke(label, sample, viewport) {
   assertVisibleNode(label, "toolbarControls", sample.toolbarControls);
+  assertVisibleNode(label, "researchToolbar", sample.researchToolbar);
   assertVisibleNode(label, "toolbarSymbol", sample.toolbarSymbol);
+  if (viewport.width > 760 && sample.researchToolbar.rectHeight > maxResearchToolbarHeight) {
+    throw new Error(
+      `${label} research chart toolbar is too tall: ${JSON.stringify({
+        maxResearchToolbarHeight,
+        toolbar: sample.researchToolbar,
+        controls: sample.toolbarControls,
+      })}`,
+    );
+  }
   if (viewport.width > 760 && sample.toolbarSymbol.rectWidth > maxToolbarSymbolWidth) {
     throw new Error(
       `${label} symbol input is too wide for a compact chart toolbar: ${JSON.stringify({
@@ -453,7 +474,7 @@ function assertResearchChartSmoke(label, sample, viewport) {
       })}`,
     );
   }
-  assertChartViewportSmoke(label, sample, viewport, 620);
+  assertChartViewportSmoke(label, sample, viewport, 700);
 }
 
 function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight) {
@@ -469,7 +490,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
       throw new Error(`${label} ${name} exceeded viewport height: ${JSON.stringify(node)}`);
     }
   }
-  const minimumHeight = viewport.width <= 760 ? 560 : viewport.width <= 980 ? 680 : desktopMinimumHeight;
+  const minimumHeight = viewport.width <= 760 ? 580 : viewport.width <= 980 ? 720 : desktopMinimumHeight;
   if (sample.chartViewport.rectHeight < minimumHeight - widthTolerance) {
     throw new Error(
       `${label} chart viewport is too short: ${JSON.stringify({
@@ -493,7 +514,18 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
   if (!sample.mainPaneCanvas) {
     throw new Error(`${label} missing main chart pane canvas: ${JSON.stringify(sample)}`);
   }
+  if (!sample.rightmostChartCanvas) {
+    throw new Error(`${label} missing chart canvas geometry: ${JSON.stringify(sample)}`);
+  }
   assertChartGutters(label, sample);
+  if (Math.abs(sample.rightmostChartCanvas.right - sample.chartViewport.right) > widthTolerance + 4) {
+    throw new Error(
+      `${label} chart canvases leave an uncontrolled right-side gap: ${JSON.stringify({
+        rightmostCanvas: sample.rightmostChartCanvas,
+        chartViewport: sample.chartViewport,
+      })}`,
+    );
+  }
   if (sample.mainPaneCanvas.left < sample.chartViewport.left - widthTolerance) {
     throw new Error(
       `${label} main chart pane starts outside the chart viewport: ${JSON.stringify({
@@ -607,7 +639,7 @@ function assertDetailLayoutSmoke(label, sample, viewport) {
   if (sample.detail.chartPanel.rectHeight > viewport.height + widthTolerance) {
     throw new Error(`${label} detail chart exceeded viewport height: ${JSON.stringify(sample.detail.chartPanel)}`);
   }
-  assertChartViewportSmoke(label, sample, viewport, 620);
+  assertChartViewportSmoke(label, sample, viewport, 700);
   if (sample.detail.lowerGrid.top <= sample.detail.chartPanel.bottom) {
     throw new Error(
       `${label} detail lower grid must sit below chart: ${JSON.stringify({

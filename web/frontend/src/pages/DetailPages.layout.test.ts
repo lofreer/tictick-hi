@@ -32,9 +32,9 @@ describe("strategy detail page layout contract", () => {
     expect(tradingSource).not.toContain('class="side-panel"');
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');
     expect(detailChartStyles).toContain(".trading-detail-chart,");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(640px, 72vh, 820px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 18px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(720px, 78vh, 900px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 22px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 6px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");
@@ -78,9 +78,9 @@ describe("strategy detail page layout contract", () => {
     expect(backtestSource).not.toContain('class="side-panel"');
     expect(backtestSource).not.toContain('class="surface chart-panel backtest-chart-panel"');
     expect(detailChartStyles).toContain(".backtest-chart-panel");
-    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(640px, 72vh, 820px);");
-    expect(detailChartStyles).toContain("--kline-chart-padding-left: 18px;");
-    expect(detailChartStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(detailChartStyles).toContain("--kline-chart-plot-height: clamp(720px, 78vh, 900px);");
+    expect(detailChartStyles).toContain("--kline-chart-padding-left: 22px;");
+    expect(detailChartStyles).toContain("--kline-chart-padding-right: 6px;");
     expect(detailChartStyles).toContain("--kline-chart-frame-height:");
     expect(frameStyle).toContain("height: var(--kline-chart-frame-height);");
     expect(frameStyle).toContain("var(--kline-chart-padding-right)");
