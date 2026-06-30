@@ -11,13 +11,62 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lofreer/tictick-hi/internal/adapter/binance"
+	"github.com/lofreer/tictick-hi/internal/adapter/okx"
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/datasync"
 	"github.com/lofreer/tictick-hi/internal/exchange"
 )
 
 func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
+	runRealDataSyncRouteServesNativeCandles(t, realExchangeSmokeCase{
+		exchange:        "binance",
+		defaultSymbol:   "BTCUSDT",
+		legacySymbolEnv: "TICTICK_REAL_EXCHANGE_SYMBOL",
+		symbolEnv:       "TICTICK_REAL_BINANCE_SYMBOL",
+		baseURLEnv:      "TICTICK_REAL_BINANCE_BASE_URL",
+		defaultBaseURL:  "https://data-api.binance.vision",
+		workerID:        "real-binance-smoke-worker",
+		status:          "TRADING",
+		newMarketData: func(baseURL string) exchange.MarketDataClient {
+			return binance.NewMarketClientWithBaseURLs([]string{baseURL}, &http.Client{Timeout: 20 * time.Second})
+		},
+	})
+}
+
+func TestIntegrationRealOKXDataSyncRouteServesNativeCandles(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("TICTICK_REAL_OKX_SMOKE")) != "1" {
+		t.Skip("set TICTICK_REAL_OKX_SMOKE=1 with TICTICK_REAL_EXCHANGE_SMOKE=1 to run the OKX public exchange smoke")
+	}
+	runRealDataSyncRouteServesNativeCandles(t, realExchangeSmokeCase{
+		exchange:       "okx",
+		defaultSymbol:  "BTC-USDT",
+		symbolEnv:      "TICTICK_REAL_OKX_SYMBOL",
+		baseURLEnv:     "TICTICK_REAL_OKX_BASE_URL",
+		defaultBaseURL: "https://www.okx.com",
+		workerID:       "real-okx-smoke-worker",
+		status:         "live",
+		newMarketData: func(baseURL string) exchange.MarketDataClient {
+			return okx.NewMarketClientForURL(baseURL, &http.Client{Timeout: 20 * time.Second})
+		},
+	})
+}
+
+type realExchangeSmokeCase struct {
+	exchange        string
+	defaultSymbol   string
+	legacySymbolEnv string
+	symbolEnv       string
+	baseURLEnv      string
+	defaultBaseURL  string
+	workerID        string
+	status          string
+	newMarketData   func(baseURL string) exchange.MarketDataClient
+}
+
+func runRealDataSyncRouteServesNativeCandles(t *testing.T, smoke realExchangeSmokeCase) {
+	t.Helper()
 	if strings.TrimSpace(os.Getenv("TICTICK_REAL_EXCHANGE_SMOKE")) != "1" {
 		t.Skip("set TICTICK_REAL_EXCHANGE_SMOKE=1 to run the real public exchange smoke")
 	}
@@ -25,15 +74,18 @@ func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
 	store, pool, ctx := openAPIIntegrationStore(t)
 	server := NewServer(store, "")
 
-	symbol := strings.ToUpper(strings.TrimSpace(os.Getenv("TICTICK_REAL_EXCHANGE_SYMBOL")))
+	symbol := strings.ToUpper(strings.TrimSpace(os.Getenv(smoke.symbolEnv)))
+	if symbol == "" && smoke.legacySymbolEnv != "" {
+		symbol = strings.ToUpper(strings.TrimSpace(os.Getenv(smoke.legacySymbolEnv)))
+	}
 	if symbol == "" {
-		symbol = "BTCUSDT"
+		symbol = smoke.defaultSymbol
 	}
-	baseURL := strings.TrimSpace(os.Getenv("TICTICK_REAL_BINANCE_BASE_URL"))
+	baseURL := strings.TrimSpace(os.Getenv(smoke.baseURLEnv))
 	if baseURL == "" {
-		baseURL = "https://data-api.binance.vision"
+		baseURL = smoke.defaultBaseURL
 	}
-	username := fmt.Sprintf("api-real-sync-%d", time.Now().UTC().UnixNano())
+	username := fmt.Sprintf("api-real-%s-sync-%d", smoke.exchange, time.Now().UTC().UnixNano())
 	password := "secret123"
 	end := time.Now().UTC().Truncate(time.Minute).Add(-30 * time.Minute)
 	start := end.Add(-2 * time.Minute)
@@ -41,7 +93,7 @@ func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := contextWithShortTimeout()
 		defer cleanupCancel()
-		cleanupAPIIntegrationMarket(t, cleanupCtx, pool, symbol, username)
+		cleanupRealAPIIntegrationMarket(t, cleanupCtx, pool, smoke.exchange, symbol, username)
 	})
 
 	if _, _, err := store.EnsureOperator(ctx, data.CreateOperator{
@@ -52,10 +104,11 @@ func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth := loginIntegrationOperator(t, server, username, password)
-	upsertAPIIntegrationMarketInstrument(t, ctx, pool, symbol)
+	upsertRealAPIIntegrationMarketInstrument(t, ctx, pool, smoke.exchange, symbol, smoke.status)
 
 	createBody := fmt.Sprintf(
-		`{"exchange":"binance","symbol":%q,"interval":"1m","startTime":%q,"endTime":%q}`,
+		`{"exchange":%q,"symbol":%q,"interval":"1m","startTime":%q,"endTime":%q}`,
+		smoke.exchange,
 		symbol,
 		start.Format(time.RFC3339),
 		end.Format(time.RFC3339),
@@ -77,10 +130,10 @@ func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
 	runner := datasync.NewRunner(
 		store,
 		exchange.NewRegistry(map[string]exchange.MarketDataClient{
-			"binance": binance.NewMarketClientWithBaseURLs([]string{baseURL}, &http.Client{Timeout: 20 * time.Second}),
+			smoke.exchange: smoke.newMarketData(baseURL),
 		}),
 		datasync.Config{
-			WorkerID:          "real-binance-smoke-worker",
+			WorkerID:          smoke.workerID,
 			LeaseTTL:          time.Minute,
 			HeartbeatInterval: time.Second,
 			BatchLimit:        10,
@@ -105,7 +158,7 @@ func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
 		t.Fatalf("real data sync health = %q, want ok; task=%#v", after.DataHealth, after)
 	}
 
-	candlesPath := "/api/candles?exchange=binance&symbol=" + url.QueryEscape(symbol) +
+	candlesPath := "/api/candles?exchange=" + url.QueryEscape(smoke.exchange) + "&symbol=" + url.QueryEscape(symbol) +
 		"&interval=1m&from=" + url.QueryEscape(start.Format(time.RFC3339)) +
 		"&to=" + url.QueryEscape(end.Format(time.RFC3339)) +
 		"&limit=10"
@@ -129,6 +182,75 @@ func TestIntegrationRealBinanceDataSyncRouteServesNativeCandles(t *testing.T) {
 			end,
 		)
 	}
+}
+
+func upsertRealAPIIntegrationMarketInstrument(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	exchangeName string,
+	symbol string,
+	exchangeStatus string,
+) {
+	t.Helper()
+
+	baseAsset, quoteAsset := realAPIIntegrationMarketAssets(t, exchangeName, symbol)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO market_instruments (
+			exchange, symbol, base_asset, quote_asset, instrument_type, status, exchange_status, search_priority, synced_at
+		)
+		VALUES ($1, $2, $3, $4, 'spot', 'active', $5, 0, now())
+		ON CONFLICT (exchange, symbol)
+		DO UPDATE SET status = EXCLUDED.status,
+		              exchange_status = EXCLUDED.exchange_status,
+		              synced_at = EXCLUDED.synced_at,
+		              updated_at = now()`,
+		exchangeName,
+		symbol,
+		baseAsset,
+		quoteAsset,
+		exchangeStatus,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func realAPIIntegrationMarketAssets(t *testing.T, exchangeName string, symbol string) (string, string) {
+	t.Helper()
+
+	switch exchangeName {
+	case "binance":
+		if !strings.HasSuffix(symbol, "USDT") {
+			t.Fatalf("unsupported binance real smoke symbol %q", symbol)
+		}
+		return strings.TrimSuffix(symbol, "USDT"), "USDT"
+	case "okx":
+		parts := strings.Split(symbol, "-")
+		if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+			t.Fatalf("unsupported okx real smoke symbol %q", symbol)
+		}
+		return parts[0], parts[1]
+	default:
+		t.Fatalf("unsupported real smoke exchange %q", exchangeName)
+		return "", ""
+	}
+}
+
+func cleanupRealAPIIntegrationMarket(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	exchangeName string,
+	symbol string,
+	username string,
+) {
+	t.Helper()
+
+	_, _ = pool.Exec(ctx, `DELETE FROM data_sync_tasks WHERE exchange = $1 AND symbol = $2`, exchangeName, symbol)
+	_, _ = pool.Exec(ctx, `DELETE FROM market_candles WHERE exchange = $1 AND symbol = $2`, exchangeName, symbol)
+	_, _ = pool.Exec(ctx, `DELETE FROM market_instruments WHERE exchange = $1 AND symbol = $2`, exchangeName, symbol)
+	_, _ = pool.Exec(ctx, `DELETE FROM operators WHERE username = $1`, username)
+	ensureAPIPositivePriceConstraint(t, ctx, pool)
 }
 
 func contextWithShortTimeout() (context.Context, context.CancelFunc) {

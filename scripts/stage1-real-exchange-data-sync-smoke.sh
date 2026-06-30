@@ -25,7 +25,10 @@ require_env POSTGRES_DB
 STAMP="${STAGE1_REAL_EXCHANGE_SMOKE_STAMP:-$(date +%s)}"
 SMOKE_DB="tictick_hi_real_exchange_smoke_${STAMP}"
 BINANCE_BASE_URL="${TICTICK_REAL_BINANCE_BASE_URL:-https://data-api.binance.vision}"
-SYMBOL="${TICTICK_REAL_EXCHANGE_SYMBOL:-BTCUSDT}"
+BINANCE_SYMBOL="${TICTICK_REAL_BINANCE_SYMBOL:-${TICTICK_REAL_EXCHANGE_SYMBOL:-BTCUSDT}}"
+OKX_BASE_URL="${TICTICK_REAL_OKX_BASE_URL:-https://www.okx.com}"
+OKX_SYMBOL="${TICTICK_REAL_OKX_SYMBOL:-BTC-USDT}"
+OKX_SMOKE="${STAGE1_REAL_EXCHANGE_SMOKE_OKX:-0}"
 
 cleanup() {
   docker compose exec -T postgres psql \
@@ -59,8 +62,11 @@ docker run --rm \
   -e TICTICK_TEST_DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${SMOKE_DB}?sslmode=disable" \
   -e TICTICK_REAL_EXCHANGE_SMOKE=1 \
   -e TICTICK_REAL_BINANCE_BASE_URL="$BINANCE_BASE_URL" \
-  -e TICTICK_REAL_EXCHANGE_SYMBOL="$SYMBOL" \
+  -e TICTICK_REAL_BINANCE_SYMBOL="$BINANCE_SYMBOL" \
+  -e TICTICK_REAL_OKX_SMOKE="$OKX_SMOKE" \
+  -e TICTICK_REAL_OKX_BASE_URL="$OKX_BASE_URL" \
+  -e TICTICK_REAL_OKX_SYMBOL="$OKX_SYMBOL" \
   golang:1.26-bookworm \
-  go test ./internal/web/api -run TestIntegrationRealBinanceDataSyncRouteServesNativeCandles -count=1 -v
+  go test ./internal/web/api -run 'TestIntegrationReal(Binance|OKX)DataSyncRouteServesNativeCandles' -count=1 -v
 
 printf '\nstage1 real exchange data sync smoke passed\n'

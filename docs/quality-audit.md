@@ -9254,27 +9254,30 @@ Definition of Done：
 
 范围内：
 
-- 新增默认跳过的 API 集成测试 `TestIntegrationRealBinanceDataSyncRouteServesNativeCandles`，显式设置 `TICTICK_REAL_EXCHANGE_SMOKE=1` 时才访问真实 public exchange。
-- 测试通过认证/CSRF API 创建 Binance `BTCUSDT` `1m` data sync task，调用 `/api/data/tasks/{id}/sync/start` 启动同步，再用真实 Binance public market adapter 从 `https://data-api.binance.vision` 拉取 3 根已闭合 `1m` K 线。
-- 同一测试验证 data sync runner 写入 PostgreSQL 后，任务列表可观察到 `succeeded`、`dataHealth=ok`、游标推进，并通过 `/api/candles` 观察到 `source=native`、`health=ok`、3 根真实 K 线。
-- 新增 `scripts/stage1-real-exchange-data-sync-smoke.sh`：启动 compose PostgreSQL，创建临时 smoke database，运行上述非跳过测试，退出时 drop 临时 database，避免污染本地默认库。
+- 默认跳过的真实 public exchange API 集成测试收敛为 Binance / OKX 共用路径：通过认证/CSRF API 创建 data sync task，调用 `/api/data/tasks/{id}/sync/start` 启动同步，再由真实 public market adapter 拉取 3 根已闭合 `1m` K 线。
+- Binance 路径显式设置 `TICTICK_REAL_EXCHANGE_SMOKE=1` 后运行，默认 base URL 为 `https://data-api.binance.vision`，并支持 `TICTICK_REAL_BINANCE_SYMBOL` / legacy `TICTICK_REAL_EXCHANGE_SYMBOL` 覆盖交易对。
+- OKX 路径需要同时设置 `TICTICK_REAL_EXCHANGE_SMOKE=1` 和 `TICTICK_REAL_OKX_SMOKE=1` 才运行，默认 base URL 为 `https://www.okx.com`，默认 symbol 为 `BTC-USDT`。
+- 两条路径都验证 data sync runner 写入 PostgreSQL 后，任务列表可观察到 `succeeded`、`dataHealth=ok`、游标推进，并通过 `/api/candles` 观察到 `source=native`、`health=ok`、3 根真实 K 线。
+- `scripts/stage1-real-exchange-data-sync-smoke.sh` 启动 compose PostgreSQL，创建临时 smoke database，默认运行 Binance 非跳过测试且 OKX 跳过；设置 `STAGE1_REAL_EXCHANGE_SMOKE_OKX=1` 时同时启用 OKX 非跳过测试；退出时 drop 临时 database，避免污染本地默认库。
 - `scripts/full-quality-gate.sh` 增加 `FULL_QUALITY_STAGE1_REAL_EXCHANGE=1` / `FULL_QUALITY_STAGE1=1` 可选入口。
 
 范围外：
 
 - 不访问交易所私有 API，不读取或提交订单，不推进 live executor。
 - 不把真实外网 smoke 放进默认 CI；该检查受网络、区域、交易所可用性影响，只能显式启用。
-- 不声明 OKX 真实网络、长时间 soak、多实例共享额度或动态全交易所业务码分类已关闭。
+- 不声明 OKX 真实网络已通过；当前只增加 opt-in 测试入口并记录本地外网失败证据。
+- 不声明长时间 soak、多实例共享额度或动态全交易所业务码分类已关闭。
 
 当前验证：
 
-- `go test ./internal/web/api -run TestIntegrationRealBinanceDataSyncRouteServesNativeCandles -count=1 -v` 通过编译并按预期跳过：未设置 `TICTICK_REAL_EXCHANGE_SMOKE=1` 时不访问外网。
-- `scripts/stage1-real-exchange-data-sync-smoke.sh` 通过：临时 PostgreSQL database 中非跳过执行，真实 `data-api.binance.vision` public K 线被 data sync runner 写入 PostgreSQL，并由 `/api/candles` 返回 native/ok。
-- `FULL_QUALITY_STAGE1_REAL_EXCHANGE=1 scripts/full-quality-gate.sh` 通过：包含 `go test ./...`、`go vet ./...`、前端 typecheck / test / build、轻量质量门禁，并串联上述真实 public exchange data sync smoke。
+- `go test ./internal/web/api -run 'TestIntegrationReal(Binance|OKX)DataSyncRouteServesNativeCandles' -count=1 -v` 通过编译并按预期跳过：未设置真实外网 env 时不访问外网。
+- `scripts/stage1-real-exchange-data-sync-smoke.sh` 通过：临时 PostgreSQL database 中 Binance 非跳过执行，真实 `data-api.binance.vision` public K 线被 data sync runner 写入 PostgreSQL，并由 `/api/candles` 返回 native/ok；OKX 在未设置 `STAGE1_REAL_EXCHANGE_SMOKE_OKX=1` 时跳过。
+- `STAGE1_REAL_EXCHANGE_SMOKE_OKX=1 scripts/stage1-real-exchange-data-sync-smoke.sh` 失败于当前环境访问 OKX public endpoint：Binance 部分通过，OKX `/api/v5/market/history-candles` 返回 `okx candles temporary unavailable: www.okx.com: EOF`，runner 按预期把任务置回 `pending`、记录 retry/backoff，测试因未达到 succeeded 失败。
+- `FULL_QUALITY_STAGE1_REAL_EXCHANGE=1 scripts/full-quality-gate.sh` 通过：包含 `go test ./...`、`go vet ./...`、前端 typecheck / test / build、轻量质量门禁，并串联默认真实 public exchange data sync smoke。
 
 剩余风险：
 
-- 当前只覆盖 Binance public data API 的小窗口真实拉取，不覆盖 OKX 真实网络和长期网络抖动。
+- 当前只实证通过 Binance public data API 的小窗口真实拉取；OKX 非跳过路径已接入但受当前网络/TLS EOF 阻塞，没有通过真实外网验收。
 - 该证据证明真实 public K 线可进入 Stage 1 主路径，不代表多实例共享 token bucket、交易所动态额度或生产级外部依赖韧性已完成。
 - 项目整体仍是 `scaffold`，不能升级。
 
