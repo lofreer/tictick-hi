@@ -22,8 +22,10 @@ type fakeSyncRepository struct {
 	nextAttemptAt         *time.Time
 	released              bool
 	releasedWorkerID      string
+	releaseError          error
 	releasedSkippedFetch  bool
 	releasedSkippedWorker string
+	releaseSkippedError   error
 	fetchLockResults      map[string]bool
 	fetchLockErr          error
 	fetchUnlocks          []string
@@ -107,7 +109,7 @@ func (repository *fakeSyncRepository) RecordDataSyncRetry(
 func (repository *fakeSyncRepository) ReleaseDataSyncTask(_ context.Context, _ string, workerID string) error {
 	repository.released = true
 	repository.releasedWorkerID = workerID
-	return nil
+	return repository.releaseError
 }
 
 func (repository *fakeSyncRepository) ReleaseDataSyncTaskAfterSkippedFetch(
@@ -117,7 +119,7 @@ func (repository *fakeSyncRepository) ReleaseDataSyncTaskAfterSkippedFetch(
 ) error {
 	repository.releasedSkippedFetch = true
 	repository.releasedSkippedWorker = workerID
-	return nil
+	return repository.releaseSkippedError
 }
 
 func (repository *fakeSyncRepository) RecordDataSyncExchangeFetchLockSkipped(

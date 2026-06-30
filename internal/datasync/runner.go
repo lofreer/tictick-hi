@@ -133,8 +133,8 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		if workerlease.IsShutdown(ctx, err) {
 			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
 			defer cancel()
-			if releaseErr := runner.repository.ReleaseDataSyncTask(releaseCtx, task.ID, runner.config.WorkerID); releaseErr != nil {
-				return fmt.Errorf("release data sync task on shutdown: %w", releaseErr)
+			if releaseErr := runner.releaseDataSyncTaskOnShutdown(releaseCtx, task); releaseErr != nil {
+				return releaseErr
 			}
 			return nil
 		}
@@ -149,8 +149,8 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 					"error", recordErr,
 				)
 			}
-			if releaseErr := runner.releaseDataSyncTaskAfterSkippedFetch(releaseCtx, task.ID); releaseErr != nil {
-				return fmt.Errorf("release data sync task after exchange fetch lock skip: %w", releaseErr)
+			if releaseErr := runner.releaseDataSyncTaskAfterExchangeFetchLockSkip(releaseCtx, task); releaseErr != nil {
+				return releaseErr
 			}
 			slog.Info("data sync task released; exchange fetch lock held", "task_id", task.ID, "exchange", task.Exchange)
 			return nil
@@ -159,8 +159,8 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		if errors.As(err, &lockErr) {
 			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
 			defer cancel()
-			if releaseErr := runner.releaseDataSyncTaskAfterSkippedFetch(releaseCtx, task.ID); releaseErr != nil {
-				return fmt.Errorf("release data sync task after exchange fetch lock error: %w", releaseErr)
+			if releaseErr := runner.releaseDataSyncTaskAfterExchangeFetchLockError(releaseCtx, task); releaseErr != nil {
+				return releaseErr
 			}
 			return lockErr
 		}
@@ -203,13 +203,6 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func (runner *Runner) releaseDataSyncTaskAfterSkippedFetch(ctx context.Context, taskID string) error {
-	if runner.lockRepository == nil {
-		return runner.repository.ReleaseDataSyncTask(ctx, taskID, runner.config.WorkerID)
-	}
-	return runner.lockRepository.ReleaseDataSyncTaskAfterSkippedFetch(ctx, taskID, runner.config.WorkerID)
 }
 
 func (runner *Runner) recordDataSyncExchangeFetchLockSkipped(ctx context.Context, exchange string) error {

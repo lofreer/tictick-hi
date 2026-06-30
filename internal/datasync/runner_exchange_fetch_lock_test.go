@@ -63,6 +63,37 @@ func TestRunnerReleasesLeaseWithoutFetchWhenExchangeFetchLockHeld(t *testing.T) 
 	}
 }
 
+func TestRunnerIgnoresReleaseRaceWhenExchangeFetchLockHeld(t *testing.T) {
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:             true,
+		fetchLockResults:    map[string]bool{"binance": false},
+		releaseSkippedError: data.DataSyncCommandInvalidStateError(),
+	}
+	fetcher := &fakeMarketClient{candles: []data.Candle{syncTestCandle(time.Now().UTC())}}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fetcher.calls != 0 {
+		t.Fatalf("fetch calls = %d, want 0", fetcher.calls)
+	}
+	if !repository.releasedSkippedFetch {
+		t.Fatal("expected skipped fetch release to be attempted")
+	}
+	if repository.failed != nil || repository.retry != nil {
+		t.Fatalf("release race should not fail or retry task: failed=%v retry=%v", repository.failed, repository.retry)
+	}
+}
+
 func TestRunnerReturnsInfrastructureErrorWhenExchangeFetchLockFails(t *testing.T) {
 	lockErr := errors.New("postgres unavailable")
 	repository := &fakeSyncRepository{
@@ -104,6 +135,38 @@ func TestRunnerReturnsInfrastructureErrorWhenExchangeFetchLockFails(t *testing.T
 	}
 	if repository.fetchLockSkipExchange != "" {
 		t.Fatalf("lock infrastructure error should not record lock-held skip: %q", repository.fetchLockSkipExchange)
+	}
+}
+
+func TestRunnerPreservesInfrastructureErrorWhenFetchLockReleaseRaces(t *testing.T) {
+	lockErr := errors.New("postgres unavailable")
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:             true,
+		fetchLockErr:        lockErr,
+		releaseSkippedError: data.ErrNotFound,
+	}
+	fetcher := &fakeMarketClient{}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+
+	err := runner.RunOnce(context.Background())
+
+	var gotLockErr dataSyncExchangeFetchLockError
+	if !errors.As(err, &gotLockErr) || !errors.Is(err, lockErr) {
+		t.Fatalf("RunOnce error = %v, want dataSyncExchangeFetchLockError wrapping %v", err, lockErr)
+	}
+	if !repository.releasedSkippedFetch {
+		t.Fatal("expected skipped fetch release to be attempted")
+	}
+	if repository.failed != nil || repository.retry != nil {
+		t.Fatalf("lock error release race should not fail or retry task: failed=%v retry=%v", repository.failed, repository.retry)
 	}
 }
 

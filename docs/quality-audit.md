@@ -290,6 +290,29 @@ done            用户确认关闭
 - 该切片只避免 data sync 旧 worker 在 lease race 后错误退出或错误标失败；完整统一 worker 状态机仍未实现。
 - 仍缺多实例长期 soak 和真实交易所网络恢复压测。
 
+### 阶段 1 data sync release race 收敛补充
+
+执行日期：2026-06-30
+
+目标等级：scaffold。
+
+范围内：
+
+- data sync runner 在 shutdown release 和 exchange fetch lock held skipped release 时，如果任务已删除或当前 worker 已不再持有 lease，会记录为 ownership race 并跳过当前任务，不让整个 sync worker 退出。
+- exchange fetch lock 基础设施错误仍保留原错误上抛；如果释放 lease 同时遇到 ownership race，不会用 release race 掩盖基础设施错误。
+- 单元测试覆盖 shutdown release invalid-state race、fetch-lock held release invalid-state race，以及 fetch-lock 基础设施错误叠加 release not-found race 时仍返回基础设施错误。
+
+范围外：
+
+- 不改变 fetch lock 获取、skip 统计、任务 retry/backoff、claim 公平性或 K 线写入语义。
+- 不重构 backtest / trading / notification worker。
+- 不实现真实交易所网络长期压测、跨进程共享额度或实盘交易所私有 API。
+
+剩余风险：
+
+- release race 处理仍是 data sync runner 局部修补；完整统一 worker 状态机和跨 worker 类型一致 release 语义仍未实现。
+- 仍缺真实多实例长期运行验证。
+
 ### 阶段 8 browser smoke 全局超时补充
 
 执行日期：2026-06-30

@@ -579,3 +579,34 @@ func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 		t.Fatalf("shutdown should not save result: %#v", repository.saved)
 	}
 }
+
+func TestRunnerIgnoresShutdownReleaseLeaseRace(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:       "dst_1",
+			Exchange: "binance",
+			Symbol:   "BTCUSDT",
+			Interval: "1m",
+		},
+		claimed:      true,
+		releaseError: data.DataSyncCommandInvalidStateError(),
+	}
+	fetcher := &cancelingMarketClient{cancel: cancel}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+
+	if err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !repository.released {
+		t.Fatal("expected shutdown release to be attempted")
+	}
+	if repository.failed != nil {
+		t.Fatalf("shutdown release race should not mark task failed: %v", repository.failed)
+	}
+	if repository.saved.TaskID != "" {
+		t.Fatalf("shutdown release race should not save result: %#v", repository.saved)
+	}
+}
