@@ -8933,6 +8933,40 @@ Definition of Done：
 - 当前仍缺长期真实交易所恢复压测、像素快照基线和多浏览器视觉回归，研究页不能升级。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页图表缺口修复后刷新补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 研究页图表上的“修复首个缺口”在 repair API 成功返回后，不再只刷新 data sync 任务列表。
+- `repairChartGap` 会同时刷新任务列表和当前 CandleProvider 查询结果，使图表 metadata / gaps 能在 repair 排队后重新读取最新 API 状态。
+- 前端 composable 测试覆盖无源任务的全历史 market gap repair 路径和选中源任务的 task gap repair 路径，均会在 repair 成功后重新调用 `getCandles`。
+
+范围外：
+
+- 不把“repair API 成功返回”解释为缺口已经实际修复；真实修复仍依赖 data sync worker 后续写回。
+- 不改变后端 gap repair API、CandleProvider 查询语义或 worker 调度。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend exec vitest run src/composables/useResearchWorkspace.test.ts` 通过：18 条测试。
+- `pnpm --dir web/frontend run test` 通过：160 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+剩余风险：
+
+- repair 后立即刷新可能仍看到原缺口，这是正确状态，表示补同步任务尚未写回。
+- 当前仍缺真实交易所长期恢复压测、自动完成后的前端轮询/通知机制和像素视觉回归，研究页不能升级。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

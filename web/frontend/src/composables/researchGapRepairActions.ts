@@ -10,6 +10,7 @@ import {
 type RepairChartGapOptions = {
   exchange: string;
   gap: CandleGap;
+  loadCandles: () => Promise<void>;
   loadTasks: () => Promise<void>;
   onSuccess: (messageKey: string) => void;
   repairInterval: string;
@@ -18,7 +19,7 @@ type RepairChartGapOptions = {
 };
 
 export async function repairChartGap(options: RepairChartGapOptions) {
-  const { exchange, gap, loadTasks, onSuccess, repairInterval, sourceTask, symbol } = options;
+  const { exchange, gap, loadCandles, loadTasks, onSuccess, repairInterval, sourceTask, symbol } = options;
   if (sourceTask) {
     const result = await dataApi.repairTaskGap(sourceTask.id, chartGapRepairRequest(gap));
     onSuccess(repairResultMessageKey(result));
@@ -26,5 +27,5 @@ export async function repairChartGap(options: RepairChartGapOptions) {
     const result = await dataApi.repairMarketCandleGap(marketGapRepairRequest(gap, exchange, symbol, repairInterval));
     onSuccess(repairResultMessageKey(result));
   }
-  await loadTasks();
+  await Promise.all([loadTasks(), loadCandles()]);
 }

@@ -327,6 +327,7 @@ export function useResearchWorkspace() {
       await repairChartGap({
         exchange: exchange.value,
         gap,
+        loadCandles,
         loadTasks,
         onSuccess: (messageKey) => message.success(t(messageKey)),
         repairInterval,
@@ -347,7 +348,6 @@ export function useResearchWorkspace() {
       message.error(errorMessage(error, fallback));
     }
   }
-
   return {
     canCreateTask,
     canRepairGap,

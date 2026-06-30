@@ -119,6 +119,7 @@ describe("useResearchWorkspace", () => {
 
     expect(workspace.canRepairGap.value).toBe(true);
 
+    dataApiMocks.getCandles.mockClear();
     await workspace.repairFirstGap();
     await flushPromises();
 
@@ -132,6 +133,7 @@ describe("useResearchWorkspace", () => {
     expect(dataApi.createTask).not.toHaveBeenCalled();
     expect(dataApi.setSync).not.toHaveBeenCalled();
     expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
+    expectCandlesReloaded("5m");
     expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
   });
 
@@ -200,6 +202,7 @@ describe("useResearchWorkspace", () => {
     workspace.selectTask(dataSyncTask({ id: "dst_source_1", interval: "1m" }));
     await flushPromises();
 
+    dataApiMocks.getCandles.mockClear();
     await workspace.repairFirstGap();
     await flushPromises();
 
@@ -210,6 +213,7 @@ describe("useResearchWorkspace", () => {
     expect(dataApi.createTask).not.toHaveBeenCalled();
     expect(dataApi.setSync).not.toHaveBeenCalled();
     expect(dataApi.listTasks).toHaveBeenCalledTimes(2);
+    expectCandlesReloaded("1m");
     expect(messageMocks.success).toHaveBeenCalledWith("缺口修复任务已排队。");
   });
 
@@ -591,20 +595,16 @@ function candleResult(overrides: Record<string, unknown>) {
     baseInterval: "1m",
     health: "ok",
     gaps: [],
-    coverage: {
-      requestedLimit: 1000,
-      returnedCandles: 0,
-      limitedByBaseWindow: false,
-    },
-    window: {
-      count: 0,
-    },
-    pagination: {
-      hasPrevious: false,
-      hasNext: false,
-    },
+    coverage: { requestedLimit: 1000, returnedCandles: 0, limitedByBaseWindow: false },
+    window: { count: 0 },
+    pagination: { hasPrevious: false, hasNext: false },
     ...overrides,
   };
+}
+
+function expectCandlesReloaded(interval: string) {
+  expect(dataApi.getCandles).toHaveBeenCalledTimes(1);
+  expect(dataApi.getCandles).toHaveBeenCalledWith({ exchange: "binance", symbol: "BTCUSDT", interval });
 }
 
 function chartCandle(time: string) {
