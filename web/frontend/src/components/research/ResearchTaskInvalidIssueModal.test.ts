@@ -36,7 +36,22 @@ describe("ResearchTaskInvalidIssueModal", () => {
     });
     dataApiMocks.repairTaskInvalidIssues.mockResolvedValue({
       sourceTaskId: "dst_1",
-      createdTasks: [{ id: "dst_repair_1" }],
+      createdTasks: [{
+        id: "dst_repair_1",
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        startTime: "2026-06-27T07:02:00Z",
+        endTime: "2026-06-27T07:03:00Z",
+        realtimeEnabled: false,
+        syncEnabled: true,
+        status: "pending",
+        marketStatus: "active",
+        dataHealth: "syncing",
+        attemptCount: 0,
+        createdAt: "2026-06-27T07:02:01Z",
+        updatedAt: "2026-06-27T07:02:01Z",
+      }],
       skippedExisting: 0,
       limited: false,
       totalCount: 1,
@@ -168,11 +183,7 @@ describe("ResearchTaskInvalidIssueModal", () => {
     await wrapper.findComponent(NDatePicker).vm.$emit("update:value", [from, to]);
     await flushPromises();
 
-    const repairButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("排队修复当前异常"),
-    );
-    if (!repairButton) throw new Error("repair button not found");
-    repairButton.click();
+    clickRepairButton();
     await flushPromises();
 
     expect(dataApi.repairTaskInvalidIssues).toHaveBeenCalledWith("dst_1", {
@@ -182,8 +193,114 @@ describe("ResearchTaskInvalidIssueModal", () => {
     });
     expect(wrapper.emitted("repaired")).toHaveLength(1);
     expect(document.body.textContent).toContain("已排队 1 个异常 K 线补同步任务");
+    expect(document.body.textContent).toContain("本次匹配 1 个，已创建 1 个，跳过 0 个，单次上限 20");
+    expect(document.body.textContent).toContain("dst_repair_1 /");
+  });
+
+  it("shows skipped and limited repair metadata", async () => {
+    dataApiMocks.repairTaskInvalidIssues.mockResolvedValueOnce({
+      sourceTaskId: "dst_1",
+      createdTasks: [],
+      skippedExisting: 2,
+      limited: true,
+      totalCount: 25,
+      repairLimit: 20,
+    });
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    clickRepairButton();
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("异常 K 线补同步任务已存在");
+    expect(document.body.textContent).toContain("本次匹配 25 个，已创建 0 个，跳过 2 个，单次上限 20");
+    expect(document.body.textContent).toContain("结果受限");
+  });
+
+  it("shows no-repair metadata when current filters no longer match invalid candles", async () => {
+    dataApiMocks.repairTaskInvalidIssues.mockResolvedValueOnce({
+      sourceTaskId: "dst_1",
+      createdTasks: [],
+      skippedExisting: 0,
+      limited: false,
+      totalCount: 0,
+      repairLimit: 20,
+    });
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    clickRepairButton();
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("当前筛选没有可排队的异常 K 线");
+    expect(document.body.textContent).toContain("本次匹配 0 个，已创建 0 个，跳过 0 个，单次上限 20");
+  });
+
+  it("clears stale repair metadata when filters change", async () => {
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    clickRepairButton();
+    await flushPromises();
+    expect(document.body.textContent).toContain("dst_repair_1");
+
+    await wrapper.findComponent(NSelect).vm.$emit("update:value", "invalid_close_price");
+    await flushPromises();
+
+    expect(document.body.textContent).not.toContain("dst_repair_1");
+    expect(document.body.textContent).not.toContain("本次匹配 1 个");
+  });
+
+  it("shows a sanitized repair failure without leaking upstream URLs", async () => {
+    dataApiMocks.repairTaskInvalidIssues.mockRejectedValueOnce(
+      new Error('binance klines: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF'),
+    );
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    clickRepairButton();
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("创建异常 K 线补同步任务失败");
+    expect(document.body.textContent).not.toContain("api.binance.com");
   });
 });
+
+function clickRepairButton() {
+  const repairButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes("排队修复当前异常"),
+  );
+  if (!repairButton) throw new Error("repair button not found");
+  repairButton.click();
+}
 
 function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
   return {

@@ -44,6 +44,30 @@
             }}
           </NTag>
           <NText v-if="repairNotice" :type="repairNoticeType">{{ repairNotice }}</NText>
+          <NTag v-if="repairResult" :bordered="false" :type="repairResult.limited ? 'warning' : 'default'">
+            {{
+              t("research.invalidIssueRepairResultSummary", {
+                created: repairResult.createdTasks.length,
+                limit: repairResult.repairLimit,
+                skipped: repairResult.skippedExisting,
+                total: repairResult.totalCount,
+              })
+            }}
+          </NTag>
+          <NTag v-if="repairResult?.limited" :bordered="false" type="warning">
+            {{ t("research.invalidIssueRepairResultLimited") }}
+          </NTag>
+          <NTag
+            v-for="repairTask in repairTaskWindowTags"
+            :key="repairTask.key"
+            :bordered="false"
+            :title="repairTask.title"
+          >
+            {{ repairTask.label }}
+          </NTag>
+          <NTag v-if="hiddenRepairTaskCount > 0" :bordered="false">
+            {{ t("research.invalidIssueRepairTaskMore", { count: hiddenRepairTaskCount }) }}
+          </NTag>
         </NSpace>
         <NSpace align="center" justify="end">
           <NPagination
@@ -92,7 +116,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
-import type { CandleIssue, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
+import type { CandleIssue, DataSyncGapRepairResult, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
 import type { RepairDataSyncInvalidIssuesRequest } from "@/types/app";
 import { formatCompactDateTime } from "@/utils/displayText";
 
@@ -105,6 +129,7 @@ const repairLoading = ref(false);
 const error = ref("");
 const repairNotice = ref("");
 const repairNoticeType = ref<"success" | "error" | "warning" | "default">("default");
+const repairResult = ref<DataSyncGapRepairResult | null>(null);
 const task = ref<DataSyncTask | null>(null);
 const details = ref<DataSyncInvalidIssueList | null>(null);
 const page = ref(1);
@@ -152,6 +177,17 @@ const displayedIssueCount = computed(() => {
   if (!details.value) return 0;
   return Math.min(details.value.totalCount, details.value.offset + details.value.returnedCount);
 });
+const repairTaskWindowTags = computed(() => (repairResult.value?.createdTasks ?? []).slice(0, 3).map((repairTask) => ({
+  key: repairTask.id,
+  label: t("research.invalidIssueRepairTaskWindow", {
+    id: repairTask.id,
+    window: repairTaskWindow(repairTask),
+  }),
+  title: `${repairTask.exchange} / ${repairTask.symbol} / ${repairTask.interval}`,
+})));
+const hiddenRepairTaskCount = computed(() =>
+  Math.max(0, (repairResult.value?.createdTasks.length ?? 0) - repairTaskWindowTags.value.length),
+);
 
 defineExpose({ open });
 
@@ -161,6 +197,7 @@ async function open(nextTask: DataSyncTask) {
   error.value = "";
   repairNotice.value = "";
   repairNoticeType.value = "default";
+  repairResult.value = null;
   page.value = 1;
   issueCode.value = null;
   timeRange.value = null;
@@ -200,6 +237,7 @@ async function changePage(nextPage: number) {
 async function applyFilters() {
   if (!task.value) return;
   repairNotice.value = "";
+  repairResult.value = null;
   page.value = 1;
   await load(task.value);
 }
@@ -207,6 +245,7 @@ async function applyFilters() {
 async function resetFilters() {
   if (!task.value) return;
   repairNotice.value = "";
+  repairResult.value = null;
   issueCode.value = null;
   timeRange.value = null;
   page.value = 1;
@@ -218,8 +257,10 @@ async function repairInvalidIssues() {
   repairLoading.value = true;
   repairNotice.value = "";
   repairNoticeType.value = "default";
+  repairResult.value = null;
   try {
     const result = await dataApi.repairTaskInvalidIssues(task.value.id, currentRepairRequest());
+    repairResult.value = result;
     if (result.createdTasks.length > 0) {
       repairNotice.value = t("research.invalidIssueRepairQueued", { count: result.createdTasks.length });
       repairNoticeType.value = "success";
@@ -250,6 +291,12 @@ function currentRepairRequest(): RepairDataSyncInvalidIssuesRequest {
     request.to = new Date(timeRange.value[1]).toISOString();
   }
   return request;
+}
+
+function repairTaskWindow(repairTask: DataSyncTask) {
+  const from = repairTask.startTime ? formatCompactDateTime(repairTask.startTime) : "-";
+  const to = repairTask.endTime ? formatCompactDateTime(repairTask.endTime) : "-";
+  return `${from} - ${to}`;
 }
 
 function invalidIssueLabel(code?: string, fallback?: string) {

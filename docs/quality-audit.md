@@ -63,7 +63,7 @@ done            用户确认关闭
 
 补充：阶段 1 data sync task 窗口 invalid repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF `POST /api/data/tasks` 创建带 start/end 窗口的源同步任务，由 `SaveDataSyncResult` 写入 0、1、3 分钟健康 K 线，再注入 2 分钟 legacy invalid K 线形成任务窗口内异常，通过 `GET /api/data/tasks/{id}/invalid-issues` 观察异常，`POST /api/data/tasks/{id}/repair-invalid-issues` 排队带 `repairSourceTaskId` 的补同步任务，最后由 `SaveDataSyncResult` 写回 2 分钟健康 K 线，并通过 `GET /api/data/tasks` 和 `/invalid-issues` 观察源任务 `dataHealth=ok` 且异常消失；该证据证明任务窗口异常路由、认证/CSRF、active instrument 源任务创建校验、源任务关联和 worker 写回收敛路径可以串起来，但仍不代表自动清洗历史异常行或交易所一定返回健康数据。
 
-补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/0px`、窄桌面 `12px/0px`、移动端 `10px/0px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；右侧价格轴不再人为增加 minimumWidth，chart 字体为桌面 `8px`、移动 `7px`，visual smoke 同时断言 symbol 最大宽度 `124px`、工具栏控件最大宽度 `560px`、工具栏高度最大 `76px`、右侧价格轴最大宽度 `48px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
+补充：阶段 1 研究页、回测详情和交易详情的 K 线图表布局在 2026-06-30 继续收紧；当前有效约束以 `klineChartLayout.css`、`ResearchPage.css`、`detailChartLayout.css`、`scripts/stage8-visual-smoke.mjs` 和 `scripts/research-chart-height-smoke.mjs` 为准：研究页主工具栏 symbol 输入为桌面 `112px`、窄桌面 `108px`、移动端 `104px`，主工具栏不再显示 symbol 内置 instrument sync 按钮，桌面工具栏采用左侧 market strip + 右侧单行可滚动状态摘要的一行工作台布局，窄屏再堆叠；图表左/右 gutter 为桌面 `14px/4px`、窄桌面 `12px/4px`、移动端 `10px/4px`；plot 高度为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零；右侧价格轴不再人为增加 minimumWidth，chart 字体为桌面 `8px`、移动 `7px`，visual smoke 同时断言 symbol 最大宽度 `124px`、工具栏控件最大宽度 `560px`、工具栏高度最大 `76px`、右侧价格轴最大宽度 `44px`、主图 canvas 右边界贴住右侧价格轴左边界、最右侧 canvas 贴住 viewport 右边界，详情页下方摘要列保持 `minmax(220px, 260px)`。
 
 ## 3. 必须先修的问题
 
@@ -7769,6 +7769,53 @@ Definition of Done：
 
 - 该切片只修复 K 线布局几何合同，不代表研究页、回测或交易业务流程达到 production-safe。
 - 仍缺多浏览器视觉回归、图表指标/绘图工具、成交点交互和完整交易分析能力。
+
+### 阶段 1 任务窗口异常修复结果可观察性补充
+
+执行时间：2026-06-30
+
+目标等级：scaffold 增量。
+
+背景：
+
+- 任务窗口 invalid repair 已有 HTTP API + PostgreSQL 收敛证据，但研究页弹窗只显示“已排队 / 已存在 / 无可修复”，没有把后端返回的 total / limit / limited / created / skipped 信息回显给用户。
+- 用户需要能判断一次修复请求到底匹配了多少异常、是否被单次上限截断、创建了哪些补同步窗口，而不是只能等待任务列表刷新后猜测。
+
+Definition of Done：
+
+- `ResearchTaskInvalidIssueModal` 在 `POST /api/data/tasks/{id}/repair-invalid-issues` 成功后显示本次匹配总数、创建数量、跳过已存在数量、单次修复上限和受限标记。
+- 弹窗列出最多 3 个新创建补同步任务的 ID 和 start/end 窗口，超出时显示剩余数量。
+- 切换筛选、重置筛选或重新打开任务时清空旧 repair result，避免 stale 结果误导。
+- repair 失败只显示泛化失败文案，不展示底层交易所 URL 或原始错误。
+- 不改变后端 repair 语义，不新增 API，不自动清洗历史 K 线。
+
+改动范围：
+
+- `web/frontend/src/components/research/ResearchTaskInvalidIssueModal.vue` 增加 repair result 状态、summary tags 和任务窗口 tags。
+- `web/frontend/src/components/research/ResearchTaskInvalidIssueModal.test.ts` 覆盖 created、skipped、limited、no repair、筛选清空 stale result 和失败不泄漏 URL。
+- `web/frontend/src/i18n/messages.research.zh.ts` / `messages.research.en.ts` 增加中英文 repair result 文案。
+- `docs/quality-audit.md` 同步本轮 DoD、验证和剩余风险，并修正旧 K 线 gutter / price axis 合同残留。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/research/ResearchTaskInvalidIssueModal.test.ts src/services/api/data.invalid.test.ts` 通过：2 个测试文件、10 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过：28 个测试文件、146 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+失败项：
+
+- 首次补丁因尾部上下文不匹配未写入文件；已拆成小块补丁重新应用。
+- 测试最初不能假设 `toLocaleString()` 精确日期格式；已将断言收敛到补同步任务 ID 和 summary。
+
+剩余风险：
+
+- 该切片只增强研究页修复结果可观察性，不证明交易所一定能返回健康历史数据。
+- 自动批量修复、历史异常自动清洗、多任务修复调度和生产级数据修复策略仍未关闭。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
