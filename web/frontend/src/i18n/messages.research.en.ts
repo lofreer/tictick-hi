@@ -93,6 +93,7 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.marketRepairResultSummary": "Matched {total}; created {created}; skipped {skipped}; limit {limit}",
     "research.marketRepairResultLimited": "Result limited",
     "research.marketRepairTaskWindow": "{id} / {window}",
+    "research.marketRepairTaskWindowStatus": "{id} / {window} / {status} / {health}",
     "research.marketRepairTaskMore": "{count} more repair tasks",
     "research.marketInvalidScanLoading": "Scanning full history invalid candles",
     "research.marketInvalidScanFailed": "Full history invalid scan failed",

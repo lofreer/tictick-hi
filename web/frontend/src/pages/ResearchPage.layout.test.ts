@@ -212,12 +212,12 @@ describe("ResearchPage chart layout contract", () => {
 
   it("shows full-history market gap scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";');
-    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />');
+    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="loadTasks" />');
   });
 
   it("shows full-history invalid candle scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";');
-    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />');
+    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="loadTasks" />');
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {
@@ -244,7 +244,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("chartGapRepairResult");
     expect(source).toContain("refreshChartCandles");
     expect(source).toContain('@click="repairFirstChartGap"');
-    expect(source).toContain('<MarketRepairResultTags :result="chartGapRepairResult" />');
+    expect(source).toContain('<MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />');
   });
 
   it("keeps task invalid issue details reachable from the research page", () => {

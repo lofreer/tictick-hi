@@ -9003,6 +9003,43 @@ Definition of Done：
 - repair 任务完成后仍缺自动完成状态反馈、轮询/通知机制和浏览器像素快照基线，研究页不能升级。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 研究页补同步任务状态可观察性补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- `MarketRepairResultTags` 展示 repair result 中创建出的补同步任务时，不再只显示任务 ID 和窗口。
+- 每个补同步任务 tag 会同时展示任务 `status` 和 `dataHealth`，并按数据健康状态映射 tag 类型。
+- 如果研究页已有最新 `data sync tasks` 列表，repair result tag 会优先按任务 ID 使用列表中的最新状态覆盖 repair API 返回时的任务快照。
+- 研究页图表缺口 repair、全历史缺口 repair 和全历史异常 repair 的结果展示均接收当前任务列表，用户刷新任务列表后能在同一 repair result 区域观察补同步任务状态变化。
+
+范围外：
+
+- 不实现后台自动轮询、任务完成通知或 worker 推送。
+- 不改变后端 repair API、任务状态机、data sync worker 调度或 K 线写回语义。
+- 不推进实盘交易所私有 API、live executor 或订单提交。
+
+当前验证：
+
+- `git diff --check` 通过。
+- `pnpm --dir web/frontend exec vitest run src/components/research/MarketRepairResultTags.test.ts src/pages/ResearchPage.layout.test.ts src/components/research/MarketCandleGapTag.test.ts src/components/research/MarketCandleInvalidIssueTag.test.ts` 通过：30 条测试。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `pnpm --dir web/frontend run test` 通过：164 条测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+剩余风险：
+
+- 该能力只显示已有任务列表里的最新状态；没有自动轮询时，用户仍需要刷新任务列表或触发现有刷新路径。
+- repair 任务完成后仍缺自动完成状态反馈、通知机制和真实外部交易所恢复压测，研究页不能升级。
+- 项目整体仍是 `scaffold`，不能升级。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -35,7 +35,7 @@
         <NTag v-if="scan?.limited" :bordered="false" type="warning">
           {{ t("research.marketGapDetailsLimited", { returned: scan.returnedCount, total: scan.totalCount }) }}
         </NTag>
-        <MarketRepairResultTags :result="repairResult" />
+        <MarketRepairResultTags :result="repairResult" :tasks="tasks" />
         <NTag v-if="repairError" :bordered="false" type="error">
           {{ t("research.marketGapRepairFailed") }}
         </NTag>
@@ -69,13 +69,14 @@ import { computed, h, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { dataApi } from "@/services/api/data";
-import type { CandleGap, DataSyncGapRepairResult, MarketCandleGapScan } from "@/types/app";
+import type { CandleGap, DataSyncGapRepairResult, DataSyncTask, MarketCandleGapScan } from "@/types/app";
 import MarketRepairResultTags from "./MarketRepairResultTags.vue";
 
 const props = defineProps<{
   exchange: string;
   interval: string;
   symbol: string;
+  tasks?: DataSyncTask[];
 }>();
 const emit = defineEmits<{ repaired: [] }>();
 

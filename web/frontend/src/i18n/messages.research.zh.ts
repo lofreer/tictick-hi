@@ -93,6 +93,7 @@ export const zhCNResearchMessages: Record<string, string> = {
     "research.marketRepairResultSummary": "本次匹配 {total} 个，已创建 {created} 个，跳过 {skipped} 个，单次上限 {limit}",
     "research.marketRepairResultLimited": "结果受限",
     "research.marketRepairTaskWindow": "{id} / {window}",
+    "research.marketRepairTaskWindowStatus": "{id} / {window} / {status} / {health}",
     "research.marketRepairTaskMore": "另有 {count} 个补同步任务",
     "research.marketInvalidScanLoading": "全历史异常扫描中",
     "research.marketInvalidScanFailed": "全历史异常扫描失败",

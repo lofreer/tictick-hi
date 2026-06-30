@@ -130,8 +130,8 @@
               <NTag v-if="candleResult && candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
-              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />
-              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" @repaired="loadTasks" />
+              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="loadTasks" />
+              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="loadTasks" />
               <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
                 {{ coverageLabel }}
               </NTag>
@@ -145,7 +145,7 @@
               >
                 {{ t("research.repairFirstGap") }}
               </NButton>
-              <MarketRepairResultTags :result="chartGapRepairResult" />
+              <MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />
             </div>
           </div>
         </div>
