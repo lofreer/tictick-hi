@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -124,6 +126,9 @@ func (store *Store) SaveDataSyncResult(ctx context.Context, result data.DataSync
 	if err := data.ValidateCandleSeriesForTarget(result.Candles, target.exchange, target.symbol, target.interval); err != nil {
 		return fmt.Errorf("validate data sync result candles: %w", err)
 	}
+	if err := validateDataSyncResultCursor(result, target); err != nil {
+		return err
+	}
 
 	for _, candle := range result.Candles {
 		if _, err := tx.Exec(ctx, `
@@ -216,12 +221,13 @@ type dataSyncTaskTarget struct {
 	interval       string
 	status         data.TaskStatus
 	hasActiveLease bool
+	lastSyncedOpen sql.NullTime
 }
 
 func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string, workerID string) (dataSyncTaskTarget, error) {
 	var target dataSyncTaskTarget
 	if err := tx.QueryRow(ctx, `
-			SELECT exchange, symbol, interval, status,
+			SELECT exchange, symbol, interval, status, last_synced_open_time,
 			       locked_by = $2
 			         AND locked_until IS NOT NULL
 			         AND locked_until > now() AS has_active_lease
@@ -236,6 +242,7 @@ func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string, worke
 		&target.symbol,
 		&target.interval,
 		&target.status,
+		&target.lastSyncedOpen,
 		&target.hasActiveLease,
 	); err != nil {
 		if err == pgx.ErrNoRows {
@@ -247,6 +254,71 @@ func readDataSyncTaskTarget(ctx context.Context, tx pgx.Tx, taskID string, worke
 		return dataSyncTaskTarget{}, data.DataSyncCommandInvalidStateError()
 	}
 	return target, nil
+}
+
+func validateDataSyncResultCursor(result data.DataSyncResult, target dataSyncTaskTarget) error {
+	if result.LastOpenTime == nil {
+		return nil
+	}
+	duration, err := data.IntervalDuration(target.interval)
+	if err != nil {
+		return fmt.Errorf("validate data sync result cursor: %w", err)
+	}
+	expected := continuousResultCursor(result.Candles, target.lastSyncedOpen, duration)
+	cursor := result.LastOpenTime.UTC()
+	if expected == nil || !expected.Equal(cursor) {
+		return fmt.Errorf(
+			"validate data sync result cursor: last open time %s does not match continuous candle chain",
+			cursor.Format(time.RFC3339),
+		)
+	}
+	return nil
+}
+
+func continuousResultCursor(candles []data.Candle, current sql.NullTime, duration time.Duration) *time.Time {
+	ordered := uniqueResultOpenTimes(candles)
+	if len(ordered) == 0 {
+		return nil
+	}
+
+	chainStart := ordered[0]
+	chainTip := chainStart
+	for _, openTime := range ordered[1:] {
+		expected := chainTip.Add(duration)
+		if !openTime.Equal(expected) {
+			break
+		}
+		chainTip = openTime
+	}
+
+	if !current.Valid {
+		return &chainTip
+	}
+	currentOpen := current.Time.UTC()
+	if !chainTip.After(currentOpen) {
+		return nil
+	}
+	if chainStart.After(currentOpen.Add(duration)) {
+		return nil
+	}
+	return &chainTip
+}
+
+func uniqueResultOpenTimes(candles []data.Candle) []time.Time {
+	openTimes := make([]time.Time, 0, len(candles))
+	seen := make(map[time.Time]struct{}, len(candles))
+	for _, candle := range candles {
+		openTime := candle.OpenTime.UTC()
+		if _, ok := seen[openTime]; ok {
+			continue
+		}
+		seen[openTime] = struct{}{}
+		openTimes = append(openTimes, openTime)
+	}
+	sort.Slice(openTimes, func(left int, right int) bool {
+		return openTimes[left].Before(openTimes[right])
+	})
+	return openTimes
 }
 
 func (store *Store) MarkDataSyncFailed(ctx context.Context, taskID string, workerID string, taskErr error) error {

@@ -205,9 +205,8 @@ func TestIntegrationSaveDataSyncResultKeepsFutureExchangeBackoff(t *testing.T) {
 	}
 
 	if err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
-		TaskID:       id,
-		WorkerID:     "save-worker",
-		LastOpenTime: ptrTime(time.Now().UTC().Truncate(time.Minute)),
+		TaskID:   id,
+		WorkerID: "save-worker",
 	}); err != nil {
 		t.Fatal(err)
 	}

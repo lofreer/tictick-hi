@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,6 +87,100 @@ func TestIntegrationSaveDataSyncResultRequiresRunningActiveLease(t *testing.T) {
 			}
 			if row.lastError != "" || row.nextAttemptAt.Valid {
 				t.Fatalf("invalid save state changed retry/error fields: %#v", row)
+			}
+		})
+	}
+}
+
+func TestIntegrationSaveDataSyncResultRejectsInvalidCursorAdvance(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	cases := []struct {
+		name     string
+		candles  []func(string, time.Time) data.Candle
+		cursorAt time.Duration
+	}{
+		{
+			name:     "cursor without saved candles",
+			cursorAt: 0,
+		},
+		{
+			name: "cursor beyond gapped candle chain",
+			candles: []func(string, time.Time) data.Candle{
+				func(symbol string, openTime time.Time) data.Candle {
+					return integrationResumeCandle(symbol, openTime, "1.1")
+				},
+				func(symbol string, openTime time.Time) data.Candle {
+					return integrationResumeCandle(symbol, openTime.Add(2*time.Minute), "1.3")
+				},
+			},
+			cursorAt: 2 * time.Minute,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			id := integrationID("dst_cursor_guard")
+			symbol := integrationSymbol("CG")
+			openTime := time.Date(2026, 6, 29, 5, 0, 0, 0, time.UTC)
+			workerID := "cursor-guard-worker"
+			insertIntegrationSyncTask(t, ctx, store, id, symbol, data.TaskStatusRunning, true, false, workerID)
+			t.Cleanup(func() {
+				cleanupCtx, cleanupCancel := testContext(t)
+				defer cleanupCancel()
+				_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE id = $1`, id)
+				_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+				_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+			})
+
+			candles := make([]data.Candle, 0, len(testCase.candles))
+			for _, candle := range testCase.candles {
+				candles = append(candles, candle(symbol, openTime))
+			}
+			lastOpenTime := openTime.Add(testCase.cursorAt)
+			err := store.SaveDataSyncResult(ctx, data.DataSyncResult{
+				TaskID:       id,
+				WorkerID:     workerID,
+				Candles:      candles,
+				LastOpenTime: &lastOpenTime,
+			})
+			if err == nil {
+				t.Fatal("expected invalid cursor advance error")
+			}
+			if !strings.Contains(err.Error(), "does not match continuous candle chain") {
+				t.Fatalf("error = %v, want continuous candle chain mismatch", err)
+			}
+
+			var candleCount int
+			if err := store.pool.QueryRow(ctx, `
+					SELECT count(*)::int
+					  FROM market_candles
+					 WHERE symbol = $1`,
+				symbol,
+			).Scan(&candleCount); err != nil {
+				t.Fatal(err)
+			}
+			if candleCount != 0 {
+				t.Fatalf("invalid cursor advance wrote %d candles, want 0", candleCount)
+			}
+
+			var latestSynced sql.NullTime
+			if err := store.pool.QueryRow(ctx, `
+					SELECT last_synced_open_time
+					  FROM data_sync_tasks
+					 WHERE id = $1`,
+				id,
+			).Scan(&latestSynced); err != nil {
+				t.Fatal(err)
+			}
+			if latestSynced.Valid {
+				t.Fatalf("invalid cursor advance moved cursor: %#v", latestSynced)
+			}
+			row := readIntegrationSyncTask(t, ctx, store, id)
+			if row.status != data.TaskStatusRunning || row.lastError != "" || row.nextAttemptAt.Valid {
+				t.Fatalf("invalid cursor advance changed task state: %#v", row)
 			}
 		})
 	}
