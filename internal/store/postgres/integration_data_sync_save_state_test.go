@@ -213,6 +213,75 @@ func TestIntegrationDataSyncTaskRepairsRejectUnsupportedInterval(t *testing.T) {
 	}
 }
 
+func TestIntegrationDataSyncTaskRepairsRequireActiveMarketInstrument(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	sourceID := integrationID("dst_inactive_repair")
+	symbol := integrationSymbol("DRIA")
+	start := time.Date(2026, 6, 29, 8, 0, 0, 0, time.UTC)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_instruments WHERE symbol = $1`, symbol)
+	})
+	insertDataHealthTaskWindow(
+		t,
+		ctx,
+		store,
+		sourceID,
+		symbol,
+		data.TaskStatusPaused,
+		false,
+		false,
+		&start,
+		nil,
+		ptrTime(start.Add(5*time.Minute)),
+		nil,
+		"",
+	)
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE market_instruments
+		   SET status = 'inactive', exchange_status = 'BREAK'
+		 WHERE exchange = 'binance'
+		   AND symbol = $1`,
+		symbol,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "task gaps", run: func() error { _, err := store.RepairDataSyncTaskGaps(ctx, sourceID); return err }},
+		{name: "single task gap", run: func() error {
+			_, err := store.RepairDataSyncTaskGap(ctx, sourceID, data.RepairDataSyncTaskGapRequest{From: start, To: start.Add(time.Minute)})
+			return err
+		}},
+		{name: "task invalid issues", run: func() error {
+			_, err := store.RepairDataSyncTaskInvalidIssues(ctx, sourceID, data.RepairDataSyncInvalidIssuesRequest{})
+			return err
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := testCase.run()
+			assertMarketInstrumentNotActive(t, err)
+		})
+	}
+	var repairCount int
+	if err := store.pool.QueryRow(ctx, `SELECT count(*)::int FROM data_sync_tasks WHERE repair_source_task_id = $1`, sourceID).Scan(&repairCount); err != nil {
+		t.Fatal(err)
+	}
+	if repairCount != 0 {
+		t.Fatalf("inactive market repair created %d tasks, want 0", repairCount)
+	}
+}
+
 func TestIntegrationSaveDataSyncResultRejectsInvalidCursorAdvance(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -538,5 +607,16 @@ func assertDataSyncCommandInvalidState(t *testing.T, err error) {
 	}
 	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeDataSyncCommandInvalidState {
 		t.Fatalf("domain code = %q, %t; want %q, true", code, ok, data.ErrorCodeDataSyncCommandInvalidState)
+	}
+}
+
+func assertMarketInstrumentNotActive(t *testing.T, err error) {
+	t.Helper()
+
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("err = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeMarketInstrumentNotActive {
+		t.Fatalf("domain code = %q, %t; want %q, true", code, ok, data.ErrorCodeMarketInstrumentNotActive)
 	}
 }

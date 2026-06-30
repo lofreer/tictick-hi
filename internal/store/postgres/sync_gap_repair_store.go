@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -61,6 +62,9 @@ func (store *Store) RepairDataSyncTaskGaps(
 	if err := data.ValidateDataSyncTaskWindow(source.Interval, nil, nil); err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
+	if err := ensureDataSyncRepairSourceMarketActive(ctx, tx, source); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 
 	windows, totalCount, limited, err := listDataSyncRepairWindows(ctx, tx, id)
 	if err != nil {
@@ -113,6 +117,9 @@ func (store *Store) RepairDataSyncTaskGap(
 		return data.DataSyncGapRepairResult{}, err
 	}
 	if err := data.ValidateDataSyncTaskWindow(source.Interval, nil, nil); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
+	if err := ensureDataSyncRepairSourceMarketActive(ctx, tx, source); err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
 
@@ -188,6 +195,31 @@ func lockDataSyncTask(ctx context.Context, tx pgx.Tx, id string) (data.DataSyncT
 		return data.DataSyncTask{}, fmt.Errorf("lock data sync task: %w", err)
 	}
 	return task, nil
+}
+
+func ensureDataSyncRepairSourceMarketActive(
+	ctx context.Context,
+	queryer dataSyncGapQueryer,
+	source data.DataSyncTask,
+) error {
+	var active bool
+	if err := queryer.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			  FROM market_instruments
+			 WHERE exchange = $1
+			   AND symbol = $2
+			   AND status = 'active'
+		)`,
+		source.Exchange,
+		strings.ToUpper(strings.TrimSpace(source.Symbol)),
+	).Scan(&active); err != nil {
+		return fmt.Errorf("check repair source market instrument: %w", err)
+	}
+	if !active {
+		return data.MarketInstrumentNotActiveError()
+	}
+	return nil
 }
 
 func listDataSyncRepairWindows(

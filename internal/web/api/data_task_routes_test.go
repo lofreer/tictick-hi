@@ -458,6 +458,72 @@ func TestDataSyncTaskCommandRejectsInactiveMarketInstrument(t *testing.T) {
 	}
 }
 
+func TestDataSyncTaskRepairRejectsInactiveMarketInstrument(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+	gapFrom := time.Date(2026, 1, 1, 0, 2, 0, 0, time.UTC)
+	gapTo := gapFrom.Add(time.Minute)
+	invalidOpenTime := gapFrom.Add(3 * time.Minute)
+	repository.tasks = []data.DataSyncTask{
+		{
+			ID:           "dst_inactive_repair",
+			Exchange:     "binance",
+			Symbol:       "SOLUSDT",
+			Interval:     "1m",
+			Status:       data.TaskStatusPaused,
+			MarketStatus: data.DataSyncMarketStatusInactive,
+			DataHealth:   data.DataSyncHealthPaused,
+			GapSummary: &data.DataSyncGapSummary{
+				Count:    1,
+				FirstGap: &data.CandleGap{From: gapFrom, To: gapTo, MissingCandles: 1},
+			},
+			InvalidSummary: &data.DataSyncInvalidSummary{
+				Count:      1,
+				FirstIssue: &data.CandleIssue{Code: "invalid_open_price", Message: "open price value must be positive", OpenTime: &invalidOpenTime},
+			},
+			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+	}
+	repository.taskGapDetails["dst_inactive_repair"] = data.DataSyncGapList{
+		TaskID:      "dst_inactive_repair",
+		Gaps:        []data.CandleGap{{From: gapFrom, To: gapTo, MissingCandles: 1}},
+		TotalCount:  1,
+		RepairLimit: 20,
+	}
+	repository.taskInvalidDetails["dst_inactive_repair"] = data.DataSyncInvalidIssueList{
+		TaskID:     "dst_inactive_repair",
+		Issues:     []data.CandleIssue{{Code: "invalid_open_price", Message: "open price value must be positive", OpenTime: &invalidOpenTime}},
+		TotalCount: 1,
+	}
+
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{name: "batch gaps", path: "/api/data/tasks/dst_inactive_repair/repair-gaps"},
+		{name: "single gap", path: "/api/data/tasks/dst_inactive_repair/repair-gap", body: `{"from":"` + gapFrom.Format(time.RFC3339) + `","to":"` + gapTo.Format(time.RFC3339) + `"}`},
+		{name: "invalid issues", path: "/api/data/tasks/dst_inactive_repair/repair-invalid-issues", body: `{}`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			taskCount := len(repository.tasks)
+			recorder := serveAuthenticated(server, cookie, http.MethodPost, testCase.path, testCase.body)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Code != "market_instrument_not_active" ||
+				response.Message != "market instrument is not active in catalog" {
+				t.Fatalf("unexpected response: %#v", response)
+			}
+			if len(repository.tasks) != taskCount {
+				t.Fatalf("inactive repair inserted tasks: %#v", repository.tasks)
+			}
+		})
+	}
+}
+
 func TestDataSyncTaskRoutesSanitizeLastError(t *testing.T) {
 	repository, server, cookie := newAuthenticatedTestServer(t)
 	repository.tasks = []data.DataSyncTask{

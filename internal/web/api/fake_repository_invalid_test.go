@@ -45,6 +45,9 @@ func (repository *fakeRepository) RepairDataSyncTaskInvalidIssues(
 		if repository.tasks[index].ID != id {
 			continue
 		}
+		if err := repository.requireFakeDataSyncRepairSourceActive(repository.tasks[index]); err != nil {
+			return data.DataSyncGapRepairResult{}, err
+		}
 		duration, err := data.IntervalDuration(repository.tasks[index].Interval)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err

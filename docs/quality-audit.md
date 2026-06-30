@@ -63,6 +63,8 @@ done            用户确认关闭
 
 补充：阶段 1 data sync task 窗口 invalid repair 已补 HTTP API + PostgreSQL 集成证据：真实 API server 使用 PostgreSQL store 登录唯一测试操作员，经 CSRF `POST /api/data/tasks` 创建带 start/end 窗口的源同步任务，由 `SaveDataSyncResult` 写入 0、1、3 分钟健康 K 线，再注入 2 分钟 legacy invalid K 线形成任务窗口内异常，通过 `GET /api/data/tasks/{id}/invalid-issues` 观察异常，`POST /api/data/tasks/{id}/repair-invalid-issues` 排队带 `repairSourceTaskId` 的补同步任务，最后由 `SaveDataSyncResult` 写回 2 分钟健康 K 线，并通过 `GET /api/data/tasks` 和 `/invalid-issues` 观察源任务 `dataHealth=ok` 且异常消失；该证据证明任务窗口异常路由、认证/CSRF、active instrument 源任务创建校验、源任务关联和 worker 写回收敛路径可以串起来，但仍不代表自动清洗历史异常行或交易所一定返回健康数据。
 
+补充：阶段 1 data sync task repair active catalog 守卫已补证据：`RepairDataSyncTaskGaps`、`RepairDataSyncTaskGap` 和 `RepairDataSyncTaskInvalidIssues` 在锁定源任务并校验同步周期后，会在同一事务内要求源任务 exchange/symbol 仍存在 active `market_instruments` 记录；非 active / missing 时返回 `market_instrument_not_active`，不会扫描缺口/异常或插入补同步任务。HTTP API 测试覆盖三个 repair 入口的 inactive 源任务拒绝和不新增 repair task；PostgreSQL 集成测试覆盖直接调用 store 也返回同一领域错误且不落库。该证据只收紧任务窗口 repair 排队边界，不代表自动批量修复、交易所一定返回缺失数据或实盘交易能力已建立。
+
 补充：阶段 1 CandleProvider repository 范围守卫已补证据：`CandleProvider.GetCandles` 会在读取 native store 前调用 `ValidateCandleQueryRange`，API、回测 runner、交易 runner 和任何直接 repository 调用都共享同一显式 `from/to` 顺序与最大跨度校验；单元测试覆盖超大窗口不会触碰 store，PostgreSQL 集成测试覆盖 `Store.GetCandles` 对超大显式窗口直接返回错误。该证据只证明查询入口自守，不代表长期冷缓存/真实生产分布压测已关闭。
 
 补充：阶段 1 CandleProvider repository target 守卫已补证据：`CandleProvider.GetCandles` 会在读取 native store 前调用 `ValidateCandleQueryTarget`，直接 repository 调用缺少 exchange / symbol / interval 或 interval 非法时会直接返回错误，不再静默查成空结果；单元测试覆盖缺 symbol 不触碰 store，PostgreSQL 集成测试覆盖 `Store.GetCandles` 对缺 target 直接返回错误。该证据只证明查询入口 target 自守，不替代 API 层交易所 symbol 格式校验、active instrument catalog 校验或真实生产数据压测。

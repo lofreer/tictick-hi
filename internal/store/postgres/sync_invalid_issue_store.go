@@ -57,6 +57,9 @@ func (store *Store) RepairDataSyncTaskInvalidIssues(
 	if err := data.ValidateDataSyncTaskWindow(source.Interval, nil, nil); err != nil {
 		return data.DataSyncGapRepairResult{}, err
 	}
+	if err := ensureDataSyncRepairSourceMarketActive(ctx, tx, source); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 	duration, err := data.IntervalDuration(source.Interval)
 	if err != nil {
 		return data.DataSyncGapRepairResult{}, err
