@@ -38,6 +38,10 @@ if env_enabled "${FULL_QUALITY_STAGE1:-0}" || env_enabled "${FULL_QUALITY_STAGE1
   run_check "stage1 data sync external recovery smoke" "$ROOT_DIR/scripts/stage1-data-sync-external-recovery-smoke.sh"
 fi
 
+if env_enabled "${FULL_QUALITY_STAGE1:-0}" || env_enabled "${FULL_QUALITY_STAGE1_REAL_EXCHANGE:-0}"; then
+  run_check "stage1 real exchange data sync smoke" "$ROOT_DIR/scripts/stage1-real-exchange-data-sync-smoke.sh"
+fi
+
 if env_enabled "${FULL_QUALITY_STAGE1:-0}" || env_enabled "${FULL_QUALITY_STAGE1_CANDLE_PERF:-0}"; then
   run_check "stage1 candle provider perf smoke" "$ROOT_DIR/scripts/stage1-candle-provider-perf-smoke.sh"
 fi
