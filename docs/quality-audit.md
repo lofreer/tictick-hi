@@ -9370,6 +9370,7 @@ Definition of Done：
 - 测试同时断言 `requiredBaseCandles`、`baseLimit`、`returnedBaseCandles` 和 `returnedCandles`，确保分页边界缺口不会被误当成完整覆盖或基础窗口受限。
 - 测试断言包含缺口的目标聚合窗口不会被返回，避免用不完整基础 K 线伪造高周期 K 线。
 - 继续补强真实 PostgreSQL repository 集成测试：通过 `market_candles` seed 真实 `1m` 基础数据，跳过第 `MaxCandleLimit` 根基础 K 线，再通过 `store.GetCandles` 查询 `1h` 聚合，验证跨内部分页边界的缺口不会在 SQL 分页路径中被吞掉。
+- 继续补强真实 `/api/candles` HTTP handler + PostgreSQL 集成测试：使用测试 operator session 访问 authenticated API，验证 query parser、handler、repository、JSON response 共同暴露同一分页边界缺口 metadata。
 
 范围外：
 
@@ -9383,10 +9384,12 @@ Definition of Done：
 - `go test ./internal/data -count=1` 通过。
 - 主机未设置 `TICTICK_TEST_DATABASE_URL` 时，`go test ./internal/store/postgres -run TestIntegrationCandleProviderReportsAggregationGapAcrossBasePageBoundary -count=1 -v` 按预期跳过 PostgreSQL 集成用例。
 - `docker run --rm --network tictick-hi_default ... go test ./internal/store/postgres -run TestIntegrationCandleProviderReportsAggregationGapAcrossBasePageBoundary -count=1 -v` 通过：真实 PostgreSQL 中 seed `5099/5100` 根 `1m` K 线，`store.GetCandles` 返回 `source=aggregated`、`health=gap`、`requiredBaseCandles=5100`、`returnedBaseCandles=5099`、`returnedCandles=84`，且不返回包含缺口的 `1h` 聚合 K 线。
+- 主机未设置 `TICTICK_TEST_DATABASE_URL` 时，`go test ./internal/web/api -run TestIntegrationCandlesRouteReportsAggregationGapAcrossBasePageBoundary -count=1 -v` 按预期跳过 PostgreSQL API 集成用例。
+- `docker run --rm --network tictick-hi_default ... go test ./internal/web/api -run TestIntegrationCandlesRouteReportsAggregationGapAcrossBasePageBoundary -count=1 -v` 通过：authenticated `/api/candles` response 返回 `source=aggregated`、`health=gap`、`requiredBaseCandles=5100`、`returnedBaseCandles=5099`、`returnedCandles=84`，且不返回包含缺口的 `1h` 聚合 K 线。
 
 剩余风险：
 
-- 该证据覆盖内存 store 和真实 PostgreSQL repository 的分页边界缺口，但仍不替代真实 PostgreSQL 冷缓存、真实生产数据分布、长期 soak 或超过基础窗口上限后的持久化聚合/分段策略。
+- 该证据覆盖内存 store、真实 PostgreSQL repository 和 authenticated `/api/candles` handler 的分页边界缺口，但仍不替代真实 PostgreSQL 冷缓存、真实生产数据分布、长期 soak 或超过基础窗口上限后的持久化聚合/分段策略。
 - 项目整体仍是 `scaffold`，不能升级。
 
 ## 6. 保留 / 返工 / 删除 / 延后
