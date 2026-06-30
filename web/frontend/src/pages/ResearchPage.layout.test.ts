@@ -66,11 +66,11 @@ describe("ResearchPage chart layout contract", () => {
     expect(frameViewportChartStyle).toContain("max-block-size: 100%;");
     expect(frameViewportChartStyle).toContain("width: 100%;");
     expect(toolbarStyle).toContain("display: grid;");
-    expect(toolbarStyle).toContain("grid-template-columns: max-content minmax(0, 1fr);");
+    expect(toolbarStyle).toContain("grid-template-columns: minmax(0, auto) minmax(280px, 1fr);");
     expect(toolbarStyle).toContain("padding: 6px 10px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: grid;");
-    expect(controlsStyle).toContain("grid-template-columns: 100px 132px 28px 56px max-content;");
+    expect(controlsStyle).toContain("grid-template-columns: 100px 120px 28px 56px max-content;");
     expect(controlsStyle).toContain("width: max-content;");
     expect(controlsStyle).toContain("overflow-x: auto;");
     expect(statusStyle).toContain("justify-content: flex-end;");
@@ -107,18 +107,17 @@ describe("ResearchPage chart layout contract", () => {
 
   it("keeps a readable chart viewport when the app header stacks on narrow desktop widths", () => {
     expect(pageStyles).toContain("@media (min-width: 761px) and (max-width: 980px)");
-    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(720px, 78vh, 900px);");
-    expect(pageStyles).toContain("--kline-chart-plot-height: 760px;");
-    expect(pageStyles).toContain("--kline-chart-plot-height: 600px;");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 22px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: clamp(620px, 66dvh, 760px);");
+    expect(pageStyles).toContain("--kline-chart-plot-height: 640px;");
+    expect(pageStyles).toContain("--kline-chart-plot-height: 560px;");
     expect(pageStyles).toContain("--kline-chart-padding-left: 18px;");
-    expect(pageStyles).toContain("--kline-chart-padding-left: 12px;");
-    expect(pageStyles).toContain("--kline-chart-padding-right: 6px;");
-    expect(pageStyles).toContain("--kline-chart-padding-right: 8px;");
-    expect(pageStyles).toContain("grid-template-columns: 100px 132px 28px 56px max-content;");
-    expect(pageStyles).toContain("width: 132px;");
-    expect(pageStyles).toContain("grid-template-columns: 98px 126px 28px 54px max-content;");
-    expect(pageStyles).toContain("grid-template-columns: 96px 120px 28px 54px max-content;");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 16px;");
+    expect(pageStyles).toContain("--kline-chart-padding-left: 10px;");
+    expect(pageStyles).toContain("--kline-chart-padding-right: 4px;");
+    expect(pageStyles).toContain("grid-template-columns: 100px 120px 28px 56px max-content;");
+    expect(pageStyles).toContain("width: 120px;");
+    expect(pageStyles).toContain("grid-template-columns: 96px 116px 28px 54px max-content;");
+    expect(pageStyles).toContain("grid-template-columns: 92px 112px 28px 54px max-content;");
     expect(pageStyles).toContain("width: 100%;");
     expect(pageStyles).toContain("max-width: min(240px, 30vw);");
     expect(pageStyles).toContain("overflow-x: auto;");

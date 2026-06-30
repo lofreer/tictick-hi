@@ -543,7 +543,7 @@ function assertChartLayout(label, sample) {
   if (!body || !tv) {
     throw new Error(`${label} missing chart layout nodes`);
   }
-  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 560 : sample.viewportWidth <= 980 ? 680 : 620;
+  const expectedMinimumPlotHeight = sample.viewportWidth <= 760 ? 540 : sample.viewportWidth <= 980 ? 620 : 600;
   if (tv.rectHeight < expectedMinimumPlotHeight - heightTolerance) {
     throw new Error(
       `${label} chart plot is too short for the viewport: ${JSON.stringify({
@@ -563,7 +563,7 @@ function assertChartLayout(label, sample) {
   }
   assertConfiguredInset(label, "chart left side", tv.left - body.left, sample.chartInlineStartGutter, { body, tv });
   assertConfiguredInset(label, "chart top side", tv.top - body.top, sample.chartBlockStartGutter, { body, tv });
-  if (sample.chartInlineStartGutter < 10 || sample.chartInlineStartGutter > 28) {
+  if (sample.chartInlineStartGutter < 8 || sample.chartInlineStartGutter > 22) {
     throw new Error(
       `${label} chart left gutter is outside the production range: ${JSON.stringify({
         chartInlineStartGutter: sample.chartInlineStartGutter,
@@ -572,7 +572,7 @@ function assertChartLayout(label, sample) {
       })}`,
     );
   }
-  if (sample.chartInlineEndGutter < 4 || sample.chartInlineEndGutter > 10) {
+  if (sample.chartInlineEndGutter < 2 || sample.chartInlineEndGutter > 8) {
     throw new Error(
       `${label} chart right gutter is outside the production range: ${JSON.stringify({
         chartInlineEndGutter: sample.chartInlineEndGutter,

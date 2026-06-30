@@ -282,9 +282,9 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtest-detail-lower-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   gap: 16px;
-  align-items: stretch;
+  align-items: start;
   min-width: 0;
 }
 
@@ -298,7 +298,8 @@ function errorMessage(loadError: unknown, fallback: string) {
 }
 
 .backtest-detail-tabs {
-  min-height: 360px;
+  min-height: 380px;
+  align-self: stretch;
 }
 
 .backtest-side-section h2 {
