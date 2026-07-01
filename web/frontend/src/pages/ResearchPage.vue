@@ -270,6 +270,7 @@ import ResearchTaskGapDetailsModal from "@/components/research/ResearchTaskGapDe
 import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";
 import ResearchWindowControls from "@/components/research/ResearchWindowControls.vue";
 import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
+import { refreshAfterRepairPolling } from "@/composables/researchRepairPollingRefresh";
 import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
@@ -354,7 +355,7 @@ async function repairFirstChartGap() {
 
 async function repairTaskGapsAndPoll(task: DataSyncTask) {
   await repairTaskGaps(task);
-  if (taskGapRepairResult.value) startRepairPollingForResult(taskGapRepairResult.value, { immediate: false });
+  if (taskGapRepairResult.value) startRepairPollingForResult(taskGapRepairResult.value, { immediate: false, refreshGapDetailsTask: task });
 }
 
 async function refreshChartCandles() {
@@ -363,7 +364,6 @@ async function refreshChartCandles() {
 }
 
 function loadPreviousChartCandles() { resetChartRepairResults(); loadPreviousCandles(); }
-
 function loadNextChartCandles() { resetChartRepairResults(); loadNextCandles(); }
 
 function applyChartTimeRange(...args: Parameters<typeof applyTimeRange>) { resetChartRepairResults(); applyTimeRange(...args); }
@@ -372,11 +372,11 @@ watch([exchange, symbol, interval], () => resetChartRepairResults());
 
 function resetChartRepairResults() { chartGapRepairResult.value = null; }
 
-function startRepairPollingForResult(result: DataSyncGapRepairResult, options: { immediate?: boolean } = {}) {
+function startRepairPollingForResult(result: DataSyncGapRepairResult, options: { immediate?: boolean; refreshGapDetailsTask?: DataSyncTask } = {}) {
   startRepairTaskPolling({
     immediate: options.immediate ?? true,
-    onExhausted: loadCandles,
-    onSettled: loadCandles,
+    onExhausted: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps }),
+    onSettled: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps }),
     repairTaskIds: result.createdTasks.map((task) => task.id),
   });
 }

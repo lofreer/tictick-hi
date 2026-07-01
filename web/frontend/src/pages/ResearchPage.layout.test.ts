@@ -6,6 +6,7 @@ import chartInvalidIssueRepairSource from "@/components/research/ChartInvalidIss
 import invalidIssueModalSource from "@/components/research/ResearchTaskInvalidIssueModal.vue?raw";
 import gapDetailsModalSource from "@/components/research/ResearchTaskGapDetailsModal.vue?raw";
 import windowControlsSource from "@/components/research/ResearchWindowControls.vue?raw";
+import repairPollingRefreshSource from "@/composables/researchRepairPollingRefresh.ts?raw";
 import source from "./ResearchPage.vue?raw";
 
 const pageStyles = readFileSync("src/pages/ResearchPage.css", "utf8");
@@ -251,6 +252,11 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("taskGapRepairNotice");
     expect(source).toContain('@repair="gapDetailsTask && repairTaskGapsAndPoll(gapDetailsTask)"');
     expect(source).toContain(':tasks="tasks"');
+    expect(source).toContain("refreshGapDetailsTask: task");
+    expect(source).toContain('import { refreshAfterRepairPolling } from "@/composables/researchRepairPollingRefresh";');
+    expect(repairPollingRefreshSource).toContain("export async function refreshAfterRepairPolling");
+    expect(repairPollingRefreshSource).toContain("gapDetailsTask.value?.id === task.id");
+    expect(repairPollingRefreshSource).toContain("await viewTaskGaps(task, { resetRepairResult: false })");
     expect(gapDetailsModalSource).toContain('import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";');
     expect(gapDetailsModalSource).toContain('<MarketRepairResultTags :result="repairResult" :tasks="tasks" />');
     expect(gapDetailsModalSource).toContain("@click=\"emit('repair')\"");
@@ -323,12 +329,12 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadTasks);");
     expect(source).toContain("function startRepairPollingForResult(result: DataSyncGapRepairResult");
     expect(source).toContain("repairTaskIds: result.createdTasks.map((task) => task.id)");
-    expect(source).toContain("onSettled: loadCandles");
-    expect(source).toContain("onExhausted: loadCandles");
+    expect(source).toContain("onSettled: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps })");
+    expect(source).toContain("onExhausted: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps })");
     expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />');
     expect(source).toContain('@repair-gaps="repairTaskGapsAndPoll"');
     expect(source).toContain("async function repairTaskGapsAndPoll(task: DataSyncTask)");
-    expect(source).toContain("startRepairPollingForResult(taskGapRepairResult.value, { immediate: false })");
+    expect(source).toContain("startRepairPollingForResult(taskGapRepairResult.value, { immediate: false, refreshGapDetailsTask: task })");
   });
 });
 
