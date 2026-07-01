@@ -107,12 +107,7 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		if _, err := server.repository.GetActiveMarketInstrument(r.Context(), request.Exchange, request.Symbol); err != nil {
-			if errors.Is(err, data.ErrNotFound) {
-				writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentNotActive, "market instrument is not active in catalog")
-				return
-			}
-			writeStoreError(w, err)
+		if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
 			return
 		}
 		task, err := server.repository.CreateDataSyncTask(r.Context(), request)
@@ -147,6 +142,9 @@ func (server *Server) handleTaskCommand(w http.ResponseWriter, r *http.Request, 
 	}
 
 	if err != nil {
+		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, command.id, err) {
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
@@ -164,10 +162,52 @@ func (server *Server) deleteDataTask(w http.ResponseWriter, r *http.Request, id 
 func (server *Server) retryDataTask(w http.ResponseWriter, r *http.Request, id string) {
 	task, err := server.repository.RetryDataSyncTask(r.Context(), id)
 	if err != nil {
+		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, sanitizeDataSyncTask(task))
+}
+
+func (server *Server) writeDataSyncTaskMarketInstrumentCommandError(
+	w http.ResponseWriter,
+	r *http.Request,
+	id string,
+	err error,
+) bool {
+	code, ok := data.DomainErrorCode(err)
+	if !ok || code != data.ErrorCodeMarketInstrumentNotActive {
+		return false
+	}
+	message, ok := server.dataSyncTaskMarketInstrumentMessage(r, id)
+	if !ok {
+		message = marketInstrumentNotActiveMessage
+	}
+	writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentNotActive, message)
+	return true
+}
+
+func (server *Server) dataSyncTaskMarketInstrumentMessage(r *http.Request, id string) (string, bool) {
+	tasks, err := server.repository.ListDataSyncTasks(r.Context())
+	if err != nil {
+		return "", false
+	}
+	for _, task := range tasks {
+		if task.ID != id {
+			continue
+		}
+		switch task.MarketStatus {
+		case data.DataSyncMarketStatusInactive:
+			return marketInstrumentInactiveMessage, true
+		case data.DataSyncMarketStatusMissing:
+			return marketInstrumentMissingMessage, true
+		default:
+			return "", false
+		}
+	}
+	return "", false
 }
 
 func (server *Server) listDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
@@ -196,6 +236,9 @@ func (server *Server) listDataTaskInvalidIssues(w http.ResponseWriter, r *http.R
 func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
 	result, err := server.repository.RepairDataSyncTaskGaps(r.Context(), id)
 	if err != nil {
+		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
@@ -214,6 +257,9 @@ func (server *Server) repairDataTaskInvalidIssues(w http.ResponseWriter, r *http
 	}
 	result, err := server.repository.RepairDataSyncTaskInvalidIssues(r.Context(), id, request)
 	if err != nil {
+		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
@@ -232,6 +278,9 @@ func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, 
 	}
 	result, err := server.repository.RepairDataSyncTaskGap(r.Context(), id, request)
 	if err != nil {
+		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}

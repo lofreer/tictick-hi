@@ -273,7 +273,8 @@ func TestMarketCandleGapRepairRouteRequiresActiveMarketInstrument(t *testing.T) 
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	response := decodeAPIError(t, recorder)
-	if response.Code != "market_instrument_not_active" {
+	if response.Code != "market_instrument_not_active" ||
+		response.Message != "market instrument is inactive in catalog" {
 		t.Fatalf("unexpected error response: %#v", response)
 	}
 	if len(repository.tasks) != 0 {
@@ -408,7 +409,8 @@ func TestMarketCandleGapBatchRepairRouteRequiresActiveMarketInstrument(t *testin
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	response := decodeAPIError(t, recorder)
-	if response.Code != "market_instrument_not_active" {
+	if response.Code != "market_instrument_not_active" ||
+		response.Message != "market instrument is missing from catalog" {
 		t.Fatalf("unexpected error response: %#v", response)
 	}
 	if len(repository.tasks) != 0 {

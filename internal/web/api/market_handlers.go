@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -159,8 +158,13 @@ func (server *Server) requireActiveMarketInstrument(
 	symbol string,
 ) bool {
 	if _, err := server.repository.GetActiveMarketInstrument(r.Context(), exchange, symbol); err != nil {
-		if errors.Is(err, data.ErrNotFound) {
-			writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentNotActive, "market instrument is not active in catalog")
+		if isNotFoundError(err) {
+			writeAPIError(
+				w,
+				http.StatusBadRequest,
+				apiErrorMarketInstrumentNotActive,
+				server.marketInstrumentCatalogMessage(r, exchange, symbol),
+			)
 			return false
 		}
 		writeStoreError(w, err)

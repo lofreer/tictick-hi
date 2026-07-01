@@ -123,7 +123,7 @@ func TestDataSyncTaskRoutesRequireActiveMarketInstrument(t *testing.T) {
 	}
 	response := decodeAPIError(t, recorder)
 	if response.Code != "market_instrument_not_active" ||
-		response.Message != "market instrument is not active in catalog" {
+		response.Message != "market instrument is inactive in catalog" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 	if len(repository.tasks) != 0 {

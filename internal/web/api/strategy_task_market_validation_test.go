@@ -78,7 +78,7 @@ func TestCreateBacktestRequiresActiveMarketInstrument(t *testing.T) {
 		"triggerMode":"closed_candle"
 	}`
 	recorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/backtests", body)
-	assertMarketInstrumentNotActive(t, recorder)
+	assertMarketInstrumentNotActive(t, recorder, "market instrument is inactive in catalog")
 	if len(repository.backtests) != 0 {
 		t.Fatalf("inactive market backtest was persisted: %#v", repository.backtests)
 	}
@@ -99,20 +99,20 @@ func TestCreateTradingRequiresActiveMarketInstrument(t *testing.T) {
 		"intentPolicy":{"orderIntent":"execute"}
 	}`
 	recorder := serveAuthenticated(server, cookie, http.MethodPost, "/api/trading/tasks", body)
-	assertMarketInstrumentNotActive(t, recorder)
+	assertMarketInstrumentNotActive(t, recorder, "market instrument is missing from catalog")
 	if len(repository.tradingTasks) != 0 {
 		t.Fatalf("missing market trading task was persisted: %#v", repository.tradingTasks)
 	}
 }
 
-func assertMarketInstrumentNotActive(t *testing.T, recorder *httptest.ResponseRecorder) {
+func assertMarketInstrumentNotActive(t *testing.T, recorder *httptest.ResponseRecorder, message string) {
 	t.Helper()
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	response := decodeAPIError(t, recorder)
 	if response.Code != "market_instrument_not_active" ||
-		response.Message != "market instrument is not active in catalog" {
+		response.Message != message {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }

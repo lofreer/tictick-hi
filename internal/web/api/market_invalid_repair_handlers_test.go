@@ -105,7 +105,8 @@ func TestMarketCandleInvalidIssueRepairRouteRequiresActiveMarketInstrument(t *te
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	response := decodeAPIError(t, recorder)
-	if response.Code != "market_instrument_not_active" {
+	if response.Code != "market_instrument_not_active" ||
+		response.Message != "market instrument is missing from catalog" {
 		t.Fatalf("unexpected error response: %#v", response)
 	}
 	if len(repository.tasks) != 0 {
