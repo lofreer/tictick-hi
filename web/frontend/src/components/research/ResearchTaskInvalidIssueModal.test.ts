@@ -9,6 +9,7 @@ import type { DataSyncTask } from "@/types/app";
 
 const dataApiMocks = vi.hoisted(() => ({
   getTaskInvalidIssues: vi.fn(),
+  quarantineMarketCandleInvalidIssues: vi.fn(),
   repairTaskInvalidIssues: vi.fn(),
 }));
 
@@ -56,6 +57,21 @@ describe("ResearchTaskInvalidIssueModal", () => {
       limited: false,
       totalCount: 1,
       repairLimit: 20,
+    });
+    dataApiMocks.quarantineMarketCandleInvalidIssues.mockResolvedValue({
+      quarantined: [{
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        openTime: "2026-06-27T07:02:30Z",
+        closeTime: "2026-06-27T07:03:30Z",
+        reason: "invalid_open_time",
+        message: "open time is not aligned to interval",
+        quarantinedAt: "2026-06-27T07:04:00Z",
+      }],
+      skippedNonQuarantinable: 0,
+      totalCount: 1,
+      quarantineLimit: 100,
     });
   });
 
@@ -197,22 +213,43 @@ describe("ResearchTaskInvalidIssueModal", () => {
     expect(document.body.textContent).toContain("dst_repair_1 /");
   });
 
-  it("does not expose normal repair action for invalid open-time filters", async () => {
-    dataApiMocks.getTaskInvalidIssues.mockResolvedValue({
-      taskId: "dst_1",
-      issues: [
-        {
+  it("quarantines invalid open-time issues without exposing normal repair", async () => {
+    dataApiMocks.getTaskInvalidIssues
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [{
           code: "invalid_open_time",
           message: "open time is not aligned to interval",
           openTime: "2026-06-27T07:02:30Z",
-        },
-      ],
-      limited: false,
-      totalCount: 1,
-      returnedCount: 1,
-      issueLimit: 50,
-      offset: 0,
-    });
+        }],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+        issueLimit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [{
+          code: "invalid_open_time",
+          message: "open time is not aligned to interval",
+          openTime: "2026-06-27T07:02:30Z",
+        }],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+        issueLimit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [],
+        limited: false,
+        totalCount: 0,
+        returnedCount: 0,
+        issueLimit: 50,
+        offset: 0,
+      });
     const wrapper = mount(ResearchTaskInvalidIssueModal, {
       global: {
         plugins: [i18n],
@@ -228,7 +265,20 @@ describe("ResearchTaskInvalidIssueModal", () => {
 
     expect(document.body.textContent).toContain("K 线开盘时间未对齐周期");
     expect(document.body.textContent).not.toContain("排队修复当前异常");
+    expect(document.body.textContent).toContain("隔离错位 K 线");
+    clickQuarantineButton();
+    await flushPromises();
+
     expect(dataApi.repairTaskInvalidIssues).not.toHaveBeenCalled();
+    expect(dataApi.quarantineMarketCandleInvalidIssues).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      openTimes: ["2026-06-27T07:02:30Z"],
+    });
+    expect(wrapper.emitted("quarantined")).toHaveLength(1);
+    expect(document.body.textContent).toContain("已隔离 1 根错位 K 线，跳过 0 根其它异常。");
+    expect(document.body.textContent).toContain("暂无异常详情");
   });
 
   it("shows skipped and limited repair metadata", async () => {
@@ -334,6 +384,14 @@ function clickRepairButton() {
   );
   if (!repairButton) throw new Error("repair button not found");
   repairButton.click();
+}
+
+function clickQuarantineButton() {
+  const quarantineButton = Array.from(document.body.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes("隔离错位 K 线"),
+  );
+  if (!quarantineButton) throw new Error("quarantine button not found");
+  quarantineButton.click();
 }
 
 function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {

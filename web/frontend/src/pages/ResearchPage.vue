@@ -235,7 +235,7 @@
       @retry="gapDetailsTask && viewTaskGaps(gapDetailsTask)"
     />
 
-    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairPollingForResult" />
+    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairPollingForResult" @quarantined="refreshAfterMarketCandleQuarantine" />
   </section>
 </template>
 

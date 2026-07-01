@@ -65,6 +65,16 @@
           >
             {{ t("research.repairInvalidIssues") }}
           </NButton>
+          <NButton
+            v-if="quarantinableOpenTimes.length > 0"
+            :loading="quarantineLoading"
+            secondary
+            size="small"
+            type="warning"
+            @click="quarantineInvalidOpenTimeIssues"
+          >
+            {{ t("research.marketInvalidQuarantineReturned") }}
+          </NButton>
           <NButton @click="modalOpen = false">{{ t("common.close") }}</NButton>
         </NSpace>
       </NSpace>
@@ -96,18 +106,19 @@ import MarketRepairResultTags from "@/components/research/MarketRepairResultTags
 import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
 import type { RepairDataSyncInvalidIssuesRequest } from "@/types/app";
-import { isRepairableCandleIssueCode } from "@/utils/candleIssues";
+import { isQuarantinableCandleIssueCode, isRepairableCandleIssueCode } from "@/utils/candleIssues";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const { t } = useI18n();
 defineProps<{
   tasks?: DataSyncTask[];
 }>();
-const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult] }>();
+const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult]; quarantined: [] }>();
 
 const modalOpen = ref(false);
 const loading = ref(false);
 const repairLoading = ref(false);
+const quarantineLoading = ref(false);
 const error = ref("");
 const repairNotice = ref("");
 const repairNoticeType = ref<"success" | "error" | "warning" | "default">("default");
@@ -160,6 +171,10 @@ const pageCount = computed(() => (details.value ? Math.max(1, Math.ceil(details.
 const canRepairCurrentInvalidIssues = computed(() =>
   Boolean(details.value && details.value.totalCount > 0 && isRepairableCandleIssueCode(issueCode.value ?? undefined)),
 );
+const quarantinableOpenTimes = computed(() => details.value?.issues
+  .filter((issue) => isQuarantinableCandleIssueCode(issue.code))
+  .map((issue) => issue.openTime)
+  .filter((openTime): openTime is string => Boolean(openTime)) ?? []);
 const displayedIssueCount = computed(() => {
   if (!details.value) return 0;
   return Math.min(details.value.totalCount, details.value.offset + details.value.returnedCount);
@@ -253,6 +268,34 @@ async function repairInvalidIssues() {
     repairNoticeType.value = "error";
   } finally {
     repairLoading.value = false;
+  }
+}
+
+async function quarantineInvalidOpenTimeIssues() {
+  if (!task.value || quarantineLoading.value || quarantinableOpenTimes.value.length === 0) return;
+  quarantineLoading.value = true;
+  repairNotice.value = "";
+  repairNoticeType.value = "default";
+  repairResult.value = null;
+  try {
+    const result = await dataApi.quarantineMarketCandleInvalidIssues({
+      exchange: task.value.exchange,
+      interval: task.value.interval,
+      openTimes: quarantinableOpenTimes.value,
+      symbol: task.value.symbol,
+    });
+    repairNotice.value = t("research.marketInvalidQuarantineSucceeded", {
+      count: result.quarantined.length,
+      skipped: result.skippedNonQuarantinable,
+    });
+    repairNoticeType.value = "success";
+    emit("quarantined");
+    await load(task.value);
+  } catch {
+    repairNotice.value = t("research.marketInvalidQuarantineFailed");
+    repairNoticeType.value = "error";
+  } finally {
+    quarantineLoading.value = false;
   }
 }
 

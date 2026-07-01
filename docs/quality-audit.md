@@ -9702,6 +9702,43 @@ Definition of Done：
 - 被隔离后形成的真实缺口仍需要用户或后续流程通过缺口 repair 排补同步任务。
 - 该能力只关闭 `invalid_open_time` 的可审计隔离入口，不代表阶段 1 usable。
 
+### 阶段 1 任务窗口 invalid_open_time 隔离入口补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 数据同步任务异常详情弹窗在当前返回页包含 `invalid_open_time` 时，显示“隔离错位 K 线”操作。
+- 该操作复用 `POST /api/market/candle-invalid-issues/quarantine`，按当前任务的 exchange / symbol / interval 和当前返回页中的错位 `openTime` 归档并移除 active K 线。
+- 隔离成功后重新加载任务异常详情，并通知研究页刷新任务列表和当前图表 K 线窗口。
+- 普通异常补同步按钮仍只用于可修复异常，`invalid_open_time` 不会被普通 repair 伪装成已修复。
+
+范围外：
+
+- 不新增任务专用 quarantine API；本轮复用全历史 market quarantine API。
+- 不自动隔离所有历史错位 K 线，也不自动排隔离后形成的缺口 repair。
+- 不改变 data sync worker、CandleProvider 聚合算法、交易所 adapter、回测/交易 runner 或实盘能力。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/research/ResearchTaskInvalidIssueModal.test.ts src/pages/ResearchPage.layout.test.ts src/services/api/data.test.ts` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 任务窗口隔离仍基于当前弹窗返回页，不是全量自动清洗。
+- 被隔离后形成的缺口仍需要用户通过缺口详情或图表缺口入口排补同步任务。
+- 该能力只补前端任务窗口操作闭环，不代表阶段 1 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
