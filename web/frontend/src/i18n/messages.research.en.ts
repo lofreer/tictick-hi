@@ -66,6 +66,7 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.invalidIssueDetailsLoadFailed": "Failed to load invalid details.",
     "research.noInvalidIssueDetails": "No invalid details",
     "research.repairInvalidIssues": "Queue current invalid repairs",
+    "research.repairFirstInvalidIssue": "Repair first invalid",
     "research.invalidIssueRepairQueued": "{count} invalid candle repair tasks queued.",
     "research.invalidIssueRepairAlreadyQueued": "Invalid candle repair task already exists.",
     "research.invalidIssueRepairFailed": "Failed to create invalid candle repair tasks.",

@@ -146,6 +146,7 @@
                 {{ t("research.repairFirstGap") }}
               </NButton>
               <MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />
+              <ChartInvalidIssueRepairAction :exchange="exchange" :interval="candleResult?.baseInterval || interval" :issue="firstCandleIssue" :load-candles="loadCandles" :load-tasks="loadTasks" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling({ immediate: false })" />
             </div>
           </div>
         </div>
@@ -261,6 +262,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
+import ChartInvalidIssueRepairAction from "@/components/research/ChartInvalidIssueRepairAction.vue";
 import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";
 import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";
 import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";
@@ -343,9 +345,7 @@ const intervalOptions = computed<SelectOption[]>(() => [
   { label: "1d", value: "1d" },
 ]);
 
-function viewTaskInvalidIssues(task: DataSyncTask) {
-  invalidIssueModal.value?.open(task);
-}
+function viewTaskInvalidIssues(task: DataSyncTask) { invalidIssueModal.value?.open(task); }
 
 async function repairFirstChartGap() {
   chartGapRepairResult.value = await repairFirstGap() ?? null;
@@ -358,28 +358,19 @@ async function repairTaskGapsAndPoll(task: DataSyncTask) {
 }
 
 async function refreshChartCandles() {
-  chartGapRepairResult.value = null;
+  resetChartRepairResults();
   await loadCandles();
 }
 
-function loadPreviousChartCandles() {
-  chartGapRepairResult.value = null;
-  loadPreviousCandles();
-}
+function loadPreviousChartCandles() { resetChartRepairResults(); loadPreviousCandles(); }
 
-function loadNextChartCandles() {
-  chartGapRepairResult.value = null;
-  loadNextCandles();
-}
+function loadNextChartCandles() { resetChartRepairResults(); loadNextCandles(); }
 
-function applyChartTimeRange(...args: Parameters<typeof applyTimeRange>) {
-  chartGapRepairResult.value = null;
-  applyTimeRange(...args);
-}
+function applyChartTimeRange(...args: Parameters<typeof applyTimeRange>) { resetChartRepairResults(); applyTimeRange(...args); }
 
-watch([exchange, symbol, interval], () => {
-  chartGapRepairResult.value = null;
-});
+watch([exchange, symbol, interval], () => resetChartRepairResults());
+
+function resetChartRepairResults() { chartGapRepairResult.value = null; }
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));

@@ -66,6 +66,7 @@ export const zhCNResearchMessages: Record<string, string> = {
     "research.invalidIssueDetailsLoadFailed": "加载异常详情失败。",
     "research.noInvalidIssueDetails": "暂无异常详情",
     "research.repairInvalidIssues": "排队修复当前异常",
+    "research.repairFirstInvalidIssue": "修复首个异常",
     "research.invalidIssueRepairQueued": "已排队 {count} 个异常 K 线补同步任务。",
     "research.invalidIssueRepairAlreadyQueued": "异常 K 线补同步任务已存在。",
     "research.invalidIssueRepairFailed": "创建异常 K 线补同步任务失败。",

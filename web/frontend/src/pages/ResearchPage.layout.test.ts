@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import chartInvalidIssueRepairSource from "@/components/research/ChartInvalidIssueRepairAction.vue?raw";
 import invalidIssueModalSource from "@/components/research/ResearchTaskInvalidIssueModal.vue?raw";
 import gapDetailsModalSource from "@/components/research/ResearchTaskGapDetailsModal.vue?raw";
 import windowControlsSource from "@/components/research/ResearchWindowControls.vue?raw";
@@ -284,11 +285,34 @@ describe("ResearchPage chart layout contract", () => {
     }
   });
 
+  it("lets users queue repair for the first CandleProvider invalid issue", () => {
+    expect(source).toContain('import ChartInvalidIssueRepairAction from "@/components/research/ChartInvalidIssueRepairAction.vue";');
+    expect(source).toContain("<ChartInvalidIssueRepairAction");
+    expect(source).toContain(':interval="candleResult?.baseInterval || interval"');
+    expect(source).toContain(':issue="firstCandleIssue"');
+    expect(source).toContain(':load-candles="loadCandles"');
+    expect(source).toContain(':load-tasks="loadTasks"');
+    expect(source).toContain('@repaired="startRepairTaskPolling({ immediate: false })"');
+    expect(chartInvalidIssueRepairSource).toContain('import { repairChartInvalidIssue } from "@/composables/researchInvalidIssueRepairActions";');
+    expect(chartInvalidIssueRepairSource).toContain("repairResult");
+    expect(chartInvalidIssueRepairSource).toContain("repairLoading");
+    expect(chartInvalidIssueRepairSource).toContain("canRepair");
+    expect(chartInvalidIssueRepairSource).toContain('v-if="canRepair"');
+    expect(chartInvalidIssueRepairSource).toContain('@click="repairInvalidIssue"');
+    expect(chartInvalidIssueRepairSource).toContain("research.repairFirstInvalidIssue");
+    expect(chartInvalidIssueRepairSource).toContain("normalizeSymbolInput(props.symbol)");
+    expect(chartInvalidIssueRepairSource).toContain('<MarketRepairResultTags :result="repairResult" :tasks="tasks" />');
+    for (const messages of [zhResearchMessages, enResearchMessages]) {
+      expect(messages).toContain('"research.repairFirstInvalidIssue"');
+    }
+  });
+
   it("starts bounded repair task status polling from every repair entrypoint", () => {
     expect(source).toContain('import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";');
     expect(source).toContain("const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadTasks);");
     expect(source).toContain('@repair-gaps="repairTaskGapsAndPoll"');
     expect(source).toContain("async function repairTaskGapsAndPoll(task: DataSyncTask)");
+    expect(source).toContain('@repaired="startRepairTaskPolling({ immediate: false })"');
   });
 });
 
