@@ -113,7 +113,7 @@ const { t } = useI18n();
 defineProps<{
   tasks?: DataSyncTask[];
 }>();
-const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult]; quarantined: [] }>();
+const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult]; quarantined: [task: DataSyncTask] }>();
 
 const modalOpen = ref(false);
 const loading = ref(false);
@@ -273,24 +273,26 @@ async function repairInvalidIssues() {
 
 async function quarantineInvalidOpenTimeIssues() {
   if (!task.value || quarantineLoading.value || quarantinableOpenTimes.value.length === 0) return;
+  const currentTask = task.value;
+  const openTimes = quarantinableOpenTimes.value;
   quarantineLoading.value = true;
   repairNotice.value = "";
   repairNoticeType.value = "default";
   repairResult.value = null;
   try {
     const result = await dataApi.quarantineMarketCandleInvalidIssues({
-      exchange: task.value.exchange,
-      interval: task.value.interval,
-      openTimes: quarantinableOpenTimes.value,
-      symbol: task.value.symbol,
+      exchange: currentTask.exchange,
+      interval: currentTask.interval,
+      openTimes,
+      symbol: currentTask.symbol,
     });
     repairNotice.value = t("research.marketInvalidQuarantineSucceeded", {
       count: result.quarantined.length,
       skipped: result.skippedNonQuarantinable,
     });
     repairNoticeType.value = "success";
-    emit("quarantined");
-    await load(task.value);
+    modalOpen.value = false;
+    emit("quarantined", currentTask);
   } catch {
     repairNotice.value = t("research.marketInvalidQuarantineFailed");
     repairNoticeType.value = "error";

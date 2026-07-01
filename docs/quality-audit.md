@@ -9712,18 +9712,20 @@ Definition of Done：
 
 - 数据同步任务异常详情弹窗在当前返回页包含 `invalid_open_time` 时，显示“隔离错位 K 线”操作。
 - 该操作复用 `POST /api/market/candle-invalid-issues/quarantine`，按当前任务的 exchange / symbol / interval 和当前返回页中的错位 `openTime` 归档并移除 active K 线。
-- 隔离成功后重新加载任务异常详情，并通知研究页刷新任务列表和当前图表 K 线窗口。
+- 隔离成功后关闭任务异常详情弹窗，通知研究页刷新任务列表和当前图表 K 线窗口，并从同一任务上下文打开既有缺口详情弹窗。
+- 缺口详情弹窗只展示隔离后形成的真实缺口和既有“修复任务窗口缺口”入口，不自动创建补同步任务，也不把隔离伪装成修复完成。
 - 普通异常补同步按钮仍只用于可修复异常，`invalid_open_time` 不会被普通 repair 伪装成已修复。
 
 范围外：
 
 - 不新增任务专用 quarantine API；本轮复用全历史 market quarantine API。
-- 不自动隔离所有历史错位 K 线，也不自动排隔离后形成的缺口 repair。
+- 不自动隔离所有历史错位 K 线，也不自动排隔离后形成的缺口 repair；用户仍需要在缺口详情里显式触发 repair。
 - 不改变 data sync worker、CandleProvider 聚合算法、交易所 adapter、回测/交易 runner 或实盘能力。
 
 当前验证：
 
 - `pnpm --dir web/frontend exec vitest run src/components/research/ResearchTaskInvalidIssueModal.test.ts src/pages/ResearchPage.layout.test.ts src/services/api/data.test.ts` 通过。
+- `pnpm --dir web/frontend exec vitest run src/components/research/ResearchTaskInvalidIssueModal.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
 - `scripts/check-file-size.sh` 通过。
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
@@ -9736,7 +9738,7 @@ Definition of Done：
 剩余风险：
 
 - 任务窗口隔离仍基于当前弹窗返回页，不是全量自动清洗。
-- 被隔离后形成的缺口仍需要用户通过缺口详情或图表缺口入口排补同步任务。
+- 被隔离后形成的缺口会自动打开缺口详情作为接续观察入口，但仍需要用户显式排补同步任务。
 - 该能力只补前端任务窗口操作闭环，不代表阶段 1 usable。
 
 ### 阶段 1 K 线图表 canvas 尺寸污染修复补充

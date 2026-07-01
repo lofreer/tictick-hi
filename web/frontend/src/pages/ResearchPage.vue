@@ -381,7 +381,7 @@ function startRepairPollingForResult(result: DataSyncGapRepairResult, options: {
   });
 }
 
-async function refreshAfterMarketCandleQuarantine() { await Promise.all([loadTasks(), loadCandles()]); }
+async function refreshAfterMarketCandleQuarantine(task?: DataSyncTask) { await Promise.all([loadTasks(), loadCandles()]); if (task) await viewTaskGaps(task); }
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));

@@ -19,7 +19,7 @@ vi.mock("@/services/api/data", () => ({
 
 describe("ResearchTaskInvalidIssueModal", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     dataApiMocks.getTaskInvalidIssues.mockResolvedValue({
       taskId: "dst_1",
       issues: [
@@ -276,9 +276,7 @@ describe("ResearchTaskInvalidIssueModal", () => {
       interval: "1m",
       openTimes: ["2026-06-27T07:02:30Z"],
     });
-    expect(wrapper.emitted("quarantined")).toHaveLength(1);
-    expect(document.body.textContent).toContain("已隔离 1 根错位 K 线，跳过 0 根其它异常。");
-    expect(document.body.textContent).toContain("暂无异常详情");
+    expect(wrapper.emitted("quarantined")).toEqual([[task]]);
   });
 
   it("shows skipped and limited repair metadata", async () => {

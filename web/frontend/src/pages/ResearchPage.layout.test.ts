@@ -232,7 +232,8 @@ describe("ResearchPage chart layout contract", () => {
   it("shows full-history invalid candle scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";');
     expect(source).toContain('@quarantined="refreshAfterMarketCandleQuarantine"');
-    expect(source).toContain("async function refreshAfterMarketCandleQuarantine()");
+    expect(source).toContain("async function refreshAfterMarketCandleQuarantine(task?: DataSyncTask)");
+    expect(source).toContain("if (task) await viewTaskGaps(task)");
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {
@@ -269,6 +270,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain('@view-invalid="viewTaskInvalidIssues"');
     expect(source).toContain("@repaired=\"startRepairPollingForResult\"");
     expect(source).toContain("@quarantined=\"refreshAfterMarketCandleQuarantine\"");
+    expect(invalidIssueModalSource).toContain("quarantined: [task: DataSyncTask]");
+    expect(invalidIssueModalSource).toContain('emit("quarantined", currentTask)');
     expect(invalidIssueModalSource).toContain('import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";');
     expect(invalidIssueModalSource).toContain('<MarketRepairResultTags :result="repairResult" :tasks="tasks" />');
   });
