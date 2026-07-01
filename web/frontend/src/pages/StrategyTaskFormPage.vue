@@ -193,6 +193,7 @@ import StrategyMarketCatalogStatus from "@/components/strategy/StrategyMarketCat
 import StrategyParamForm from "@/components/strategy/StrategyParamForm.vue";
 import { useStrategyTaskForm, type StrategyTaskMode } from "@/composables/useStrategyTaskForm";
 import type { StrategyParamValue } from "@/types/app";
+import { marketStatusBaseLabel } from "@/utils/marketStatusDisplay";
 
 const props = defineProps<{
   mode: StrategyTaskMode;
@@ -247,9 +248,13 @@ const triggerModeOptions = computed<SelectOption[]>(() => [
 
 const marketCatalogLabel = computed(() => {
   if (marketCatalogLoading.value) return t("strategy.marketCatalogChecking");
-  if (marketCatalogStatus.value === "active") return t("strategy.marketCatalogActive");
-  if (marketCatalogStatus.value === "inactive") return t("strategy.marketCatalogInactive");
-  if (marketCatalogStatus.value === "missing") return t("strategy.marketCatalogMissing");
+  if (
+    marketCatalogStatus.value === "active" ||
+    marketCatalogStatus.value === "inactive" ||
+    marketCatalogStatus.value === "missing"
+  ) {
+    return marketStatusBaseLabel(t, marketCatalogStatus.value);
+  }
   if (marketCatalogError.value) return t("strategy.marketCatalogError");
   return t("strategy.marketCatalogUnknown");
 });

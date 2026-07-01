@@ -160,9 +160,10 @@ describe("DataSyncTaskTable", () => {
     });
 
     expect(wrapper.text()).toContain("市场状态");
-    expect(wrapper.text()).toContain("Inactive · BREAK");
-    expect(wrapper.get(".task-market-status").attributes("title")).toBe("Inactive · BREAK");
-    expect(wrapper.get('button[title="市场非 active"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.text()).toContain("不可用 · 暂停交易");
+    expect(wrapper.text()).not.toContain("BREAK");
+    expect(wrapper.get(".task-market-status").attributes("title")).toBe("不可用 · 暂停交易");
+    expect(wrapper.get('button[title="市场不可用"]').attributes("disabled")).toBeDefined();
     expect(wrapper.emitted("toggle-sync")).toBeUndefined();
     expect(wrapper.emitted("toggle-realtime")).toBeUndefined();
   });
@@ -192,7 +193,7 @@ describe("DataSyncTaskTable", () => {
       },
     });
 
-    const disabledMarketActions = wrapper.findAll('button[title="市场非 active"]');
+    const disabledMarketActions = wrapper.findAll('button[title="市场不可用"]');
     expect(disabledMarketActions).toHaveLength(3);
     for (const button of disabledMarketActions) {
       expect(button.attributes("disabled")).toBeDefined();

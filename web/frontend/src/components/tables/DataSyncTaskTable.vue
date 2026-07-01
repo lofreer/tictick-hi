@@ -33,6 +33,7 @@ import DataSyncQualitySummary from "@/components/tables/DataSyncQualitySummary.v
 import type { DataSyncTask } from "@/types/app";
 import { formatCompactDateTime, summarizeText } from "@/utils/displayText";
 import { sanitizeExternalError } from "@/utils/errorText";
+import { marketStatusLabel } from "@/utils/marketStatusDisplay";
 
 const props = defineProps<{ tasks: DataSyncTask[]; repairingTaskId?: string }>();
 const emit = defineEmits<{
@@ -57,7 +58,7 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     width: 148,
     render: (row) =>
       h(NTag, { bordered: false, size: "small", type: marketStatusTagType(row.marketStatus) }, () =>
-        h("span", { class: "task-market-status", title: marketStatusLabel(row) }, marketStatusLabel(row)),
+        h("span", { class: "task-market-status", title: taskMarketStatusLabel(row) }, taskMarketStatusLabel(row)),
       ),
   },
   { title: t("research.interval"), key: "interval", width: 76 },
@@ -208,13 +209,8 @@ function marketActionLabel(row: DataSyncTask, activeLabel: string) {
   return taskMarketActive(row) ? activeLabel : t("research.marketNotActiveAction");
 }
 
-function marketStatusLabel(row: DataSyncTask) {
-  const base = t(`research.marketStatus.${row.marketStatus}`);
-  const detail = (row.marketStatusDetail ?? "").trim();
-  if (!detail || detail === row.marketStatus || (row.marketStatus === "active" && detail.toLowerCase() === "active")) {
-    return base;
-  }
-  return `${base} · ${detail}`;
+function taskMarketStatusLabel(row: DataSyncTask) {
+  return marketStatusLabel(t, row.marketStatus, row.marketStatusDetail);
 }
 
 function hasRepairableTaskGaps(row: DataSyncTask) {

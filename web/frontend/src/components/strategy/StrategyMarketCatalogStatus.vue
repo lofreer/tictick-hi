@@ -15,6 +15,10 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
 import type { MarketCatalogValidationStatus } from "@/composables/useMarketCatalogValidation";
+import {
+  marketStatusBaseLabel,
+  marketStatusExchangeDetail,
+} from "@/utils/marketStatusDisplay";
 
 const props = defineProps<{
   detail: string;
@@ -26,13 +30,12 @@ const props = defineProps<{
 const { t } = useI18n();
 
 const label = computed(() => marketCatalogStatusLabel(t, props.status, props.loading, props.error));
+const exchangeDetail = computed(() => marketStatusExchangeDetail(t, props.detail));
 const hint = computed(() => {
   if (props.error) return props.error;
-  if (props.status === "inactive") return t("research.instrumentInactive");
+  if (props.status === "inactive") return [t("research.instrumentInactive"), exchangeDetail.value].filter(Boolean).join(" ");
   if (props.status === "missing") return t("research.instrumentNotInCatalog");
-  if (props.status === "active" && props.detail) {
-    return t("strategy.marketCatalogExchangeStatus", { status: props.detail });
-  }
+  if (props.status === "active") return exchangeDetail.value;
   return "";
 });
 
@@ -50,9 +53,7 @@ function marketCatalogStatusLabel(
   error: string,
 ) {
   if (loading) return t("strategy.marketCatalogChecking");
-  if (status === "active") return t("strategy.marketCatalogActive");
-  if (status === "inactive") return t("strategy.marketCatalogInactive");
-  if (status === "missing") return t("strategy.marketCatalogMissing");
+  if (status === "active" || status === "inactive" || status === "missing") return marketStatusBaseLabel(t, status);
   if (error) return t("strategy.marketCatalogError");
   return t("strategy.marketCatalogUnknown");
 }

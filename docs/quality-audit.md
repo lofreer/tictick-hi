@@ -5989,7 +5989,6 @@ Definition of Done：
 - `pnpm --dir web/frontend run build` 通过。
 - `scripts/quality-gate.sh` 通过。
 - `git diff --check` 通过。
-
 剩余风险：
 
 - 本轮只补 exchange backoff 成功恢复清理，不证明真实交易所网络长期恢复、分布式限流或完整 data sync 状态机。
@@ -9436,6 +9435,43 @@ Definition of Done：
 
 - 该证据只把创建页的 market catalog 状态从“提交后弹错”提升为“提交前可观察和可阻断”；不代表回测结果可信、交易任务可用于真实工作或实盘能力已经建立。
 - 当前创建页仍依赖 `market_instruments` catalog 的同步新鲜度；catalog 外部同步失败时只能阻断创建并提示，不能自动恢复交易所目录。
+
+### 阶段 1 market catalog 业务状态展示收敛补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 前端新增统一 market status formatter，把 `marketStatus`、`marketStatusDetail` 和 `exchangeStatus` 组合成用户可读文案。
+- 研究页数据同步任务表不再直接显示 `BREAK`、`TRADING`、`not_returned`、`active`、`inactive`、`missing` 等原始状态；中文界面显示“可用 / 不可用 / 未入库”和“交易中 / 暂停交易 / 交易所未返回”等业务语义。
+- 回测 / 交易创建页的 market catalog 状态组件复用同一 formatter，active / inactive 的交易所详情不再泄露 raw 状态码。
+- 对未知交易所状态保留原值展示，避免为了美化隐藏真实外部状态。
+- 前端单元测试覆盖 formatter 映射、创建页状态组件和研究页数据同步任务表 inactive 状态展示及操作阻断文案。
+
+范围外：
+
+- 不改变 `market_instruments` 数据模型、catalog 同步策略或后端 API contract。
+- 不改变 data sync task 的 active catalog 守卫、claim 逻辑或 repair 调度。
+- 不推进实盘交易、私有交易所 API、订单提交或风控边界。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/utils/marketStatusDisplay.test.ts src/components/strategy/StrategyMarketCatalogStatus.test.ts src/components/tables/DataSyncTaskTable.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- 本地 `http://127.0.0.1:18080` 当前构建服务上，`BASE_URL=http://127.0.0.1:18080 SMOKE_TOTAL_TIMEOUT_MS=600000 node scripts/stage8-visual-smoke.mjs` 通过，覆盖 3 个 viewport、浅/深色、中/英文，每组 14 页。
+
+剩余风险：
+
+- 该证据只收敛用户可见状态语义，不证明 catalog 新鲜度、真实交易所业务状态分类完整性或自动恢复能力。
+- 未知状态仍原样展示；后续需要结合真实 Binance / OKX instrument 状态枚举继续细化。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 
