@@ -99,6 +99,13 @@ describe("data api", () => {
             baseInterval: "1m",
             health: "gap",
             gaps: [{ from: "2026-01-01T00:01:00Z", to: "2026-01-01T00:03:00Z", missingCandles: 2 }],
+            issues: [
+              {
+                code: "invalid_aggregation_base_series",
+                message: "base candle series contains invalid OHLCV",
+                openTime: "2026-01-01T00:05:00Z",
+              },
+            ],
             coverage: {
               requestedLimit: 1000,
               returnedCandles: 0,
@@ -140,6 +147,13 @@ describe("data api", () => {
       baseInterval: "1m",
       health: "gap",
       gaps: [{ missingCandles: 2 }],
+      issues: [
+        {
+          code: "invalid_aggregation_base_series",
+          message: "base candle series contains invalid OHLCV",
+          openTime: "2026-01-01T00:05:00Z",
+        },
+      ],
       coverage: {
         requestedLimit: 1000,
         returnedCandles: 0,

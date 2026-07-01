@@ -118,7 +118,7 @@
               <NTag v-if="candleResult" :bordered="false" size="small" :type="healthTagType">
                 {{ t("research.dataHealth") }}: {{ healthLabel }}
               </NTag>
-              <NTag v-if="firstCandleIssue" :bordered="false" size="small" type="error" :title="firstCandleIssue.message">
+              <NTag v-if="firstCandleIssue" :bordered="false" size="small" type="error" :title="candleIssueTitle">
                 {{ candleIssueLabel }}
               </NTag>
               <NTag v-if="candleResult" :bordered="false" size="small">
@@ -275,7 +275,7 @@ import { candleCoverageLabel, candleCoverageTagType, shouldShowCandleCoverage } 
 import "./ResearchPage.css";
 import "./klineChartLayout.css";
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const invalidIssueModal = ref<InstanceType<typeof ResearchTaskInvalidIssueModal> | null>(null);
 const chartGapRepairResult = ref<DataSyncGapRepairResult | null>(null);
 const {
@@ -384,11 +384,13 @@ watch([exchange, symbol, interval], () => {
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));
 const firstCandleIssue = computed<CandleIssue | null>(() => candleResult.value?.issues[0] ?? null);
-const candleIssueLabel = computed(() =>
-  t("research.candleIssue", {
-    time: firstCandleIssue.value?.openTime ? formatWindowTime(firstCandleIssue.value.openTime) : "-",
-  }),
-);
+const candleIssueReason = computed(() => invalidIssueLabel(firstCandleIssue.value));
+const candleIssueTitle = computed(() => firstCandleIssue.value?.message || candleIssueReason.value);
+const candleIssueLabel = computed(() => {
+  const openTime = firstCandleIssue.value?.openTime;
+  if (!openTime) return t("research.candleIssueNoTime", { reason: candleIssueReason.value });
+  return t("research.candleIssue", { time: formatWindowTime(openTime), reason: candleIssueReason.value });
+});
 const baseIntervalText = computed(() => candleResult.value?.baseInterval ?? "-");
 const gapCountLabel = computed(() => t("research.gapCount", { count: candleResult.value?.gaps.length ?? 0 }));
 const coverageVisible = computed(() => shouldShowCandleCoverage(candleResult.value));
@@ -432,6 +434,12 @@ function catalogStatusDetail(status: MarketInstrumentSyncStatus) {
     exchange: status.exchange,
     time: formatWindowTime(status.lastSuccessAt ?? status.lastAttemptAt),
   });
+}
+
+function invalidIssueLabel(issue: CandleIssue | null) {
+  if (!issue?.code) return issue?.message || t("research.invalidCandleIssue.unknown");
+  const key = `research.invalidCandleIssue.${issue.code}`;
+  return te(key) ? t(key) : issue.message || t("research.invalidCandleIssue.unknown");
 }
 
 function formatWindowTime(value: string) {

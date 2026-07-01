@@ -10,6 +10,8 @@ import source from "./ResearchPage.vue?raw";
 const pageStyles = readFileSync("src/pages/ResearchPage.css", "utf8");
 const chartStyles = readFileSync("src/components/chart/TradingViewChart.css", "utf8");
 const klineChartStyles = readFileSync("src/pages/klineChartLayout.css", "utf8");
+const zhResearchMessages = readFileSync("src/i18n/messages.research.zh.ts", "utf8");
+const enResearchMessages = readFileSync("src/i18n/messages.research.en.ts", "utf8");
 
 describe("ResearchPage chart layout contract", () => {
   it("keeps the chart in a fixed flex viewport below the sync list", () => {
@@ -265,6 +267,21 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain('<ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairTaskPolling" />');
     expect(invalidIssueModalSource).toContain('import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";');
     expect(invalidIssueModalSource).toContain('<MarketRepairResultTags :result="repairResult" :tasks="tasks" />');
+  });
+
+  it("shows CandleProvider invalid issue reasons in the chart status strip", () => {
+    expect(source).toContain("const { t, te } = useI18n();");
+    expect(source).toContain("candleIssueReason");
+    expect(source).toContain("invalidIssueLabel(firstCandleIssue.value)");
+    expect(source).toContain("research.candleIssueNoTime");
+    expect(source).toContain("reason: candleIssueReason.value");
+    expect(source).toContain("te(key) ? t(key) : issue.message");
+    expect(source).not.toContain('t("research.candleIssue", {\n    time:');
+    for (const messages of [zhResearchMessages, enResearchMessages]) {
+      expect(messages).toContain('"research.candleIssueNoTime"');
+      expect(messages).toContain('"research.invalidCandleIssue.invalid_native_series"');
+      expect(messages).toContain('"research.invalidCandleIssue.invalid_aggregation_base_series"');
+    }
   });
 
   it("starts bounded repair task status polling from every repair entrypoint", () => {
