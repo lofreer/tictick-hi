@@ -34,6 +34,15 @@ require_not_contains() {
   fi
 }
 
+require_head_not_contains() {
+  local file="$1"
+  local lines="$2"
+  local needle="$3"
+  if head -n "$lines" "$file" | grep -Fq -- "$needle"; then
+    fail "$file first $lines lines must not contain: $needle"
+  fi
+}
+
 require_order() {
   local file="$1"
   local first="$2"
@@ -160,6 +169,13 @@ require_contains "$THEME_TOKENS" "mobile: 68,"
 require_contains "$QUALITY_AUDIT" '坐标轴字号收敛为桌面/窄桌面 `14px`、移动端 `13px`'
 require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `84px`'
 require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度范围为桌面/窄桌面 `9px` 到 `16px`、移动端 `9px` 到 `14px`'
+require_head_not_contains "$QUALITY_AUDIT" 120 '坐标轴字体恢复为桌面/窄桌面'
+require_head_not_contains "$QUALITY_AUDIT" 120 '坐标轴字号提升为'
+require_head_not_contains "$QUALITY_AUDIT" 120 '右侧价格轴 minimumWidth 为桌面 `128px`'
+require_head_not_contains "$QUALITY_AUDIT" 120 '右侧价格轴最大宽度 `140px`'
+require_head_not_contains "$QUALITY_AUDIT" 120 '坐标轴文字墨迹高度下限'
+require_head_not_contains "$QUALITY_AUDIT" 120 '28px/25px'
+require_head_not_contains "$QUALITY_AUDIT" 120 '56px/36px'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字体统一 `14px`'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字号回到桌面/窄桌面 `20px`、移动端 `18px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `116px`'
