@@ -548,7 +548,7 @@ function sampleExpression() {
 async function polluteInternalChartHeights(cdp) {
   await evaluate(
     cdp,
-    `(() => {
+    `(async () => {
       for (const selector of [
         '.research-chart-body',
         '.tv-lightweight-charts',
@@ -563,8 +563,15 @@ async function polluteInternalChartHeights(cdp) {
           element.style.maxHeight = '9000px';
           element.style.blockSize = '9000px';
           element.style.maxBlockSize = '9000px';
+          if (selector === '.trading-chart__canvas canvas') {
+            element.style.width = '9000px';
+            element.style.maxWidth = '9000px';
+            element.style.inlineSize = '9000px';
+            element.style.maxInlineSize = '9000px';
+          }
         }
       }
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return true;
     })()`,
   );

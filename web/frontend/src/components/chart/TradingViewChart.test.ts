@@ -575,6 +575,7 @@ describe("TradingViewChart", () => {
     wrapper.unmount();
     host.panel.remove();
   });
+
 });
 
 function createResearchHost(options: { declareViewportSize?: boolean; markViewport?: boolean } = {}) {
