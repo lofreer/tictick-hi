@@ -385,7 +385,9 @@ function repairDistortedCanvases() {
   canvasRepairFrame = 0;
   const host = containerRef.value;
   if (!host) return;
-  repairDistortedChartCanvases(host, lastSize, window.devicePixelRatio || 1);
+  if (!repairDistortedChartCanvases(host, lastSize, window.devicePixelRatio || 1) || !chart) return;
+  chart.resize(lastSize.width, lastSize.height);
+  fitChartContent(props.data.length);
 }
 
 function readHostSize(): { width: number; height: number } | null {

@@ -276,6 +276,7 @@ i18n：vue-i18n
 - K 线图表占主要面积。
 - 数据同步列表不会太多，作为研究页中的轻量区域展示。
 - K 线图表必须处于固定 viewport 容器内，图表库内部 DOM、canvas 或运行态 inline height 变化不能反向撑高页面。
+- lightweight-charts 内部 DOM / canvas 尺寸由图表库管理；如果检测到内部 inline 尺寸污染，只能清除污染并触发 chart resize，不能从已污染的 canvas bitmap 反推 CSS 宽高。
 - 图表工具能力优先于表格堆叠。
 - 不做“上面一堆表单，下面一小块图表”。
 

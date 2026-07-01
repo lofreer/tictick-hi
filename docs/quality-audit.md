@@ -9739,6 +9739,45 @@ Definition of Done：
 - 被隔离后形成的缺口仍需要用户通过缺口详情或图表缺口入口排补同步任务。
 - 该能力只补前端任务窗口操作闭环，不代表阶段 1 usable。
 
+### 阶段 1 K 线图表 canvas 尺寸污染修复补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 共用 `TradingViewChart` 在检测到 lightweight-charts 内部 DOM / canvas inline 尺寸污染后，不再用可能已经污染的 canvas bitmap 反推出 CSS 宽高。
+- `chartCanvasRepair` 改为只清理内部 `.tv-lightweight-charts`、table、tbody、tr、td 和 canvas 的异常 inline size 锁，再由 `TradingViewChart` 触发 `chart.resize(lastSize.width, lastSize.height)` 让图表库按固定 viewport 重算。
+- 保留研究页、回测详情和交易详情共用的固定 K 线 viewport、价格轴最大宽度、完整价格显示和坐标轴文字墨迹高度门禁。
+- 单元测试覆盖首次修复时 canvas bitmap 已被污染到 9000px 的场景，防止再次把右侧价格轴撑成大块空白或把坐标轴文字缩放到异常尺寸。
+
+范围外：
+
+- 不新增图表指标、绘图工具或交易操作能力。
+- 不改变 CandleProvider、data sync worker、交易所 adapter、回测 / 交易 runner 或实盘能力。
+- 不把当前前端体验升级为 usable；它仍需要继续按阶段 1 收敛研究工作台质量。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/chartCanvasRepair.test.ts src/components/chart/TradingViewChart.test.ts src/components/chart/TradingViewChart.readout.test.ts src/pages/ResearchPage.layout.test.ts src/pages/DetailPages.layout.test.ts` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-research-chart-layout.sh` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SAMPLES=4 SMOKE_INTERVAL_MS=120 SMOKE_SETTLE_MS=1000 SMOKE_TOTAL_TIMEOUT_MS=180000 node scripts/research-chart-height-smoke.mjs` 通过。
+- `BASE_URL=http://127.0.0.1:8080 SMOKE_SETTLE_MS=800 SMOKE_TOTAL_TIMEOUT_MS=300000 node scripts/stage8-visual-smoke.mjs` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 该修复只约束当前 lightweight-charts DOM / canvas 污染路径；仍需要更多真实浏览器与真实长时间交互样本。
+- 当前图表工具条和研究交互仍处于阶段 1 打磨中，不代表研究页已达到 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

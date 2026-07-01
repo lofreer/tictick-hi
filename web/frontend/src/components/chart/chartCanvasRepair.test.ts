@@ -3,34 +3,55 @@ import { describe, expect, it } from "vitest";
 import { repairDistortedChartCanvases } from "./chartCanvasRepair";
 
 describe("repairDistortedChartCanvases", () => {
-  it("repairs polluted canvas dimensions using fixed viewport bounds", () => {
+  it("clears polluted canvas dimensions instead of sizing from a distorted bitmap", () => {
     const { canvas, host } = chartFixture({
-      canvasBitmap: { width: 60, height: 652 },
+      canvasBitmap: { width: 9000, height: 9000 },
       canvasRect: { width: 600, height: 9000 },
       hostRect: { width: 1180, height: 3841 },
     });
+    polluteInlineSize(canvas);
 
-    repairDistortedChartCanvases(host, { width: 1180, height: 641 }, 1);
+    expect(repairDistortedChartCanvases(host, { width: 1180, height: 641 }, 1)).toBe(true);
 
-    expect(canvas.style.width).toBe("60px");
-    expect(canvas.style.height).toBe("641px");
-    expect(canvas.style.maxWidth).toBe("1180px");
-    expect(canvas.style.maxHeight).toBe("641px");
+    expect(canvas.style.width).toBe("");
+    expect(canvas.style.height).toBe("");
+    expect(canvas.style.maxWidth).toBe("");
+    expect(canvas.style.maxHeight).toBe("");
   });
 
-  it("returns a polluted canvas to its last healthy size", () => {
+  it("leaves library-managed healthy canvas dimensions intact", () => {
     const fixture = chartFixture({
-      canvasBitmap: { width: 60, height: 672 },
+      canvasBitmap: { width: 104, height: 1282 },
       canvasRect: { width: 52, height: 672 },
       hostRect: { width: 778, height: 700 },
     });
+    fixture.canvas.style.width = "52px";
+    fixture.canvas.style.height = "641px";
 
-    repairDistortedChartCanvases(fixture.host, { width: 778, height: 700 }, 1);
-    fixture.setCanvasRect({ width: 9000, height: 9000 });
-    repairDistortedChartCanvases(fixture.host, { width: 778, height: 700 }, 1);
+    expect(repairDistortedChartCanvases(fixture.host, { width: 778, height: 700 }, 2)).toBe(false);
 
     expect(fixture.canvas.style.width).toBe("52px");
-    expect(fixture.canvas.style.height).toBe("672px");
+    expect(fixture.canvas.style.height).toBe("641px");
+  });
+
+  it("clears polluted lightweight-charts table geometry", () => {
+    const fixture = chartFixture({
+      canvasBitmap: { width: 104, height: 1282 },
+      canvasRect: { width: 52, height: 641 },
+      hostRect: { width: 778, height: 700 },
+    });
+    const table = document.createElement("table");
+    table.style.height = "9000px";
+    table.style.maxBlockSize = "9000px";
+    const chartRoot = document.createElement("div");
+    chartRoot.className = "tv-lightweight-charts";
+    chartRoot.append(table, fixture.canvas);
+    fixture.host.replaceChildren(chartRoot);
+
+    expect(repairDistortedChartCanvases(fixture.host, { width: 778, height: 700 }, 2)).toBe(true);
+
+    expect(table.style.height).toBe("");
+    expect(table.style.maxBlockSize).toBe("");
   });
 });
 
@@ -54,6 +75,13 @@ function chartFixture(options: {
       canvasRect = next;
     },
   };
+}
+
+function polluteInlineSize(element: HTMLElement) {
+  element.style.width = "9000px";
+  element.style.height = "9000px";
+  element.style.maxWidth = "9000px";
+  element.style.maxHeight = "9000px";
 }
 
 function rect(size: { width: number; height: number }) {
