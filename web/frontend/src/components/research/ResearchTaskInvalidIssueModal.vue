@@ -96,13 +96,14 @@ import {
   type DataTableColumns,
   type SelectOption,
 } from "naive-ui";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";
+import { repairTasksSettled, repairTaskSettleKey } from "@/composables/researchRepairTaskSettle";
 import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
 import type { RepairDataSyncInvalidIssuesRequest } from "@/types/app";
@@ -110,7 +111,7 @@ import { isQuarantinableCandleIssueCode, isRepairableCandleIssueCode } from "@/u
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const { t } = useI18n();
-defineProps<{
+const props = defineProps<{
   tasks?: DataSyncTask[];
 }>();
 const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult]; quarantined: [task: DataSyncTask] }>();
@@ -123,6 +124,7 @@ const error = ref("");
 const repairNotice = ref("");
 const repairNoticeType = ref<"success" | "error" | "warning" | "default">("default");
 const repairResult = ref<DataSyncGapRepairResult | null>(null);
+const settledRefreshKey = ref("");
 const task = ref<DataSyncTask | null>(null);
 const details = ref<DataSyncInvalidIssueList | null>(null);
 const page = ref(1);
@@ -180,6 +182,7 @@ const displayedIssueCount = computed(() => {
   return Math.min(details.value.totalCount, details.value.offset + details.value.returnedCount);
 });
 defineExpose({ open });
+watch(() => props.tasks, () => void refreshSettledRepairDetails(), { deep: true });
 
 async function open(nextTask: DataSyncTask) {
   task.value = nextTask;
@@ -188,6 +191,7 @@ async function open(nextTask: DataSyncTask) {
   repairNotice.value = "";
   repairNoticeType.value = "default";
   repairResult.value = null;
+  settledRefreshKey.value = "";
   page.value = 1;
   issueCode.value = null;
   timeRange.value = null;
@@ -228,6 +232,7 @@ async function applyFilters() {
   if (!task.value) return;
   repairNotice.value = "";
   repairResult.value = null;
+  settledRefreshKey.value = "";
   page.value = 1;
   await load(task.value);
 }
@@ -236,6 +241,7 @@ async function resetFilters() {
   if (!task.value) return;
   repairNotice.value = "";
   repairResult.value = null;
+  settledRefreshKey.value = "";
   issueCode.value = null;
   timeRange.value = null;
   page.value = 1;
@@ -248,9 +254,11 @@ async function repairInvalidIssues() {
   repairNotice.value = "";
   repairNoticeType.value = "default";
   repairResult.value = null;
+  settledRefreshKey.value = "";
   try {
     const result = await dataApi.repairTaskInvalidIssues(task.value.id, currentRepairRequest());
     repairResult.value = result;
+    settledRefreshKey.value = "";
     if (result.createdTasks.length > 0) {
       repairNotice.value = t("research.invalidIssueRepairQueued", { count: result.createdTasks.length });
       repairNoticeType.value = "success";
@@ -279,6 +287,7 @@ async function quarantineInvalidOpenTimeIssues() {
   repairNotice.value = "";
   repairNoticeType.value = "default";
   repairResult.value = null;
+  settledRefreshKey.value = "";
   try {
     const result = await dataApi.quarantineMarketCandleInvalidIssues({
       exchange: currentTask.exchange,
@@ -311,6 +320,15 @@ function currentRepairRequest(): RepairDataSyncInvalidIssuesRequest {
     request.to = new Date(timeRange.value[1]).toISOString();
   }
   return request;
+}
+
+async function refreshSettledRepairDetails() {
+  if (!task.value) return;
+  const taskIds = repairResult.value?.createdTasks.map((repairTask) => repairTask.id) ?? [];
+  const key = repairTaskSettleKey(taskIds);
+  if (!key || settledRefreshKey.value === key || !repairTasksSettled(props.tasks, taskIds)) return;
+  settledRefreshKey.value = key;
+  await load(task.value);
 }
 
 function invalidIssueLabel(code?: string, fallback?: string) {

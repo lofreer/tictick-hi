@@ -213,6 +213,93 @@ describe("ResearchTaskInvalidIssueModal", () => {
     expect(document.body.textContent).toContain("dst_repair_1 /");
   });
 
+  it("refreshes current invalid issue filters after queued repair tasks settle", async () => {
+    dataApiMocks.getTaskInvalidIssues
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [{
+          code: "invalid_open_price",
+          message: "open price value must be positive",
+          openTime: "2026-06-27T07:02:00Z",
+        }],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+        issueLimit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [{
+          code: "invalid_open_price",
+          message: "open price value must be positive",
+          openTime: "2026-06-27T07:02:00Z",
+        }],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+        issueLimit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [{
+          code: "invalid_open_price",
+          message: "open price value must be positive",
+          openTime: "2026-06-27T07:02:00Z",
+        }],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+        issueLimit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        taskId: "dst_1",
+        issues: [],
+        limited: false,
+        totalCount: 0,
+        returnedCount: 0,
+        issueLimit: 50,
+        offset: 0,
+      });
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    await wrapper.findComponent(NSelect).vm.$emit("update:value", "invalid_open_price");
+    await flushPromises();
+    clickRepairButton();
+    await flushPromises();
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenCalledTimes(3);
+
+    await wrapper.setProps({ tasks: [dataSyncTask({ id: "dst_repair_1", status: "running", dataHealth: "syncing" })] });
+    await flushPromises();
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenCalledTimes(3);
+
+    await wrapper.setProps({ tasks: [dataSyncTask({ id: "dst_repair_1", status: "succeeded", dataHealth: "ok" })] });
+    await flushPromises();
+
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenCalledTimes(4);
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenLastCalledWith("dst_1", {
+      code: "invalid_open_price",
+      limit: 50,
+      offset: 0,
+    });
+    expect(document.body.textContent).toContain("暂无异常详情");
+    expect(document.body.textContent).toContain("本次匹配 1 个，已创建 1 个，跳过 0 个，单次上限 20");
+
+    await wrapper.setProps({ tasks: [dataSyncTask({ id: "dst_repair_1", status: "succeeded", dataHealth: "ok" })] });
+    await flushPromises();
+    expect(dataApi.getTaskInvalidIssues).toHaveBeenCalledTimes(4);
+  });
+
   it("quarantines invalid open-time issues without exposing normal repair", async () => {
     dataApiMocks.getTaskInvalidIssues
       .mockResolvedValueOnce({
