@@ -39,6 +39,12 @@
         <NTag v-if="repairError" :bordered="false" type="error">
           {{ t("research.marketInvalidRepairFailed") }}
         </NTag>
+        <NTag v-if="quarantineNotice" :bordered="false" type="warning">
+          {{ quarantineNotice }}
+        </NTag>
+        <NTag v-if="quarantineError" :bordered="false" type="error">
+          {{ t("research.marketInvalidQuarantineFailed") }}
+        </NTag>
         <NButton
           v-if="repairableOpenTimes.length > 0"
           secondary
@@ -47,6 +53,15 @@
           @click="repairReturnedIssues"
         >
           {{ t("research.marketInvalidRepairReturned") }}
+        </NButton>
+        <NButton
+          v-if="quarantinableOpenTimes.length > 0"
+          secondary
+          type="warning"
+          :loading="quarantining"
+          @click="quarantineReturnedIssues"
+        >
+          {{ t("research.marketInvalidQuarantineReturned") }}
         </NButton>
         <NButton @click="detailsOpen = false">{{ t("common.close") }}</NButton>
       </NSpace>
@@ -61,7 +76,7 @@ import { useI18n } from "vue-i18n";
 
 import { dataApi } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketCandleInvalidIssueScan } from "@/types/app";
-import { isRepairableCandleIssueCode } from "@/utils/candleIssues";
+import { isQuarantinableCandleIssueCode, isRepairableCandleIssueCode } from "@/utils/candleIssues";
 import MarketRepairResultTags from "./MarketRepairResultTags.vue";
 
 const props = defineProps<{
@@ -72,13 +87,17 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   repaired: [result: DataSyncGapRepairResult];
+  quarantined: [];
 }>();
 
 const { t, te } = useI18n();
 const loading = ref(false);
 const error = ref("");
 const repairError = ref(false);
+const quarantineError = ref(false);
+const quarantineNotice = ref("");
 const repairing = ref(false);
+const quarantining = ref(false);
 const repairResult = ref<DataSyncGapRepairResult | null>(null);
 const scan = ref<MarketCandleInvalidIssueScan | null>(null);
 const detailsOpen = ref(false);
@@ -117,6 +136,11 @@ const repairableOpenTimes = computed(() => scan.value?.issues
   .map((issue) => issue.openTime)
   .filter((openTime): openTime is string => Boolean(openTime)) ?? []);
 
+const quarantinableOpenTimes = computed(() => scan.value?.issues
+  .filter((issue) => isQuarantinableCandleIssueCode(issue.code))
+  .map((issue) => issue.openTime)
+  .filter((openTime): openTime is string => Boolean(openTime)) ?? []);
+
 watch(
   () => [props.exchange, props.symbol, props.interval],
   () => void loadScan(),
@@ -128,8 +152,10 @@ async function loadScan(options: { clearRepairResult?: boolean } = {}) {
   loading.value = true;
   error.value = "";
   repairError.value = false;
+  quarantineError.value = false;
   if (options.clearRepairResult ?? true) {
     repairResult.value = null;
+    quarantineNotice.value = "";
   }
   scan.value = null;
   try {
@@ -166,6 +192,31 @@ async function repairReturnedIssues() {
     repairError.value = true;
   } finally {
     repairing.value = false;
+  }
+}
+
+async function quarantineReturnedIssues() {
+  if (quarantinableOpenTimes.value.length === 0) return;
+  quarantining.value = true;
+  quarantineError.value = false;
+  quarantineNotice.value = "";
+  try {
+    const result = await dataApi.quarantineMarketCandleInvalidIssues({
+      exchange: props.exchange,
+      interval: props.interval,
+      openTimes: quarantinableOpenTimes.value,
+      symbol: props.symbol,
+    });
+    quarantineNotice.value = t("research.marketInvalidQuarantineSucceeded", {
+      count: result.quarantined.length,
+      skipped: result.skippedNonQuarantinable,
+    });
+    emit("quarantined");
+    await loadScan({ clearRepairResult: false });
+  } catch {
+    quarantineError.value = true;
+  } finally {
+    quarantining.value = false;
   }
 }
 

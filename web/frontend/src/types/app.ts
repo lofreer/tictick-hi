@@ -24,6 +24,7 @@ import type {
   LoginRequest as APILoginRequest,
   MarketCandleGapScan as APIMarketCandleGapScan,
   MarketCandleInvalidIssueScan as APIMarketCandleInvalidIssueScan,
+  MarketCandleQuarantineResult as APIMarketCandleQuarantineResult,
   MarketInstrument as APIMarketInstrument,
   MarketInstrumentSyncStatus as APIMarketInstrumentSyncStatus,
   Notification as APINotification,
@@ -37,6 +38,7 @@ import type {
   RepairMarketCandleGapRequest as APIRepairMarketCandleGapRequest,
   RepairMarketCandleGapsRequest as APIRepairMarketCandleGapsRequest,
   RepairMarketCandleInvalidIssuesRequest as APIRepairMarketCandleInvalidIssuesRequest,
+  QuarantineMarketCandleInvalidIssuesRequest as APIQuarantineMarketCandleInvalidIssuesRequest,
   ServiceHealth as APIServiceHealth,
   StrategyDefinition as APIStrategyDefinition,
   StrategyIntent as APIStrategyIntent,
@@ -70,6 +72,10 @@ export type RepairMarketCandleGapRequest = APIRepairMarketCandleGapRequest;
 export type RepairMarketCandleGapsRequest = APIRepairMarketCandleGapsRequest;
 
 export type RepairMarketCandleInvalidIssuesRequest = APIRepairMarketCandleInvalidIssuesRequest;
+
+export type QuarantineMarketCandleInvalidIssuesRequest = APIQuarantineMarketCandleInvalidIssuesRequest;
+
+export type MarketCandleQuarantineResult = APIMarketCandleQuarantineResult;
 
 export type ChartCandle = {
   time: number;

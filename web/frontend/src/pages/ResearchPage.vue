@@ -131,7 +131,7 @@
                 {{ gapCountLabel }}
               </NTag>
               <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />
-              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />
+              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" @quarantined="refreshAfterMarketCandleQuarantine" />
               <NTag v-if="coverageVisible" :bordered="false" size="small" :type="coverageTagType">
                 {{ coverageLabel }}
               </NTag>
@@ -381,6 +381,8 @@ function startRepairPollingForResult(result: DataSyncGapRepairResult, options: {
   });
 }
 
+async function refreshAfterMarketCandleQuarantine() { await Promise.all([loadTasks(), loadCandles()]); }
+
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));
 const firstCandleIssue = computed<CandleIssue | null>(() => candleResult.value?.issues[0] ?? null);
@@ -445,5 +447,4 @@ function invalidIssueLabel(issue: CandleIssue | null) {
 function formatWindowTime(value: string) {
   return value.replace("T", " ").replace(/(?:\.\d+)?Z$/, " UTC");
 }
-
 </script>

@@ -9630,6 +9630,78 @@ Definition of Done：
 - HTTP handler 为了校验任务单缺口 repair 的 interval 会读取当前任务列表；后续如果补 `GetDataSyncTask` repository 方法，可以进一步收敛该路径。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 Definition of Done：研究核心
+
+目标等级：usable。
+
+范围内：
+
+- CandleProvider 统一提供 native / aggregated K 线，返回 source、health、coverage、window、pagination、gap 和 invalid issue metadata。
+- 数据同步任务能持久化 1m 原始 K 线，按闭合且连续的 `open_time` 推进游标，重启后可恢复。
+- 内部周期聚合只基于健康、闭合、连续的 1m 基础 K 线；缺口、错位时间和异常 OHLCV 不能进入策略、回测或交易 runner 的输入。
+- 研究页能创建/管理数据同步任务，展示 K 线、数据健康、缺口、异常、数据来源和补同步/隔离动作结果。
+- 缺口修复和可修复异常走 data sync repair task；不可用普通补同步表达的 `invalid_open_time` 必须可观察并可隔离，不能被伪装成普通 repair。
+
+范围外：
+
+- 策略沉淀、回测可信撮合、模拟盘和实盘安全边界不在阶段 1 内升级。
+- 聚合 K 线持久化缓存、tick 数据、长期生产数据分布压测和跨实例共享交易所额度不在阶段 1 内关闭。
+
+质量门禁：
+
+- `go test ./...`
+- `go vet ./...`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `pnpm --dir web/frontend run build`
+- `scripts/quality-gate.sh`
+- 阶段 1 重型 smoke 按子能力启用：data sync restart、external recovery、real public exchange、CandleProvider perf。
+
+当前判定：
+
+- 阶段 1 尚未达到 usable；数据同步 worker、CandleProvider 和研究页多个子能力已有 demo 证据，但仍缺长期 soak、冷缓存、真实生产数据分布压测、完整自动收敛和更强操作语义。
+- 项目整体仍为 `scaffold`。
+
+### 阶段 1 invalid_open_time 隔离入口补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增 `market_candle_quarantines` 归档表，保存被隔离 K 线的原始 OHLCV、时间、原因、消息和隔离时间。
+- 新增 `POST /api/market/candle-invalid-issues/quarantine`，只允许隔离后端重新判定为 `invalid_open_time` 的持久化 K 线。
+- 隔离在同一事务内先归档原始行，再从 `market_candles` active 集合删除；其它异常类型会被跳过，不会被该接口删除。
+- 研究页全历史异常详情中，`invalid_open_time` 不显示普通补同步 repair，而显示“隔离错位 K 线”；隔离成功后刷新全历史异常扫描、任务列表和当前 K 线窗口。
+- 为新增前端 API route 同步 OpenAPI contract 和生成的 TypeScript DTO。
+- 为避免阶段 0 文件规模回退，`internal/data/model.go` 中的 `Repository` 接口拆到 `internal/data/repository.go`。
+
+范围外：
+
+- 不自动隔离所有历史错位 K 线。
+- 不为任务窗口异常弹窗单独增加隔离入口。
+- 不改变交易所拉取、补同步调度、CandleProvider 聚合算法、回测/交易 runner 或实盘能力。
+
+当前验证：
+
+- `go test ./internal/web/api ./internal/store/postgres` 通过。
+- `pnpm --dir web/frontend exec vitest run src/components/research/MarketCandleInvalidIssueTag.test.ts src/pages/ResearchPage.layout.test.ts src/services/api/data.test.ts` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 当前隔离入口需要用户在研究页手动触发，不能证明历史错位数据已被自动清理。
+- 被隔离后形成的真实缺口仍需要用户或后续流程通过缺口 repair 排补同步任务。
+- 该能力只关闭 `invalid_open_time` 的可审计隔离入口，不代表阶段 1 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -24,6 +24,8 @@ func (server *Server) handleMarket(w http.ResponseWriter, r *http.Request) {
 		server.repairMarketCandleGaps(w, r)
 	case "/api/market/candle-invalid-issues/repair":
 		server.repairMarketCandleInvalidIssues(w, r)
+	case "/api/market/candle-invalid-issues/quarantine":
+		server.quarantineMarketCandleInvalidIssues(w, r)
 	case "/api/market/instruments":
 		server.handleMarketInstruments(w, r)
 	case "/api/market/instruments/status":

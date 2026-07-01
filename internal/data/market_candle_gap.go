@@ -64,3 +64,28 @@ type RepairMarketCandleInvalidIssuesRequest struct {
 	Interval  string      `json:"interval"`
 	OpenTimes []time.Time `json:"openTimes"`
 }
+
+type QuarantineMarketCandleInvalidIssuesRequest struct {
+	Exchange  string      `json:"exchange"`
+	Symbol    string      `json:"symbol"`
+	Interval  string      `json:"interval"`
+	OpenTimes []time.Time `json:"openTimes"`
+}
+
+type MarketCandleQuarantineRecord struct {
+	Exchange      string    `json:"exchange"`
+	Symbol        string    `json:"symbol"`
+	Interval      string    `json:"interval"`
+	OpenTime      time.Time `json:"openTime"`
+	CloseTime     time.Time `json:"closeTime"`
+	Reason        string    `json:"reason"`
+	Message       string    `json:"message"`
+	QuarantinedAt time.Time `json:"quarantinedAt"`
+}
+
+type MarketCandleQuarantineResult struct {
+	Quarantined             []MarketCandleQuarantineRecord `json:"quarantined"`
+	SkippedNonQuarantinable int                            `json:"skippedNonQuarantinable"`
+	TotalCount              int                            `json:"totalCount"`
+	QuarantineLimit         int                            `json:"quarantineLimit"`
+}

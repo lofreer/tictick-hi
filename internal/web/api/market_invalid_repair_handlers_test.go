@@ -113,3 +113,99 @@ func TestMarketCandleInvalidIssueRepairRouteRequiresActiveMarketInstrument(t *te
 		t.Fatalf("repair created tasks for missing market: %#v", repository.tasks)
 	}
 }
+
+func TestMarketCandleInvalidIssueQuarantineRouteArchivesOpenTimeIssues(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+	misaligned := start.Add(90 * time.Second)
+	repository.candles = append(repository.candles,
+		data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: start, CloseTime: start.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		},
+		data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: misaligned, CloseTime: misaligned.Add(time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		},
+		data.Candle{
+			Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+			OpenTime: start.Add(2 * time.Minute), CloseTime: start.Add(3 * time.Minute),
+			Open: "100", High: "101", Low: "99", Close: "100", Volume: "1",
+			IsClosed: true,
+		},
+	)
+	body := `{"exchange":"binance","symbol":"btcusdt","interval":"1m","openTimes":["2026-06-27T10:01:30Z"]}`
+
+	missingCSRF := serveAuthenticatedWithoutCSRF(server, auth, http.MethodPost, "/api/market/candle-invalid-issues/quarantine", body)
+	if missingCSRF.Code != http.StatusForbidden {
+		t.Fatalf("missing csrf status = %d body = %s", missingCSRF.Code, missingCSRF.Body.String())
+	}
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/candle-invalid-issues/quarantine", body)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("quarantine status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var result data.MarketCandleQuarantineResult
+	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.TotalCount != 1 || result.QuarantineLimit != data.MaxMarketCandleInvalidIssueScanLimit ||
+		result.SkippedNonQuarantinable != 0 || len(result.Quarantined) != 1 {
+		t.Fatalf("unexpected quarantine result: %#v", result)
+	}
+	if result.Quarantined[0].Reason != data.CandleIssueInvalidOpenTime ||
+		!result.Quarantined[0].OpenTime.Equal(misaligned) {
+		t.Fatalf("unexpected quarantine record: %#v", result.Quarantined[0])
+	}
+	if len(repository.tasks) != 0 {
+		t.Fatalf("quarantine should not create repair tasks: %#v", repository.tasks)
+	}
+
+	scanRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/market/candle-invalid-issues?exchange=binance&symbol=BTCUSDT&interval=1m", "")
+	if scanRecorder.Code != http.StatusOK {
+		t.Fatalf("scan status = %d body = %s", scanRecorder.Code, scanRecorder.Body.String())
+	}
+	var scan data.MarketCandleInvalidIssueScan
+	if err := json.NewDecoder(scanRecorder.Body).Decode(&scan); err != nil {
+		t.Fatal(err)
+	}
+	if scan.TotalCount != 0 || len(scan.Issues) != 0 {
+		t.Fatalf("scan after quarantine = %#v, want no invalid issues", scan)
+	}
+}
+
+func TestMarketCandleInvalidIssueQuarantineRouteSkipsNonOpenTimeIssues(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	start := time.Date(2026, 6, 27, 10, 10, 0, 0, time.UTC)
+	repository.candles = append(repository.candles, data.Candle{
+		Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m",
+		OpenTime: start, CloseTime: start.Add(time.Minute),
+		Open: "0", High: "101", Low: "99", Close: "100", Volume: "1",
+		IsClosed: true,
+	})
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/market/candle-invalid-issues/quarantine",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m","openTimes":["2026-06-27T10:10:00Z"]}`,
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("quarantine status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var result data.MarketCandleQuarantineResult
+	if err := json.NewDecoder(recorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.TotalCount != 1 || result.SkippedNonQuarantinable != 1 || len(result.Quarantined) != 0 {
+		t.Fatalf("unexpected non-open-time quarantine result: %#v", result)
+	}
+	if len(repository.candles) != 1 {
+		t.Fatalf("non-open-time quarantine removed candles: %#v", repository.candles)
+	}
+}

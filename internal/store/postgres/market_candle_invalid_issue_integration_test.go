@@ -282,3 +282,85 @@ func TestIntegrationRepairMarketCandleInvalidIssueConvergesFullHistoryScan(t *te
 		t.Fatalf("invalid scan after repair result = %#v, want healthy history", after)
 	}
 }
+
+func TestIntegrationQuarantineMarketCandleInvalidOpenTimeIssues(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 9, 15, 0, 0, time.UTC)
+	misaligned := start.Add(90 * time.Second)
+	symbol := integrationSymbol("MCIQ")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candle_quarantines WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 0))
+	insertLegacyInvalidOpenTimeCandle(t, ctx, store, symbol, misaligned)
+	insertIntegrationCandle(t, ctx, store, integrationGapScanCandle(symbol, start, 2))
+
+	result, err := store.QuarantineMarketCandleInvalidIssues(ctx, data.QuarantineMarketCandleInvalidIssuesRequest{
+		Exchange:  "binance",
+		Symbol:    symbol,
+		Interval:  "1m",
+		OpenTimes: []time.Time{misaligned},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.TotalCount != 1 || result.SkippedNonQuarantinable != 0 || len(result.Quarantined) != 1 {
+		t.Fatalf("unexpected quarantine result: %#v", result)
+	}
+	if result.Quarantined[0].Reason != data.CandleIssueInvalidOpenTime ||
+		!result.Quarantined[0].OpenTime.Equal(misaligned) {
+		t.Fatalf("unexpected quarantine record: %#v", result.Quarantined[0])
+	}
+
+	var activeCount int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		  FROM market_candles
+		 WHERE exchange = 'binance'
+		   AND symbol = $1
+		   AND interval = '1m'
+		   AND open_time = $2`,
+		symbol,
+		misaligned,
+	).Scan(&activeCount); err != nil {
+		t.Fatal(err)
+	}
+	if activeCount != 0 {
+		t.Fatalf("active misaligned candle count = %d, want 0", activeCount)
+	}
+
+	var archivedReason string
+	if err := store.pool.QueryRow(ctx, `
+		SELECT reason
+		  FROM market_candle_quarantines
+		 WHERE exchange = 'binance'
+		   AND symbol = $1
+		   AND interval = '1m'
+		   AND open_time = $2`,
+		symbol,
+		misaligned,
+	).Scan(&archivedReason); err != nil {
+		t.Fatal(err)
+	}
+	if archivedReason != data.CandleIssueInvalidOpenTime {
+		t.Fatalf("archived reason = %q, want invalid open time", archivedReason)
+	}
+
+	scan, err := store.ScanMarketCandleInvalidIssues(ctx, data.MarketCandleInvalidIssueScanQuery{
+		Exchange: "binance",
+		Symbol:   symbol,
+		Interval: "1m",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scan.TotalCount != 0 || len(scan.Issues) != 0 {
+		t.Fatalf("invalid scan after quarantine = %#v, want no active invalid issues", scan)
+	}
+}

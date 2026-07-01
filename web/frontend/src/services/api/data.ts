@@ -14,6 +14,8 @@ import type {
   DataSyncTask,
   MarketCandleGapScan,
   MarketCandleInvalidIssueScan,
+  MarketCandleQuarantineResult,
+  QuarantineMarketCandleInvalidIssuesRequest,
   RepairDataSyncInvalidIssuesRequest,
   RepairDataSyncTaskGapRequest,
   RepairMarketCandleGapRequest,
@@ -165,6 +167,12 @@ export const dataApi = {
   async repairMarketCandleInvalidIssues(request: RepairMarketCandleInvalidIssuesRequest): Promise<DataSyncGapRepairResult> {
     const response = await apiClient.post<DataSyncGapRepairResult>("/market/candle-invalid-issues/repair", request);
     return normalizeGapRepairResult(response);
+  },
+
+  async quarantineMarketCandleInvalidIssues(
+    request: QuarantineMarketCandleInvalidIssuesRequest,
+  ): Promise<MarketCandleQuarantineResult> {
+    return apiClient.post<MarketCandleQuarantineResult>("/market/candle-invalid-issues/quarantine", request);
   },
 
   async listCandles(query: CandleQuery) {

@@ -9,6 +9,7 @@ import { dataApi } from "@/services/api/data";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const dataApiMocks = vi.hoisted(() => ({
+  quarantineMarketCandleInvalidIssues: vi.fn(),
   repairMarketCandleInvalidIssues: vi.fn(),
   scanMarketCandleInvalidIssues: vi.fn(),
 }));
@@ -57,6 +58,23 @@ describe("MarketCandleInvalidIssueTag", () => {
       limited: false,
       totalCount: 2,
       repairLimit: 100,
+    });
+    dataApiMocks.quarantineMarketCandleInvalidIssues.mockResolvedValue({
+      quarantined: [
+        {
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          openTime: "2026-06-27T03:01:30Z",
+          closeTime: "2026-06-27T03:02:30Z",
+          reason: "invalid_open_time",
+          message: "open time is not aligned to interval",
+          quarantinedAt: "2026-06-27T03:03:00Z",
+        },
+      ],
+      skippedNonQuarantinable: 0,
+      totalCount: 1,
+      quarantineLimit: 100,
     });
   });
 
@@ -120,23 +138,34 @@ describe("MarketCandleInvalidIssueTag", () => {
     expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
   });
 
-  it("does not expose normal repair action for invalid open-time full-history issues", async () => {
-    dataApiMocks.scanMarketCandleInvalidIssues.mockResolvedValueOnce({
-      exchange: "binance",
-      symbol: "BTCUSDT",
-      interval: "1m",
-      window: { count: 4 },
-      issues: [
-        {
-          code: "invalid_open_time",
-          message: "open time is not aligned to interval",
-          openTime: "2026-06-27T03:01:30Z",
-        },
-      ],
-      limited: false,
-      totalCount: 1,
-      returnedCount: 1,
-    });
+  it("quarantines invalid open-time full-history issues without exposing normal repair", async () => {
+    dataApiMocks.scanMarketCandleInvalidIssues
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        issues: [
+          {
+            code: "invalid_open_time",
+            message: "open time is not aligned to interval",
+            openTime: "2026-06-27T03:01:30Z",
+          },
+        ],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+      })
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 3 },
+        issues: [],
+        limited: false,
+        totalCount: 0,
+        returnedCount: 0,
+      });
     const wrapper = mountTag();
     await flushPromises();
 
@@ -145,7 +174,23 @@ describe("MarketCandleInvalidIssueTag", () => {
 
     expect(document.body.textContent).toContain("K 线开盘时间未对齐周期");
     expect(document.body.textContent).not.toContain("排队补同步当前异常");
+    expect(document.body.textContent).toContain("隔离错位 K 线");
+    const quarantineButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("隔离错位 K 线"));
+    expect(quarantineButton).toBeTruthy();
+    quarantineButton?.click();
+    await flushPromises();
+
     expect(dataApi.repairMarketCandleInvalidIssues).not.toHaveBeenCalled();
+    expect(dataApi.quarantineMarketCandleInvalidIssues).toHaveBeenCalledWith({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      openTimes: ["2026-06-27T03:01:30Z"],
+    });
+    expect(document.body.textContent).toContain("已隔离 1 根错位 K 线，跳过 0 根其它异常。");
+    expect(document.body.textContent).toContain("当前数据源全历史未检测到异常 K 线。");
+    expect(wrapper.findComponent(MarketCandleInvalidIssueTag).emitted("quarantined")).toHaveLength(1);
   });
 
   it("keeps the repair result visible while showing the refreshed healthy scan", async () => {

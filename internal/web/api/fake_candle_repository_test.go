@@ -280,10 +280,20 @@ func (repository *fakeRepository) RepairMarketCandleInvalidIssues(
 	}
 	source := data.DataSyncTask{Exchange: request.Exchange, Symbol: request.Symbol, Interval: request.Interval}
 	for _, openTime := range request.OpenTimes {
-		window, ok := repository.fakeMarketCandleInvalidIssueWindow(request, openTime.UTC(), duration)
+		index, issue, ok := repository.fakeMarketCandleInvalidIssueIndex(data.QuarantineMarketCandleInvalidIssuesRequest{
+			Exchange: request.Exchange,
+			Symbol:   request.Symbol,
+			Interval: request.Interval,
+		}, openTime.UTC())
 		if !ok {
 			return data.DataSyncGapRepairResult{}, data.ErrNotFound
 		}
+		if !data.IsRepairableCandleIssueCode(issue.Code) {
+			continue
+		}
+		candle := repository.candles[index]
+		from := candle.OpenTime.UTC()
+		window := data.CandleGap{From: from, To: from.Add(duration), MissingCandles: 1}
 		if repository.fakeRepairTaskExists(source, window) {
 			result.SkippedExisting += 1
 			continue
@@ -307,6 +317,41 @@ func (repository *fakeRepository) RepairMarketCandleInvalidIssues(
 		}
 		repository.tasks = append(repository.tasks, repairTask)
 		result.CreatedTasks = append(result.CreatedTasks, repairTask)
+	}
+	return result, nil
+}
+
+func (repository *fakeRepository) QuarantineMarketCandleInvalidIssues(
+	_ context.Context,
+	request data.QuarantineMarketCandleInvalidIssuesRequest,
+) (data.MarketCandleQuarantineResult, error) {
+	result := data.MarketCandleQuarantineResult{
+		Quarantined:     []data.MarketCandleQuarantineRecord{},
+		TotalCount:      len(request.OpenTimes),
+		QuarantineLimit: data.MaxMarketCandleInvalidIssueScanLimit,
+	}
+	for _, openTime := range request.OpenTimes {
+		index, issue, ok := repository.fakeMarketCandleInvalidIssueIndex(request, openTime.UTC())
+		if !ok {
+			return data.MarketCandleQuarantineResult{}, data.ErrNotFound
+		}
+		if issue.Code != data.CandleIssueInvalidOpenTime {
+			result.SkippedNonQuarantinable++
+			continue
+		}
+		candle := repository.candles[index]
+		now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		result.Quarantined = append(result.Quarantined, data.MarketCandleQuarantineRecord{
+			Exchange:      candle.Exchange,
+			Symbol:        candle.Symbol,
+			Interval:      candle.Interval,
+			OpenTime:      candle.OpenTime,
+			CloseTime:     candle.CloseTime,
+			Reason:        issue.Code,
+			Message:       issue.Message,
+			QuarantinedAt: now,
+		})
+		repository.candles = append(repository.candles[:index], repository.candles[index+1:]...)
 	}
 	return result, nil
 }
@@ -340,15 +385,35 @@ func (repository *fakeRepository) fakeMarketCandleInvalidIssueWindow(
 	openTime time.Time,
 	duration time.Duration,
 ) (data.CandleGap, bool) {
-	for _, candle := range repository.candles {
-		if candle.Exchange != request.Exchange || candle.Symbol != request.Symbol || candle.Interval != request.Interval {
-			continue
-		}
-		if !candle.OpenTime.Equal(openTime) || data.DetectCandleIssue(candle) == nil {
-			continue
-		}
+	index, issue, ok := repository.fakeMarketCandleInvalidIssueIndex(data.QuarantineMarketCandleInvalidIssuesRequest{
+		Exchange: request.Exchange,
+		Symbol:   request.Symbol,
+		Interval: request.Interval,
+	}, openTime)
+	if ok && data.IsRepairableCandleIssueCode(issue.Code) {
+		candle := repository.candles[index]
 		from := candle.OpenTime.UTC()
 		return data.CandleGap{From: from, To: from.Add(duration), MissingCandles: 1}, true
 	}
 	return data.CandleGap{}, false
+}
+
+func (repository *fakeRepository) fakeMarketCandleInvalidIssueIndex(
+	request data.QuarantineMarketCandleInvalidIssuesRequest,
+	openTime time.Time,
+) (int, data.CandleIssue, bool) {
+	for index, candle := range repository.candles {
+		if candle.Exchange != request.Exchange || candle.Symbol != request.Symbol || candle.Interval != request.Interval {
+			continue
+		}
+		if !candle.OpenTime.Equal(openTime) {
+			continue
+		}
+		issue := data.DetectCandleIssue(candle)
+		if issue == nil {
+			continue
+		}
+		return index, *issue, true
+	}
+	return 0, data.CandleIssue{}, false
 }

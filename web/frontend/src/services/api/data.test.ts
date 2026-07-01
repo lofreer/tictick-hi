@@ -474,4 +474,54 @@ describe("data api", () => {
     );
   });
 
+  it("quarantines persisted invalid open-time market candles", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          quarantined: [
+            {
+              exchange: "binance",
+              symbol: "BTCUSDT",
+              interval: "1m",
+              openTime: "2026-06-27T03:01:30Z",
+              closeTime: "2026-06-27T03:02:30Z",
+              reason: "invalid_open_time",
+              message: "open time is not aligned to interval",
+              quarantinedAt: "2026-06-27T03:03:00Z",
+            },
+          ],
+          skippedNonQuarantinable: 0,
+          totalCount: 1,
+          quarantineLimit: 100,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.quarantineMarketCandleInvalidIssues({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      openTimes: ["2026-06-27T03:01:30Z"],
+    })).resolves.toMatchObject({
+      quarantined: [{ reason: "invalid_open_time", openTime: "2026-06-27T03:01:30Z" }],
+      skippedNonQuarantinable: 0,
+      totalCount: 1,
+      quarantineLimit: 100,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/market/candle-invalid-issues/quarantine",
+      expect.objectContaining({
+        body: JSON.stringify({
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          openTimes: ["2026-06-27T03:01:30Z"],
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
 });
