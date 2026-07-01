@@ -15,9 +15,10 @@ const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
 const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 196);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 31);
-const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 23);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 244);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 38);
+const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 26);
+const maxAxisBandHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_BAND_HEIGHT, 136);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 10 * 60 * 1000);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
@@ -318,8 +319,8 @@ function visualSampleExpression(pageConfig) {
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
-        .filter((entry) => entry.rect.width >= 24 && entry.rect.width <= 260)
-        .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 96))
+        .filter((entry) => entry.rect.width >= 24 && entry.rect.width <= ${maxRightPriceAxisWidth})
+        .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - ${maxAxisBandHeight}))
         .sort((left, right) => right.rect.right - left.rect.right);
       return canvases[0] ?? null;
     }
@@ -334,8 +335,8 @@ function visualSampleExpression(pageConfig) {
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
-        .filter((entry) => entry.rect.height >= 16 && entry.rect.height <= 96)
-        .filter((entry) => !viewportRect || entry.rect.width >= Math.max(120, viewportRect.width - 240))
+        .filter((entry) => entry.rect.height >= 16 && entry.rect.height <= ${maxAxisBandHeight})
+        .filter((entry) => !viewportRect || entry.rect.width >= Math.max(120, viewportRect.width - ${maxRightPriceAxisWidth + 32}))
         .map((entry) => ({ entry, inkHeight: axisTextInkStats(entry.node)?.maxRunCssHeight ?? 0 }))
         .sort((left, right) => right.inkHeight - left.inkHeight || right.entry.rect.bottom - left.entry.rect.bottom);
       return canvases[0]?.entry ?? null;
@@ -355,7 +356,7 @@ function visualSampleExpression(pageConfig) {
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
         .filter((entry) => entry.rect.width >= 160)
-        .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - 120))
+        .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - ${maxAxisBandHeight}))
         .sort((left, right) => right.rect.width - left.rect.width);
       const canvas = canvases[0]?.node;
       return canvas ? readCanvas(canvas, canvases[0].index) : null;
@@ -651,7 +652,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
     );
   }
   const mainPaneShare = sample.mainPaneCanvas.rectWidth / sample.chartViewport.rectWidth;
-  const minimumMainPaneShare = viewport.width <= 760 ? 0.59 : viewport.width <= 980 ? 0.74 : 0.86;
+  const minimumMainPaneShare = viewport.width <= 760 ? 0.55 : viewport.width <= 980 ? 0.68 : 0.82;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main chart pane does not use enough of the fixed viewport: ${JSON.stringify({

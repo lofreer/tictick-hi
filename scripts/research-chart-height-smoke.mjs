@@ -15,9 +15,10 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 196);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 31);
-const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 23);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 244);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 38);
+const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 26);
+const maxAxisBandHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_BAND_HEIGHT, 136);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 128);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 5 * 60 * 1000);
 
@@ -362,12 +363,12 @@ function sampleExpression() {
       const canvases = canvasEntries.map((entry) => entry.metrics);
       const rightAxisEntry = canvasEntries
         .filter((entry) => entry.metrics.rectWidth >= 24 && entry.metrics.rectWidth <= ${maxRightPriceAxisWidth})
-        .filter((entry) => body ? entry.metrics.rectHeight >= Math.max(120, body.rectHeight - 96) : true)
+        .filter((entry) => body ? entry.metrics.rectHeight >= Math.max(120, body.rectHeight - ${maxAxisBandHeight}) : true)
         .sort((left, right) => right.metrics.right - left.metrics.right)[0] ?? null;
       const rightAxisCanvas = rightAxisEntry?.metrics ?? null;
       const mainPaneCanvases = canvases
-        .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
-        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - 96) : true);
+        .filter((canvas) => body ? canvas.rectWidth >= Math.max(120, body.rectWidth - ${maxRightPriceAxisWidth + 32}) : true)
+        .filter((canvas) => body ? canvas.rectHeight >= Math.max(120, body.rectHeight - ${maxAxisBandHeight}) : true);
       const mainPaneCanvas = mainPaneCanvases.sort((left, right) => left.left - right.left)[0] ?? null;
       const mainPaneColorStats = marketColorStats(
         canvasEntries
@@ -375,8 +376,8 @@ function sampleExpression() {
           .map((entry) => entry.canvas)
       );
       const bottomTimeAxisEntry = canvasEntries
-        .filter((entry) => entry.metrics.rectHeight >= 16 && entry.metrics.rectHeight <= 96)
-        .filter((entry) => body ? entry.metrics.rectWidth >= Math.max(120, body.rectWidth - 240) : true)
+        .filter((entry) => entry.metrics.rectHeight >= 16 && entry.metrics.rectHeight <= ${maxAxisBandHeight})
+        .filter((entry) => body ? entry.metrics.rectWidth >= Math.max(120, body.rectWidth - ${maxRightPriceAxisWidth + 32}) : true)
         .map((entry) => ({ ...entry, inkHeight: axisTextInkStats(entry.canvas)?.maxRunCssHeight ?? 0 }))
         .sort((left, right) => right.inkHeight - left.inkHeight || right.metrics.bottom - left.metrics.bottom)[0] ?? null;
       const bottomTimeAxisCanvas = bottomTimeAxisEntry?.metrics ?? null;
@@ -682,7 +683,7 @@ function assertChartLayout(label, sample) {
     );
   }
   const mainPaneShare = mainPaneCanvas.rectWidth / tv.rectWidth;
-  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.59 : sample.viewportWidth <= 980 ? 0.74 : 0.86;
+  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.55 : sample.viewportWidth <= 980 ? 0.68 : 0.82;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main pane does not use enough chart width: ${JSON.stringify({

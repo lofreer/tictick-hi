@@ -152,23 +152,23 @@ require_contains "$RESEARCH_CSS" "max-width: min(220px, 24vw);"
 require_not_contains "$RESEARCH_CSS" "--kline-chart-plot-height: clamp(720px, 78vh, 900px);"
 require_not_contains "$RESEARCH_CSS" "grid-template-columns: 100px 132px 28px 56px max-content;"
 require_not_contains "$RESEARCH_CSS" "width: 132px;"
-require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 46;"
-require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 32;"
-require_contains "$THEME_TOKENS" "desktop: 164,"
-require_contains "$THEME_TOKENS" "narrowDesktop: 156,"
-require_contains "$THEME_TOKENS" "mobile: 118,"
-require_contains "$QUALITY_AUDIT" '坐标轴字号提升为桌面/窄桌面 `46px`、移动端维持 `32px`'
-require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `196px`'
-require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度下限提升为桌面/窄桌面 `31px`、移动端维持 `23px`'
+require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 56;"
+require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 36;"
+require_contains "$THEME_TOKENS" "desktop: 208,"
+require_contains "$THEME_TOKENS" "narrowDesktop: 196,"
+require_contains "$THEME_TOKENS" "mobile: 132,"
+require_contains "$QUALITY_AUDIT" '坐标轴字号提升为桌面/窄桌面 `56px`、移动端提升为 `36px`'
+require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `244px`'
+require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度下限提升为桌面/窄桌面 `38px`、移动端提升为 `26px`'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字体统一 `14px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `84px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴超过 `84px`'
 require_contains "$CHART_VUE" "if (lastSize.width <= 480) return chartMobileAxisFontSize;"
 require_contains "$CHART_VUE" "fontSize: chartFontSize(),"
 require_contains "$CHART_VUE" "minimumWidth: rightPriceScaleMinimumWidth(),"
-require_contains "$CHART_VUE" "const minTimeAxisEdgePaddingPixels = 40;"
-require_contains "$CHART_VUE" "const maxTimeAxisEdgePaddingPixels = 56;"
-require_contains "$CHART_VUE" "const timeAxisEdgePaddingRatio = 0.018;"
+require_contains "$CHART_VUE" "const minTimeAxisEdgePaddingPixels = 128;"
+require_contains "$CHART_VUE" "const maxTimeAxisEdgePaddingPixels = 180;"
+require_contains "$CHART_VUE" "const timeAxisEdgePaddingRatio = 0.035;"
 
 require_block_contains "$CHART_CSS" ".trading-chart" "position: relative;"
 require_block_contains "$CHART_CSS" ".trading-chart" "width: 100%;"
@@ -230,7 +230,7 @@ require_contains "$CHART_SMOKE" "does not match configured fixed body inset"
 require_contains "$CHART_SMOKE" "maxRetries: 5"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_CHART_EDGE_GAP"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "maxChartEdgeGap"
-require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 196"
+require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 244"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MIN_AXIS_LABEL_INK_HEIGHT"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "right price-axis does not sit on the chart viewport edge"
