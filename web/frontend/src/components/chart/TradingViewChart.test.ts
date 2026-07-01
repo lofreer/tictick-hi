@@ -192,13 +192,13 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 12,
+          fontSize: 13,
         }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 52,
+          minimumWidth: 56,
           ticksVisible: false,
         }),
       }),
@@ -217,10 +217,10 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 12,
+          fontSize: 13,
         }),
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 50,
+          minimumWidth: 54,
         }),
       }),
     );
@@ -238,7 +238,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 52,
+          minimumWidth: 56,
         }),
       }),
     );
@@ -262,6 +262,7 @@ describe("TradingViewChart", () => {
     expect(options.localization.priceFormatter(248.5)).toBe("248.5");
     expect(options.localization.priceFormatter(99.123)).toBe("99.12");
     expect(options.localization.priceFormatter(0.012_3)).toBe("0.0123");
+    expect(chartMocks.addSeries).toHaveBeenCalledWith("CandlestickSeries", expect.objectContaining({ priceFormat: { formatter: options.localization.priceFormatter, minMove: 0.00000001, type: "custom" } }));
 
     wrapper.unmount();
     host.panel.remove();
@@ -311,7 +312,7 @@ describe("TradingViewChart", () => {
       Array.from({ length: 1000 }, (_, index) => ({ time: index + 1, open: 100, high: 110, low: 95, close: 104, volume: 1000 + index })),
     );
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 710, to: 1007 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 711, to: 1007 });
 
     wrapper.unmount();
     host.panel.remove();

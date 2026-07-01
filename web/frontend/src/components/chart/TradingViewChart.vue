@@ -38,7 +38,6 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartAxisFontSize, chartMobileAxisFontSize, chartRightPriceScaleWidth, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
-import { repairDistortedChartCanvases } from "./chartCanvasRepair";
 import { chartCandleForTime, chartReadoutFromCandle, type ChartReadout } from "./chartReadout";
 import { positiveFloor, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
 import "./TradingViewChart.css";
@@ -58,10 +57,8 @@ let series: ISeriesApi<"Candlestick"> | null = null;
 let volumeSeries: ISeriesApi<"Histogram"> | null = null;
 let markerPlugin: ISeriesMarkersPluginApi<Time> | null = null;
 let resizeObserver: ResizeObserver | null = null;
-let chartMutationObserver: MutationObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
-let canvasRepairFrame = 0;
 let lastSize = { width: 0, height: 0 };
 const fallbackSize = { width: 1, height: 640 };
 const minRenderHeight = 360;
@@ -95,6 +92,11 @@ onMounted(() => {
     borderVisible: false,
     wickUpColor: appColors.success,
     wickDownColor: appColors.danger,
+    priceFormat: {
+      type: "custom",
+      formatter: formatChartPrice,
+      minMove: 0.00000001,
+    },
   });
   volumeSeries = chart.addSeries(HistogramSeries, {
     priceFormat: { type: "volume" },
@@ -112,12 +114,6 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(handleObservedResize);
     resizeObserver.observe(observedResizeHost);
   }
-  chartMutationObserver = new MutationObserver(handleChartMutations);
-  chartMutationObserver.observe(containerRef.value, {
-    attributes: true,
-    attributeFilter: ["height", "style", "width"],
-    subtree: true,
-  });
   chart.subscribeCrosshairMove(handleCrosshairMove);
   window.addEventListener("resize", handleWindowResize);
 
@@ -130,14 +126,8 @@ onBeforeUnmount(() => {
     window.cancelAnimationFrame(resizeFrame);
     resizeFrame = 0;
   }
-  if (canvasRepairFrame > 0) {
-    window.cancelAnimationFrame(canvasRepairFrame);
-    canvasRepairFrame = 0;
-  }
   resizeObserver?.disconnect();
   resizeObserver = null;
-  chartMutationObserver?.disconnect();
-  chartMutationObserver = null;
   observedResizeHost = null;
   window.removeEventListener("resize", handleWindowResize);
   chart?.unsubscribeCrosshairMove(handleCrosshairMove);
@@ -187,7 +177,6 @@ function syncData() {
   updateLatestReadout();
   syncMarkers();
   fitChartContent(candleData.length);
-  scheduleCanvasRepair();
 }
 
 function updateLatestReadout() {
@@ -347,20 +336,9 @@ function handleWindowResize() {
   scheduleResize();
 }
 
-function handleChartMutations(mutations: MutationRecord[]) {
-  if (mutations.some((mutation) => mutation.target instanceof HTMLCanvasElement)) {
-    scheduleCanvasRepair();
-  }
-}
-
 function scheduleResize() {
   if (resizeFrame > 0) return;
   resizeFrame = window.requestAnimationFrame(resizeChart);
-}
-
-function scheduleCanvasRepair() {
-  if (canvasRepairFrame > 0) return;
-  canvasRepairFrame = window.requestAnimationFrame(repairDistortedCanvases);
 }
 
 function resizeChart() {
@@ -377,16 +355,6 @@ function resizeChart() {
   lastSize = { width: nextMeasurement.width, height: nextMeasurement.height };
   chart.applyOptions(responsiveChartOptions());
   chart.resize(nextMeasurement.width, nextMeasurement.height);
-  fitChartContent(props.data.length);
-  scheduleCanvasRepair();
-}
-
-function repairDistortedCanvases() {
-  canvasRepairFrame = 0;
-  const host = containerRef.value;
-  if (!host) return;
-  if (!repairDistortedChartCanvases(host, lastSize, window.devicePixelRatio || 1) || !chart) return;
-  chart.resize(lastSize.width, lastSize.height);
   fitChartContent(props.data.length);
 }
 

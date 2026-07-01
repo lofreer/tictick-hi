@@ -16,10 +16,10 @@ const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
 const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 72);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 7);
-const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 7);
-const maxAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_LABEL_INK_HEIGHT, 13);
-const maxMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MAX_MOBILE_AXIS_LABEL_INK_HEIGHT, 13);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 8);
+const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 8);
+const maxAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_LABEL_INK_HEIGHT, 15);
+const maxMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MAX_MOBILE_AXIS_LABEL_INK_HEIGHT, 15);
 const maxAxisBandHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_BAND_HEIGHT, 72);
 const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 48);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 5 * 60 * 1000);
@@ -551,24 +551,13 @@ async function polluteInternalChartHeights(cdp) {
     `(async () => {
       for (const selector of [
         '.research-chart-body',
-        '.tv-lightweight-charts',
-        '.tv-lightweight-charts table',
-        '.tv-lightweight-charts tbody',
-        '.tv-lightweight-charts tr',
-        '.tv-lightweight-charts td',
-        '.trading-chart__canvas canvas'
+        '.tv-lightweight-charts'
       ]) {
         for (const element of document.querySelectorAll(selector)) {
           element.style.height = '9000px';
           element.style.maxHeight = '9000px';
           element.style.blockSize = '9000px';
           element.style.maxBlockSize = '9000px';
-          if (selector === '.trading-chart__canvas canvas') {
-            element.style.width = '9000px';
-            element.style.maxWidth = '9000px';
-            element.style.inlineSize = '9000px';
-            element.style.maxInlineSize = '9000px';
-          }
         }
       }
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
