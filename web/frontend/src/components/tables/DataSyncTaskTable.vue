@@ -135,10 +135,11 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
           ? [
               iconButton(
                 Wrench,
-                t("research.repairTaskGaps"),
+                marketActionLabel(row, t("research.repairTaskGaps")),
                 () => emit("repair-gaps", row),
                 "warning",
                 props.repairingTaskId === row.id,
+                !taskMarketActive(row),
               ),
             ]
           : []),
@@ -151,7 +152,14 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
           !row.realtimeEnabled && !taskMarketActive(row),
         ),
         row.status === "failed"
-          ? iconButton(RotateCcw, t("common.retry"), () => emit("retry", row))
+          ? iconButton(
+              RotateCcw,
+              marketActionLabel(row, t("common.retry")),
+              () => emit("retry", row),
+              "default",
+              false,
+              !taskMarketActive(row),
+            )
           : iconButton(
               row.syncEnabled ? Square : RefreshCw,
               syncButtonLabel(row),
@@ -194,6 +202,10 @@ function syncButtonLabel(row: DataSyncTask) {
 
 function taskMarketActive(row: DataSyncTask) {
   return row.marketStatus === "active";
+}
+
+function marketActionLabel(row: DataSyncTask, activeLabel: string) {
+  return taskMarketActive(row) ? activeLabel : t("research.marketNotActiveAction");
 }
 
 function marketStatusLabel(row: DataSyncTask) {

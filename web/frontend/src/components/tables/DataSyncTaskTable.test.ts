@@ -167,6 +167,45 @@ describe("DataSyncTaskTable", () => {
     expect(wrapper.emitted("toggle-realtime")).toBeUndefined();
   });
 
+  it("disables retry and gap repair commands for inactive markets", async () => {
+    const inactiveGapTask = dataSyncTask({
+      id: "sync_1",
+      marketStatus: "inactive",
+      marketStatusDetail: "BREAK",
+      status: "failed",
+      syncEnabled: false,
+      realtimeEnabled: false,
+      dataHealth: "gap",
+      gapSummary: {
+        count: 1,
+        firstGap: {
+          from: "2026-06-27T03:02:00Z",
+          to: "2026-06-27T03:03:00Z",
+          missingCandles: 1,
+        },
+      },
+    });
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [inactiveGapTask],
+      },
+    });
+
+    const disabledMarketActions = wrapper.findAll('button[title="市场非 active"]');
+    expect(disabledMarketActions).toHaveLength(3);
+    for (const button of disabledMarketActions) {
+      expect(button.attributes("disabled")).toBeDefined();
+      await button.trigger("click");
+    }
+    await wrapper.get('button[title="查看缺口"]').trigger("click");
+
+    expect(wrapper.emitted("repair-gaps")).toBeUndefined();
+    expect(wrapper.emitted("retry")).toBeUndefined();
+    expect(wrapper.emitted("toggle-realtime")).toBeUndefined();
+    expect(wrapper.emitted("view-gaps")).toEqual([[inactiveGapTask]]);
+  });
+
   it("shows sync task window boundaries", () => {
     const wrapper = mount(DataSyncTaskTable, {
       global: { plugins: [i18n] },

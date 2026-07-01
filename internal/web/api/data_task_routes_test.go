@@ -456,6 +456,46 @@ func TestDataSyncTaskCommandRejectsInactiveMarketInstrument(t *testing.T) {
 	if repository.tasks[0].SyncEnabled {
 		t.Fatalf("inactive task should not be started: %#v", repository.tasks[0])
 	}
+
+	realtimeRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/dst_inactive/realtime/start",
+		"",
+	)
+	if realtimeRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("realtime status = %d body = %s", realtimeRecorder.Code, realtimeRecorder.Body.String())
+	}
+	realtimeResponse := decodeAPIError(t, realtimeRecorder)
+	if realtimeResponse.Code != "market_instrument_not_active" ||
+		realtimeResponse.Message != "market instrument is not active in catalog" {
+		t.Fatalf("unexpected realtime response: %#v", realtimeResponse)
+	}
+	if repository.tasks[0].RealtimeEnabled {
+		t.Fatalf("inactive task realtime should not be started: %#v", repository.tasks[0])
+	}
+
+	repository.tasks[0].Status = data.TaskStatusFailed
+	repository.tasks[0].LastError = "market inactive"
+	retryRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/dst_inactive/retry",
+		"",
+	)
+	if retryRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("retry status = %d body = %s", retryRecorder.Code, retryRecorder.Body.String())
+	}
+	retryResponse := decodeAPIError(t, retryRecorder)
+	if retryResponse.Code != "market_instrument_not_active" ||
+		retryResponse.Message != "market instrument is not active in catalog" {
+		t.Fatalf("unexpected retry response: %#v", retryResponse)
+	}
+	if repository.tasks[0].SyncEnabled || repository.tasks[0].Status != data.TaskStatusFailed {
+		t.Fatalf("inactive retry should not mutate task: %#v", repository.tasks[0])
+	}
 }
 
 func TestDataSyncTaskRepairRejectsInactiveMarketInstrument(t *testing.T) {
