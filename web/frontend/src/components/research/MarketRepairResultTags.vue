@@ -12,6 +12,9 @@
   <NTag v-if="result?.limited" :bordered="false" type="warning">
     {{ t("research.marketRepairResultLimited") }}
   </NTag>
+  <NTag v-if="settlementTag" :bordered="false" :type="settlementTag.type">
+    {{ t(settlementTag.key, settlementTag.values) }}
+  </NTag>
   <NTag v-for="repairTask in repairTaskWindowTags" :key="repairTask.key" :bordered="false" :title="repairTask.title" :type="repairTask.type">
     {{ repairTask.label }}
   </NTag>
@@ -34,18 +37,21 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const terminalStatuses = new Set<DataSyncTask["status"]>(["succeeded", "failed", "cancelled", "paused"]);
 
 const latestTasks = computed(() => new Map((props.tasks ?? []).map((task) => [task.id, task])));
+const repairTasks = computed(() =>
+  (props.result?.createdTasks ?? []).map((repairTask) => latestTasks.value.get(repairTask.id) ?? repairTask),
+);
 const repairTaskWindowTags = computed(() =>
-  (props.result?.createdTasks ?? []).slice(0, 3).map((repairTask) => {
-    const latestTask = latestTasks.value.get(repairTask.id) ?? repairTask;
+  repairTasks.value.slice(0, 3).map((latestTask) => {
     return {
-      key: repairTask.id,
+      key: latestTask.id,
       label: t("research.marketRepairTaskWindowStatus", {
         health: t(`research.dataHealth.${latestTask.dataHealth}`),
-        id: repairTask.id,
+        id: latestTask.id,
         status: t(`status.${latestTask.status}`),
-        window: repairTaskWindow(repairTask),
+        window: repairTaskWindow(latestTask),
       }),
       title: `${latestTask.exchange} / ${latestTask.symbol} / ${latestTask.interval} / ${t(`status.${latestTask.status}`)} / ${t(`research.dataHealth.${latestTask.dataHealth}`)}`,
       type: dataHealthTagType(latestTask.dataHealth),
@@ -55,6 +61,16 @@ const repairTaskWindowTags = computed(() =>
 const hiddenRepairTaskCount = computed(() =>
   Math.max(0, (props.result?.createdTasks.length ?? 0) - repairTaskWindowTags.value.length),
 );
+const settlementTag = computed(() => {
+  if (repairTasks.value.length === 0) return null;
+  const running = repairTasks.value.filter((task) => !terminalStatuses.has(task.status)).length;
+  if (running > 0) return { key: "research.marketRepairSettlementRunning", type: "info" as const, values: { count: running } };
+  const hasFailed = repairTasks.value.some((task) => task.status === "failed" || task.dataHealth === "failed" || task.dataHealth === "invalid");
+  if (hasFailed) return { key: "research.marketRepairSettlementFailed", type: "error" as const, values: {} };
+  const allOK = repairTasks.value.every((task) => task.status === "succeeded" && task.dataHealth === "ok");
+  if (allOK) return { key: "research.marketRepairSettlementOK", type: "success" as const, values: {} };
+  return { key: "research.marketRepairSettlementReview", type: "warning" as const, values: {} };
+});
 
 function repairTaskWindow(repairTask: DataSyncTask) {
   const from = repairTask.startTime ? formatCompactDateTime(repairTask.startTime) : "-";

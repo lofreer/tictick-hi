@@ -47,6 +47,33 @@ describe("MarketRepairResultTags", () => {
     expect(wrapper.text()).toContain("正常");
     expect(wrapper.text()).not.toContain("等待");
   });
+
+  it("summarizes repair settlement as still running", () => {
+    const wrapper = mountResultTags(repairResult([repairTask(1), repairTask(2)]), {
+      tasks: [
+        repairTask(1, { dataHealth: "ok", status: "succeeded" }),
+        repairTask(2, { dataHealth: "syncing", status: "running" }),
+      ],
+    });
+
+    expect(wrapper.text()).toContain("补同步执行中 1 个");
+  });
+
+  it("summarizes repair settlement as healthy when every repair task recovered", () => {
+    const wrapper = mountResultTags(repairResult([repairTask(1)]), {
+      tasks: [repairTask(1, { dataHealth: "ok", status: "succeeded" })],
+    });
+
+    expect(wrapper.text()).toContain("补同步窗口已恢复正常");
+  });
+
+  it("summarizes repair settlement failures and invalid data", () => {
+    const wrapper = mountResultTags(repairResult([repairTask(1)]), {
+      tasks: [repairTask(1, { dataHealth: "invalid", status: "succeeded" })],
+    });
+
+    expect(wrapper.text()).toContain("补同步已结束，仍有失败或异常");
+  });
 });
 
 function mountResultTags(result: DataSyncGapRepairResult, props: { tasks?: DataSyncTask[] } = {}) {
@@ -83,5 +110,16 @@ function repairTask(index: number, overrides: Partial<DataSyncTask> = {}): DataS
     createdAt: "2026-06-27T03:00:00Z",
     updatedAt: "2026-06-27T03:00:00Z",
     ...overrides,
+  };
+}
+
+function repairResult(createdTasks: DataSyncTask[]): DataSyncGapRepairResult {
+  return {
+    sourceTaskId: "",
+    createdTasks,
+    skippedExisting: 0,
+    limited: false,
+    totalCount: createdTasks.length,
+    repairLimit: 5,
   };
 }
