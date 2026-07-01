@@ -145,8 +145,8 @@
               >
                 {{ t("research.repairFirstGap") }}
               </NButton>
-              <MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />
-              <ChartInvalidIssueRepairAction :exchange="exchange" :interval="candleResult?.baseInterval || interval" :issue="firstCandleIssue" :load-candles="loadCandles" :load-tasks="loadTasks" :symbol="symbol" :tasks="tasks" @repaired="(result) => startRepairPollingForResult(result, { immediate: false })" />
+              <MarketRepairResultTags :candle-result="candleResult" :result="chartGapRepairResult" :tasks="tasks" />
+              <ChartInvalidIssueRepairAction :candle-result="candleResult" :exchange="exchange" :interval="candleResult?.baseInterval || interval" :issue="firstCandleIssue" :load-candles="loadCandles" :load-tasks="loadTasks" :symbol="symbol" :tasks="tasks" @repaired="(result) => startRepairPollingForResult(result, { immediate: false })" />
             </div>
           </div>
         </div>

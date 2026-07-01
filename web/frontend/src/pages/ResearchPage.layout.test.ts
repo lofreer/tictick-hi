@@ -259,7 +259,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("refreshChartCandles");
     expect(source).toContain('@click="repairFirstChartGap"');
     expect(source).toContain("startRepairPollingForResult(chartGapRepairResult.value, { immediate: false })");
-    expect(source).toContain('<MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />');
+    expect(source).toContain('<MarketRepairResultTags :candle-result="candleResult" :result="chartGapRepairResult" :tasks="tasks" />');
   });
 
   it("keeps task invalid issue details reachable from the research page", () => {
@@ -289,6 +289,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain('import ChartInvalidIssueRepairAction from "@/components/research/ChartInvalidIssueRepairAction.vue";');
     expect(source).toContain("<ChartInvalidIssueRepairAction");
     expect(source).toContain(':interval="candleResult?.baseInterval || interval"');
+    expect(source).toContain(':candle-result="candleResult"');
     expect(source).toContain(':issue="firstCandleIssue"');
     expect(source).toContain(':load-candles="loadCandles"');
     expect(source).toContain(':load-tasks="loadTasks"');
@@ -301,7 +302,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(chartInvalidIssueRepairSource).toContain('@click="repairInvalidIssue"');
     expect(chartInvalidIssueRepairSource).toContain("research.repairFirstInvalidIssue");
     expect(chartInvalidIssueRepairSource).toContain("normalizeSymbolInput(props.symbol)");
-    expect(chartInvalidIssueRepairSource).toContain('<MarketRepairResultTags :result="repairResult" :tasks="tasks" />');
+    expect(chartInvalidIssueRepairSource).toContain('<MarketRepairResultTags :candle-result="candleResult" :result="repairResult" :tasks="tasks" />');
     for (const messages of [zhResearchMessages, enResearchMessages]) {
       expect(messages).toContain('"research.repairFirstInvalidIssue"');
     }

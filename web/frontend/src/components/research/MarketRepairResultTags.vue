@@ -15,6 +15,9 @@
   <NTag v-if="settlementTag" :bordered="false" :type="settlementTag.type">
     {{ t(settlementTag.key, settlementTag.values) }}
   </NTag>
+  <NTag v-if="chartWindowTag" :bordered="false" :type="chartWindowTag.type">
+    {{ t(chartWindowTag.key, chartWindowTag.values) }}
+  </NTag>
   <NTag v-for="repairTask in repairTaskWindowTags" :key="repairTask.key" :bordered="false" :title="repairTask.title" :type="repairTask.type">
     {{ repairTask.label }}
   </NTag>
@@ -28,10 +31,11 @@ import { NTag, type TagProps } from "naive-ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
-import type { DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
+import type { CandleResult, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const props = defineProps<{
+  candleResult?: CandleResult | null;
   result: DataSyncGapRepairResult | null;
   tasks?: DataSyncTask[];
 }>();
@@ -70,6 +74,21 @@ const settlementTag = computed(() => {
   const allOK = repairTasks.value.every((task) => task.status === "succeeded" && task.dataHealth === "ok");
   if (allOK) return { key: "research.marketRepairSettlementOK", type: "success" as const, values: {} };
   return { key: "research.marketRepairSettlementReview", type: "warning" as const, values: {} };
+});
+const chartWindowTag = computed(() => {
+  if (!props.result || !props.candleResult) return null;
+  if (props.candleResult.health === "ok") return { key: "research.marketRepairChartWindowOK", type: "success" as const, values: {} };
+  if (props.candleResult.health === "gap") {
+    return { key: "research.marketRepairChartWindowGap", type: "warning" as const, values: { count: props.candleResult.gaps.length } };
+  }
+  if (props.candleResult.health === "invalid") {
+    return { key: "research.marketRepairChartWindowInvalid", type: "error" as const, values: { count: props.candleResult.issues.length } };
+  }
+  return {
+    key: "research.marketRepairChartWindowReview",
+    type: dataHealthTagType(props.candleResult.health),
+    values: { health: t(`research.dataHealth.${props.candleResult.health}`) },
+  };
 });
 
 function repairTaskWindow(repairTask: DataSyncTask) {

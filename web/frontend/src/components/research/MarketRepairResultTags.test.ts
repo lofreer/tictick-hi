@@ -5,7 +5,7 @@ import { defineComponent } from "vue";
 
 import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";
 import { i18n } from "@/i18n";
-import type { DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
+import type { CandleResult, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
 
 describe("MarketRepairResultTags", () => {
   it("renders repair summary, limited marker, three task windows and hidden count", () => {
@@ -74,15 +74,23 @@ describe("MarketRepairResultTags", () => {
 
     expect(wrapper.text()).toContain("补同步已结束，仍有失败或异常");
   });
+
+  it("shows the current chart window health when provided", () => {
+    const result = repairResult([repairTask(1)]);
+
+    expect(mountResultTags(result, { candleResult: candleResult({ health: "ok" }) }).text()).toContain("当前图表窗口已正常");
+    expect(mountResultTags(result, { candleResult: candleResult({ gaps: [{ from: "2026-06-27T03:00:00Z", to: "2026-06-27T03:02:00Z", missingCandles: 1 }], health: "gap" }) }).text()).toContain("当前图表窗口仍有缺口 1 处");
+    expect(mountResultTags(result, { candleResult: candleResult({ health: "invalid", issues: [{ code: "invalid_close_price", message: "invalid close" }] }) }).text()).toContain("当前图表窗口仍有异常 1 处");
+  });
 });
 
-function mountResultTags(result: DataSyncGapRepairResult, props: { tasks?: DataSyncTask[] } = {}) {
+function mountResultTags(result: DataSyncGapRepairResult, props: { candleResult?: CandleResult; tasks?: DataSyncTask[] } = {}) {
   const wrapper = defineComponent({
     components: { MarketRepairResultTags, NConfigProvider },
-    setup: () => ({ result, tasks: props.tasks }),
+    setup: () => ({ candleResult: props.candleResult, result, tasks: props.tasks }),
     template: `
       <NConfigProvider>
-        <MarketRepairResultTags :result="result" :tasks="tasks" />
+        <MarketRepairResultTags :candle-result="candleResult" :result="result" :tasks="tasks" />
       </NConfigProvider>
     `,
   });
@@ -121,5 +129,21 @@ function repairResult(createdTasks: DataSyncTask[]): DataSyncGapRepairResult {
     limited: false,
     totalCount: createdTasks.length,
     repairLimit: 5,
+  };
+}
+
+function candleResult(overrides: Partial<CandleResult>): CandleResult {
+  return {
+    candles: [],
+    source: "native",
+    requestedInterval: "1m",
+    baseInterval: "1m",
+    health: "ok",
+    gaps: [],
+    issues: [],
+    coverage: { limitedByBaseWindow: false, requestedLimit: 1000, returnedCandles: 0 },
+    window: { count: 0 },
+    pagination: { hasNext: false, hasPrevious: false },
+    ...overrides,
   };
 }

@@ -9,7 +9,7 @@
   >
     {{ t("research.repairFirstInvalidIssue") }}
   </NButton>
-  <MarketRepairResultTags :result="repairResult" :tasks="tasks" />
+  <MarketRepairResultTags :candle-result="candleResult" :result="repairResult" :tasks="tasks" />
 </template>
 
 <script setup lang="ts">
@@ -19,11 +19,12 @@ import { useI18n } from "vue-i18n";
 
 import { repairChartInvalidIssue } from "@/composables/researchInvalidIssueRepairActions";
 import { errorMessage } from "@/composables/researchWorkspaceHelpers";
-import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
+import type { CandleIssue, CandleResult, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
 import { normalizeSymbolInput } from "@/utils/marketSymbols";
 import MarketRepairResultTags from "./MarketRepairResultTags.vue";
 
 const props = defineProps<{
+  candleResult: CandleResult | null;
   exchange: string;
   interval: string;
   issue: CandleIssue | null;
