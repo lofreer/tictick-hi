@@ -118,6 +118,8 @@ export const zhCNResearchMessages: Record<string, string> = {
     "research.refreshChart": "刷新图表",
     "research.refreshInstruments": "刷新交易对",
     "research.coverageLimited": "窗口受限 {returned}/{requested}",
+    "research.coverageSummary": "K 线 {returned}/{requested}",
+    "research.baseCoverage": "基础 {returned}/{required}",
     "research.candleWindow": "窗口 {from} - {to} / {count} 根",
     "research.previousWindow": "上一窗口",
     "research.nextWindow": "下一窗口",

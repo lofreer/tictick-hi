@@ -132,7 +132,7 @@
               </NTag>
               <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />
               <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />
-              <NTag v-if="coverageLimited" :bordered="false" size="small" type="warning">
+              <NTag v-if="coverageVisible" :bordered="false" size="small" :type="coverageTagType">
                 {{ coverageLabel }}
               </NTag>
               <NButton
@@ -271,6 +271,7 @@ import DataSyncTaskTable from "@/components/tables/DataSyncTaskTable.vue";
 import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
+import { candleCoverageLabel, candleCoverageTagType, shouldShowCandleCoverage } from "./researchCandleCoverage";
 import "./ResearchPage.css";
 import "./klineChartLayout.css";
 
@@ -390,13 +391,9 @@ const candleIssueLabel = computed(() =>
 );
 const baseIntervalText = computed(() => candleResult.value?.baseInterval ?? "-");
 const gapCountLabel = computed(() => t("research.gapCount", { count: candleResult.value?.gaps.length ?? 0 }));
-const coverageLimited = computed(() => candleResult.value?.coverage.limitedByBaseWindow ?? false);
-const coverageLabel = computed(() =>
-  t("research.coverageLimited", {
-    requested: candleResult.value?.coverage.requestedLimit ?? 0,
-    returned: candleResult.value?.coverage.returnedCandles ?? 0,
-  }),
-);
+const coverageVisible = computed(() => shouldShowCandleCoverage(candleResult.value));
+const coverageTagType = computed<TagProps["type"]>(() => candleCoverageTagType(candleResult.value));
+const coverageLabel = computed(() => candleCoverageLabel(candleResult.value, t));
 const windowLabel = computed(() => {
   const window = candleResult.value?.window;
   if (!window?.from || !window.to || window.count === 0) return "";

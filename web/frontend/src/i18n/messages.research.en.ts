@@ -118,6 +118,8 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.refreshChart": "Refresh chart",
     "research.refreshInstruments": "Refresh instruments",
     "research.coverageLimited": "Window {returned}/{requested}",
+    "research.coverageSummary": "Candles {returned}/{requested}",
+    "research.baseCoverage": "Base {returned}/{required}",
     "research.candleWindow": "Window {from} - {to} / {count} candles",
     "research.previousWindow": "Previous window",
     "research.nextWindow": "Next window",

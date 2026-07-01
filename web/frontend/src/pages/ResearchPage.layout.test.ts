@@ -206,6 +206,15 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("formatWindowTime");
   });
 
+  it("shows candle coverage when non-ok metadata is returned", () => {
+    expect(source).toContain("candleCoverageLabel");
+    expect(source).toContain("candleCoverageTagType");
+    expect(source).toContain("shouldShowCandleCoverage");
+    expect(source).toContain("coverageVisible");
+    expect(source).toContain("coverageTagType");
+    expect(source).not.toContain('v-if="coverageLimited"');
+  });
+
   it("passes candle gap markers into the chart renderer", () => {
     expect(source).toContain("chartMarkers");
     expect(source).toContain(':markers="chartMarkers"');
