@@ -15,11 +15,11 @@ const sampleIntervalMs = parsePositiveInt(process.env.SMOKE_INTERVAL_MS, 250);
 const settleMs = parsePositiveInt(process.env.SMOKE_SETTLE_MS, 2000);
 const heightTolerance = parsePositiveInt(process.env.SMOKE_HEIGHT_TOLERANCE, 1);
 const maxViewportInset = parsePositiveInt(process.env.SMOKE_MAX_VIEWPORT_INSET, 2);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 244);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 38);
-const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 26);
-const maxAxisBandHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_BAND_HEIGHT, 136);
-const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 128);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 116);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 14);
+const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 12);
+const maxAxisBandHeight = parsePositiveInt(process.env.SMOKE_MAX_AXIS_BAND_HEIGHT, 72);
+const maxTimeAxisEdgeInkPixels = parsePositiveInt(process.env.SMOKE_MAX_TIME_AXIS_EDGE_INK, 48);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 5 * 60 * 1000);
 
 const viewports = [
@@ -683,7 +683,7 @@ function assertChartLayout(label, sample) {
     );
   }
   const mainPaneShare = mainPaneCanvas.rectWidth / tv.rectWidth;
-  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.55 : sample.viewportWidth <= 980 ? 0.68 : 0.82;
+  const minimumMainPaneShare = sample.viewportWidth <= 760 ? 0.7 : sample.viewportWidth <= 980 ? 0.82 : 0.9;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main pane does not use enough chart width: ${JSON.stringify({
