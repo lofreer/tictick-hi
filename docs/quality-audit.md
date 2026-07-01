@@ -9482,6 +9482,42 @@ Definition of Done：
 - 该证据只收敛用户可见状态语义，不证明 catalog 新鲜度、真实交易所业务状态分类完整性或自动恢复能力。
 - 未知状态仍原样展示；后续需要结合真实 Binance / OKX instrument 状态枚举继续细化。
 
+### 阶段 1 CandleProvider 序列异常定位补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- `validateCandleSeries` 对重复 open time 和乱序 open time 返回结构化 series issue error，保留原有错误文案，同时携带异常 K 线 `openTime`。
+- `CandleProvider` 在返回 `invalid_native_series` 或 `invalid_aggregation_base_series` 时，会把该结构化 `openTime` 写入 `CandleIssue`。
+- 聚合基础 K 线分页校验的跨页重复 / 乱序也返回结构化异常时间，避免只给出不可修复的泛化 message。
+- 后端单元测试覆盖 native 重复、native 乱序、native 数值异常、aggregation base close time 异常和 aggregation base 跨页乱序的 issue `openTime`。
+- 为保持质量门禁，CandleProvider invalid 场景测试拆到独立文件，避免 `candle_provider_test.go` 超过 700 行硬上限。
+
+范围外：
+
+- 不改变 CandleProvider 聚合算法、缺口检测、repair API、data sync worker 调度或补同步执行语义。
+- 不新增自动清洗异常 K 线能力。
+- 不推进回测可信度、交易 runner、live executor、私有交易所 API 或实盘能力。
+
+当前验证：
+
+- `go test ./internal/data` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 该补充只让已有异常修复入口能够拿到具体异常 K 线时间；是否能修复仍依赖 repair API、data sync worker 和交易所返回健康数据。
+- 当前仍缺长期冷缓存 / 真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略，以及更完整的异常数据边界。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

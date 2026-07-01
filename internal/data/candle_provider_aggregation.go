@@ -268,10 +268,10 @@ func validateAggregationBasePage(page []Candle, previousOpen *time.Time) error {
 	}
 	firstOpen := page[0].OpenTime.UTC()
 	if firstOpen.Before(*previousOpen) {
-		return fmt.Errorf("candle %s open time %s is out of order", candleIdentity(page[0]), firstOpen.Format(time.RFC3339))
+		return newCandleSeriesIssueError(page[0], fmt.Sprintf("candle %s open time %s is out of order", candleIdentity(page[0]), firstOpen.Format(time.RFC3339)))
 	}
 	if firstOpen.Equal(*previousOpen) {
-		return fmt.Errorf("candle %s has duplicate open time %s", candleIdentity(page[0]), firstOpen.Format(time.RFC3339))
+		return newCandleSeriesIssueError(page[0], fmt.Sprintf("candle %s has duplicate open time %s", candleIdentity(page[0]), firstOpen.Format(time.RFC3339)))
 	}
 	return nil
 }

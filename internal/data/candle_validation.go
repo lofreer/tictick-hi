@@ -94,15 +94,28 @@ func validateCandleSeries(candles []Candle, interval string) error {
 		}
 		if index > 0 {
 			if openTime.Before(previousOpen) {
-				return fmt.Errorf("candle %s open time %s is out of order", candleIdentity(candle), openTime.Format(time.RFC3339))
+				return newCandleSeriesIssueError(candle, fmt.Sprintf("candle %s open time %s is out of order", candleIdentity(candle), openTime.Format(time.RFC3339)))
 			}
 			if openTime.Equal(previousOpen) {
-				return fmt.Errorf("candle %s has duplicate open time %s", candleIdentity(candle), openTime.Format(time.RFC3339))
+				return newCandleSeriesIssueError(candle, fmt.Sprintf("candle %s has duplicate open time %s", candleIdentity(candle), openTime.Format(time.RFC3339)))
 			}
 		}
 		previousOpen = openTime
 	}
 	return nil
+}
+
+type candleSeriesIssueError struct {
+	message  string
+	openTime time.Time
+}
+
+func newCandleSeriesIssueError(candle Candle, message string) candleSeriesIssueError {
+	return candleSeriesIssueError{message: message, openTime: candle.OpenTime.UTC()}
+}
+
+func (err candleSeriesIssueError) Error() string {
+	return err.message
 }
 
 func validateCandleValues(candle Candle) error {

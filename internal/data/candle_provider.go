@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -242,6 +243,13 @@ func firstCandleIssue(candles []Candle, interval string, code string, err error)
 			issue.OpenTime = &openTime
 			return issue
 		}
+	}
+	var seriesErr candleSeriesIssueError
+	if errors.As(err, &seriesErr) {
+		openTime := seriesErr.openTime.UTC()
+		issue.Message = seriesErr.Error()
+		issue.OpenTime = &openTime
+		return issue
 	}
 	return issue
 }
