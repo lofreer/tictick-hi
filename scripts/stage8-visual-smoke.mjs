@@ -277,6 +277,7 @@ function visualSampleExpression(pageConfig) {
       )).slice(0, 8),
       viewportWidth: innerWidth,
       viewportHeight: innerHeight,
+      devicePixelRatio,
       documentWidth: Math.max(root.scrollWidth, body.scrollWidth, root.clientWidth, body.clientWidth),
       documentHeight: Math.max(root.scrollHeight, body.scrollHeight, root.clientHeight, body.clientHeight),
       shell: read('.app-shell'),
@@ -321,7 +322,7 @@ function visualSampleExpression(pageConfig) {
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
-        .filter((entry) => entry.rect.width >= 24 && entry.rect.width <= ${maxRightPriceAxisWidth})
+        .filter((entry) => entry.rect.width >= 24)
         .filter((entry) => !viewportRect || entry.rect.height >= Math.max(120, viewportRect.height - ${maxAxisBandHeight}))
         .sort((left, right) => right.rect.right - left.rect.right);
       return canvases[0] ?? null;
@@ -375,6 +376,10 @@ function visualSampleExpression(pageConfig) {
         scrollHeight: canvas.scrollHeight,
         rectWidth: Math.round(rect.width),
         rectHeight: Math.round(rect.height),
+        bitmapWidth: canvas.width,
+        bitmapHeight: canvas.height,
+        scaleX: canvas.width / Math.max(1, rect.width),
+        scaleY: canvas.height / Math.max(1, rect.height),
         left: Math.round(rect.left),
         right: Math.round(rect.right),
         top: Math.round(rect.top),
@@ -679,10 +684,12 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
     priceAxis: sample.priceAxisCanvas,
     chartViewport: sample.chartViewport,
   });
+  assertCanvasPixelScale(label, "right price-axis", sample.priceAxisCanvas, sample.devicePixelRatio);
   assertAxisTextInk(label, "bottom time-axis", sample.timeAxisTextInk, axisLabelInkMinimum(viewport), axisLabelInkMaximum(viewport), {
     bottomTimeAxis: sample.bottomTimeAxisCanvas,
     chartViewport: sample.chartViewport,
   });
+  assertCanvasPixelScale(label, "bottom time-axis", sample.bottomTimeAxisCanvas, sample.devicePixelRatio);
   if (sample.priceAxisCanvas.left < sample.chartViewport.left || sample.priceAxisCanvas.left > sample.chartViewport.right) {
     throw new Error(
       `${label} right price-axis is detached from the chart viewport: ${JSON.stringify({
@@ -746,6 +753,31 @@ function assertAxisTextInk(label, name, textInk, minimumInkHeight, maximumInkHei
       })}`,
     );
   }
+}
+
+function assertCanvasPixelScale(label, name, canvas, devicePixelRatio) {
+  if (!canvas) return;
+  void devicePixelRatio;
+  const minimumScale = 0.75;
+  const maximumScale = 2.25;
+  const maximumSkew = 0.2;
+  if (
+    canvas.scaleX >= minimumScale &&
+    canvas.scaleX <= maximumScale &&
+    canvas.scaleY >= minimumScale &&
+    canvas.scaleY <= maximumScale &&
+    Math.abs(canvas.scaleX - canvas.scaleY) <= maximumSkew
+  ) {
+    return;
+  }
+  throw new Error(
+    `${label} ${name} canvas CSS scale is distorted: ${JSON.stringify({
+      minimumScale,
+      maximumScale,
+      maximumSkew,
+      canvas,
+    })}`,
+  );
 }
 
 function assertChartGutters(label, sample) {

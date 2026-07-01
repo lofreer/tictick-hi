@@ -14,9 +14,9 @@ export const appColors = {
 export const chartAxisFontSize = 12;
 export const chartMobileAxisFontSize = 12;
 export const chartRightPriceScaleWidth = {
-  desktop: 64,
-  narrowDesktop: 64,
-  mobile: 60,
+  desktop: 52,
+  narrowDesktop: 52,
+  mobile: 50,
 };
 
 export const themeOverrides: GlobalThemeOverrides = {

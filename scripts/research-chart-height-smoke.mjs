@@ -73,7 +73,7 @@ async function runSmoke() {
         `panel ${result.first.panel}->${result.last.panel}`,
         `body ${result.first.body}->${result.last.body}`,
         `chart ${result.first.chart}->${result.last.chart}`,
-        `tv ${result.first.tv}->${result.last.tv}`,
+        `canvas ${result.first.canvas}->${result.last.canvas}`,
       ].join(", "),
     );
   }
@@ -353,6 +353,10 @@ function sampleExpression() {
             index,
             rectWidth: Math.round(rect.width),
             rectHeight: Math.round(rect.height),
+            bitmapWidth: canvas.width,
+            bitmapHeight: canvas.height,
+            scaleX: canvas.width / Math.max(1, rect.width),
+            scaleY: canvas.height / Math.max(1, rect.height),
             top: Math.round(rect.top),
             bottom: Math.round(rect.bottom),
             left: Math.round(rect.left),
@@ -364,7 +368,7 @@ function sampleExpression() {
       });
       const canvases = canvasEntries.map((entry) => entry.metrics);
       const rightAxisEntry = canvasEntries
-        .filter((entry) => entry.metrics.rectWidth >= 24 && entry.metrics.rectWidth <= ${maxRightPriceAxisWidth})
+        .filter((entry) => entry.metrics.rectWidth >= 24)
         .filter((entry) => body ? entry.metrics.rectHeight >= Math.max(120, body.rectHeight - ${maxAxisBandHeight}) : true)
         .sort((left, right) => right.metrics.right - left.metrics.right)[0] ?? null;
       const rightAxisCanvas = rightAxisEntry?.metrics ?? null;
@@ -386,6 +390,7 @@ function sampleExpression() {
       return {
         href: location.href,
         viewportWidth: innerWidth,
+        devicePixelRatio,
         bodyScrollWidth: document.body.scrollWidth,
         bodyScrollHeight: document.body.scrollHeight,
         docScrollWidth: document.documentElement.scrollWidth,
@@ -568,7 +573,7 @@ async function polluteInternalChartHeights(cdp) {
 function summarizeSamples(label, samples) {
   const firstSample = samples[0];
   const lastSample = samples[samples.length - 1];
-  const keys = ["doc", "panel", "body", "chart", "canvas", "tv"];
+  const keys = ["doc", "panel", "body", "chart", "canvas"];
   const values = samples.map((sample) => compactSample(sample));
   const min = {};
   const max = {};
@@ -736,6 +741,7 @@ function assertChartLayout(label, sample) {
     tv,
     rightAxisCanvas,
   });
+  assertCanvasPixelScale(label, "right price-axis", rightAxisCanvas, sample.devicePixelRatio);
   if (Math.abs(rightAxisCanvas.left - mainPaneCanvas.right) > 1) {
     throw new Error(
       `${label} main chart pane is detached from the right price-axis: ${JSON.stringify({
@@ -774,6 +780,7 @@ function assertChartLayout(label, sample) {
     tv,
     bottomTimeAxisCanvas,
   });
+  assertCanvasPixelScale(label, "bottom time-axis", bottomTimeAxisCanvas, sample.devicePixelRatio);
   if (
     !sample.bottomTimeAxisEdgeInk ||
     sample.bottomTimeAxisEdgeInk.leftDarkPixels > maxTimeAxisEdgeInkPixels ||
@@ -840,7 +847,7 @@ function assertStable(result) {
   }
 
   const viewportCap = result.lastFull.viewportHeight + heightTolerance;
-  for (const key of ["body", "chart", "canvas", "tv"]) {
+  for (const key of ["body", "chart", "canvas"]) {
     if (result.max[key] > viewportCap) {
       throw new Error(
         `${result.label} ${key} height exceeded viewport cap: ${JSON.stringify({
@@ -855,7 +862,7 @@ function assertStable(result) {
   const expectedBlockStartInset = result.lastFull.chartBlockStartGutter ?? 0;
   const expectedBlockEndInset = result.lastFull.chartBlockEndGutter ?? 0;
   const expectedChartHeight = fixedBodyHeight - expectedBlockStartInset - expectedBlockEndInset;
-  for (const key of ["chart", "canvas", "tv"]) {
+  for (const key of ["chart", "canvas"]) {
     const overflow = result.last[key] - expectedChartHeight;
     if (overflow > heightTolerance) {
       throw new Error(
@@ -915,6 +922,31 @@ function assertAxisTextInk(label, name, textInk, minimumInkHeight, maximumInkHei
       })}`,
     );
   }
+}
+
+function assertCanvasPixelScale(label, name, canvas, devicePixelRatio) {
+  if (!canvas) return;
+  void devicePixelRatio;
+  const minimumScale = 0.75;
+  const maximumScale = 2.25;
+  const maximumSkew = 0.2;
+  if (
+    canvas.scaleX >= minimumScale &&
+    canvas.scaleX <= maximumScale &&
+    canvas.scaleY >= minimumScale &&
+    canvas.scaleY <= maximumScale &&
+    Math.abs(canvas.scaleX - canvas.scaleY) <= maximumSkew
+  ) {
+    return;
+  }
+  throw new Error(
+    `${label} ${name} canvas CSS scale is distorted: ${JSON.stringify({
+      minimumScale,
+      maximumScale,
+      maximumSkew,
+      canvas,
+    })}`,
+  );
 }
 
 function assertConfiguredInset(label, name, actual, expected, context) {
