@@ -19,7 +19,7 @@ func (store *Store) ScanMarketCandleGaps(
 	}
 	limit := data.NormalizeMarketCandleGapScanLimit(query.Limit)
 
-	result, err := store.marketCandleGapScanWindow(ctx, query)
+	result, err := store.marketCandleGapScanWindow(ctx, query, intervalDuration)
 	if err != nil {
 		return data.MarketCandleGapScan{}, err
 	}
@@ -46,21 +46,25 @@ func (store *Store) ScanMarketCandleGaps(
 func (store *Store) marketCandleGapScanWindow(
 	ctx context.Context,
 	query data.MarketCandleGapScanQuery,
+	intervalDuration time.Duration,
 ) (data.MarketCandleGapScan, error) {
 	var (
 		from  sql.NullTime
 		to    sql.NullTime
 		count int
 	)
+	intervalSeconds := int64(intervalDuration / time.Second)
 	if err := store.pool.QueryRow(ctx, `
 		SELECT MIN(open_time), MAX(open_time), COUNT(*)::int
 		  FROM market_candles
 		 WHERE exchange = $1
 		   AND symbol = $2
-		   AND interval = $3`,
+		   AND interval = $3
+		   AND date_bin($4::bigint * interval '1 second', open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') = open_time`,
 		query.Exchange,
 		query.Symbol,
 		query.Interval,
+		intervalSeconds,
 	).Scan(&from, &to, &count); err != nil {
 		return data.MarketCandleGapScan{}, fmt.Errorf("scan market candle gap window: %w", err)
 	}
@@ -92,6 +96,7 @@ func (store *Store) marketCandleGapScanRows(
 			 WHERE exchange = $1
 			   AND symbol = $2
 			   AND interval = $3
+			   AND date_bin($4::bigint * interval '1 second', open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') = open_time
 		),
 		gaps AS (
 			SELECT previous_open_time + ($4::bigint * interval '1 second') AS gap_from,

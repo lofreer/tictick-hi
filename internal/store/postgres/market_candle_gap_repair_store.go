@@ -151,6 +151,7 @@ func marketCandleRepairWindow(
 			 WHERE exchange = $1
 			   AND symbol = $2
 			   AND interval = $3
+			   AND date_bin($4::bigint * interval '1 second', open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') = open_time
 		),
 		gaps AS (
 			SELECT previous_open_time + ($4::bigint * interval '1 second') AS gap_from,

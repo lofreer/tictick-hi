@@ -9557,6 +9557,35 @@ Definition of Done：
 - `invalid_open_time` 目前只可观察、可筛选、不可普通补同步修复；后续需要设计历史坏行清理/隔离边界，不能用补同步任务伪装为已修复。
 - 时间边界异常扫描增强不代表长期冷缓存、真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略已经关闭。
 
+### 阶段 1 缺口扫描时间边界补强
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 任务窗口 gap CTE 保留全量 K 线用于 invalid summary，但新增只包含按 interval UTC 对齐 `open_time` 的 `gap_candles`，后续首段、相邻、尾段和整窗缺口都只用该集合计算。
+- 全历史 market gap scan 的扫描窗口、相邻缺口列表和单个 / 批量 repair 校验都只使用按周期对齐的 K 线作为连续性边界。
+- 错位 `open_time` 行继续通过 `invalid_open_time` 暴露，不再生成 `00:01 -> 00:01:30`、`00:02:30 -> 00:03` 这类无法由普通同步任务表达的假缺口窗口。
+- PostgreSQL 集成测试覆盖任务窗口列表 / 单缺口拒绝 / 批量修复、全历史 scan / 单缺口拒绝 / repair，均验证错位 open time 不参与 gap 边界。
+
+范围外：
+
+- 不删除、不隔离、不迁移 misaligned 历史坏行。
+- 不改变 CandleProvider 聚合算法、data sync worker 拉取策略、交易所 adapter 或补同步执行语义。
+- 不推进回测可信度、交易 runner、live executor、私有交易所 API 或实盘能力。
+
+当前验证：
+
+- `go test ./internal/store/postgres -run 'TestIntegration(DataSyncTaskGapsIgnoreMisalignedOpenTimeCandles|MarketCandleGapsIgnoreMisalignedOpenTimeCandles)$'` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- `invalid_open_time` 仍然只是可观察、可筛选和在普通补同步中跳过；历史坏行的删除 / 隔离策略仍未设计。
+- 本轮只证明错位 open time 不再污染 gap/repair 窗口，不代表长期冷缓存、真实生产数据分布压测或外部交易所返回质量已经关闭。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
