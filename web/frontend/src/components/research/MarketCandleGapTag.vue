@@ -68,6 +68,7 @@ import { NButton, NDataTable, NModal, NSpace, NTag, NText, useMessage, type Data
 import { computed, h, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
+import { repairTasksSettled, repairTaskSettleKey } from "@/composables/researchRepairTaskSettle";
 import { dataApi } from "@/services/api/data";
 import type { CandleGap, DataSyncGapRepairResult, DataSyncTask, MarketCandleGapScan } from "@/types/app";
 import MarketRepairResultTags from "./MarketRepairResultTags.vue";
@@ -90,6 +91,7 @@ const repairingAll = ref(false);
 const repairingKey = ref("");
 const repairError = ref(false);
 const repairResult = ref<DataSyncGapRepairResult | null>(null);
+const settledRefreshKey = ref("");
 let requestSeq = 0;
 
 const columns = computed<DataTableColumns<CandleGap>>(() => [
@@ -143,6 +145,7 @@ watch(
   () => void loadScan(),
   { immediate: true },
 );
+watch(() => props.tasks, () => void refreshSettledRepairScan(), { deep: true });
 
 async function loadScan(options: { clearRepairResult?: boolean } = {}) {
   const seq = ++requestSeq;
@@ -151,6 +154,7 @@ async function loadScan(options: { clearRepairResult?: boolean } = {}) {
   repairError.value = false;
   if (options.clearRepairResult ?? true) {
     repairResult.value = null;
+    settledRefreshKey.value = "";
   }
   scan.value = null;
   try {
@@ -183,6 +187,7 @@ async function repairGap(gap: CandleGap) {
       to: gap.to,
     });
     repairResult.value = result;
+    settledRefreshKey.value = "";
     if (result.createdTasks.length > 0) {
       message.success(t("research.marketGapRepairQueued", { count: result.createdTasks.length }));
       emit("repaired", result);
@@ -211,6 +216,7 @@ async function repairReturnedGaps() {
       gaps: scan.value.gaps.map((gap) => ({ from: gap.from, to: gap.to })),
     });
     repairResult.value = result;
+    settledRefreshKey.value = "";
     if (result.createdTasks.length > 0) {
       message.success(t("research.marketGapRepairReturnedQueued", {
         created: result.createdTasks.length,
@@ -227,6 +233,14 @@ async function repairReturnedGaps() {
   } finally {
     repairingAll.value = false;
   }
+}
+
+async function refreshSettledRepairScan() {
+  const taskIds = repairResult.value?.createdTasks.map((task) => task.id) ?? [];
+  const key = repairTaskSettleKey(taskIds);
+  if (!key || settledRefreshKey.value === key || !repairTasksSettled(props.tasks, taskIds)) return;
+  settledRefreshKey.value = key;
+  await loadScan({ clearRepairResult: false });
 }
 
 function gapKey(gap: CandleGap) {

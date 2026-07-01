@@ -74,6 +74,7 @@ import { NButton, NDataTable, NModal, NSpace, NTag, NText, type DataTableColumns
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
+import { repairTasksSettled, repairTaskSettleKey } from "@/composables/researchRepairTaskSettle";
 import { dataApi } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketCandleInvalidIssueScan } from "@/types/app";
 import { isQuarantinableCandleIssueCode, isRepairableCandleIssueCode } from "@/utils/candleIssues";
@@ -99,6 +100,7 @@ const quarantineNotice = ref("");
 const repairing = ref(false);
 const quarantining = ref(false);
 const repairResult = ref<DataSyncGapRepairResult | null>(null);
+const settledRefreshKey = ref("");
 const scan = ref<MarketCandleInvalidIssueScan | null>(null);
 const detailsOpen = ref(false);
 let requestSeq = 0;
@@ -146,6 +148,7 @@ watch(
   () => void loadScan(),
   { immediate: true },
 );
+watch(() => props.tasks, () => void refreshSettledRepairScan(), { deep: true });
 
 async function loadScan(options: { clearRepairResult?: boolean } = {}) {
   const seq = ++requestSeq;
@@ -155,6 +158,7 @@ async function loadScan(options: { clearRepairResult?: boolean } = {}) {
   quarantineError.value = false;
   if (options.clearRepairResult ?? true) {
     repairResult.value = null;
+    settledRefreshKey.value = "";
     quarantineNotice.value = "";
   }
   scan.value = null;
@@ -186,6 +190,7 @@ async function repairReturnedIssues() {
       symbol: props.symbol,
     });
     repairResult.value = result;
+    settledRefreshKey.value = "";
     emit("repaired", result);
     await loadScan({ clearRepairResult: false });
   } catch (repairFailure) {
@@ -218,6 +223,14 @@ async function quarantineReturnedIssues() {
   } finally {
     quarantining.value = false;
   }
+}
+
+async function refreshSettledRepairScan() {
+  const taskIds = repairResult.value?.createdTasks.map((task) => task.id) ?? [];
+  const key = repairTaskSettleKey(taskIds);
+  if (!key || settledRefreshKey.value === key || !repairTasksSettled(props.tasks, taskIds)) return;
+  settledRefreshKey.value = key;
+  await loadScan({ clearRepairResult: false });
 }
 
 function invalidIssueLabel(code: string, fallback?: string) {

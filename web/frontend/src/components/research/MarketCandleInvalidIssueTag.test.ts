@@ -1,11 +1,12 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { NConfigProvider } from "naive-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent } from "vue";
+import { defineComponent, type PropType } from "vue";
 
 import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";
 import { i18n } from "@/i18n";
 import { dataApi } from "@/services/api/data";
+import type { DataSyncTask } from "@/types/app";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const dataApiMocks = vi.hoisted(() => ({
@@ -238,6 +239,77 @@ describe("MarketCandleInvalidIssueTag", () => {
     expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes the full-history invalid scan after queued repair tasks settle", async () => {
+    dataApiMocks.scanMarketCandleInvalidIssues
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        issues: [
+          {
+            code: "invalid_open_price",
+            message: "open price value must be positive",
+            openTime: "2026-06-27T03:01:00Z",
+          },
+        ],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+      })
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        issues: [
+          {
+            code: "invalid_open_price",
+            message: "open price value must be positive",
+            openTime: "2026-06-27T03:01:00Z",
+          },
+        ],
+        limited: false,
+        totalCount: 1,
+        returnedCount: 1,
+      })
+      .mockResolvedValueOnce({
+        exchange: "binance",
+        symbol: "BTCUSDT",
+        interval: "1m",
+        window: { count: 4 },
+        issues: [],
+        limited: false,
+        totalCount: 0,
+        returnedCount: 0,
+      });
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+    const repairButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("排队补同步当前异常"));
+    repairButton?.click();
+    await flushPromises();
+    expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
+
+    await wrapper.setProps({ tasks: [dataSyncTask({ id: "dst_market_invalid_repair_1", status: "running", dataHealth: "syncing" })] });
+    await flushPromises();
+    expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
+
+    await wrapper.setProps({ tasks: [dataSyncTask({ id: "dst_market_invalid_repair_1", status: "succeeded", dataHealth: "ok" })] });
+    await flushPromises();
+
+    expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(3);
+    expect(document.body.textContent).toContain("当前数据源全历史未检测到异常 K 线。");
+    expect(document.body.textContent).toContain("本次匹配 2 个，已创建 1 个，跳过 1 个，单次上限 100");
+
+    await wrapper.setProps({ tasks: [dataSyncTask({ id: "dst_market_invalid_repair_1", status: "succeeded", dataHealth: "ok" })] });
+    await flushPromises();
+    expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(3);
+  });
+
   it("does not expose raw provider URLs when full-history invalid repair fails", async () => {
     dataApiMocks.repairMarketCandleInvalidIssues.mockRejectedValueOnce(
       new Error('binance klines: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF'),
@@ -286,9 +358,10 @@ describe("MarketCandleInvalidIssueTag", () => {
 function mountTag() {
   const wrapper = defineComponent({
     components: { MarketCandleInvalidIssueTag, NConfigProvider },
+    props: { tasks: { type: Array as PropType<DataSyncTask[]>, default: () => [] } },
     template: `
       <NConfigProvider>
-        <MarketCandleInvalidIssueTag exchange="binance" interval="1m" symbol="BTCUSDT" />
+        <MarketCandleInvalidIssueTag exchange="binance" interval="1m" symbol="BTCUSDT" :tasks="tasks" />
       </NConfigProvider>
     `,
   });
@@ -312,4 +385,22 @@ function mountTag() {
       },
     },
   });
+}
+
+function dataSyncTask(overrides: Partial<DataSyncTask>): DataSyncTask {
+  return {
+    id: "dst_market_invalid_repair_1",
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    interval: "1m",
+    realtimeEnabled: false,
+    syncEnabled: true,
+    status: "pending",
+    marketStatus: "active",
+    dataHealth: "syncing",
+    attemptCount: 0,
+    createdAt: "2026-06-27T03:00:00Z",
+    updatedAt: "2026-06-27T03:00:00Z",
+    ...overrides,
+  };
 }
