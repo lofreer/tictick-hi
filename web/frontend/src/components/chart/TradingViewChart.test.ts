@@ -184,7 +184,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("reserves readable right price scale width for full price labels", () => {
+  it("uses normal chart axis typography and reserves only enough width for full price labels", () => {
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
 
@@ -192,13 +192,13 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 20,
+          fontSize: 12,
         }),
         rightPriceScale: expect.objectContaining({
           alignLabels: true,
           entireTextOnly: true,
           ensureEdgeTickMarksVisible: false,
-          minimumWidth: 100,
+          minimumWidth: 68,
           ticksVisible: false,
         }),
       }),
@@ -208,7 +208,7 @@ describe("TradingViewChart", () => {
     host.panel.remove();
   });
 
-  it("keeps mobile price labels readable without abbreviating values", () => {
+  it("keeps mobile price labels readable without abbreviating values or widening the axis", () => {
     viewportSize = { width: 390, height: 500 };
     const host = createResearchHost();
     const wrapper = mountChart(host.body);
@@ -217,10 +217,10 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         layout: expect.objectContaining({
-          fontSize: 18,
+          fontSize: 12,
         }),
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 88,
+          minimumWidth: 60,
         }),
       }),
     );
@@ -238,7 +238,7 @@ describe("TradingViewChart", () => {
       expect.any(HTMLElement),
       expect.objectContaining({
         rightPriceScale: expect.objectContaining({
-          minimumWidth: 94,
+          minimumWidth: 64,
         }),
       }),
     );
@@ -311,7 +311,7 @@ describe("TradingViewChart", () => {
       Array.from({ length: 1000 }, (_, index) => ({ time: index + 1, open: 100, high: 110, low: 95, close: 104, volume: 1000 + index })),
     );
 
-    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 723, to: 1006 });
+    expect(chartMocks.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 715, to: 1006 });
 
     wrapper.unmount();
     host.panel.remove();
