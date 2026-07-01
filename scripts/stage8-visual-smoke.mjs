@@ -15,9 +15,9 @@ const widthTolerance = parsePositiveInt(process.env.SMOKE_WIDTH_TOLERANCE, 2);
 const maxToolbarSymbolWidth = parsePositiveInt(process.env.SMOKE_MAX_SYMBOL_WIDTH, 100);
 const maxToolbarControlsWidth = parsePositiveInt(process.env.SMOKE_MAX_TOOLBAR_CONTROLS_WIDTH, 500);
 const maxResearchToolbarHeight = parsePositiveInt(process.env.SMOKE_MAX_RESEARCH_TOOLBAR_HEIGHT, 72);
-const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 140);
-const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 23);
-const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 21);
+const maxRightPriceAxisWidth = parsePositiveInt(process.env.SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 184);
+const minAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_AXIS_LABEL_INK_HEIGHT, 28);
+const minMobileAxisLabelInkHeight = parsePositiveInt(process.env.SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT, 23);
 const maxChartEdgeGap = parsePositiveInt(process.env.SMOKE_MAX_CHART_EDGE_GAP, 3);
 const totalTimeoutMs = parsePositiveInt(process.env.SMOKE_TOTAL_TIMEOUT_MS, 10 * 60 * 1000);
 const smokeBacktestId = process.env.SMOKE_BACKTEST_ID ?? "";
@@ -334,10 +334,11 @@ function visualSampleExpression(pageConfig) {
       const viewportRect = chartViewport?.getBoundingClientRect();
       const canvases = Array.from(document.querySelectorAll('.trading-chart__canvas canvas'))
         .map((canvas, index) => ({ index, node: canvas, rect: canvas.getBoundingClientRect() }))
-        .filter((entry) => entry.rect.height >= 16 && entry.rect.height <= 80)
+        .filter((entry) => entry.rect.height >= 16 && entry.rect.height <= 96)
         .filter((entry) => !viewportRect || entry.rect.width >= Math.max(120, viewportRect.width - 240))
-        .sort((left, right) => right.rect.bottom - left.rect.bottom);
-      return canvases[0] ?? null;
+        .map((entry) => ({ entry, inkHeight: axisTextInkStats(entry.node)?.maxRunCssHeight ?? 0 }))
+        .sort((left, right) => right.inkHeight - left.inkHeight || right.entry.rect.bottom - left.entry.rect.bottom);
+      return canvases[0]?.entry ?? null;
     }
 
     function rightmostChartCanvas() {
@@ -650,7 +651,7 @@ function assertChartViewportSmoke(label, sample, viewport, desktopMinimumHeight)
     );
   }
   const mainPaneShare = sample.mainPaneCanvas.rectWidth / sample.chartViewport.rectWidth;
-  const minimumMainPaneShare = viewport.width <= 760 ? 0.63 : viewport.width <= 980 ? 0.815 : 0.898;
+  const minimumMainPaneShare = viewport.width <= 760 ? 0.59 : viewport.width <= 980 ? 0.74 : 0.86;
   if (mainPaneShare < minimumMainPaneShare) {
     throw new Error(
       `${label} main chart pane does not use enough of the fixed viewport: ${JSON.stringify({

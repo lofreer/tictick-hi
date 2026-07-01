@@ -152,14 +152,14 @@ require_contains "$RESEARCH_CSS" "max-width: min(220px, 24vw);"
 require_not_contains "$RESEARCH_CSS" "--kline-chart-plot-height: clamp(720px, 78vh, 900px);"
 require_not_contains "$RESEARCH_CSS" "grid-template-columns: 100px 132px 28px 56px max-content;"
 require_not_contains "$RESEARCH_CSS" "width: 132px;"
-require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 32;"
-require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 29;"
-require_contains "$THEME_TOKENS" "desktop: 128,"
-require_contains "$THEME_TOKENS" "narrowDesktop: 120,"
-require_contains "$THEME_TOKENS" "mobile: 104,"
-require_contains "$QUALITY_AUDIT" '坐标轴字号提升为桌面/窄桌面 `32px`、移动端 `29px`'
-require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `140px`'
-require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度下限提升为桌面/窄桌面 `23px`、移动端 `21px`'
+require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 42;"
+require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 32;"
+require_contains "$THEME_TOKENS" "desktop: 158,"
+require_contains "$THEME_TOKENS" "narrowDesktop: 150,"
+require_contains "$THEME_TOKENS" "mobile: 118,"
+require_contains "$QUALITY_AUDIT" '坐标轴字号提升为桌面/窄桌面 `42px`、移动端 `32px`'
+require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `184px`'
+require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度下限提升为桌面/窄桌面 `28px`、移动端 `23px`'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字体统一 `14px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `84px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴超过 `84px`'
@@ -230,7 +230,7 @@ require_contains "$CHART_SMOKE" "does not match configured fixed body inset"
 require_contains "$CHART_SMOKE" "maxRetries: 5"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_CHART_EDGE_GAP"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "maxChartEdgeGap"
-require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 140"
+require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 184"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MIN_AXIS_LABEL_INK_HEIGHT"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "right price-axis does not sit on the chart viewport edge"
