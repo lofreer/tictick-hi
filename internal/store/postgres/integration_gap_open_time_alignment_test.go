@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,8 +72,9 @@ func TestIntegrationDataSyncTaskGapsIgnoreMisalignedOpenTimeCandles(t *testing.T
 		From: start.Add(time.Minute),
 		To:   misalignedOpenTime,
 	}
-	if _, err := store.RepairDataSyncTaskGap(ctx, taskID, bogus); !errors.Is(err, data.ErrNotFound) {
-		t.Fatalf("bogus misaligned task gap repair err = %v, want ErrNotFound", err)
+	if _, err := store.RepairDataSyncTaskGap(ctx, taskID, bogus); err == nil ||
+		!strings.Contains(err.Error(), "endTime must be aligned to 1m interval") {
+		t.Fatalf("bogus misaligned task gap repair err = %v, want alignment error", err)
 	}
 
 	result, err := store.RepairDataSyncTaskGaps(ctx, taskID)
@@ -135,8 +136,9 @@ func TestIntegrationMarketCandleGapsIgnoreMisalignedOpenTimeCandles(t *testing.T
 		From:     start.Add(time.Minute),
 		To:       misalignedOpenTime,
 	}
-	if _, err := store.RepairMarketCandleGap(ctx, bogus); !errors.Is(err, data.ErrNotFound) {
-		t.Fatalf("bogus misaligned market gap repair err = %v, want ErrNotFound", err)
+	if _, err := store.RepairMarketCandleGap(ctx, bogus); err == nil ||
+		!strings.Contains(err.Error(), "endTime must be aligned to 1m interval") {
+		t.Fatalf("bogus misaligned market gap repair err = %v, want alignment error", err)
 	}
 
 	result, err := store.RepairMarketCandleGap(ctx, data.RepairMarketCandleGapRequest{

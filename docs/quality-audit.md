@@ -9586,6 +9586,46 @@ Definition of Done：
 - `invalid_open_time` 仍然只是可观察、可筛选和在普通补同步中跳过；历史坏行的删除 / 隔离策略仍未设计。
 - 本轮只证明错位 open time 不再污染 gap/repair 窗口，不代表长期冷缓存、真实生产数据分布压测或外部交易所返回质量已经关闭。
 
+### 阶段 1 数据同步窗口 UTC 对齐校验补强
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- `ValidateDataSyncTaskWindow` 不再只校验 interval 和 start/end 先后顺序；当 `startTime` 或 `endTime` 存在时，必须按对应 interval 的 UTC epoch 边界对齐。
+- 创建 data sync task、任务单缺口 repair、全历史单缺口 repair 和全历史批量 gap repair 都复用同一窗口对齐规则。
+- 任务单缺口 repair 的 API handler 会先读取源任务 interval，对存在的源任务提前返回 400，避免错位窗口绕过 HTTP 层进入 store。
+- 全历史批量 gap repair 的 API handler 改为逐个 gap 校验对齐，不再只完整校验第一个 gap。
+- 单元测试、API 测试和 PostgreSQL 集成测试覆盖错位 start/end 创建、错位任务 repair、错位全历史单个和批量 repair。
+
+范围外：
+
+- 不清理、不隔离、不迁移历史 misaligned K 线。
+- 不改变 task window 的 end boundary 语义、CandleProvider 聚合算法、data sync worker 拉取策略或交易所 adapter。
+- 不推进实盘交易、私有交易所 API、live executor 或订单幂等。
+
+当前验证：
+
+- `go test ./internal/data -run TestValidateDataSyncTaskWindow -count=1` 通过。
+- `go test ./internal/web/api -run 'Test(DataSyncTaskRoutesRejectInvalidIntervalAndWindow|DataSyncTaskRoutes|MarketCandleGapRepairRouteQueuesSyncTask|MarketCandleGapBatchRepairRouteQueuesSyncTasks|MarketCandleRepairRoutesRejectUnsupportedDataSyncInterval)' -count=1` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegration(CreateDataSyncTaskRejectsInvalidIntervalAndWindow|DataSyncTaskGapsIgnoreMisalignedOpenTimeCandles|MarketCandleGapsIgnoreMisalignedOpenTimeCandles)$' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 该补强只阻止新错位任务窗口进入系统，不处理已存在历史错位 K 线或可能已存在的旧错位任务窗口。
+- HTTP handler 为了校验任务单缺口 repair 的 interval 会读取当前任务列表；后续如果补 `GetDataSyncTask` repository 方法，可以进一步收敛该路径。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

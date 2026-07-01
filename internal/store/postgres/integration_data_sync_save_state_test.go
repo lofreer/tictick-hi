@@ -99,6 +99,8 @@ func TestIntegrationCreateDataSyncTaskRejectsInvalidIntervalAndWindow(t *testing
 
 	start := time.Date(2026, 6, 29, 6, 0, 0, 0, time.UTC)
 	end := start.Add(time.Minute)
+	misalignedStart := start.Add(30 * time.Second)
+	misalignedEnd := end.Add(30 * time.Second)
 	cases := []struct {
 		name    string
 		request data.CreateDataSyncTask
@@ -134,6 +136,28 @@ func TestIntegrationCreateDataSyncTaskRejectsInvalidIntervalAndWindow(t *testing
 				EndTime:   &start,
 			},
 			wantErr: "startTime must be before endTime",
+		},
+		{
+			name: "misaligned start",
+			request: data.CreateDataSyncTask{
+				Exchange:  "binance",
+				Symbol:    integrationSymbol("CST"),
+				Interval:  "1m",
+				StartTime: &misalignedStart,
+				EndTime:   &end,
+			},
+			wantErr: "startTime must be aligned to 1m interval",
+		},
+		{
+			name: "misaligned end",
+			request: data.CreateDataSyncTask{
+				Exchange:  "binance",
+				Symbol:    integrationSymbol("CEN"),
+				Interval:  "1m",
+				StartTime: &start,
+				EndTime:   &misalignedEnd,
+			},
+			wantErr: "endTime must be aligned to 1m interval",
 		},
 	}
 

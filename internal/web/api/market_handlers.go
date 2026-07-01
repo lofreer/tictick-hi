@@ -373,6 +373,12 @@ func validateRepairMarketCandleGapsRequest(request *data.RepairMarketCandleGapsR
 	if request.Exchange == "" || request.Symbol == "" || request.Interval == "" {
 		return fmt.Errorf("exchange, symbol and interval are required")
 	}
+	if err := validateExchangeSymbol(request.Exchange, request.Symbol); err != nil {
+		return err
+	}
+	if err := data.ValidateDataSyncTaskWindow(request.Interval, nil, nil); err != nil {
+		return err
+	}
 	if len(request.Gaps) == 0 {
 		return fmt.Errorf("gaps are required")
 	}
@@ -384,14 +390,15 @@ func validateRepairMarketCandleGapsRequest(request *data.RepairMarketCandleGapsR
 		if gap.From.IsZero() || gap.To.IsZero() || !gap.From.Before(gap.To) {
 			return fmt.Errorf("gap from and to are required and from must be before to")
 		}
+		from := gap.From.UTC()
+		to := gap.To.UTC()
+		if err := data.ValidateDataSyncTaskWindow(request.Interval, &from, &to); err != nil {
+			return fmt.Errorf("gap %d: %w", index+1, err)
+		}
+		gap.From = from
+		gap.To = to
 	}
-	return validateRepairMarketCandleGapRequest(&data.RepairMarketCandleGapRequest{
-		Exchange: request.Exchange,
-		Symbol:   request.Symbol,
-		Interval: request.Interval,
-		From:     request.Gaps[0].From,
-		To:       request.Gaps[0].To,
-	})
+	return nil
 }
 
 func validateRepairMarketCandleInvalidIssuesRequest(request *data.RepairMarketCandleInvalidIssuesRequest) error {

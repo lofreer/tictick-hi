@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -276,6 +277,21 @@ func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusBadRequest, "from and to are required and from must be before to")
 		return
 	}
+	interval, ok, err := server.dataSyncTaskInterval(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if ok {
+		from := request.From.UTC()
+		to := request.To.UTC()
+		if err := data.ValidateDataSyncTaskWindow(interval, &from, &to); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		request.From = from
+		request.To = to
+	}
 	result, err := server.repository.RepairDataSyncTaskGap(r.Context(), id, request)
 	if err != nil {
 		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {
@@ -285,6 +301,19 @@ func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	writeJSON(w, http.StatusOK, sanitizeDataSyncGapRepairResult(result))
+}
+
+func (server *Server) dataSyncTaskInterval(ctx context.Context, id string) (string, bool, error) {
+	tasks, err := server.repository.ListDataSyncTasks(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	for _, task := range tasks {
+		if task.ID == id {
+			return task.Interval, true, nil
+		}
+	}
+	return "", false, nil
 }
 
 func sanitizeDataSyncTasks(tasks []data.DataSyncTask) []data.DataSyncTask {

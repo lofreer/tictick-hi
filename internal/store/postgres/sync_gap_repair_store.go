@@ -125,6 +125,9 @@ func (store *Store) RepairDataSyncTaskGap(
 
 	request.From = request.From.UTC()
 	request.To = request.To.UTC()
+	if err := data.ValidateDataSyncTaskWindow(source.Interval, &request.From, &request.To); err != nil {
+		return data.DataSyncGapRepairResult{}, err
+	}
 	window := dataSyncGapRepairWindow{from: request.From, to: request.To}
 	ok, err := dataSyncRepairWindowExists(ctx, tx, source.ID, window)
 	if err != nil {

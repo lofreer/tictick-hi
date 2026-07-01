@@ -382,6 +382,22 @@ func TestDataSyncTaskRoutes(t *testing.T) {
 	if invalidOneRecorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid repair one status = %d body = %s", invalidOneRecorder.Code, invalidOneRecorder.Body.String())
 	}
+
+	misalignedOneRecorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks/"+created.ID+"/repair-gap",
+		`{"from":"`+singleGapFrom.Add(30*time.Second).Format(time.RFC3339)+`","to":"`+singleGapTo.Format(time.RFC3339)+`"}`,
+	)
+	if misalignedOneRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("misaligned repair one status = %d body = %s", misalignedOneRecorder.Code, misalignedOneRecorder.Body.String())
+	}
+	misalignedOneResponse := decodeAPIError(t, misalignedOneRecorder)
+	if misalignedOneResponse.Code != "invalid_request" ||
+		misalignedOneResponse.Message != "startTime must be aligned to 1m interval" {
+		t.Fatalf("unexpected misaligned repair response: %#v", misalignedOneResponse)
+	}
 }
 
 func TestDataSyncTaskDeleteRouteHidesTask(t *testing.T) {

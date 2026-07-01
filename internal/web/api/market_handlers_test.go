@@ -246,6 +246,26 @@ func TestMarketCandleGapRepairRouteQueuesSyncTask(t *testing.T) {
 	if notGap.Code != http.StatusNotFound {
 		t.Fatalf("not gap status = %d body = %s", notGap.Code, notGap.Body.String())
 	}
+
+	taskCount := len(repository.tasks)
+	misaligned := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/market/candle-gaps/repair",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m","from":"2026-06-27T04:02:30Z","to":"2026-06-27T04:03:00Z"}`,
+	)
+	if misaligned.Code != http.StatusBadRequest {
+		t.Fatalf("misaligned gap status = %d body = %s", misaligned.Code, misaligned.Body.String())
+	}
+	misalignedResponse := decodeAPIError(t, misaligned)
+	if misalignedResponse.Code != "invalid_request" ||
+		misalignedResponse.Message != "startTime must be aligned to 1m interval" {
+		t.Fatalf("unexpected misaligned gap response: %#v", misalignedResponse)
+	}
+	if len(repository.tasks) != taskCount {
+		t.Fatalf("misaligned repair created tasks: %#v", repository.tasks)
+	}
 }
 
 func TestMarketCandleGapRepairRouteRequiresActiveMarketInstrument(t *testing.T) {
@@ -381,6 +401,26 @@ func TestMarketCandleGapBatchRepairRouteQueuesReturnedGaps(t *testing.T) {
 	)
 	if notGap.Code != http.StatusNotFound {
 		t.Fatalf("not gap status = %d body = %s", notGap.Code, notGap.Body.String())
+	}
+
+	taskCount := len(repository.tasks)
+	misaligned := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/market/candle-gaps/repair-batch",
+		`{"exchange":"binance","symbol":"BTCUSDT","interval":"1m","gaps":[{"from":"2026-06-27T05:02:00Z","to":"2026-06-27T05:03:00Z"},{"from":"2026-06-27T05:04:30Z","to":"2026-06-27T05:06:00Z"}]}`,
+	)
+	if misaligned.Code != http.StatusBadRequest {
+		t.Fatalf("misaligned batch status = %d body = %s", misaligned.Code, misaligned.Body.String())
+	}
+	misalignedResponse := decodeAPIError(t, misaligned)
+	if misalignedResponse.Code != "invalid_request" ||
+		misalignedResponse.Message != "gap 2: startTime must be aligned to 1m interval" {
+		t.Fatalf("unexpected misaligned batch response: %#v", misalignedResponse)
+	}
+	if len(repository.tasks) != taskCount {
+		t.Fatalf("misaligned batch repair created tasks: %#v", repository.tasks)
 	}
 }
 

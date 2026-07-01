@@ -84,6 +84,28 @@ func TestDataSyncTaskRoutesRejectInvalidIntervalAndWindow(t *testing.T) {
 			}`,
 			message: "startTime must be before endTime",
 		},
+		{
+			name: "misaligned start",
+			body: `{
+				"exchange":"binance",
+				"symbol":"BTCUSDT",
+				"interval":"1m",
+				"startTime":"2026-01-01T00:00:30Z",
+				"endTime":"2026-01-01T00:01:00Z"
+			}`,
+			message: "startTime must be aligned to 1m interval",
+		},
+		{
+			name: "misaligned end",
+			body: `{
+				"exchange":"binance",
+				"symbol":"BTCUSDT",
+				"interval":"1m",
+				"startTime":"2026-01-01T00:00:00Z",
+				"endTime":"2026-01-01T00:01:30Z"
+			}`,
+			message: "endTime must be aligned to 1m interval",
+		},
 	}
 
 	for _, testCase := range cases {
