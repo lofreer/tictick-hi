@@ -1,5 +1,7 @@
 import { onBeforeUnmount } from "vue";
 
+import type { DataSyncTask, TaskStatus } from "@/types/app";
+
 type PollingOptions = {
   intervalMs?: number;
   maxAttempts?: number;
@@ -7,14 +9,24 @@ type PollingOptions = {
 
 type StartPollingOptions = {
   immediate?: boolean;
+  onExhausted?: () => Promise<void> | void;
+  onSettled?: () => Promise<void> | void;
+  repairTaskIds?: string[];
 };
 
-export function useResearchRepairTaskPolling(loadTasks: () => Promise<void>, options: PollingOptions = {}) {
+type LoadTasks = () => Promise<DataSyncTask[] | void>;
+
+const terminalStatuses = new Set<TaskStatus>(["succeeded", "failed", "cancelled", "paused"]);
+
+export function useResearchRepairTaskPolling(loadTasks: LoadTasks, options: PollingOptions = {}) {
   const intervalMs = options.intervalMs ?? 4_000;
   const maxAttempts = options.maxAttempts ?? 6;
   let timer: number | null = null;
   let generation = 0;
   let attempts = 0;
+  let onExhausted: (() => Promise<void> | void) | null = null;
+  let onSettled: (() => Promise<void> | void) | null = null;
+  let repairTaskIds = new Set<string>();
 
   function clearTimer() {
     if (timer === null) return;
@@ -25,12 +37,18 @@ export function useResearchRepairTaskPolling(loadTasks: () => Promise<void>, opt
   function stopRepairTaskPolling() {
     generation += 1;
     attempts = 0;
+    onExhausted = null;
+    onSettled = null;
+    repairTaskIds = new Set();
     clearTimer();
   }
 
   function startRepairTaskPolling(startOptions: StartPollingOptions = {}) {
     generation += 1;
     attempts = 0;
+    onExhausted = startOptions.onExhausted ?? null;
+    onSettled = startOptions.onSettled ?? null;
+    repairTaskIds = new Set(startOptions.repairTaskIds ?? []);
     clearTimer();
     if (maxAttempts <= 0) return;
 
@@ -53,12 +71,24 @@ export function useResearchRepairTaskPolling(loadTasks: () => Promise<void>, opt
   async function runAttempt(currentGeneration: number) {
     if (currentGeneration !== generation) return;
     attempts += 1;
+    let latestTasks: DataSyncTask[] | void;
     try {
-      await loadTasks();
-    } finally {
-      if (currentGeneration !== generation) return;
-      if (attempts < maxAttempts) scheduleNext(currentGeneration);
+      latestTasks = await loadTasks();
+    } catch {
+      latestTasks = undefined;
     }
+    if (currentGeneration !== generation) return;
+    if (repairTaskIds.size > 0 && latestTasks && watchedRepairTasksSettled(latestTasks, repairTaskIds)) {
+      await runCallback(onSettled);
+      if (currentGeneration === generation) stopRepairTaskPolling();
+      return;
+    }
+    if (attempts >= maxAttempts) {
+      await runCallback(onExhausted);
+      if (currentGeneration === generation) stopRepairTaskPolling();
+      return;
+    }
+    scheduleNext(currentGeneration);
   }
 
   onBeforeUnmount(stopRepairTaskPolling);
@@ -67,4 +97,14 @@ export function useResearchRepairTaskPolling(loadTasks: () => Promise<void>, opt
     startRepairTaskPolling,
     stopRepairTaskPolling,
   };
+}
+
+function watchedRepairTasksSettled(tasks: DataSyncTask[], ids: Set<string>) {
+  const watchedTasks = tasks.filter((task) => ids.has(task.id));
+  return watchedTasks.length === ids.size && watchedTasks.every((task) => terminalStatuses.has(task.status));
+}
+
+async function runCallback(callback: (() => Promise<void> | void) | null) {
+  if (!callback) return;
+  await callback();
 }

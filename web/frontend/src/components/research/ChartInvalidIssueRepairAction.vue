@@ -28,13 +28,13 @@ const props = defineProps<{
   interval: string;
   issue: CandleIssue | null;
   loadCandles: () => Promise<void>;
-  loadTasks: () => Promise<void>;
+  loadTasks: () => Promise<unknown>;
   symbol: string;
   tasks: DataSyncTask[];
 }>();
 
 const emit = defineEmits<{
-  repaired: [];
+  repaired: [result: DataSyncGapRepairResult];
 }>();
 
 const { t } = useI18n();
@@ -54,7 +54,7 @@ async function repairInvalidIssue() {
   if (!props.issue?.openTime) return;
   repairLoading.value = true;
   try {
-    repairResult.value = await repairChartInvalidIssue({
+    const result = await repairChartInvalidIssue({
       exchange: props.exchange,
       interval: props.interval,
       issue: props.issue,
@@ -63,7 +63,8 @@ async function repairInvalidIssue() {
       onSuccess: (messageKey, values) => message.success(t(messageKey, values ?? {})),
       symbol: normalizeSymbolInput(props.symbol),
     });
-    emit("repaired");
+    repairResult.value = result;
+    emit("repaired", result);
   } catch (error) {
     message.error(errorMessage(error, t("research.invalidIssueRepairFailed")));
   } finally {

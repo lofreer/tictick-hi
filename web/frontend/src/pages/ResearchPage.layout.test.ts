@@ -225,12 +225,12 @@ describe("ResearchPage chart layout contract", () => {
 
   it("shows full-history market gap scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleGapTag from "@/components/research/MarketCandleGapTag.vue";');
-    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />');
+    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />');
   });
 
   it("shows full-history invalid candle scan metadata for the selected chart source", () => {
     expect(source).toContain('import MarketCandleInvalidIssueTag from "@/components/research/MarketCandleInvalidIssueTag.vue";');
-    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />');
+    expect(source).toContain('<MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />');
   });
 
   it("shows returned and total gap counts when gap details are limited", () => {
@@ -258,14 +258,14 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("chartGapRepairResult");
     expect(source).toContain("refreshChartCandles");
     expect(source).toContain('@click="repairFirstChartGap"');
-    expect(source).toContain("startRepairTaskPolling({ immediate: false })");
+    expect(source).toContain("startRepairPollingForResult(chartGapRepairResult.value, { immediate: false })");
     expect(source).toContain('<MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />');
   });
 
   it("keeps task invalid issue details reachable from the research page", () => {
     expect(source).toContain('import ResearchTaskInvalidIssueModal from "@/components/research/ResearchTaskInvalidIssueModal.vue";');
     expect(source).toContain('@view-invalid="viewTaskInvalidIssues"');
-    expect(source).toContain('<ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairTaskPolling" />');
+    expect(source).toContain('<ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairPollingForResult" />');
     expect(invalidIssueModalSource).toContain('import MarketRepairResultTags from "@/components/research/MarketRepairResultTags.vue";');
     expect(invalidIssueModalSource).toContain('<MarketRepairResultTags :result="repairResult" :tasks="tasks" />');
   });
@@ -292,7 +292,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain(':issue="firstCandleIssue"');
     expect(source).toContain(':load-candles="loadCandles"');
     expect(source).toContain(':load-tasks="loadTasks"');
-    expect(source).toContain('@repaired="startRepairTaskPolling({ immediate: false })"');
+    expect(source).toContain('@repaired="(result) => startRepairPollingForResult(result, { immediate: false })"');
     expect(chartInvalidIssueRepairSource).toContain('import { repairChartInvalidIssue } from "@/composables/researchInvalidIssueRepairActions";');
     expect(chartInvalidIssueRepairSource).toContain("repairResult");
     expect(chartInvalidIssueRepairSource).toContain("repairLoading");
@@ -310,9 +310,14 @@ describe("ResearchPage chart layout contract", () => {
   it("starts bounded repair task status polling from every repair entrypoint", () => {
     expect(source).toContain('import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";');
     expect(source).toContain("const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadTasks);");
+    expect(source).toContain("function startRepairPollingForResult(result: DataSyncGapRepairResult");
+    expect(source).toContain("repairTaskIds: result.createdTasks.map((task) => task.id)");
+    expect(source).toContain("onSettled: loadCandles");
+    expect(source).toContain("onExhausted: loadCandles");
+    expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />');
     expect(source).toContain('@repair-gaps="repairTaskGapsAndPoll"');
     expect(source).toContain("async function repairTaskGapsAndPoll(task: DataSyncTask)");
-    expect(source).toContain('@repaired="startRepairTaskPolling({ immediate: false })"');
+    expect(source).toContain("startRepairPollingForResult(taskGapRepairResult.value, { immediate: false })");
   });
 });
 

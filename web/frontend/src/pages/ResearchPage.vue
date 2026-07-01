@@ -130,8 +130,8 @@
               <NTag v-if="candleResult && candleResult.gaps.length > 0" :bordered="false" size="small" type="warning">
                 {{ gapCountLabel }}
               </NTag>
-              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />
-              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling" />
+              <MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />
+              <MarketCandleInvalidIssueTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />
               <NTag v-if="coverageVisible" :bordered="false" size="small" :type="coverageTagType">
                 {{ coverageLabel }}
               </NTag>
@@ -146,7 +146,7 @@
                 {{ t("research.repairFirstGap") }}
               </NButton>
               <MarketRepairResultTags :result="chartGapRepairResult" :tasks="tasks" />
-              <ChartInvalidIssueRepairAction :exchange="exchange" :interval="candleResult?.baseInterval || interval" :issue="firstCandleIssue" :load-candles="loadCandles" :load-tasks="loadTasks" :symbol="symbol" :tasks="tasks" @repaired="startRepairTaskPolling({ immediate: false })" />
+              <ChartInvalidIssueRepairAction :exchange="exchange" :interval="candleResult?.baseInterval || interval" :issue="firstCandleIssue" :load-candles="loadCandles" :load-tasks="loadTasks" :symbol="symbol" :tasks="tasks" @repaired="(result) => startRepairPollingForResult(result, { immediate: false })" />
             </div>
           </div>
         </div>
@@ -235,7 +235,7 @@
       @retry="gapDetailsTask && viewTaskGaps(gapDetailsTask)"
     />
 
-    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairTaskPolling" />
+    <ResearchTaskInvalidIssueModal ref="invalidIssueModal" :tasks="tasks" @repaired="startRepairPollingForResult" />
   </section>
 </template>
 
@@ -349,12 +349,12 @@ function viewTaskInvalidIssues(task: DataSyncTask) { invalidIssueModal.value?.op
 
 async function repairFirstChartGap() {
   chartGapRepairResult.value = await repairFirstGap() ?? null;
-  if (chartGapRepairResult.value) startRepairTaskPolling({ immediate: false });
+  if (chartGapRepairResult.value) startRepairPollingForResult(chartGapRepairResult.value, { immediate: false });
 }
 
 async function repairTaskGapsAndPoll(task: DataSyncTask) {
   await repairTaskGaps(task);
-  if (taskGapRepairResult.value) startRepairTaskPolling({ immediate: false });
+  if (taskGapRepairResult.value) startRepairPollingForResult(taskGapRepairResult.value, { immediate: false });
 }
 
 async function refreshChartCandles() {
@@ -371,6 +371,15 @@ function applyChartTimeRange(...args: Parameters<typeof applyTimeRange>) { reset
 watch([exchange, symbol, interval], () => resetChartRepairResults());
 
 function resetChartRepairResults() { chartGapRepairResult.value = null; }
+
+function startRepairPollingForResult(result: DataSyncGapRepairResult, options: { immediate?: boolean } = {}) {
+  startRepairTaskPolling({
+    immediate: options.immediate ?? true,
+    onExhausted: loadCandles,
+    onSettled: loadCandles,
+    repairTaskIds: result.createdTasks.map((task) => task.id),
+  });
+}
 
 const sourceLabel = computed(() => t(`research.candleSource.${candleResult.value?.source ?? "none"}`));
 const healthLabel = computed(() => t(`research.dataHealth.${candleResult.value?.health ?? "insufficient"}`));

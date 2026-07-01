@@ -70,7 +70,7 @@ const props = defineProps<{
   tasks?: DataSyncTask[];
 }>();
 const emit = defineEmits<{
-  repaired: [];
+  repaired: [result: DataSyncGapRepairResult];
 }>();
 
 const { t, te } = useI18n();
@@ -158,7 +158,7 @@ async function repairReturnedIssues() {
       symbol: props.symbol,
     });
     repairResult.value = result;
-    emit("repaired");
+    emit("repaired", result);
     await loadScan({ clearRepairResult: false });
   } catch (repairFailure) {
     repairError.value = true;

@@ -7,7 +7,7 @@ import { normalizeSymbolInput } from "@/utils/marketSymbols";
 type ResearchTaskCreateOptions = {
   closeCreateModal: () => void;
   form: ResearchForm;
-  loadTasks: () => Promise<void>;
+  loadTasks: () => Promise<unknown>;
   message: {
     error: (content: string) => void;
     success: (content: string) => void;

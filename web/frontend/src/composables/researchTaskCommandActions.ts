@@ -3,7 +3,7 @@ import { dataApi } from "@/services/api/data";
 import type { DataSyncTask } from "@/types/app";
 
 type TaskCommandOptions = {
-  loadTasks: () => Promise<void>;
+  loadTasks: () => Promise<unknown>;
   message: {
     error: (content: string) => void;
     success: (content: string) => void;

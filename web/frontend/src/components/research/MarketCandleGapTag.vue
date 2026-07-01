@@ -78,7 +78,7 @@ const props = defineProps<{
   symbol: string;
   tasks?: DataSyncTask[];
 }>();
-const emit = defineEmits<{ repaired: [] }>();
+const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult] }>();
 
 const { t } = useI18n();
 const message = useMessage();
@@ -185,7 +185,7 @@ async function repairGap(gap: CandleGap) {
     repairResult.value = result;
     if (result.createdTasks.length > 0) {
       message.success(t("research.marketGapRepairQueued", { count: result.createdTasks.length }));
-      emit("repaired");
+      emit("repaired", result);
     } else {
       message.success(t("research.taskGapRepairAlreadyQueued"));
     }
@@ -216,7 +216,7 @@ async function repairReturnedGaps() {
         created: result.createdTasks.length,
         skipped: result.skippedExisting,
       }));
-      emit("repaired");
+      emit("repaired", result);
     } else {
       message.success(t("research.taskGapRepairAlreadyQueued"));
     }

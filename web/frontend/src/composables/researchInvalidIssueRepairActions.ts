@@ -11,7 +11,7 @@ type RepairChartInvalidIssueOptions = {
   interval: string;
   issue: CandleIssue;
   loadCandles: () => Promise<void>;
-  loadTasks: () => Promise<void>;
+  loadTasks: () => Promise<unknown>;
   onSuccess: (messageKey: string, values?: Record<string, number>) => void;
   symbol: string;
 };

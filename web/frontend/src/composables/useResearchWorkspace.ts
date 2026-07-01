@@ -118,14 +118,14 @@ export function useResearchWorkspace() {
   });
 
   onMounted(() => void Promise.all([loadTasks(), loadCandles(), loadMarketInstrumentSyncStatuses()]));
-
   async function loadTasks() {
     tasksLoading.value = true;
     tasksError.value = "";
     try {
       tasks.value = await dataApi.listTasks();
+      return tasks.value;
     } catch (error) {
-      tasksError.value = errorMessage(error, t("research.tasksLoadFailed"));
+      tasksError.value = errorMessage(error, t("research.tasksLoadFailed")); return tasks.value;
     } finally {
       tasksLoading.value = false;
     }

@@ -102,7 +102,7 @@ const { t } = useI18n();
 defineProps<{
   tasks?: DataSyncTask[];
 }>();
-const emit = defineEmits<{ repaired: [] }>();
+const emit = defineEmits<{ repaired: [result: DataSyncGapRepairResult] }>();
 
 const modalOpen = ref(false);
 const loading = ref(false);
@@ -240,7 +240,7 @@ async function repairInvalidIssues() {
       repairNotice.value = t("research.noRepairableInvalidIssues");
       repairNoticeType.value = "warning";
     }
-    emit("repaired");
+    emit("repaired", result);
     await load(task.value);
   } catch {
     repairNotice.value = t("research.invalidIssueRepairFailed");

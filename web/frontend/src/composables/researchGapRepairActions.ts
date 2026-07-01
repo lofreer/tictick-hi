@@ -11,7 +11,7 @@ type RepairChartGapOptions = {
   exchange: string;
   gap: CandleGap;
   loadCandles: () => Promise<void>;
-  loadTasks: () => Promise<void>;
+  loadTasks: () => Promise<unknown>;
   onSuccess: (messageKey: string) => void;
   repairInterval: string;
   sourceTask: DataSyncTask | null;
