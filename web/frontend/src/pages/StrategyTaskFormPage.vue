@@ -18,7 +18,15 @@
       <section class="surface task-form-panel">
         <NForm label-placement="top">
           <section class="task-form-section">
-            <h2 class="task-section-title">{{ t("strategy.market") }}</h2>
+            <div class="task-section-heading">
+              <h2 class="task-section-title">{{ t("strategy.market") }}</h2>
+              <StrategyMarketCatalogStatus
+                :detail="marketCatalogStatusDetail"
+                :error="marketCatalogError"
+                :loading="marketCatalogLoading"
+                :status="marketCatalogStatus"
+              />
+            </div>
             <div class="task-field-grid">
               <NFormItem class="task-field--wide" :label="t('strategy.taskName')">
                 <NInput v-model:value="form.name" class="task-control" />
@@ -181,6 +189,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
+import StrategyMarketCatalogStatus from "@/components/strategy/StrategyMarketCatalogStatus.vue";
 import StrategyParamForm from "@/components/strategy/StrategyParamForm.vue";
 import { useStrategyTaskForm, type StrategyTaskMode } from "@/composables/useStrategyTaskForm";
 import type { StrategyParamValue } from "@/types/app";
@@ -197,6 +206,10 @@ const {
   intervalOptions,
   loadStrategies,
   loading,
+  marketCatalogError,
+  marketCatalogLoading,
+  marketCatalogStatus,
+  marketCatalogStatusDetail,
   paramValues,
   selectedStrategy,
   selectedStrategyId,
@@ -232,12 +245,22 @@ const triggerModeOptions = computed<SelectOption[]>(() => [
   { label: t("strategy.minuteReplay"), value: "minute_replay" },
 ]);
 
+const marketCatalogLabel = computed(() => {
+  if (marketCatalogLoading.value) return t("strategy.marketCatalogChecking");
+  if (marketCatalogStatus.value === "active") return t("strategy.marketCatalogActive");
+  if (marketCatalogStatus.value === "inactive") return t("strategy.marketCatalogInactive");
+  if (marketCatalogStatus.value === "missing") return t("strategy.marketCatalogMissing");
+  if (marketCatalogError.value) return t("strategy.marketCatalogError");
+  return t("strategy.marketCatalogUnknown");
+});
+
 const summaryRows = computed(() => {
   const rows = [
     ...(isBacktest.value ? [{ label: t("strategy.taskName"), value: form.name }] : []),
     { label: t("research.exchange"), value: form.exchange },
     { label: t("research.symbol"), value: form.symbol },
     { label: t("research.interval"), value: form.interval },
+    { label: t("research.marketStatus"), value: marketCatalogLabel.value },
     { label: t("strategy.selectedStrategy"), value: selectedStrategy.value?.name ?? "-" },
   ];
 
@@ -318,10 +341,11 @@ function orderIntentLabel(value: string) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 14px;
 }
 
 .task-section-title {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 16px;
   font-weight: 720;
   line-height: 1.35;

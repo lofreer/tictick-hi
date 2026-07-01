@@ -220,28 +220,67 @@ describe("strategy task form", () => {
   });
 
   it("blocks backtest submit when the catalog symbol is inactive", async () => {
-    apiMocks.listInstruments.mockResolvedValueOnce([
-      {
-        exchange: "binance",
-        symbol: "SOLUSDT",
-        baseAsset: "SOL",
-        quoteAsset: "USDT",
-        instrumentType: "spot",
-        status: "inactive",
-        searchPriority: 20,
-      },
-    ]);
+    apiMocks.listInstruments.mockImplementation(async ({ q }: { q?: string }) =>
+      q === "SOLUSDT"
+        ? [marketInstrument("binance", "SOLUSDT", "inactive")]
+        : [marketInstrument("binance", "BTCUSDT", "active")],
+    );
     const taskForm = mountTaskForm("backtest");
     await flushPromises();
 
     taskForm.form.symbol = "SOLUSDT";
     await flushPromises();
+    await taskForm.refreshMarketInstrumentCatalogStatus();
+    await flushPromises();
+
+    expect(taskForm.marketCatalogStatus.value).toBe("inactive");
+    expect(taskForm.canSubmit.value).toBe(false);
 
     await taskForm.submit();
     await flushPromises();
 
     expect(backtestsApi.createBacktest).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledWith("交易对已不在当前交易所 active 目录中，请刷新交易对或选择仍可用的标的。");
+  });
+
+  it("blocks trading submit when the catalog symbol is missing", async () => {
+    apiMocks.listInstruments.mockImplementation(async ({ q }: { q?: string }) =>
+      q === "DOGEUSDT" ? [] : [marketInstrument("binance", "BTCUSDT", "active")],
+    );
+    const taskForm = mountTaskForm("trading");
+    await flushPromises();
+
+    taskForm.form.symbol = "DOGEUSDT";
+    await flushPromises();
+    await taskForm.refreshMarketInstrumentCatalogStatus();
+    await flushPromises();
+
+    expect(taskForm.marketCatalogStatus.value).toBe("missing");
+    expect(taskForm.canSubmit.value).toBe(false);
+
+    await taskForm.submit();
+    await flushPromises();
+
+    expect(tradingApi.createTask).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("交易对不在当前交易所可用目录中，请先刷新交易对或更换标的。");
+  });
+
+  it("surfaces catalog validation failures before task creation", async () => {
+    apiMocks.listInstruments.mockRejectedValue(new Error("network"));
+    const taskForm = mountTaskForm("backtest");
+    await flushPromises();
+    await taskForm.refreshMarketInstrumentCatalogStatus();
+    await flushPromises();
+
+    expect(taskForm.marketCatalogStatus.value).toBe("unknown");
+    expect(taskForm.marketCatalogError.value).toBe("校验交易对目录失败，请稍后重试。");
+    expect(taskForm.canSubmit.value).toBe(false);
+
+    await taskForm.submit();
+    await flushPromises();
+
+    expect(backtestsApi.createBacktest).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("校验交易对目录失败，请稍后重试。");
   });
 });
 
@@ -276,5 +315,19 @@ function strategyDefinition(): StrategyDefinition {
     supportedIntervals: ["1m", "5m"],
     supportedIntents: ["order"],
     params: [],
+  };
+}
+
+function marketInstrument(exchange: string, symbol: string, status: "active" | "inactive") {
+  const normalized = symbol.replace("-", "");
+  return {
+    exchange,
+    symbol,
+    baseAsset: normalized.replace(/USDT$/, "") || normalized,
+    quoteAsset: "USDT",
+    instrumentType: "spot",
+    status,
+    exchangeStatus: status === "active" ? "TRADING" : "BREAK",
+    searchPriority: status === "active" ? 1 : 20,
   };
 }

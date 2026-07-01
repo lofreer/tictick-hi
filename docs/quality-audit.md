@@ -9400,6 +9400,43 @@ Definition of Done：
 - 该证据覆盖内存 store、真实 PostgreSQL repository 和 authenticated `/api/candles` handler 的分页边界缺口，但仍不替代真实 PostgreSQL 冷缓存、真实生产数据分布、长期 soak 或超过基础窗口上限后的持久化聚合/分段策略。
 - 项目整体仍是 `scaffold`，不能升级。
 
+### 阶段 1 回测 / 交易创建页 market catalog 可观察性补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 回测创建页和交易创建页复用的策略任务表单会持续校验当前 `exchange + symbol` 是否 exact 命中 `market_instruments` catalog。
+- 表单顶部直接展示交易对目录状态：校验中、active、inactive、missing 或校验失败，并在摘要区显示当前市场状态。
+- `inactive` / `missing` / 校验失败时创建按钮不可提交；直接调用 submit 时仍会在前端二次校验并给出明确错误，不调用 `POST /api/backtests` 或 `POST /api/trading/tasks`。
+- catalog helper 保留 status-only API，同时新增返回 exact instrument 的 lookup API，用于展示交易所原始状态。
+- 前端单元测试覆盖 inactive 回测创建阻断、missing 交易创建阻断、catalog 校验失败阻断；布局测试约束创建页必须保留 backend-backed symbol autocomplete 和 market status 展示。
+
+范围外：
+
+- 不改变后端 `POST /api/backtests` / `POST /api/trading/tasks` 的 active catalog 强校验。
+- 不改变策略执行、回测撮合模型、paper executor 或任何 live executor 行为。
+- 不实现实盘交易、私有交易所 API、订单幂等或账号安全边界。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useStrategyTaskForm.test.ts src/pages/StrategyTaskFormPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过；新增逻辑拆分到独立 composable / 组件后，`useStrategyTaskForm.ts` 和 `StrategyTaskFormPage.vue` 均低于文件行数硬上限。
+- `git diff --check` 通过。
+- 临时启动 `hi api` 容器挂载当前 `web/frontend/dist` 到 `http://127.0.0.1:18080` 后，`BASE_URL=http://127.0.0.1:18080 SMOKE_TOTAL_TIMEOUT_MS=600000 node scripts/stage8-visual-smoke.mjs` 通过，覆盖 3 个 viewport、浅/深色、中/英文，每组 14 页。
+
+剩余风险：
+
+- 该证据只把创建页的 market catalog 状态从“提交后弹错”提升为“提交前可观察和可阻断”；不代表回测结果可信、交易任务可用于真实工作或实盘能力已经建立。
+- 当前创建页仍依赖 `market_instruments` catalog 的同步新鲜度；catalog 外部同步失败时只能阻断创建并提示，不能自动恢复交易所目录。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

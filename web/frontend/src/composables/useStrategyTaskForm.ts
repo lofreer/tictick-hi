@@ -14,7 +14,7 @@ import type {
   StrategyParamValue,
   StrategyParamValues,
 } from "@/types/app";
-import { readMarketInstrumentCatalogStatus } from "@/utils/marketInstrumentCatalog";
+import { useMarketCatalogValidation } from "@/composables/useMarketCatalogValidation";
 import {
   coerceSymbolForExchange,
   isSymbolFormatForExchange,
@@ -88,7 +88,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
   const intervalOptions = computed<SelectOption[]>(() =>
     supportedIntervals.value.map((interval) => ({ label: interval, value: interval })),
   );
-  const canSubmit = computed(
+  const basicCanSubmit = computed(
     () =>
       form.exchange !== "" &&
       form.symbol !== "" &&
@@ -97,6 +97,9 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       selectedStrategy.value !== undefined &&
       taskFieldsValid() &&
       selectedStrategy.value.params.every((param) => isStrategyParamValueValid(param, paramValues.value[param.key])),
+  );
+  const canSubmit = computed(
+    () => basicCanSubmit.value && !marketCatalogLoading.value && marketCatalogStatus.value === "active",
   );
   const symbolOptions = computed(() => symbolOptionsForExchange(form.exchange));
 
@@ -133,6 +136,17 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     },
   );
 
+  const {
+    marketCatalogError,
+    marketCatalogLoading,
+    marketCatalogStatus,
+    marketCatalogStatusDetail,
+    refreshMarketInstrumentCatalogStatus,
+  } = useMarketCatalogValidation({
+    exchange: () => form.exchange,
+    symbol: () => form.symbol,
+  });
+
   watch(
     () => form.executionMode,
     (mode) => {
@@ -168,7 +182,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
   }
 
   async function submit() {
-    if (!canSubmit.value || selectedStrategy.value === undefined) {
+    if (!basicCanSubmit.value || selectedStrategy.value === undefined) {
       message.error(
         form.exchange && form.symbol && form.interval && !isSymbolFormatForExchange(form.exchange, form.symbol)
           ? t("research.invalidSymbolFormat")
@@ -177,10 +191,8 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       return;
     }
 
-    let instrumentStatus: "active" | "inactive" | "missing";
-    try {
-      instrumentStatus = await readMarketInstrumentCatalogStatus(form.exchange, normalizeSymbolInput(form.symbol));
-    } catch {
+    const instrumentStatus = await refreshMarketInstrumentCatalogStatus();
+    if (instrumentStatus === "unknown") {
       message.error(t("research.instrumentValidationFailed"));
       return;
     }
@@ -268,7 +280,12 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     intervalOptions,
     loadStrategies,
     loading,
+    marketCatalogError,
+    marketCatalogLoading,
+    marketCatalogStatus,
+    marketCatalogStatusDetail,
     paramValues,
+    refreshMarketInstrumentCatalogStatus,
     selectedStrategy,
     selectedStrategyId,
     strategies,
