@@ -152,14 +152,14 @@ require_contains "$RESEARCH_CSS" "max-width: min(220px, 24vw);"
 require_not_contains "$RESEARCH_CSS" "--kline-chart-plot-height: clamp(720px, 78vh, 900px);"
 require_not_contains "$RESEARCH_CSS" "grid-template-columns: 100px 132px 28px 56px max-content;"
 require_not_contains "$RESEARCH_CSS" "width: 132px;"
-require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 12;"
-require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 12;"
-require_contains "$THEME_TOKENS" "desktop: 68,"
-require_contains "$THEME_TOKENS" "narrowDesktop: 64,"
-require_contains "$THEME_TOKENS" "mobile: 60,"
-require_contains "$QUALITY_AUDIT" '坐标轴字号回到桌面/窄桌面/移动端 `12px`'
+require_contains "$THEME_TOKENS" "export const chartAxisFontSize = 14;"
+require_contains "$THEME_TOKENS" "export const chartMobileAxisFontSize = 13;"
+require_contains "$THEME_TOKENS" "desktop: 78,"
+require_contains "$THEME_TOKENS" "narrowDesktop: 74,"
+require_contains "$THEME_TOKENS" "mobile: 68,"
+require_contains "$QUALITY_AUDIT" '坐标轴字号收敛为桌面/窄桌面 `14px`、移动端 `13px`'
 require_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `84px`'
-require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度下限为桌面/窄桌面/移动端 `9px`'
+require_contains "$QUALITY_AUDIT" '坐标轴文字墨迹高度范围为桌面/窄桌面 `9px` 到 `16px`、移动端 `9px` 到 `14px`'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字体统一 `14px`'
 require_not_contains "$QUALITY_AUDIT" '坐标轴字号回到桌面/窄桌面 `20px`、移动端 `18px`'
 require_not_contains "$QUALITY_AUDIT" '右侧价格轴最大宽度 `116px`'
@@ -226,7 +226,9 @@ require_contains "$CHART_SMOKE" "chart left side"
 require_contains "$CHART_SMOKE" "page overflowed horizontally and can clip the chart viewport"
 require_contains "$CHART_SMOKE" "time-axis label touches fixed body edge"
 require_contains "$CHART_SMOKE" "SMOKE_MIN_AXIS_LABEL_INK_HEIGHT"
+require_contains "$CHART_SMOKE" "SMOKE_MAX_AXIS_LABEL_INK_HEIGHT"
 require_contains "$CHART_SMOKE" "text is too small or missing"
+require_contains "$CHART_SMOKE" "text is too large"
 require_contains "$CHART_SMOKE" "does not match configured fixed body inset"
 require_contains "$CHART_SMOKE" "maxRetries: 5"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_CHART_EDGE_GAP"
@@ -234,6 +236,8 @@ require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "maxChartEdgeGap"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_RIGHT_PRICE_AXIS_WIDTH, 84"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MIN_AXIS_LABEL_INK_HEIGHT"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MIN_MOBILE_AXIS_LABEL_INK_HEIGHT"
+require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_AXIS_LABEL_INK_HEIGHT"
+require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "SMOKE_MAX_MOBILE_AXIS_LABEL_INK_HEIGHT"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "right price-axis does not sit on the chart viewport edge"
 require_contains "$ROOT_DIR/scripts/stage8-visual-smoke.mjs" "main chart pane does not use enough of the fixed viewport"
 
