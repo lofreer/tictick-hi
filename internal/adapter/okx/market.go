@@ -111,7 +111,7 @@ func (client *MarketClient) FetchCandles(
 	if envelope.Code != "0" {
 		err := fmt.Errorf("okx candles code %s: %s", envelope.Code, envelope.Message)
 		if isTemporaryOKXCode(envelope.Code) {
-			return nil, exchange.NewTemporaryError("okx candles temporary unavailable: "+err.Error(), err)
+			return nil, temporaryOKXBusinessError("candles", response, err)
 		}
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.Market
 	if envelope.Code != "0" {
 		err := fmt.Errorf("okx instruments code %s: %s", envelope.Code, envelope.Message)
 		if isTemporaryOKXCode(envelope.Code) {
-			return nil, exchange.NewTemporaryError("okx instruments temporary unavailable: "+err.Error(), err)
+			return nil, temporaryOKXBusinessError("instruments", response, err)
 		}
 		return nil, err
 	}
@@ -283,6 +283,11 @@ func okxInterval(interval string) string {
 
 func isTemporaryOKXCode(code string) bool {
 	return code == "50011"
+}
+
+func temporaryOKXBusinessError(resource string, response *http.Response, err error) error {
+	retryAfter := exchange.ParseRetryAfterDelay(response.Header.Get("Retry-After"), time.Now().UTC())
+	return exchange.NewTemporaryErrorWithRetryAfter("okx "+resource+" temporary unavailable: "+err.Error(), err, retryAfter)
 }
 
 func limit(value int, max int) int {

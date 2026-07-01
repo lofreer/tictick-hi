@@ -174,6 +174,32 @@ func TestFetchCandlesMarksRateLimitCodeTemporary(t *testing.T) {
 	}
 }
 
+func TestFetchCandlesPreservesRateLimitCodeRetryAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "13")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"50011","msg":"Requests too frequent","data":[]}`))
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+		Exchange: "okx",
+		Symbol:   "BTCUSDT",
+		Interval: "1h",
+		From:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:       time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC),
+		Limit:    2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	retryAfter, ok := exchange.RetryAfter(err)
+	if !ok || retryAfter != 13*time.Second {
+		t.Fatalf("RetryAfter = %s, %t; want 13s, true", retryAfter, ok)
+	}
+}
+
 func TestFetchCandlesPreservesRetryAfter(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "8")
@@ -220,6 +246,25 @@ func TestFetchCandlesDoesNotMarkInstrumentCodeTemporary(t *testing.T) {
 	}
 	if exchange.IsTemporaryError(err) {
 		t.Fatalf("instrument code should not be temporary: %v", err)
+	}
+}
+
+func TestFetchInstrumentsPreservesRateLimitCodeRetryAfter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "21")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"50011","msg":"Requests too frequent","data":[]}`))
+	}))
+	defer server.Close()
+
+	client := NewMarketClientForURL(server.URL, server.Client())
+	_, err := client.FetchInstruments(t.Context())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	retryAfter, ok := exchange.RetryAfter(err)
+	if !ok || retryAfter != 21*time.Second {
+		t.Fatalf("RetryAfter = %s, %t; want 21s, true", retryAfter, ok)
 	}
 }
 
