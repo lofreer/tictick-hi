@@ -56,7 +56,7 @@
             @update:page="changePage"
           />
           <NButton
-            v-if="details && details.totalCount > 0"
+            v-if="canRepairCurrentInvalidIssues"
             :loading="repairLoading"
             secondary
             size="small"
@@ -96,6 +96,7 @@ import MarketRepairResultTags from "@/components/research/MarketRepairResultTags
 import { dataApi, type DataSyncInvalidIssueQuery } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncInvalidIssueList, DataSyncTask } from "@/types/app";
 import type { RepairDataSyncInvalidIssuesRequest } from "@/types/app";
+import { isRepairableCandleIssueCode } from "@/utils/candleIssues";
 import { formatCompactDateTime } from "@/utils/displayText";
 
 const { t } = useI18n();
@@ -125,6 +126,8 @@ const issueCodes = [
   "invalid_volume",
   "invalid_high_bound",
   "invalid_low_bound",
+  "invalid_open_time",
+  "invalid_close_time",
 ];
 
 const columns = computed<DataTableColumns<CandleIssue>>(() => [
@@ -154,6 +157,9 @@ const issueCodeOptions = computed<SelectOption[]>(() =>
   })),
 );
 const pageCount = computed(() => (details.value ? Math.max(1, Math.ceil(details.value.totalCount / pageSize)) : 1));
+const canRepairCurrentInvalidIssues = computed(() =>
+  Boolean(details.value && details.value.totalCount > 0 && isRepairableCandleIssueCode(issueCode.value ?? undefined)),
+);
 const displayedIssueCount = computed(() => {
   if (!details.value) return 0;
   return Math.min(details.value.totalCount, details.value.offset + details.value.returnedCount);

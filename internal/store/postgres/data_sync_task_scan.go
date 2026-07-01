@@ -144,6 +144,7 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 		),
 		ordered_candles AS (
 			SELECT c.open_time,
+			       c.close_time,
 			       c.open,
 			       c.high,
 			       c.low,
@@ -157,6 +158,8 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 			         WHEN c.volume < 0 THEN 'invalid_volume'
 			         WHEN c.high < GREATEST(c.open, c.close, c.low) THEN 'invalid_high_bound'
 			         WHEN c.low > LEAST(c.open, c.close, c.high) THEN 'invalid_low_bound'
+			         WHEN date_bin(task_window.interval_duration, c.open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') <> c.open_time THEN 'invalid_open_time'
+			         WHEN c.close_time <> c.open_time + task_window.interval_duration THEN 'invalid_close_time'
 			         ELSE NULL
 			       END AS invalid_code,
 			       CASE
@@ -167,6 +170,8 @@ func dataSyncTaskWindowGapCTESQL(taskSourceSQL string) string {
 			         WHEN c.volume < 0 THEN 'volume value is negative'
 			         WHEN c.high < GREATEST(c.open, c.close, c.low) THEN 'high value is below OHLC bounds'
 			         WHEN c.low > LEAST(c.open, c.close, c.high) THEN 'low value is above OHLC bounds'
+			         WHEN date_bin(task_window.interval_duration, c.open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') <> c.open_time THEN 'open time is not aligned to interval'
+			         WHEN c.close_time <> c.open_time + task_window.interval_duration THEN 'close time does not match interval'
 			         ELSE ''
 			       END AS invalid_message,
 			       LAG(c.open_time) OVER (ORDER BY c.open_time) AS previous_open_time,

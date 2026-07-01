@@ -197,6 +197,40 @@ describe("ResearchTaskInvalidIssueModal", () => {
     expect(document.body.textContent).toContain("dst_repair_1 /");
   });
 
+  it("does not expose normal repair action for invalid open-time filters", async () => {
+    dataApiMocks.getTaskInvalidIssues.mockResolvedValue({
+      taskId: "dst_1",
+      issues: [
+        {
+          code: "invalid_open_time",
+          message: "open time is not aligned to interval",
+          openTime: "2026-06-27T07:02:30Z",
+        },
+      ],
+      limited: false,
+      totalCount: 1,
+      returnedCount: 1,
+      issueLimit: 50,
+      offset: 0,
+    });
+    const wrapper = mount(ResearchTaskInvalidIssueModal, {
+      global: {
+        plugins: [i18n],
+      },
+      attachTo: document.body,
+    });
+    const task = dataSyncTask({ id: "dst_1", exchange: "binance", symbol: "BTCUSDT", interval: "1m" });
+
+    await (wrapper.vm as unknown as { open: (task: DataSyncTask) => Promise<void> }).open(task);
+    await flushPromises();
+    await wrapper.findComponent(NSelect).vm.$emit("update:value", "invalid_open_time");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("K 线开盘时间未对齐周期");
+    expect(document.body.textContent).not.toContain("排队修复当前异常");
+    expect(dataApi.repairTaskInvalidIssues).not.toHaveBeenCalled();
+  });
+
   it("shows skipped and limited repair metadata", async () => {
     dataApiMocks.repairTaskInvalidIssues.mockResolvedValueOnce({
       sourceTaskId: "dst_1",

@@ -123,3 +123,28 @@ func TestValidateCandleSeriesForTargetRejectsMismatchedTarget(t *testing.T) {
 		t.Fatalf("error = %q, want target mismatch", err.Error())
 	}
 }
+
+func TestDetectCandleIssueReportsTimeBoundaries(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	misaligned := testCandle(start.Add(30*time.Second), "10", "10", "10", "10", "1")
+	issue := DetectCandleIssue(misaligned)
+	if issue == nil ||
+		issue.Code != CandleIssueInvalidOpenTime ||
+		issue.OpenTime == nil ||
+		!issue.OpenTime.Equal(misaligned.OpenTime) ||
+		!strings.Contains(issue.Message, "not aligned") {
+		t.Fatalf("misaligned issue = %#v, want invalid open time", issue)
+	}
+
+	closeMismatch := testCandle(start, "10", "10", "10", "10", "1")
+	closeMismatch.CloseTime = start.Add(2 * time.Minute)
+	issue = DetectCandleIssue(closeMismatch)
+	if issue == nil ||
+		issue.Code != CandleIssueInvalidCloseTime ||
+		issue.OpenTime == nil ||
+		!issue.OpenTime.Equal(start) ||
+		!strings.Contains(issue.Message, "does not match") {
+		t.Fatalf("close mismatch issue = %#v, want invalid close time", issue)
+	}
+}

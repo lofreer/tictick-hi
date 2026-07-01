@@ -13,6 +13,8 @@ var candleIssueCodes = []string{
 	CandleIssueInvalidVolume,
 	CandleIssueInvalidHighBound,
 	CandleIssueInvalidLowBound,
+	CandleIssueInvalidOpenTime,
+	CandleIssueInvalidCloseTime,
 }
 
 const (
@@ -40,6 +42,8 @@ const (
 	CandleIssueInvalidVolume     = "invalid_volume"
 	CandleIssueInvalidHighBound  = "invalid_high_bound"
 	CandleIssueInvalidLowBound   = "invalid_low_bound"
+	CandleIssueInvalidOpenTime   = "invalid_open_time"
+	CandleIssueInvalidCloseTime  = "invalid_close_time"
 )
 
 const (
@@ -134,6 +138,13 @@ func IsCandleIssueCode(value string) bool {
 		}
 	}
 	return false
+}
+
+func IsRepairableCandleIssueCode(value string) bool {
+	if value == CandleIssueInvalidOpenTime {
+		return false
+	}
+	return IsCandleIssueCode(value)
 }
 
 type DataSyncGapRepairResult struct {

@@ -53,6 +53,8 @@ export const zhCNResearchMessages: Record<string, string> = {
     "research.invalidCandleIssue.invalid_volume": "成交量不能为负",
     "research.invalidCandleIssue.invalid_high_bound": "最高价低于 OHLC 边界",
     "research.invalidCandleIssue.invalid_low_bound": "最低价高于 OHLC 边界",
+    "research.invalidCandleIssue.invalid_open_time": "K 线开盘时间未对齐周期",
+    "research.invalidCandleIssue.invalid_close_time": "K 线收盘时间不匹配周期",
     "research.invalidCandleIssue.invalid_native_series": "原始 K 线序列异常",
     "research.invalidCandleIssue.invalid_aggregation_base_series": "聚合基础 K 线异常",
     "research.invalidCandleIssue.unknown": "未知异常",

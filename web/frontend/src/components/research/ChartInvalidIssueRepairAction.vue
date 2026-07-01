@@ -20,6 +20,7 @@ import { useI18n } from "vue-i18n";
 import { repairChartInvalidIssue } from "@/composables/researchInvalidIssueRepairActions";
 import { errorMessage } from "@/composables/researchWorkspaceHelpers";
 import type { CandleIssue, CandleResult, DataSyncGapRepairResult, DataSyncTask } from "@/types/app";
+import { isRepairableCandleIssueCode } from "@/utils/candleIssues";
 import { normalizeSymbolInput } from "@/utils/marketSymbols";
 import MarketRepairResultTags from "./MarketRepairResultTags.vue";
 
@@ -42,7 +43,7 @@ const { t } = useI18n();
 const message = useMessage();
 const repairLoading = ref(false);
 const repairResult = ref<DataSyncGapRepairResult | null>(null);
-const canRepair = computed(() => Boolean(props.issue?.openTime));
+const canRepair = computed(() => Boolean(props.issue?.openTime) && isRepairableCandleIssueCode(props.issue?.code));
 
 watch(
   () => [props.exchange, props.symbol, props.interval, props.issue?.openTime],

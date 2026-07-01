@@ -69,6 +69,34 @@ func DetectCandleIssue(candle Candle) *CandleIssue {
 	if low.Cmp(open) > 0 || low.Cmp(closeValue) > 0 || low.Cmp(high) > 0 {
 		return candleIssue(candle, CandleIssueInvalidLowBound, "low value is above OHLC bounds")
 	}
+	if issue := detectCandleTimeIssue(candle, candle.Interval); issue != nil {
+		return issue
+	}
+	return nil
+}
+
+func detectCandleTimeIssue(candle Candle, interval string) *CandleIssue {
+	duration, err := IntervalDuration(interval)
+	if err != nil {
+		return nil
+	}
+	openTime := candle.OpenTime.UTC()
+	if !alignTime(openTime, duration).Equal(openTime) {
+		return candleIssue(
+			candle,
+			CandleIssueInvalidOpenTime,
+			fmt.Sprintf("open time %s is not aligned to interval %s", openTime.Format(time.RFC3339), interval),
+		)
+	}
+	expectedClose := openTime.Add(duration)
+	closeTime := candle.CloseTime.UTC()
+	if !closeTime.Equal(expectedClose) {
+		return candleIssue(
+			candle,
+			CandleIssueInvalidCloseTime,
+			fmt.Sprintf("close time %s does not match expected %s for interval %s", closeTime.Format(time.RFC3339), expectedClose.Format(time.RFC3339), interval),
+		)
+	}
 	return nil
 }
 

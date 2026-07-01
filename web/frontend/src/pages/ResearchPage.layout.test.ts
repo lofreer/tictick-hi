@@ -280,6 +280,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).not.toContain('t("research.candleIssue", {\n    time:');
     for (const messages of [zhResearchMessages, enResearchMessages]) {
       expect(messages).toContain('"research.candleIssueNoTime"');
+      expect(messages).toContain('"research.invalidCandleIssue.invalid_open_time"');
+      expect(messages).toContain('"research.invalidCandleIssue.invalid_close_time"');
       expect(messages).toContain('"research.invalidCandleIssue.invalid_native_series"');
       expect(messages).toContain('"research.invalidCandleIssue.invalid_aggregation_base_series"');
     }
@@ -298,6 +300,8 @@ describe("ResearchPage chart layout contract", () => {
     expect(chartInvalidIssueRepairSource).toContain("repairResult");
     expect(chartInvalidIssueRepairSource).toContain("repairLoading");
     expect(chartInvalidIssueRepairSource).toContain("canRepair");
+    expect(chartInvalidIssueRepairSource).toContain('import { isRepairableCandleIssueCode } from "@/utils/candleIssues";');
+    expect(chartInvalidIssueRepairSource).toContain("isRepairableCandleIssueCode(props.issue?.code)");
     expect(chartInvalidIssueRepairSource).toContain('v-if="canRepair"');
     expect(chartInvalidIssueRepairSource).toContain('@click="repairInvalidIssue"');
     expect(chartInvalidIssueRepairSource).toContain("research.repairFirstInvalidIssue");

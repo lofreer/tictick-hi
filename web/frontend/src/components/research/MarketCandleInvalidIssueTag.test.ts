@@ -120,6 +120,34 @@ describe("MarketCandleInvalidIssueTag", () => {
     expect(dataApi.scanMarketCandleInvalidIssues).toHaveBeenCalledTimes(2);
   });
 
+  it("does not expose normal repair action for invalid open-time full-history issues", async () => {
+    dataApiMocks.scanMarketCandleInvalidIssues.mockResolvedValueOnce({
+      exchange: "binance",
+      symbol: "BTCUSDT",
+      interval: "1m",
+      window: { count: 4 },
+      issues: [
+        {
+          code: "invalid_open_time",
+          message: "open time is not aligned to interval",
+          openTime: "2026-06-27T03:01:30Z",
+        },
+      ],
+      limited: false,
+      totalCount: 1,
+      returnedCount: 1,
+    });
+    const wrapper = mountTag();
+    await flushPromises();
+
+    await wrapper.find('[role="button"]').trigger("click");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("K 线开盘时间未对齐周期");
+    expect(document.body.textContent).not.toContain("排队补同步当前异常");
+    expect(dataApi.repairMarketCandleInvalidIssues).not.toHaveBeenCalled();
+  });
+
   it("keeps the repair result visible while showing the refreshed healthy scan", async () => {
     dataApiMocks.scanMarketCandleInvalidIssues
       .mockResolvedValueOnce({

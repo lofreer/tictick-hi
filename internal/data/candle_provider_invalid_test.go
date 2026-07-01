@@ -102,7 +102,7 @@ func TestCandleProviderReportsInvalidAggregationBaseCandleSeries(t *testing.T) {
 	if result.Source != CandleSourceAggregated || result.BaseInterval != "1m" || result.Health != CandleHealthInvalid {
 		t.Fatalf("unexpected invalid base result: %#v", result)
 	}
-	if len(result.Issues) != 1 || result.Issues[0].Code != "invalid_aggregation_base_series" ||
+	if len(result.Issues) != 1 || result.Issues[0].Code != CandleIssueInvalidCloseTime ||
 		result.Issues[0].OpenTime == nil ||
 		!result.Issues[0].OpenTime.Equal(start) ||
 		!strings.Contains(result.Issues[0].Message, "does not match") {

@@ -78,7 +78,7 @@ func (store *Store) RepairDataSyncTaskInvalidIssues(
 		RepairLimit:  maxDataSyncInvalidIssueRepairTasks,
 	}
 	for _, issue := range issues {
-		if issue.OpenTime == nil {
+		if issue.OpenTime == nil || !data.IsRepairableCandleIssueCode(issue.Code) {
 			continue
 		}
 		from := issue.OpenTime.UTC()

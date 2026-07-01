@@ -238,6 +238,9 @@ func firstCandleIssue(candles []Candle, interval string, code string, err error)
 	}
 	for _, candle := range candles {
 		if singleErr := validateCandleSeries([]Candle{candle}, interval); singleErr != nil {
+			if timeIssue := detectCandleTimeIssue(candle, interval); timeIssue != nil {
+				return *timeIssue
+			}
 			openTime := candle.OpenTime.UTC()
 			issue.Message = singleErr.Error()
 			issue.OpenTime = &openTime

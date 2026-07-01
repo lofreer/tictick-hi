@@ -9518,6 +9518,45 @@ Definition of Done：
 - 该补充只让已有异常修复入口能够拿到具体异常 K 线时间；是否能修复仍依赖 repair API、data sync worker 和交易所返回健康数据。
 - 当前仍缺长期冷缓存 / 真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略，以及更完整的异常数据边界。
 
+### 阶段 1 时间边界异常扫描补充
+
+执行日期：2026-07-01
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增标准 K 线异常 code：`invalid_open_time` 和 `invalid_close_time`。
+- `DetectCandleIssue`、任务窗口 invalid issue SQL、全历史 invalid issue SQL 都会检测 open time 是否按 interval UTC 对齐、close time 是否等于 `open_time + interval`。
+- CandleProvider 对单根时间边界异常返回标准 `invalid_open_time` / `invalid_close_time`，不再把这类问题只落成泛化 series code。
+- data sync 任务窗口 invalid issue 列表支持按新增 code 过滤；summary 能展示首个时间边界异常。
+- 全历史 invalid scan 能展示时间边界异常；全历史 invalid repair 和任务 invalid repair 会跳过 `invalid_open_time`，避免为无法通过普通补同步删除的 misaligned 历史坏行创建假修复任务；`invalid_close_time` 仍可排补同步。
+- 研究页图表、全历史异常标签和任务异常弹窗保留 `invalid_open_time` 展示，但不会为它显示普通补同步修复按钮；新增中英文文案避免暴露原始 code。
+- 测试覆盖 Go 领域检测、PostgreSQL 任务窗口 scan/filter/repair、全历史 scan/repair、前端 repairable 判断和两个异常 repair 入口。
+
+范围外：
+
+- 不实现 misaligned open-time 历史坏行的删除、隔离或迁移清理策略。
+- 不改变 K 线聚合算法、缺口检测、data sync worker 调度、交易所 adapter 或补同步执行语义。
+- 不推进回测可信度、交易 runner、live executor、私有交易所 API 或实盘能力。
+
+当前验证：
+
+- `go test ./internal/data ./internal/store/postgres` 通过。
+- `pnpm --dir web/frontend exec vitest run src/utils/candleIssues.test.ts src/components/research/MarketCandleInvalidIssueTag.test.ts src/components/research/ResearchTaskInvalidIssueModal.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- `invalid_open_time` 目前只可观察、可筛选、不可普通补同步修复；后续需要设计历史坏行清理/隔离边界，不能用补同步任务伪装为已修复。
+- 时间边界异常扫描增强不代表长期冷缓存、真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略已经关闭。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

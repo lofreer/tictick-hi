@@ -53,6 +53,8 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.invalidCandleIssue.invalid_volume": "Volume cannot be negative",
     "research.invalidCandleIssue.invalid_high_bound": "High is below OHLC bounds",
     "research.invalidCandleIssue.invalid_low_bound": "Low is above OHLC bounds",
+    "research.invalidCandleIssue.invalid_open_time": "Candle open time is not aligned",
+    "research.invalidCandleIssue.invalid_close_time": "Candle close time does not match interval",
     "research.invalidCandleIssue.invalid_native_series": "Native candle series invalid",
     "research.invalidCandleIssue.invalid_aggregation_base_series": "Aggregation base candles invalid",
     "research.invalidCandleIssue.unknown": "Unknown invalid candle",

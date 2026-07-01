@@ -83,6 +83,11 @@ func (store *Store) marketCandleInvalidIssueScanRows(
 	query data.MarketCandleInvalidIssueScanQuery,
 	limit int,
 ) ([]data.CandleIssue, int, error) {
+	duration, err := data.IntervalDuration(query.Interval)
+	if err != nil {
+		return nil, 0, err
+	}
+	durationSeconds := int64(duration / time.Second)
 	rows, err := store.pool.Query(ctx, `
 		WITH scanned_candles AS (
 			SELECT open_time,
@@ -94,6 +99,8 @@ func (store *Store) marketCandleInvalidIssueScanRows(
 			         WHEN volume < 0 THEN 'invalid_volume'
 			         WHEN high < GREATEST(open, close, low) THEN 'invalid_high_bound'
 			         WHEN low > LEAST(open, close, high) THEN 'invalid_low_bound'
+			         WHEN date_bin($4::bigint * interval '1 second', open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') <> open_time THEN 'invalid_open_time'
+			         WHEN close_time <> open_time + ($4::bigint * interval '1 second') THEN 'invalid_close_time'
 			         ELSE NULL
 			       END AS invalid_code,
 			       CASE
@@ -104,6 +111,8 @@ func (store *Store) marketCandleInvalidIssueScanRows(
 			         WHEN volume < 0 THEN 'volume value is negative'
 			         WHEN high < GREATEST(open, close, low) THEN 'high value is below OHLC bounds'
 			         WHEN low > LEAST(open, close, high) THEN 'low value is above OHLC bounds'
+			         WHEN date_bin($4::bigint * interval '1 second', open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') <> open_time THEN 'open time is not aligned to interval'
+			         WHEN close_time <> open_time + ($4::bigint * interval '1 second') THEN 'close time does not match interval'
 			         ELSE ''
 			       END AS invalid_message
 			  FROM market_candles
@@ -115,10 +124,11 @@ func (store *Store) marketCandleInvalidIssueScanRows(
 		  FROM scanned_candles
 		 WHERE invalid_code IS NOT NULL
 		 ORDER BY open_time ASC
-		 LIMIT $4`,
+		 LIMIT $5`,
 		query.Exchange,
 		query.Symbol,
 		query.Interval,
+		durationSeconds,
 		limit,
 	)
 	if err != nil {
@@ -173,12 +183,15 @@ func (store *Store) RepairMarketCandleInvalidIssues(
 	}
 	for _, rawOpenTime := range request.OpenTimes {
 		openTime := rawOpenTime.UTC()
-		window, ok, err := marketCandleInvalidIssueRepairWindow(ctx, tx, request, openTime, intervalDuration)
+		window, ok, repairable, err := marketCandleInvalidIssueRepairWindow(ctx, tx, request, openTime, intervalDuration)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err
 		}
 		if !ok {
 			return data.DataSyncGapRepairResult{}, data.ErrNotFound
+		}
+		if !repairable {
+			continue
 		}
 		exists, err := marketCandleRepairTaskExists(ctx, tx, data.RepairMarketCandleGapRequest{
 			Exchange: request.Exchange,
@@ -219,40 +232,53 @@ func marketCandleInvalidIssueRepairWindow(
 	request data.RepairMarketCandleInvalidIssuesRequest,
 	openTime time.Time,
 	intervalDuration time.Duration,
-) (dataSyncGapRepairWindow, bool, error) {
+) (dataSyncGapRepairWindow, bool, bool, error) {
 	row := tx.QueryRow(ctx, `
-		SELECT open_time
-		  FROM market_candles
-		 WHERE exchange = $1
-		   AND symbol = $2
-		   AND interval = $3
-		   AND open_time = $4
-		   AND (
-		     open <= 0
-		     OR high <= 0
-		     OR low <= 0
-		     OR close <= 0
-		     OR volume < 0
-		     OR high < GREATEST(open, close, low)
-		     OR low > LEAST(open, close, high)
-		   )`,
+		WITH scanned_candle AS (
+			SELECT open_time,
+			       CASE
+			         WHEN open <= 0 THEN 'invalid_open_price'
+			         WHEN high <= 0 THEN 'invalid_high_price'
+			         WHEN low <= 0 THEN 'invalid_low_price'
+			         WHEN close <= 0 THEN 'invalid_close_price'
+			         WHEN volume < 0 THEN 'invalid_volume'
+			         WHEN high < GREATEST(open, close, low) THEN 'invalid_high_bound'
+			         WHEN low > LEAST(open, close, high) THEN 'invalid_low_bound'
+			         WHEN date_bin($5::bigint * interval '1 second', open_time, TIMESTAMPTZ '1970-01-01 00:00:00+00') <> open_time THEN 'invalid_open_time'
+			         WHEN close_time <> open_time + ($5::bigint * interval '1 second') THEN 'invalid_close_time'
+			         ELSE NULL
+			       END AS invalid_code
+			  FROM market_candles
+			 WHERE exchange = $1
+			   AND symbol = $2
+			   AND interval = $3
+			   AND open_time = $4
+		)
+		SELECT open_time, invalid_code
+		  FROM scanned_candle
+		 WHERE invalid_code IS NOT NULL`,
 		request.Exchange,
 		request.Symbol,
 		request.Interval,
 		openTime,
+		int64(intervalDuration/time.Second),
 	)
 
 	var persistedOpenTime time.Time
-	if err := row.Scan(&persistedOpenTime); err != nil {
+	var invalidCode string
+	if err := row.Scan(&persistedOpenTime, &invalidCode); err != nil {
 		if err == pgx.ErrNoRows {
-			return dataSyncGapRepairWindow{}, false, nil
+			return dataSyncGapRepairWindow{}, false, false, nil
 		}
-		return dataSyncGapRepairWindow{}, false, fmt.Errorf("find market candle invalid issue repair window: %w", err)
+		return dataSyncGapRepairWindow{}, false, false, fmt.Errorf("find market candle invalid issue repair window: %w", err)
+	}
+	if !data.IsRepairableCandleIssueCode(invalidCode) {
+		return dataSyncGapRepairWindow{}, true, false, nil
 	}
 	from := persistedOpenTime.UTC()
 	return dataSyncGapRepairWindow{
 		from:           from,
 		to:             from.Add(intervalDuration),
 		missingCandles: 1,
-	}, true, nil
+	}, true, true, nil
 }

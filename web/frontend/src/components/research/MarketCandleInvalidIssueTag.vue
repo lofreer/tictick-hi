@@ -61,6 +61,7 @@ import { useI18n } from "vue-i18n";
 
 import { dataApi } from "@/services/api/data";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketCandleInvalidIssueScan } from "@/types/app";
+import { isRepairableCandleIssueCode } from "@/utils/candleIssues";
 import MarketRepairResultTags from "./MarketRepairResultTags.vue";
 
 const props = defineProps<{
@@ -112,6 +113,7 @@ const title = computed(() => {
 });
 
 const repairableOpenTimes = computed(() => scan.value?.issues
+  .filter((issue) => isRepairableCandleIssueCode(issue.code))
   .map((issue) => issue.openTime)
   .filter((openTime): openTime is string => Boolean(openTime)) ?? []);
 

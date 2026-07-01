@@ -143,6 +143,106 @@ func TestIntegrationListDataSyncTasksReportsInvalidCandleHealth(t *testing.T) {
 	}
 }
 
+func TestIntegrationListDataSyncTasksReportsInvalidCandleTimeHealth(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	start := time.Date(2026, 6, 27, 7, 20, 0, 0, time.UTC)
+	taskID := integrationID("dst_time")
+	symbol := integrationSymbol("DHIT")
+	misalignedOpenTime := start.Add(2*time.Minute + 30*time.Second)
+	closeMismatchOpenTime := start.Add(3 * time.Minute)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM data_sync_tasks WHERE symbol = $1`, symbol)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM market_candles WHERE symbol = $1`, symbol)
+	})
+
+	insertDataHealthTaskWindow(
+		t,
+		ctx,
+		store,
+		taskID,
+		symbol,
+		data.TaskStatusSucceeded,
+		false,
+		false,
+		&start,
+		nil,
+		ptrTime(start.Add(3*time.Minute)),
+		nil,
+		"",
+	)
+	insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, 0))
+	insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, 1))
+	insertLegacyInvalidOpenTimeCandle(t, ctx, store, symbol, misalignedOpenTime)
+	insertLegacyInvalidCloseTimeCandle(t, ctx, store, symbol, closeMismatchOpenTime)
+
+	found := findListedDataSyncTask(t, ctx, store, taskID)
+	if found.DataHealth != data.DataSyncHealthInvalid || found.InvalidSummary == nil {
+		t.Fatalf("time invalid task health = %q summary=%#v, want invalid", found.DataHealth, found.InvalidSummary)
+	}
+	if found.InvalidSummary.Count != 2 ||
+		found.InvalidSummary.FirstIssue == nil ||
+		found.InvalidSummary.FirstIssue.Code != data.CandleIssueInvalidOpenTime ||
+		found.InvalidSummary.FirstIssue.OpenTime == nil ||
+		!found.InvalidSummary.FirstIssue.OpenTime.Equal(misalignedOpenTime) {
+		t.Fatalf("unexpected time invalid summary: %#v", found.InvalidSummary)
+	}
+
+	issues, err := store.ListDataSyncTaskInvalidIssues(ctx, taskID, data.DataSyncInvalidIssueQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issues.TotalCount != 2 || issues.ReturnedCount != 2 || len(issues.Issues) != 2 ||
+		issues.Issues[0].Code != data.CandleIssueInvalidOpenTime ||
+		issues.Issues[1].Code != data.CandleIssueInvalidCloseTime {
+		t.Fatalf("unexpected time invalid issue list: %#v", issues)
+	}
+
+	filtered, err := store.ListDataSyncTaskInvalidIssues(ctx, taskID, data.DataSyncInvalidIssueQuery{
+		Code: data.CandleIssueInvalidCloseTime,
+		From: ptrTime(closeMismatchOpenTime),
+		To:   ptrTime(closeMismatchOpenTime),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.TotalCount != 1 || filtered.ReturnedCount != 1 || len(filtered.Issues) != 1 ||
+		filtered.Issues[0].Code != data.CandleIssueInvalidCloseTime ||
+		filtered.Issues[0].OpenTime == nil ||
+		!filtered.Issues[0].OpenTime.Equal(closeMismatchOpenTime) {
+		t.Fatalf("unexpected filtered time invalid issue list: %#v", filtered)
+	}
+
+	openTimeRepair, err := store.RepairDataSyncTaskInvalidIssues(ctx, taskID, data.RepairDataSyncInvalidIssuesRequest{
+		Code: data.CandleIssueInvalidOpenTime,
+		From: ptrTime(misalignedOpenTime),
+		To:   ptrTime(misalignedOpenTime),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if openTimeRepair.TotalCount != 1 || len(openTimeRepair.CreatedTasks) != 0 || openTimeRepair.SkippedExisting != 0 {
+		t.Fatalf("open time invalid repair = %#v, want matched but skipped as not repairable by sync", openTimeRepair)
+	}
+
+	closeTimeRepair, err := store.RepairDataSyncTaskInvalidIssues(ctx, taskID, data.RepairDataSyncInvalidIssuesRequest{
+		Code: data.CandleIssueInvalidCloseTime,
+		From: ptrTime(closeMismatchOpenTime),
+		To:   ptrTime(closeMismatchOpenTime),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closeTimeRepair.TotalCount != 1 || len(closeTimeRepair.CreatedTasks) != 1 {
+		t.Fatalf("close time invalid repair = %#v, want one repair task", closeTimeRepair)
+	}
+	assertRepairTaskWindow(t, closeTimeRepair.CreatedTasks[0], taskID, closeMismatchOpenTime, closeMismatchOpenTime.Add(time.Minute))
+}
+
 func TestIntegrationRepairDataSyncTaskInvalidIssuesConvergesSourceHealth(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)
@@ -250,6 +350,38 @@ func insertLegacyInvalidCloseDataHealthCandle(t *testing.T, ctx context.Context,
 		symbol,
 		openTime,
 		openTime.Add(time.Minute),
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func insertLegacyInvalidOpenTimeCandle(t *testing.T, ctx context.Context, store *Store, symbol string, openTime time.Time) {
+	t.Helper()
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_candles (
+			exchange, symbol, interval, open_time, close_time,
+			open, high, low, close, volume, is_closed, updated_at
+		)
+		VALUES ('binance', $1, '1m', $2, $3, 100, 101, 99, 100, 1, true, now())`,
+		symbol,
+		openTime,
+		openTime.Add(time.Minute),
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func insertLegacyInvalidCloseTimeCandle(t *testing.T, ctx context.Context, store *Store, symbol string, openTime time.Time) {
+	t.Helper()
+	if _, err := store.pool.Exec(ctx, `
+		INSERT INTO market_candles (
+			exchange, symbol, interval, open_time, close_time,
+			open, high, low, close, volume, is_closed, updated_at
+		)
+		VALUES ('binance', $1, '1m', $2, $3, 100, 101, 99, 100, 1, true, now())`,
+		symbol,
+		openTime,
+		openTime.Add(2*time.Minute),
 	); err != nil {
 		t.Fatal(err)
 	}
