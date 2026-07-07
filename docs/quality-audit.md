@@ -12071,6 +12071,45 @@ Definition of Done：
 - 只有 data sync market HTTP 请求、notification providers 和 command run-level 日志上下文会携带 request / trace metadata；其他 exchange 调用、更广外部系统和独立启动子命令之间的自动 trace context 仍未闭环。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 notification channel target API 校验补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增 `notification.ValidateProviderTargetSyntax`，校验 local / webhook-demo / webhook / email / Telegram / 飞书 provider target 的保存期语法。
+- API 创建 / 更新 notification channel 时复用该 syntax 校验，不再只校验 provider 枚举。
+- Telegram / 飞书 / SMTP 的 `*_env` 参数在保存期只校验 env 引用名格式和必填关系，不读取 secret 环境变量值；`hi notify` provider config readiness 仍负责实际 env 存在性检查。
+- 运行期 provider parser 同步拒绝非法 env 引用名，避免把明显错误的 env key 推迟到外发投递阶段。
+
+范围外：
+
+- 不新增真实 Telegram / 飞书 / SMTP / webhook 投递探测。
+- 不改变 notification outbox、worker lease、retry/backoff、数据库 schema 或 OpenAPI 字段集合。
+- 不把通知 provider 能力声明为 production-safe。
+
+当前验证：
+
+- `go test ./internal/notification ./internal/web/api -run 'TestValidateProviderTarget|TestSystemNotificationChannel' -count=1 -v` 通过。
+- `go test ./internal/notification ./internal/web/api -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行真实第三方通知投递 smoke；本补充刻意不发送外部 provider 请求。
+- 未执行 Docker Compose smoke；当前本机 Docker daemon 仍不可用。
+
+剩余风险：
+
+- 保存期 syntax 校验只能阻止明显不可解析的 target，不能证明第三方 provider 实时可达、secret 有效或投递成功。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

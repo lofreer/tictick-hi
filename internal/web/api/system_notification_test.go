@@ -121,6 +121,39 @@ func TestSystemNotificationChannelUpdateValidatesRequest(t *testing.T) {
 	}
 }
 
+func TestSystemNotificationChannelRejectsInvalidProviderTarget(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+
+	createRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/notifications/channels",
+		`{"name":"Ops","provider":"webhook","target":"ftp://example.invalid/ops","enabled":true}`,
+	)
+	if createRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid create status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	if len(repository.channels) != 0 {
+		t.Fatalf("channels after invalid create = %#v", repository.channels)
+	}
+
+	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
+	updateRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPut,
+		"/api/system/notifications/channels/nc_ops",
+		`{"name":"Ops","provider":"telegram","target":"telegram://send?chat_id=ops","enabled":true}`,
+	)
+	if updateRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid update status = %d body = %s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	if repository.channels[0].Provider != "local" {
+		t.Fatalf("channel provider changed after invalid update: %#v", repository.channels[0])
+	}
+}
+
 func TestSystemNotificationChannelActionNotFound(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 

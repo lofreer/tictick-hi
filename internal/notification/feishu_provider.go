@@ -82,3 +82,14 @@ func parseFeishuTarget(target string) (string, error) {
 	}
 	return webhookURL, nil
 }
+
+func validateFeishuTargetSyntax(target string) error {
+	_, values, err := parseTargetURL(target, "feishu")
+	if err != nil {
+		return err
+	}
+	if _, err := requiredEnvReference(values, "url_env"); err != nil {
+		return err
+	}
+	return nil
+}

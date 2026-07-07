@@ -43,10 +43,35 @@ func requiredParam(values url.Values, name string) (string, error) {
 	return value, nil
 }
 
+func optionalEnvReference(values url.Values, name string) (string, error) {
+	envName := strings.TrimSpace(values.Get(name))
+	if envName == "" {
+		return "", nil
+	}
+	if !validEnvName(envName) {
+		return "", fmt.Errorf("%s must reference an environment variable name", name)
+	}
+	return envName, nil
+}
+
+func requiredEnvReference(values url.Values, name string) (string, error) {
+	envName, err := optionalEnvReference(values, name)
+	if err != nil {
+		return "", err
+	}
+	if envName == "" {
+		return "", fmt.Errorf("%s is required", name)
+	}
+	return envName, nil
+}
+
 func optionalEnv(values url.Values, name string) (string, string, error) {
 	envName := strings.TrimSpace(values.Get(name))
 	if envName == "" {
 		return "", "", nil
+	}
+	if !validEnvName(envName) {
+		return "", "", fmt.Errorf("%s must reference an environment variable name", name)
 	}
 	value, exists := os.LookupEnv(envName)
 	if !exists || value == "" {
@@ -64,6 +89,20 @@ func requiredEnv(values url.Values, name string) (string, string, error) {
 		return "", "", fmt.Errorf("%s is required", name)
 	}
 	return envName, value, nil
+}
+
+func validEnvName(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index, char := range value {
+		validHead := char == '_' || (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z')
+		validBody := validHead || (char >= '0' && char <= '9')
+		if (index == 0 && !validHead) || (index > 0 && !validBody) {
+			return false
+		}
+	}
+	return true
 }
 
 func redactedError(message string, secrets ...string) string {

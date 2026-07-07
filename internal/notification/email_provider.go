@@ -113,6 +113,45 @@ func parseEmailTarget(target string) (MailMessage, error) {
 	}, nil
 }
 
+func validateEmailTargetSyntax(target string) error {
+	parsed, values, err := parseTargetURL(target, "smtp")
+	if err != nil {
+		return err
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("smtp target host is required")
+	}
+	if _, err := requiredParam(values, "from"); err != nil {
+		return err
+	}
+	toValue, err := requiredParam(values, "to")
+	if err != nil {
+		return err
+	}
+	if _, err := splitRecipients(toValue); err != nil {
+		return err
+	}
+	usernameEnv, err := optionalEnvReference(values, "username_env")
+	if err != nil {
+		return err
+	}
+	passwordEnv, err := optionalEnvReference(values, "password_env")
+	if err != nil {
+		return err
+	}
+	if passwordEnv != "" && usernameEnv == "" {
+		return fmt.Errorf("username_env is required when password_env is set")
+	}
+	startTLSMode := strings.TrimSpace(values.Get("starttls"))
+	if startTLSMode == "" {
+		startTLSMode = "opportunistic"
+	}
+	if startTLSMode != "opportunistic" && startTLSMode != "required" && startTLSMode != "disabled" {
+		return fmt.Errorf("starttls must be opportunistic, required or disabled")
+	}
+	return nil
+}
+
 type SMTPMailSender struct {
 	Timeout time.Duration
 }

@@ -68,6 +68,24 @@ func ValidateProviderTarget(provider string, target string) error {
 	}
 }
 
+func ValidateProviderTargetSyntax(provider string, target string) error {
+	switch provider {
+	case "local", "webhook-demo":
+		return validateDemoTargetSyntax(target)
+	case "webhook":
+		return validateWebhookTarget(target)
+	case "email":
+		return validateEmailTargetSyntax(target)
+	case "feishu":
+		return validateFeishuTargetSyntax(target)
+	case "telegram":
+		return validateTelegramTargetSyntax(target)
+	default:
+		_, err := DefaultProviders().Provider(provider)
+		return err
+	}
+}
+
 type DemoProvider struct{}
 
 func (DemoProvider) Deliver(_ context.Context, delivery data.NotificationDelivery) error {
@@ -76,6 +94,13 @@ func (DemoProvider) Deliver(_ context.Context, delivery data.NotificationDeliver
 	}
 	if strings.Contains(strings.ToLower(delivery.Target), "fail") {
 		return fmt.Errorf("demo provider rejected target %q", delivery.Target)
+	}
+	return nil
+}
+
+func validateDemoTargetSyntax(target string) error {
+	if strings.TrimSpace(target) == "" {
+		return errors.New("notification target is required")
 	}
 	return nil
 }

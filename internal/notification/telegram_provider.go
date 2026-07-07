@@ -96,3 +96,21 @@ func parseTelegramTarget(target string) (telegramTarget, error) {
 	}
 	return telegramTarget{ChatID: chatID, Token: token, APIBase: apiBase}, nil
 }
+
+func validateTelegramTargetSyntax(target string) error {
+	_, values, err := parseTargetURL(target, "telegram")
+	if err != nil {
+		return err
+	}
+	if _, err := requiredParam(values, "chat_id"); err != nil {
+		return err
+	}
+	if _, err := requiredEnvReference(values, "token_env"); err != nil {
+		return err
+	}
+	apiBase := strings.TrimSpace(values.Get("api_base"))
+	if apiBase != "" && !strings.HasPrefix(apiBase, "http://") && !strings.HasPrefix(apiBase, "https://") {
+		return fmt.Errorf("api_base must use http or https")
+	}
+	return nil
+}

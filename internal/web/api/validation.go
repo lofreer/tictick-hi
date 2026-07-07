@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/notification"
 	"github.com/lofreer/tictick-hi/internal/strategy"
 )
 
@@ -52,7 +53,7 @@ func validateNotificationChannel(channel data.CreateNotificationChannel) error {
 	default:
 		return errors.New("provider must be local, webhook-demo, webhook, email, telegram or feishu")
 	}
-	return nil
+	return notification.ValidateProviderTargetSyntax(channel.Provider, channel.Target)
 }
 
 func validateExchangeAccount(account data.CreateExchangeAccount) error {

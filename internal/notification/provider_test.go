@@ -147,6 +147,48 @@ func TestValidateProviderTargetRejectsInvalidTarget(t *testing.T) {
 	}
 }
 
+func TestValidateProviderTargetSyntaxAllowsUnsetEnvReferences(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		target   string
+	}{
+		{name: "local failure simulation", provider: "local", target: "fail-delivery"},
+		{name: "telegram", provider: "telegram", target: "telegram://send?chat_id=1&token_env=UNSET_TELEGRAM_TOKEN"},
+		{name: "feishu", provider: "feishu", target: "feishu://webhook?url_env=UNSET_FEISHU_URL"},
+		{name: "email", provider: "email", target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=UNSET_SMTP_USER&password_env=UNSET_SMTP_PASSWORD"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateProviderTargetSyntax(tt.provider, tt.target); err != nil {
+				t.Fatalf("ValidateProviderTargetSyntax error = %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateProviderTargetSyntaxRejectsInvalidTarget(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		target   string
+	}{
+		{name: "webhook scheme", provider: "webhook", target: "ftp://example.test/hook"},
+		{name: "telegram missing token env", provider: "telegram", target: "telegram://send?chat_id=1"},
+		{name: "telegram invalid token env", provider: "telegram", target: "telegram://send?chat_id=1&token_env=1BAD"},
+		{name: "feishu invalid url env", provider: "feishu", target: "feishu://webhook?url_env=BAD-NAME"},
+		{name: "email password without username", provider: "email", target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&password_env=SMTP_PASSWORD"},
+		{name: "email starttls", provider: "email", target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&starttls=maybe"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateProviderTargetSyntax(tt.provider, tt.target); err == nil {
+				t.Fatal("expected invalid target error")
+			}
+		})
+	}
+}
+
 func TestWebhookProviderUsesContextCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
