@@ -37,6 +37,7 @@ run_check "api contract drift" "$ROOT_DIR/scripts/check-api-contract-drift.sh"
 run_check "research chart layout" "$ROOT_DIR/scripts/check-research-chart-layout.sh"
 run_check "command config smoke" "$ROOT_DIR/scripts/stage8-command-config-smoke.sh"
 run_check "capacity check" "$ROOT_DIR/scripts/stage8-capacity-check.sh"
+run_check "backup dry run" "$ROOT_DIR/scripts/stage8-backup-dry-run-smoke.sh"
 run_check "stage 0 scaffold markers" "$ROOT_DIR/scripts/check-scaffold-markers.sh"
 run_audit "future risk markers" "$ROOT_DIR/scripts/check-future-risk-markers.sh"
 

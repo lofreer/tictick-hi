@@ -1,0 +1,12 @@
+[Unit]
+Description=tictick-hi PostgreSQL backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/tictick-hi
+EnvironmentFile=/opt/tictick-hi/.env
+Environment=STAGE8_BACKUP_DIR=/var/backups/tictick-hi
+Environment=STAGE8_BACKUP_RETENTION_DAYS=14
+ExecStart=/opt/tictick-hi/scripts/stage8-backup.sh

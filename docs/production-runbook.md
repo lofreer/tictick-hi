@@ -186,27 +186,44 @@ Operational UI checks:
 The current Compose file stores PostgreSQL data in the `postgres_data` volume.
 Backups must be database dumps, not container filesystem copies.
 
-Create a backup directory outside the repository:
+Create a backup directory outside the repository or set `STAGE8_BACKUP_DIR`:
 
 ```bash
 mkdir -p ../tictick-hi-backups
 ```
 
-Take a compressed PostgreSQL dump:
+Validate backup configuration without calling Docker:
 
 ```bash
-docker compose exec -T postgres pg_dump \
-  -U "$POSTGRES_USER" \
-  -d "$POSTGRES_DB" \
-  -Fc \
-  > ../tictick-hi-backups/tictick-hi-$(date -u +%Y%m%dT%H%M%SZ).dump
+POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" \
+  scripts/stage8-backup.sh --dry-run
+```
+
+Take a compressed PostgreSQL dump and prune old `tictick-hi-*.dump` files after
+`STAGE8_BACKUP_RETENTION_DAYS`:
+
+```bash
+STAGE8_BACKUP_DIR=../tictick-hi-backups \
+STAGE8_BACKUP_RETENTION_DAYS=14 \
+  scripts/stage8-backup.sh
 ```
 
 Record the artifact name, source commit, image tag, database name, and restore
 test target. Store the dump in the agreed external backup location.
 
-Current gap: this repository now documents the backup command, but it does not
-yet contain an automated scheduled backup job.
+Example systemd units are available in `deploy/systemd/tictick-hi-backup.service`
+and `deploy/systemd/tictick-hi-backup.timer`. Copy them to the target host,
+adjust `WorkingDirectory`, `EnvironmentFile`, `STAGE8_BACKUP_DIR`, and
+`STAGE8_BACKUP_RETENTION_DAYS`, then run:
+
+```bash
+systemctl enable --now tictick-hi-backup.timer
+systemctl list-timers tictick-hi-backup.timer
+```
+
+Current gap: the repository now contains a backup script and a systemd timer
+template, but target hosts still need installation, external storage, monitoring,
+and restore-drill evidence.
 
 ## Restore Drill
 
@@ -261,9 +278,10 @@ Drop the drill database only after validation results are recorded:
 docker compose exec -T postgres dropdb -U "$POSTGRES_USER" tictick_hi_restore_drill
 ```
 
-Current gap: the repository now has a repeatable restore drill script, but
-recovery readiness still requires completed drill evidence from the target
-environment and an agreed backup schedule.
+Current gap: the repository now has a repeatable restore drill script and backup
+timer template, but recovery readiness still requires completed drill evidence
+from the target environment and confirmation that the backup timer writes to the
+agreed external storage.
 
 ## Upgrade
 
@@ -379,7 +397,7 @@ real-exchange check lowers validation strength.
 This runbook closes only the missing documentation entry point. It does not
 close these production-safety gaps:
 
-- no automated backup scheduler;
+- backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
 - no broader external system trace propagation, W3C trace context, or external log sink / retention policy;
