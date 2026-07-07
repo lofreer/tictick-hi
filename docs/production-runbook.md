@@ -135,12 +135,30 @@ Record the artifact name, source commit, image tag, database name, and restore
 test target. Store the dump in the agreed external backup location.
 
 Current gap: this repository now documents the backup command, but it does not
-yet contain an automated scheduled backup job or a completed restore drill.
+yet contain an automated scheduled backup job.
 
 ## Restore Drill
 
 Run restore drills against an isolated target database. Do not restore directly
 over the active database.
+
+Automated local drill:
+
+```bash
+scripts/stage8-backup-restore-drill.sh
+```
+
+The script starts PostgreSQL if needed, runs migrations on the source database,
+creates a compressed `pg_dump`, restores it into a temporary drill database,
+reruns `hi migrate` against the drill database to verify migration idempotence,
+checks restored table and migration metadata, and drops the drill database on
+exit.
+
+Keep the drill database for manual inspection only in a local environment:
+
+```bash
+STAGE8_BACKUP_RESTORE_KEEP_DB=1 scripts/stage8-backup-restore-drill.sh
+```
 
 Example local drill:
 
@@ -172,8 +190,9 @@ Drop the drill database only after validation results are recorded:
 docker compose exec -T postgres dropdb -U "$POSTGRES_USER" tictick_hi_restore_drill
 ```
 
-Current gap: restore drills must be run and recorded before claiming any
-production recovery readiness.
+Current gap: the repository now has a repeatable restore drill script, but
+recovery readiness still requires completed drill evidence from the target
+environment and an agreed backup schedule.
 
 ## Upgrade
 
@@ -268,6 +287,7 @@ Run for release-like Compose validation:
 ```bash
 scripts/stage8-smoke.sh
 scripts/stage8-sigterm-smoke.sh
+scripts/stage8-backup-restore-drill.sh
 ```
 
 Run Stage 1 data recovery smokes when changing data sync, CandleProvider,
@@ -289,7 +309,7 @@ This runbook closes only the missing documentation entry point. It does not
 close these production-safety gaps:
 
 - no automated backup scheduler;
-- no completed restore drill evidence;
+- no completed restore drill evidence for the target environment;
 - no resource sizing, disk capacity, or retention policy;
 - no structured logs, trace IDs, or external log sink;
 - no subcommand-specific health endpoints outside `hi api`;

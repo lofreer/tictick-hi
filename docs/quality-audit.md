@@ -30,8 +30,8 @@ done            用户确认关闭
 | 模块 | 当前等级 | 处理 | 主要问题 |
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
-| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺结构化日志/trace、子命令级健康探针、真实备份恢复演练、资源容量策略和更完整优雅停止证据 |
-| Docker Compose | demo | 保留 | 运行形态对，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺自动化备份、已记录恢复演练、资源容量策略和外部依赖韧性验证 |
+| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-backup-restore-drill.sh` 已补可重复 PostgreSQL 备份/恢复演练入口，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺结构化日志/trace、子命令级健康探针、已通过的目标环境备份恢复演练、资源容量策略和更完整优雅停止证据 |
+| Docker Compose | demo | 保留 | 运行形态对，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-backup-restore-drill.sh` 已补本地 restore drill 脚本，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺自动化备份、已记录且通过的目标环境恢复演练、资源容量策略和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE）；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks`、`POST /api/backtests` 和 `POST /api/trading/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active` 且不落库，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary`、窗口内历史异常 OHLCV K 线 `dataHealth=invalid`、`invalidSummary`、`GET /api/data/tasks/{id}/invalid-issues` 异常详情列表和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，`GET /api/market/instruments/status` 返回各交易所 instrument catalog 最近同步状态供研究页和运维上下文使用，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
@@ -10676,6 +10676,48 @@ Definition of Done：
 
 - 生产运行手册只提供可执行操作边界，不等于自动化备份、恢复演练、容量规划、外部监控或告警已完成。
 - `hi api` 之外仍缺子命令级健康探针，后台 worker 长期运行仍依赖现有 system health 快照和日志排查。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
+### 阶段 8 PostgreSQL 备份恢复演练入口补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增 `scripts/stage8-backup-restore-drill.sh`，作为可重复执行的本地 PostgreSQL backup / restore drill 入口。
+- 脚本会启动 Compose PostgreSQL、对源库运行 `hi migrate`、生成压缩 `pg_dump -Fc`、恢复到独立 drill database、在 drill database 上复跑 `hi migrate` 验证幂等，并检查 restored public table 列表和 `schema_migrations` 记录。
+- drill database 默认退出时删除；可用 `STAGE8_BACKUP_RESTORE_KEEP_DB=1` 保留本地演练库用于人工检查。
+- `scripts/full-quality-gate.sh` 增加显式 `FULL_QUALITY_STAGE8_BACKUP_RESTORE=1` 开关，不放入默认门禁，避免普通 PR gate 隐式依赖 Docker daemon 和本地数据库状态。
+- README 和 `docs/production-runbook.md` 增加 backup / restore drill 入口说明。
+
+范围外：
+
+- 不新增自动备份调度、外部备份存储、恢复审批流程、容量/保留策略、KMS / secret manager 或生产告警。
+- 不修改 Compose service 定义、Go migration 逻辑、PostgreSQL schema、worker、API 或前端。
+- 不把脚本存在等同于恢复演练已经通过；目标环境仍必须实际运行并记录证据。
+
+当前验证：
+
+- `bash -n scripts/stage8-backup-restore-drill.sh scripts/full-quality-gate.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过，55 个 test file / 240 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- `scripts/stage8-backup-restore-drill.sh` 未通过运行；脚本停在 `start postgres`，Docker 返回 `unable to get image 'postgres:16-alpine': Cannot connect to the Docker daemon at unix:///Users/xiaobai/.docker/run/docker.sock. Is the docker daemon running?`。同一环境下 `docker compose ps` / `docker version` 也无法连接 daemon。
+- 未执行真实 `pg_dump` / `pg_restore` / drill database 迁移幂等检查；恢复演练通过证据仍需 Docker 可用后补跑。
+
+剩余风险：
+
+- 脚本只覆盖本地 Compose PostgreSQL drill，不是自动定时备份、异地恢复、生产容量规划或长期数据保留策略。
+- 当前没有目标环境恢复演练成功记录，因此 Docker Compose 和 Go 子命令仍不能升级为 production-safe。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后

@@ -50,6 +50,10 @@ if env_enabled "${FULL_QUALITY_STAGE8:-0}"; then
   run_check "stage8 full-chain smoke" "$ROOT_DIR/scripts/stage8-smoke.sh"
 fi
 
+if env_enabled "${FULL_QUALITY_STAGE8_BACKUP_RESTORE:-0}"; then
+  run_check "stage8 backup restore drill" "$ROOT_DIR/scripts/stage8-backup-restore-drill.sh"
+fi
+
 if env_enabled "${FULL_QUALITY_SIGTERM:-0}"; then
   run_check "stage8 sigterm smoke" "$ROOT_DIR/scripts/stage8-sigterm-smoke.sh"
 fi

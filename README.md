@@ -48,6 +48,12 @@ Add the heavier Docker / browser checks explicitly when validating Stage 8 behav
 FULL_QUALITY_STAGE8=1 FULL_QUALITY_SIGTERM=1 scripts/full-quality-gate.sh
 ```
 
+Run the PostgreSQL backup / restore drill explicitly when validating recovery operations:
+
+```bash
+FULL_QUALITY_STAGE8_BACKUP_RESTORE=1 scripts/full-quality-gate.sh
+```
+
 The same default full gate runs in GitHub Actions on pull requests, pushes to `main`, and manual dispatches.
 
 Heavy Stage 8 smoke checks are isolated in a separate GitHub Actions workflow. They can be run manually or by the weekly schedule:
@@ -115,6 +121,12 @@ Run the command config smoke before changing `hi api/sync/backtest/trading/notif
 
 ```bash
 scripts/stage8-command-config-smoke.sh
+```
+
+Run the backup / restore drill after PostgreSQL migration or operations changes:
+
+```bash
+scripts/stage8-backup-restore-drill.sh
 ```
 
 Run the research chart height smoke after the stack is up:
