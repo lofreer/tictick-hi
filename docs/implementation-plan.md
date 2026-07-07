@@ -2001,6 +2001,6 @@ go vet ./...
 3. TradingView 开源图表第一版采用 `lightweight-charts` 包，当前安装包元数据为 Apache-2.0 license；前端契约测试禁止回退到 proprietary TradingView widget / charting_library。
 4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider，并记录成功投递响应中的 provider message ID；生产启用、模板、限流和外部回执边界仍需确认。
 5. 生产级交易所账号密钥来源、轮换和历史账号迁移策略。
-6. 实盘任务创建二次输入确认已收敛为输入 `LIVE`；风险默认值仍需随 live executor 阶段继续复核。
+6. 实盘任务创建二次输入确认已收敛为输入 `LIVE`；API 会将缺省 `intentPolicy.riskLimitPct` 归一为 10 并限制为 `0..100` 数字。live executor 启用前仍需复核真实风控默认值。
 7. 回测第一版保留 `feeBps` / `slippageBps`，runner 已按 bps 应用到成交价、手续费和结果摘要；生产级撮合曲线仍后续复核。
 8. 保留现有 `tictick-hi` Go + Vue 结构：后端集中在 `cmd/hi` 和 `internal/*`，前端集中在 `web/frontend/src/*`；`scripts/check-repo-structure.sh` 已进入质量门禁防止重复 backend/frontend 根目录和跨栈源码漂移。

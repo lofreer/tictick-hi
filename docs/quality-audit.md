@@ -14523,6 +14523,47 @@ Definition of Done：
 - 该门禁只锁住当前目录边界，不替代后续模块拆分、package ownership、dependency graph 或 ADR 流程。
 - 如果未来确实需要新增顶层 app，需要先更新计划文档和门禁脚本，避免绕过结构决策。
 
+### 阶段 8 trading riskLimitPct API 边界补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- `normalizeCreateTradingTask` 对缺省 `intentPolicy.riskLimitPct` 写入当前 demo 默认值 `10.0`，让后端和前端默认风险上限一致。
+- `validateCreateTradingTask` 要求 `intentPolicy.riskLimitPct` 必须是数字且位于 `0..100`，拒绝字符串、负数和超过 100 的值。
+- paper / live 创建请求共享该边界；live `orderIntent=execute` 仍保持禁用，`LIVE` 文本确认仍只是创建前门护栏。
+- API 路由测试覆盖缺省默认化、越界拒绝、字符串拒绝和不落库。
+
+范围外：
+
+- 不启用 live executor、真实交易所私有 API、下单、撤单或查单。
+- 不实现仓位级、账户级、组合级、杠杆、最大回撤、日内亏损、冷却时间或多人审批风控。
+- 不声明 `10%` 是生产默认值；live executor 启用前仍需结合真实交易模式重新复核。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestCreateTradingTaskDefaultsRiskLimitPct|TestCreateTradingTaskRejectsInvalidRiskLimitPct|TestCreateLiveTradingTaskRequiresConfirmation|TestTradingTaskRoutes' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+未执行：
+
+- 本切片未改前端页面运行态，未执行额外 Browser / Vite HTTP smoke。
+
+剩余风险：
+
+- 当前 `riskLimitPct` 仍只是 intentPolicy 中的 demo 参数，live executor 禁用期间不会形成真实交易风控闭环。
+- 生产级风控默认值、执行前校验、账户级限制、告警和审批流仍需随 live executor 阶段设计和验证。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

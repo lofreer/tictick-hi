@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strconv"
@@ -154,6 +155,9 @@ func normalizeCreateTradingTask(task *data.CreateTradingTask) {
 	if _, exists := task.IntentPolicy["notificationChannel"]; !exists {
 		task.IntentPolicy["notificationChannel"] = "default"
 	}
+	if _, exists := task.IntentPolicy["riskLimitPct"]; !exists {
+		task.IntentPolicy["riskLimitPct"] = 10.0
+	}
 }
 
 func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.Definition) error {
@@ -187,6 +191,9 @@ func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.
 	if task.Type == "live" && orderIntent == "execute" {
 		return errors.New("live execution is disabled until the live safety stage")
 	}
+	if !validPolicyPercentage(task.IntentPolicy["riskLimitPct"]) {
+		return errors.New("intentPolicy.riskLimitPct must be a number between 0 and 100")
+	}
 	return strategy.ValidateParams(definition, task.StrategyParams)
 }
 
@@ -207,4 +214,27 @@ func validBasisPoints(value string) bool {
 		return false
 	}
 	return number >= 0 && number <= 10000
+}
+
+func validPolicyPercentage(value any) bool {
+	number, ok := policyNumber(value)
+	return ok && number >= 0 && number <= 100
+}
+
+func policyNumber(value any) (float64, bool) {
+	switch number := value.(type) {
+	case float64:
+		return number, true
+	case float32:
+		return float64(number), true
+	case int:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	case json.Number:
+		parsed, err := number.Float64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
