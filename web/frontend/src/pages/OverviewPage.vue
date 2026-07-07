@@ -26,11 +26,12 @@
       </section>
 
       <div class="overview-metrics">
-        <section v-for="card in summaryCards" :key="card.key" class="surface overview-metric">
+        <RouterLink v-for="card in summaryCards" :key="card.key" class="surface overview-metric" :to="card.to" :aria-label="t('overview.openMetric', { target: card.label })">
           <span>{{ card.label }}</span>
           <strong>{{ card.value }}</strong>
           <p>{{ card.detail }}</p>
-        </section>
+          <ChevronRight class="overview-metric__icon" :size="16" aria-hidden="true" />
+        </RouterLink>
       </div>
 
       <div class="overview-grid">
@@ -115,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { RefreshCw } from "@lucide/vue";
+import { ChevronRight, RefreshCw } from "@lucide/vue";
 import { NButton, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -188,6 +189,33 @@ const {
 
 .overview-metric {
   min-width: 0;
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.overview-metric:hover,
+.overview-metric:focus-visible {
+  border-color: var(--tt-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-primary) 36%, transparent);
+}
+
+.overview-metric:focus-visible {
+  outline: 2px solid var(--tt-primary);
+  outline-offset: 2px;
+}
+
+.overview-metric__icon {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--tt-muted);
+}
+
+.overview-metric:hover .overview-metric__icon,
+.overview-metric:focus-visible .overview-metric__icon {
+  color: var(--tt-primary);
 }
 
 .overview-metric span,
@@ -204,12 +232,18 @@ const {
 .overview-metric strong {
   display: block;
   margin-top: 8px;
+  padding-right: 24px;
   font-size: 26px;
   line-height: 1.1;
 }
 
+.overview-metric > span {
+  padding-right: 24px;
+}
+
 .overview-metric p {
   margin: 8px 0 0;
+  padding-right: 24px;
   color: var(--tt-muted);
   font-size: 12px;
   line-height: 1.5;

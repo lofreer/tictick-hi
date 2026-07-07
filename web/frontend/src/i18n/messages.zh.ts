@@ -76,6 +76,7 @@ export const zhCNMessages: Record<string, string> = {
   "overview.notificationAlert": "存在失败通知，需要重试或检查通道。",
   "overview.notifications": "通知",
   "overview.notificationsDetail": "失败 {failed} / 待处理 {pending}",
+  "overview.openMetric": "查看 {target}",
   "overview.orders": "订单",
   "overview.projectLevel": "项目等级",
   "overview.projectLevelDetail": "质量审计关闭前，当前项目只能按 scaffold 推进。",

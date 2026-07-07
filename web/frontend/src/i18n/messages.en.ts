@@ -76,6 +76,7 @@ export const enUSMessages: Record<string, string> = {
   "overview.notificationAlert": "Failed notifications need retry or channel inspection.",
   "overview.notifications": "Notifications",
   "overview.notificationsDetail": "Failed {failed} / pending {pending}",
+  "overview.openMetric": "Open {target}",
   "overview.orders": "Orders",
   "overview.projectLevel": "Project Level",
   "overview.projectLevelDetail": "The project remains scaffold until the quality audit is closed.",

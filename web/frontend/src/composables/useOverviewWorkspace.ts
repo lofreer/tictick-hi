@@ -21,6 +21,7 @@ type SummaryCard = {
   label: string;
   value: number | string;
   detail: string;
+  to: RouteLocationRaw;
 };
 
 type OverviewAlert = {
@@ -87,6 +88,7 @@ export function useOverviewWorkspace() {
         invalid: countDataHealth(dataSyncTasks.value, "invalid"),
         realtime: dataSyncTasks.value.filter((task) => task.realtimeEnabled).length,
       }),
+      to: { name: "research" },
     },
     {
       key: "backtests",
@@ -97,6 +99,7 @@ export function useOverviewWorkspace() {
         failed: countStatus(backtests.value, "failed"),
         succeeded: countStatus(backtests.value, "succeeded"),
       }),
+      to: { name: "backtests" },
     },
     {
       key: "trading",
@@ -107,6 +110,7 @@ export function useOverviewWorkspace() {
         paper: tradingTasks.value.filter((task) => task.type === "paper").length,
         live: tradingTasks.value.filter((task) => task.type === "live").length,
       }),
+      to: { name: "trading" },
     },
     {
       key: "notifications",
@@ -116,6 +120,7 @@ export function useOverviewWorkspace() {
         failed: notifications.value.filter((item) => item.status === "failed").length,
         pending: notifications.value.filter((item) => item.status === "pending" || item.status === "retry_scheduled").length,
       }),
+      to: { name: "system-notifications" },
     },
     {
       key: "workers",
@@ -125,6 +130,7 @@ export function useOverviewWorkspace() {
         stale: services.value.reduce((total, service) => total + (service.staleLeaseCount ?? 0), 0),
         locked: services.value.reduce((total, service) => total + (service.lockedCount ?? 0), 0),
       }),
+      to: { name: "system-health" },
     },
   ]);
 

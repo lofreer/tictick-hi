@@ -119,6 +119,13 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.value).toBe(3);
     expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.detail).toContain("异常 1");
     expect(workspace.summaryCards.value.find((card) => card.key === "workers")?.detail).toContain("过期锁 1");
+    expect(workspace.summaryCards.value.map((card) => ({ key: card.key, to: card.to }))).toEqual([
+      { key: "sync", to: { name: "research" } },
+      { key: "backtests", to: { name: "backtests" } },
+      { key: "trading", to: { name: "trading" } },
+      { key: "notifications", to: { name: "system-notifications" } },
+      { key: "workers", to: { name: "system-health" } },
+    ]);
     expect(workspace.alerts.value.map((alert) => alert.key)).toEqual([
       "health",
       "sync-failed",

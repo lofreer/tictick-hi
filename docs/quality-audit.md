@@ -45,7 +45,7 @@ done            用户确认关闭
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界、最右侧 canvas 必须贴住 viewport 右边界、主图占比、研究页工具栏高度最大 `72px` 的断言，并把 symbol 输入最大宽度阈值收敛到 `100px`、控件组最大宽度 `500px`、右侧价格轴最大宽度 `72px`、坐标轴文字墨迹高度范围收敛为桌面/窄桌面/移动端 `7px` 到 `13px`、图表高度收敛到桌面 `600px+` / 窄桌面 `620px+` / 移动端 `540px+`，防止右侧额外空白、工具栏过宽、坐标轴过小和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
-| 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；仍缺趋势图、操作入口和生产级监控语义 |
+| 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；汇总卡片已有到研究、回测、交易、通知和运维健康的操作入口；仍缺趋势图和生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、完整本地质量门禁 `scripts/full-quality-gate.sh`、GitHub Actions 默认 full gate、独立 Stage 8 heavy smoke workflow、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
@@ -10275,6 +10275,49 @@ Definition of Done：
 
 - 时间窗口控件只过滤最近活动列表，不提供趋势图、聚合统计时间序列或生产级监控语义。
 - recent facts 仍分别返回 strategy intents 和 orders，不提供跨类型统一游标分页。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
+### 阶段 1 概览页汇总卡片操作入口补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 概览页五个汇总卡片从纯展示块改为可点击导航入口。
+- 数据同步卡片跳转研究页，回测卡片跳转回测列表，交易卡片跳转交易列表，通知卡片跳转通知管理，后台服务卡片跳转运维健康。
+- 卡片保留既有数量和摘要文案，新增箭头图标、hover/focus 状态和 aria label，避免只靠异常列表或最近活动进入业务页面。
+- 中英文 i18n 增加汇总卡片打开入口的无障碍文案。
+- 测试覆盖卡片目标路由、页面 RouterLink 接线、箭头图标和 i18n key。
+
+范围外：
+
+- 不新增趋势图、监控查询语言、生产级告警语义、过滤参数透传或深度指标。
+- 不改变概览页加载 API、recent facts 查询、runner、CandleProvider、data sync worker 或实盘安全边界。
+- 不把概览页或整体项目升级为 usable。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useOverviewWorkspace.test.ts src/pages/OverviewPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+- 前端 dev server HTTP smoke 通过：`http://127.0.0.1:5173/overview` 返回 200 和 Vite HTML。
+
+未执行：
+
+- 内置浏览器 / 视觉 smoke 未完成；浏览器控制工具返回 `sandboxCwd must be an absolute file URI` 元数据错误，未取得渲染截图或登录后概览页可视证据。
+
+剩余风险：
+
+- 汇总卡片只提供模块级入口，不提供带筛选条件的深链、趋势图或生产级监控语义。
+- 概览页仍缺时间序列趋势、深度指标和更完整的观测闭环。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
 ## 6. 保留 / 返工 / 删除 / 延后
