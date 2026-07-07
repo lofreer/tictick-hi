@@ -65,6 +65,10 @@ func runNotify(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	healthAddr, err := loadWorkerHealthProbeAddr("notify")
+	if err != nil {
+		return err
+	}
 
 	store, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
@@ -87,16 +91,24 @@ func runNotify(ctx context.Context, args []string) error {
 		"poll_interval", config.PollInterval,
 		"retry_delay", config.RetryDelay,
 		"max_retry_delay", config.MaxRetryDelay,
+		"health_probe_addr", healthAddr,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
+	}
+	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID); err != nil {
+		return err
 	}
 	return runner.Run(ctx)
 }
 
 func runTrading(ctx context.Context, args []string) error {
 	config, err := loadTradingCommandConfig(args)
+	if err != nil {
+		return err
+	}
+	healthAddr, err := loadWorkerHealthProbeAddr("trading")
 	if err != nil {
 		return err
 	}
@@ -120,16 +132,24 @@ func runTrading(ctx context.Context, args []string) error {
 		"lease_ttl", config.LeaseTTL,
 		"poll_interval", config.PollInterval,
 		"candle_limit", config.CandleLimit,
+		"health_probe_addr", healthAddr,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
+	}
+	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID); err != nil {
+		return err
 	}
 	return runner.Run(ctx)
 }
 
 func runBacktest(ctx context.Context, args []string) error {
 	config, err := loadBacktestCommandConfig(args)
+	if err != nil {
+		return err
+	}
+	healthAddr, err := loadWorkerHealthProbeAddr("backtest")
 	if err != nil {
 		return err
 	}
@@ -153,16 +173,24 @@ func runBacktest(ctx context.Context, args []string) error {
 		"lease_ttl", config.LeaseTTL,
 		"poll_interval", config.PollInterval,
 		"candle_limit", config.CandleLimit,
+		"health_probe_addr", healthAddr,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
+	}
+	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID); err != nil {
+		return err
 	}
 	return runner.Run(ctx)
 }
 
 func runSync(ctx context.Context, args []string) error {
 	config, err := loadSyncCommandConfig(args)
+	if err != nil {
+		return err
+	}
+	healthAddr, err := loadWorkerHealthProbeAddr("sync")
 	if err != nil {
 		return err
 	}
@@ -216,10 +244,14 @@ func runSync(ctx context.Context, args []string) error {
 		"binance_request_weight_window", exchangeConfig.BinanceRequestWeightWindow,
 		"okx_market_request_limit", exchangeConfig.OKXMarketRequestLimit,
 		"okx_market_request_window", exchangeConfig.OKXMarketRequestWindow,
+		"health_probe_addr", healthAddr,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
+	}
+	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID); err != nil {
+		return err
 	}
 	if config.MarketInstrumentSyncEnabled {
 		instrumentRunner := marketsync.NewRunner(store, map[string]exchange.InstrumentClient{

@@ -103,6 +103,21 @@ Database readiness:
 docker compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 
+Optional worker process probes:
+
+```bash
+SYNC_HEALTH_ADDR=0.0.0.0:8091
+BACKTEST_HEALTH_ADDR=0.0.0.0:8092
+TRADING_HEALTH_ADDR=0.0.0.0:8093
+NOTIFY_HEALTH_ADDR=0.0.0.0:8094
+```
+
+When these values are set before starting Compose, the corresponding worker
+serves `/livez`, `/readyz`, and `/healthz` after PostgreSQL is open and before
+the runner loop starts. These are process reachability probes only; keep using
+`/system/health` for task leases, stale workers, exchange backoff, fetch-lock
+skips, and instrument catalog status.
+
 Operational UI checks:
 
 - sign in to `/overview`;
@@ -312,7 +327,7 @@ close these production-safety gaps:
 - no completed restore drill evidence for the target environment;
 - no resource sizing, disk capacity, or retention policy;
 - no structured logs, trace IDs, or external log sink;
-- no subcommand-specific health endpoints outside `hi api`;
+- no richer worker business readiness beyond process-level health probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
 - no long-running multi-instance exchange quota proof;

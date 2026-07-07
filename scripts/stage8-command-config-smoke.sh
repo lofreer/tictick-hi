@@ -82,6 +82,11 @@ run_failing_case \
   clean_env DATABASE_URL="$SECRET_DSN" BINANCE_REQUEST_WEIGHT_LIMIT=0 "$BIN" sync --once
 
 run_failing_case \
+  "sync invalid health addr" \
+  "SYNC_HEALTH_ADDR" \
+  clean_env DATABASE_URL="$SECRET_DSN" SYNC_HEALTH_ADDR=not-a-host-port "$BIN" sync --once
+
+run_failing_case \
   "trading invalid candle limit" \
   "TRADING_CANDLE_LIMIT" \
   clean_env DATABASE_URL="$SECRET_DSN" TRADING_CANDLE_LIMIT=0 "$BIN" trading --once

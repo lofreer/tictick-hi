@@ -71,6 +71,23 @@ NOTIFY_RETRY_DELAY
 NOTIFY_MAX_RETRY_DELAY
 ```
 
+Long-running worker commands can expose optional process-level HTTP probes:
+
+```text
+SYNC_HEALTH_ADDR
+BACKTEST_HEALTH_ADDR
+TRADING_HEALTH_ADDR
+NOTIFY_HEALTH_ADDR
+```
+
+When set to a TCP `host:port`, the corresponding worker serves `GET /livez`,
+`GET /readyz`, and `GET /healthz` with a small JSON `status=ok` payload after
+the command has opened PostgreSQL and before the long-running runner loop
+starts. These probes are disabled by default and are not started for `--once`.
+They only prove that the worker process is reachable; task lease state,
+exchange backoff, stale workers, and catalog health remain visible through
+`hi api` system health.
+
 Public market clients read:
 
 ```text
@@ -152,6 +169,7 @@ The smoke builds a local `hi` binary and verifies:
 - missing `DATABASE_URL` fails with a clear error;
 - invalid duration, int, and bool values name the failing env;
 - `SYNC_HEARTBEAT_INTERVAL > SYNC_LEASE_TTL` fails before the database opens;
+- worker health probe addresses must be valid `host:port` values;
 - public exchange rate-limit config is validated before runtime;
 - unknown flags are reported without usage noise;
 - error output does not leak the test DSN, password, or secret marker.
@@ -171,6 +189,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - no structured trace IDs across subcommands;
-- no subcommand-specific health endpoint outside `hi api`;
+- worker subcommands have optional process-level health probes, but no richer subcommand-specific readiness model beyond process reachability;
 - backup/restore, resource limits, and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation;
 - no claim that these commands are production-safe.
