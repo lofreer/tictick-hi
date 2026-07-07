@@ -37,6 +37,25 @@ func TestAPIContractRouteExposesOpenAPIContract(t *testing.T) {
 	}
 }
 
+func TestAPIContractRouteRequiresAdminRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.operators[0].Role = data.OperatorRoleOperator
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/api-contract", "")
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("api contract status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "forbidden" || response.Message != "admin operator role is required" {
+		t.Fatalf("unexpected admin required response: %#v", response)
+	}
+	event := assertAuditAction(t, repository.auditEvents, "api_contract.read", "api_contract", "")
+	if event.Outcome != "failure" || event.Metadata["reason"] != "admin_required" ||
+		event.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected admin required audit event: %#v", event)
+	}
+}
+
 func TestAPIContractDeclaresRequestIDResponseHeader(t *testing.T) {
 	contract := apiContractDocument()
 	for path, methods := range contract.Paths {

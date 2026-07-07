@@ -26,6 +26,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 			writeMethodNotAllowed(w, http.MethodGet)
 			return
 		}
+		if _, ok := server.currentAdminOperator(w, r, "api_contract.read", "api_contract", "", nil); !ok {
+			return
+		}
 		writeJSON(w, http.StatusOK, apiContractDocument())
 		return
 	}
