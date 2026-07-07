@@ -103,6 +103,25 @@ func TestRunnerRecordsProviderDeliveryDurationOnSuccess(t *testing.T) {
 	}
 }
 
+func TestRunnerSuccessLogAttrsIncludeProviderMessageID(t *testing.T) {
+	runner := NewRunner(&fakeNotificationRepository{}, DemoProviders(), Config{WorkerID: "test"})
+	attrs := runner.deliverySuccessLogAttrs(
+		data.NotificationDelivery{
+			ID:             "no_1",
+			NotificationID: "nt_1",
+			Provider:       "webhook",
+			Channel:        "ops",
+			AttemptCount:   1,
+			MaxAttempts:    3,
+		},
+		data.NotificationDeliveryResult{ProviderMessageID: "  provider-message-1  "},
+		25*time.Millisecond,
+	)
+	if !logAttrsContain(attrs, "provider_message_id", "provider-message-1") {
+		t.Fatalf("log attrs missing provider_message_id: %#v", attrs)
+	}
+}
+
 func TestRunnerRecordsProviderDeliveryDurationOnFailure(t *testing.T) {
 	repository := &fakeNotificationRepository{
 		delivery: data.NotificationDelivery{
@@ -317,6 +336,15 @@ func (repository *fakeNotificationRepository) MarkNotificationFailed(
 func (repository *fakeNotificationRepository) ReleaseNotificationDelivery(context.Context, string) error {
 	repository.released = true
 	return nil
+}
+
+func logAttrsContain(attrs []any, key string, value string) bool {
+	for index := 0; index+1 < len(attrs); index += 2 {
+		if attrs[index] == key && attrs[index+1] == value {
+			return true
+		}
+	}
+	return false
 }
 
 type cancelingProvider struct {

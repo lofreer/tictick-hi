@@ -124,7 +124,7 @@ func (runner *Runner) runOne(ctx context.Context) (bool, error) {
 	if err := runner.repository.MarkNotificationDelivered(ctx, delivery.ID, deliveredAt, deliveryResult, providerDuration); err != nil {
 		return true, fmt.Errorf("mark notification delivered: %w", err)
 	}
-	slog.Info("notification delivery delivered", runner.deliveryLogAttrs(delivery, providerDuration)...)
+	slog.Info("notification delivery delivered", runner.deliverySuccessLogAttrs(delivery, deliveryResult, providerDuration)...)
 	return true, nil
 }
 
@@ -214,4 +214,16 @@ func (runner *Runner) deliveryLogAttrs(
 		providerDuration.Milliseconds(),
 	)
 	return append(base, attrs...)
+}
+
+func (runner *Runner) deliverySuccessLogAttrs(
+	delivery data.NotificationDelivery,
+	result data.NotificationDeliveryResult,
+	providerDuration time.Duration,
+) []any {
+	attrs := runner.deliveryLogAttrs(delivery, providerDuration)
+	if messageID := normalizeProviderMessageID(result.ProviderMessageID); messageID != "" {
+		attrs = append(attrs, "provider_message_id", messageID)
+	}
+	return attrs
 }
