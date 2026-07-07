@@ -173,6 +173,7 @@ export const enUSMessages: Record<string, string> = {
     "system.enableOperator": "Enable",
     "system.updateChannel": "Update",
     "system.exchangeBackoff": "Exchange Backoff",
+    "system.exportAuditEvents": "Export Audit",
     "system.fetchLockSkips": "Fetch Lock Skips",
     "system.exchangeAccountsSubtitle": "Manage exchange account aliases and enabled state without exposing full keys.",
     "system.healthLoadFailed": "Failed to load health.",

@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -60,6 +61,62 @@ func TestSystemAuditEventsRouteRecordsSecurityActions(t *testing.T) {
 	}
 }
 
+func TestSystemAuditEventsExportReturnsCSV(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	createRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"ops-export","password":"secret123A","enabled":true}`,
+	)
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create operator status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+
+	exportRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/audit-events/export?limit=10", "")
+	if exportRecorder.Code != http.StatusOK {
+		t.Fatalf("export audit events status = %d body = %s", exportRecorder.Code, exportRecorder.Body.String())
+	}
+	if contentType := exportRecorder.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/csv") {
+		t.Fatalf("content-type = %q, want text/csv", contentType)
+	}
+	if disposition := exportRecorder.Header().Get("Content-Disposition"); !strings.Contains(disposition, auditEventCSVFilename) {
+		t.Fatalf("content-disposition = %q, want filename %q", disposition, auditEventCSVFilename)
+	}
+	body := exportRecorder.Body.String()
+	if strings.Contains(body, "secret123A") {
+		t.Fatalf("audit export leaked operator password: %s", body)
+	}
+
+	rows, err := csv.NewReader(strings.NewReader(body)).ReadAll()
+	if err != nil {
+		t.Fatalf("parse csv: %v\n%s", err, body)
+	}
+	if len(rows) < 2 {
+		t.Fatalf("csv rows = %#v", rows)
+	}
+	if got := strings.Join(rows[0], ","); got != strings.Join(auditEventCSVHeader, ",") {
+		t.Fatalf("csv header = %#v, want %#v", rows[0], auditEventCSVHeader)
+	}
+	createRow := auditCSVRowByAction(t, rows, "operator.create")
+	columns := auditCSVColumns(rows[0])
+	if createRow[columns["actorUsername"]] != testUsername {
+		t.Fatalf("actor username column = %q, want %q", createRow[columns["actorUsername"]], testUsername)
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal([]byte(createRow[columns["metadata"]]), &metadata); err != nil {
+		t.Fatalf("decode metadata column: %v", err)
+	}
+	if metadata["username"] != "ops-export" || metadata["enabled"] != "true" {
+		t.Fatalf("metadata column = %#v", metadata)
+	}
+	if _, ok := metadata["password"]; ok {
+		t.Fatalf("metadata leaked password key: %#v", metadata)
+	}
+}
+
 func TestFailedLoginWritesAnonymousAuditEvent(t *testing.T) {
 	repository := newFakeRepository()
 	server := NewServer(repository, "")
@@ -112,6 +169,40 @@ func TestAuditEventClientContextIsTrimmedAndBounded(t *testing.T) {
 	}
 }
 
+func TestAuditEventsCSVNeutralizesFormulaCells(t *testing.T) {
+	payload, err := auditEventsCSV([]data.AuditEvent{
+		{
+			ID:           "ae_1",
+			Action:       "=IMPORTXML()",
+			ResourceType: "operator",
+			ResourceID:   " +SUM(1,1)",
+			Outcome:      "success",
+			UserAgent:    "@evil",
+			Metadata:     map[string]string{"note": "plain"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(strings.NewReader(string(payload))).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("csv rows = %#v", rows)
+	}
+	columns := auditCSVColumns(rows[0])
+	if rows[1][columns["action"]] != "'=IMPORTXML()" {
+		t.Fatalf("action cell = %q", rows[1][columns["action"]])
+	}
+	if rows[1][columns["resourceId"]] != "' +SUM(1,1)" {
+		t.Fatalf("resourceId cell = %q", rows[1][columns["resourceId"]])
+	}
+	if rows[1][columns["userAgent"]] != "'@evil" {
+		t.Fatalf("userAgent cell = %q", rows[1][columns["userAgent"]])
+	}
+}
+
 func TestParseAuditLimitNormalizesInvalidAndOversizedValues(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -135,6 +226,26 @@ func TestParseAuditLimitNormalizesInvalidAndOversizedValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func auditCSVColumns(header []string) map[string]int {
+	columns := map[string]int{}
+	for index, name := range header {
+		columns[name] = index
+	}
+	return columns
+}
+
+func auditCSVRowByAction(t *testing.T, rows [][]string, action string) []string {
+	t.Helper()
+	columns := auditCSVColumns(rows[0])
+	for _, row := range rows[1:] {
+		if row[columns["action"]] == action {
+			return row
+		}
+	}
+	t.Fatalf("missing action %q in %#v", action, rows)
+	return nil
 }
 
 func assertAuditAction(t *testing.T, events []data.AuditEvent, action string, resourceType string, resourceID string) data.AuditEvent {

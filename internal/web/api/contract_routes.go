@@ -9,11 +9,12 @@ import (
 )
 
 type operationConfig struct {
-	auth        bool
-	csrf        bool
-	parameters  []apiParameter
-	requestBody *apiRequestBody
-	errors      []int
+	auth                bool
+	csrf                bool
+	parameters          []apiParameter
+	requestBody         *apiRequestBody
+	errors              []int
+	responseContentType string
 }
 
 type operationOption func(*operationConfig)
@@ -285,44 +286,6 @@ func addTradingContractPaths(paths map[string]apiPathItem) {
 	}
 }
 
-func addSystemContractPaths(paths map[string]apiPathItem) {
-	addOperation(paths, "/api/system/health", http.MethodGet, operation(
-		"system", "systemHealth", "Read system health", http.StatusOK, schemaRef("SystemHealth"),
-	))
-	addOperation(paths, "/api/system/api-contract", http.MethodGet, operation(
-		"system", "apiContract", "Read the OpenAPI schema contract", http.StatusOK,
-		map[string]any{"type": "object", "description": "OpenAPI 3.1 contract document"},
-	))
-	addOperation(paths, "/api/system/notifications", http.MethodGet, operation(
-		"system", "listNotifications", "List notifications", http.StatusOK, arraySchema(schemaRef("Notification")),
-	))
-	addOperation(paths, "/api/system/notifications/{id}/retry", http.MethodPost, operation(
-		"system", "retryNotification", "Retry a failed notification", http.StatusOK, schemaRef("Notification"),
-		withCSRF(), withParameters(pathParam("id", "Notification id")), withErrors(http.StatusNotFound, http.StatusConflict),
-	))
-	addNotificationChannelContractPaths(paths)
-	addOperation(paths, "/api/system/exchange-accounts", http.MethodGet, operation(
-		"system", "listExchangeAccounts", "List exchange accounts without secret material", http.StatusOK, arraySchema(schemaRef("ExchangeAccount")),
-	))
-	addOperation(paths, "/api/system/exchange-accounts", http.MethodPost, operation(
-		"system", "createExchangeAccount", "Create an exchange account", http.StatusCreated, schemaRef("ExchangeAccount"),
-		withCSRF(), withRequest(schemaRef("CreateExchangeAccount")), withErrors(http.StatusBadRequest),
-	))
-	addOperation(paths, "/api/system/operators", http.MethodGet, operation(
-		"system", "listOperators", "List operators", http.StatusOK, arraySchema(schemaRef("Operator")),
-	))
-	addOperation(paths, "/api/system/operators", http.MethodPost, operation(
-		"system", "createOperator", "Create an operator", http.StatusCreated, schemaRef("Operator"),
-		withCSRF(), withRequest(schemaRef("CreateOperator")), withErrors(http.StatusBadRequest),
-	))
-	addSystemActionContractPaths(paths, "/api/system/operators/{id}",
-		"setOperator", "Set operator", "Operator", "Operator id", "enable", "disable")
-	addOperation(paths, "/api/system/audit-events", http.MethodGet, operation(
-		"system", "listAuditEvents", "List operation audit events", http.StatusOK, arraySchema(schemaRef("AuditEvent")),
-		withParameters(queryParam("limit", false, "Maximum number of events", map[string]any{"type": "integer", "minimum": 1, "maximum": 500})),
-	))
-}
-
 func addOperation(paths map[string]apiPathItem, path string, method string, operation apiOperation) {
 	if paths[path] == nil {
 		paths[path] = apiPathItem{}
@@ -331,7 +294,7 @@ func addOperation(paths map[string]apiPathItem, path string, method string, oper
 }
 
 func operation(tag string, id string, summary string, status int, responseSchema map[string]any, options ...operationOption) apiOperation {
-	config := operationConfig{auth: true}
+	config := operationConfig{auth: true, responseContentType: jsonMediaType}
 	for _, option := range options {
 		option(&config)
 	}
@@ -348,7 +311,7 @@ func operation(tag string, id string, summary string, status int, responseSchema
 
 func operationResponses(status int, responseSchema map[string]any, config operationConfig) map[string]apiResponse {
 	responses := map[string]apiResponse{
-		strconv.Itoa(status): successResponse(status, responseSchema),
+		strconv.Itoa(status): successResponse(status, responseSchema, config),
 	}
 	for _, code := range errorCodes(config) {
 		responses[strconv.Itoa(code)] = errorResponse(code)
@@ -356,21 +319,25 @@ func operationResponses(status int, responseSchema map[string]any, config operat
 	return responses
 }
 
-func successResponse(status int, schema map[string]any) apiResponse {
+func successResponse(status int, schema map[string]any, config operationConfig) apiResponse {
 	if status == http.StatusNoContent {
 		return apiResponse{
 			Description: "No content",
 			Headers:     requestIDResponseHeader(),
 		}
 	}
-	return jsonResponse(http.StatusText(status), schema)
+	return contentResponse(http.StatusText(status), config.responseContentType, schema)
 }
 
 func jsonResponse(description string, schema map[string]any) apiResponse {
+	return contentResponse(description, jsonMediaType, schema)
+}
+
+func contentResponse(description string, contentType string, schema map[string]any) apiResponse {
 	return apiResponse{
 		Description: description,
 		Headers:     requestIDResponseHeader(),
-		Content:     map[string]apiMediaType{jsonMediaType: {Schema: schema}},
+		Content:     map[string]apiMediaType{contentType: {Schema: schema}},
 	}
 }
 
@@ -459,6 +426,12 @@ func withParameters(parameters ...apiParameter) operationOption {
 func withErrors(codes ...int) operationOption {
 	return func(config *operationConfig) {
 		config.errors = append(config.errors, codes...)
+	}
+}
+
+func withResponseContentType(contentType string) operationOption {
+	return func(config *operationConfig) {
+		config.responseContentType = contentType
 	}
 }
 

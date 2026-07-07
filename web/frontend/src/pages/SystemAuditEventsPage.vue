@@ -5,10 +5,16 @@
         <h1 class="page-title">{{ t("page.auditEvents.title") }}</h1>
         <p class="page-subtitle">{{ t("system.auditEventsSubtitle") }}</p>
       </div>
-      <NButton secondary @click="loadEvents">
-        <template #icon><RefreshCw :size="17" /></template>
-        {{ t("common.retry") }}
-      </NButton>
+      <NSpace size="small">
+        <NButton tag="a" href="/api/system/audit-events/export?limit=100" secondary>
+          <template #icon><Download :size="17" /></template>
+          {{ t("system.exportAuditEvents") }}
+        </NButton>
+        <NButton secondary @click="loadEvents">
+          <template #icon><RefreshCw :size="17" /></template>
+          {{ t("common.retry") }}
+        </NButton>
+      </NSpace>
     </header>
 
     <section class="surface system-panel">
@@ -56,8 +62,8 @@
 </template>
 
 <script setup lang="ts">
-import { RefreshCw } from "@lucide/vue";
-import { NButton, NTag, useMessage } from "naive-ui";
+import { Download, RefreshCw } from "@lucide/vue";
+import { NButton, NSpace, NTag, useMessage } from "naive-ui";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 

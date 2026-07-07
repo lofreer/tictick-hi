@@ -123,6 +123,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodPost, "/api/system/operators/{id}/disable"},
 		{http.MethodGet, "/api/system/health"},
 		{http.MethodGet, "/api/system/audit-events"},
+		{http.MethodGet, "/api/system/audit-events/export"},
 		{http.MethodGet, "/api/system/api-contract"},
 	}
 
@@ -131,6 +132,22 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		if _, ok := contract.Paths[route.path][method]; !ok {
 			t.Fatalf("contract missing %s %s", route.method, route.path)
 		}
+	}
+}
+
+func TestAPIContractDeclaresAuditEventsCSVExport(t *testing.T) {
+	operation := apiContractDocument().Paths["/api/system/audit-events/export"]["get"]
+	response := operation.Responses["200"]
+	if _, ok := response.Content["text/csv"]; !ok {
+		t.Fatalf("audit export content = %#v, want text/csv", response.Content)
+	}
+	parameters := queryParametersByName(operation.Parameters)
+	limit, ok := parameters["limit"]
+	if !ok {
+		t.Fatal("audit export contract missing limit query parameter")
+	}
+	if limit.Schema["maximum"] != maxAuditEventLimit {
+		t.Fatalf("limit schema = %#v, want max %d", limit.Schema, maxAuditEventLimit)
 	}
 }
 

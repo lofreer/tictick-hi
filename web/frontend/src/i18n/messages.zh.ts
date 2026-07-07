@@ -173,6 +173,7 @@ export const zhCNMessages: Record<string, string> = {
     "system.enableOperator": "启用",
     "system.updateChannel": "更新",
     "system.exchangeBackoff": "交易所冷却",
+    "system.exportAuditEvents": "导出审计",
     "system.fetchLockSkips": "fetch 锁跳过",
     "system.exchangeAccountsSubtitle": "管理交易所账号别名和启用状态，不展示完整密钥。",
     "system.healthLoadFailed": "加载运维健康失败。",
