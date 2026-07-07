@@ -11,19 +11,34 @@ const MinOperatorPasswordLength = 8
 
 const DefaultOperatorPasswordHistoryLimit = 5
 
-var commonOperatorPasswords = map[string]struct{}{
-	"admin123":    {},
-	"admin1234":   {},
-	"changeme1":   {},
-	"changeme123": {},
-	"letmein1":    {},
-	"password1":   {},
-	"password123": {},
-	"qwerty123":   {},
-	"secret123":   {},
-	"secret1234":  {},
-	"tictick123":  {},
-	"tictickhi1":  {},
+var commonOperatorPasswordKeys = map[string]struct{}{
+	"admin123":       {},
+	"admin1234":      {},
+	"admin2o26":      {},
+	"administrator1": {},
+	"changeme1":      {},
+	"changeme123":    {},
+	"demo123":        {},
+	"demo1234":       {},
+	"letmein1":       {},
+	"localadmin1":    {},
+	"operator123":    {},
+	"ops1234":        {},
+	"password":       {},
+	"password1":      {},
+	"password123":    {},
+	"password1234":   {},
+	"qwerty123":      {},
+	"qwerty1234":     {},
+	"root1234":       {},
+	"secret123":      {},
+	"secret1234":     {},
+	"tictick123":     {},
+	"tictickhi1":     {},
+	"tictickhi2o26":  {},
+	"welcome1":       {},
+	"welcome123":     {},
+	"welcome2o26":    {},
 }
 
 func ValidateOperatorPassword(password string) error {
@@ -43,10 +58,29 @@ func ValidateOperatorPassword(password string) error {
 	if !hasLetter || !hasDigit {
 		return errors.New("password must include at least one letter and one number")
 	}
-	if _, ok := commonOperatorPasswords[strings.ToLower(strings.TrimSpace(password))]; ok {
+	if _, ok := commonOperatorPasswordKeys[operatorPasswordWeakKey(password)]; ok {
 		return errors.New("password is too common")
 	}
 	return nil
+}
+
+func operatorPasswordWeakKey(password string) string {
+	var builder strings.Builder
+	for _, character := range strings.ToLower(strings.TrimSpace(password)) {
+		switch character {
+		case '@':
+			builder.WriteRune('a')
+		case '$':
+			builder.WriteRune('s')
+		case '0':
+			builder.WriteRune('o')
+		default:
+			if unicode.IsLetter(character) || unicode.IsDigit(character) {
+				builder.WriteRune(character)
+			}
+		}
+	}
+	return builder.String()
 }
 
 func ValidateOperatorPasswordForUsername(username string, password string) error {

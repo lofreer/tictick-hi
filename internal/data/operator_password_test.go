@@ -13,6 +13,11 @@ func TestValidateOperatorPassword(t *testing.T) {
 		{name: "missing digit", password: "password", wantError: true},
 		{name: "missing letter", password: "12345678", wantError: true},
 		{name: "common", password: "secret123", wantError: true},
+		{name: "common with separators", password: "Password-123!", wantError: true},
+		{name: "common with simple substitutions", password: "P@ssw0rd123!", wantError: true},
+		{name: "common operator default", password: "Admin_123!!", wantError: true},
+		{name: "common product default", password: "TicTickHi-2026!", wantError: true},
+		{name: "common welcome default", password: "Welcome 2026!", wantError: true},
 	}
 
 	for _, test := range tests {
@@ -37,7 +42,7 @@ func TestValidateOperatorPasswordForUsername(t *testing.T) {
 	}{
 		{name: "valid", username: "admin", password: "secret123A"},
 		{name: "contains username", username: "admin", password: "adminSecret123A", wantError: true},
-		{name: "short username ignored", username: "op", password: "operator123"},
+		{name: "short username ignored", username: "op", password: "secureDesk123A"},
 		{name: "generic policy still applies", username: "admin", password: "secret123", wantError: true},
 	}
 
