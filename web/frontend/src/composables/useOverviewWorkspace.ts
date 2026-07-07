@@ -42,6 +42,9 @@ type OverviewActivity = {
   to: RouteLocationRaw;
 };
 
+const recentFactsLimit = 8;
+const recentFactsWindowMs = 24 * 60 * 60 * 1000;
+
 export function useOverviewWorkspace() {
   const { t } = useI18n();
   const health = ref<SystemHealth | null>(null);
@@ -221,7 +224,7 @@ export function useOverviewWorkspace() {
 
   async function loadRecentFactsSafely() {
     try {
-      const nextFacts = await loadOverviewFacts();
+      const nextFacts = await loadOverviewFacts({ limit: recentFactsLimit, since: recentFactsSince() });
       strategyIntents.value = nextFacts.strategyIntents;
       orders.value = nextFacts.orders;
     } catch (loadError) {
@@ -340,6 +343,10 @@ function marketLabel(item: { exchange: string; symbol: string; interval: string 
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
+}
+
+function recentFactsSince() {
+  return new Date(Date.now() - recentFactsWindowMs).toISOString();
 }
 
 function errorMessage(loadError: unknown, fallback: string) {

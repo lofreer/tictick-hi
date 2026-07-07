@@ -10186,6 +10186,53 @@ Definition of Done：
 - source task 健康状态只在 repair polling 窗口内按快照刷新；非相关任务仍依赖用户刷新或其它操作加载。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 概览页 recent facts 时间窗口补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `GET /api/overview/recent-facts` 新增可选 `since` query 参数，按 RFC3339 date-time 解析，非法时间返回 400。
+- PostgreSQL recent facts 查询对 strategy intents 使用 `created_at >= since`，对 backtest / trading orders 使用统一的 `occurred_at >= since` 过滤，并继续保留每类 facts 的有界 `limit`。
+- OpenAPI contract 声明 `since` date-time query 参数，并增加 contract 回归测试避免漏参。
+- 前端 `overviewApi.recentFacts` 改为 options 参数，支持同时传入 `limit` 和 `since`。
+- 概览页默认只请求最近 24 小时的 recent facts，基础系统健康、数据同步任务、回测任务、交易任务和通知列表加载模型不变。
+- 测试覆盖 HTTP route 时间过滤 / 非法 since、PostgreSQL 查询过滤、前端 URL 编码和概览页默认 24 小时窗口调用。
+
+范围外：
+
+- 不新增跨类型统一游标分页、趋势图、监控查询语言、实时订阅或自动重试队列。
+- 不改变 backtest / trading runner、strategy intent 写入、订单写入、通知投递、CandleProvider、data sync worker 或实盘安全边界。
+- 不把概览页或整体项目升级为 usable。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestOverviewRecentFactsRoute|TestAPIContractDeclaresOverviewRecentFactFilters|TestAPIContractCoversCurrentFrontendRoutes' -count=1` 通过。
+- `go test ./internal/store/postgres -run TestIntegrationListOverviewRecentFactsReturnsGlobalFacts -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/overview.test.ts src/composables/useOverviewWorkspace.test.ts` 通过。
+- `scripts/generate-api-types.sh` 通过。
+- `scripts/check-api-contract-drift.sh` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮只改变概览页 recent facts 的数据读取过滤和 API 参数，没有改变页面布局或图表渲染结构。
+
+剩余风险：
+
+- recent facts 仍分别返回 strategy intents 和 orders，不提供跨类型统一游标分页。
+- 默认 24 小时窗口只约束概览页 recent facts 请求；基础任务列表、通知列表和系统健康仍按既有全量/当前快照模型加载。
+- 时间窗口筛选不等同于完整监控语义、趋势图或生产级观测平台。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -110,6 +110,20 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 	}
 }
 
+func TestAPIContractDeclaresOverviewRecentFactFilters(t *testing.T) {
+	parameters := queryParametersByName(apiContractDocument().Paths["/api/overview/recent-facts"]["get"].Parameters)
+	if _, ok := parameters["limit"]; !ok {
+		t.Fatal("overview recent facts contract missing limit query parameter")
+	}
+	since, ok := parameters["since"]
+	if !ok {
+		t.Fatal("overview recent facts contract missing since query parameter")
+	}
+	if since.Schema["format"] != "date-time" {
+		t.Fatalf("since schema = %#v, want date-time format", since.Schema)
+	}
+}
+
 func TestAPIContractDeclaresWriteSecurityAndErrorShape(t *testing.T) {
 	operation := apiContractDocument().Paths["/api/system/exchange-accounts"]["post"]
 

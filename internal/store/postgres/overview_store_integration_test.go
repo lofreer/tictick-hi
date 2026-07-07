@@ -107,7 +107,7 @@ func TestIntegrationListOverviewRecentFactsReturnsGlobalFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	facts, err := store.ListOverviewRecentFacts(ctx, 2)
+	facts, err := store.ListOverviewRecentFacts(ctx, data.OverviewRecentFactQuery{Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,6 +122,18 @@ func TestIntegrationListOverviewRecentFactsReturnsGlobalFacts(t *testing.T) {
 	}
 	if facts.Orders[1].TaskName != backtest.Name || facts.Orders[1].OccurredAt.IsZero() {
 		t.Fatalf("backtest order context missing: %#v", facts.Orders[1])
+	}
+
+	since := now.Add(90 * time.Minute)
+	filtered, err := store.ListOverviewRecentFacts(ctx, data.OverviewRecentFactQuery{Limit: 4, Since: &since})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filtered.StrategyIntents) != 1 || filtered.StrategyIntents[0].ID != tradingIntentID {
+		t.Fatalf("filtered strategy intents = %#v", filtered.StrategyIntents)
+	}
+	if len(filtered.Orders) != 2 || filtered.Orders[0].TaskType != "paper" || filtered.Orders[1].TaskType != "backtest" {
+		t.Fatalf("filtered orders = %#v", filtered.Orders)
 	}
 }
 

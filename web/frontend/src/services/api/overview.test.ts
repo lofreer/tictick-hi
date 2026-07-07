@@ -34,11 +34,11 @@ describe("overview api", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const facts = await overviewApi.recentFacts(8);
+    const facts = await overviewApi.recentFacts({ limit: 8, since: "2026-06-27T01:09:00.000Z" });
 
     expect(facts.strategyIntents[0].taskName).toBe("Baseline");
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/overview/recent-facts?limit=8",
+      "/api/overview/recent-facts?limit=8&since=2026-06-27T01%3A09%3A00.000Z",
       expect.objectContaining({ method: "GET" }),
     );
   });

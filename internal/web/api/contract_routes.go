@@ -201,7 +201,10 @@ func marketInstrumentSyncResultSchema() map[string]any {
 func addOverviewContractPaths(paths map[string]apiPathItem) {
 	addOperation(paths, "/api/overview/recent-facts", http.MethodGet, operation(
 		"overview", "listOverviewRecentFacts", "List recent strategy intents and orders for overview", http.StatusOK, schemaRef("OverviewRecentFacts"),
-		withParameters(queryParam("limit", false, "Maximum facts per collection", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxOverviewRecentFactLimit})),
+		withParameters(
+			queryParam("limit", false, "Maximum facts per collection", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxOverviewRecentFactLimit}),
+			queryParam("since", false, "Only include facts at or after this time", map[string]any{"type": "string", "format": "date-time"}),
+		),
 		withErrors(http.StatusBadRequest),
 	))
 }

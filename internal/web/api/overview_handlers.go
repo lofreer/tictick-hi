@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -22,12 +23,12 @@ func (server *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *Server) listOverviewRecentFacts(w http.ResponseWriter, r *http.Request) {
-	limit, err := parseOverviewRecentFactLimit(r)
+	query, err := parseOverviewRecentFactQuery(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	facts, err := server.repository.ListOverviewRecentFacts(r.Context(), limit)
+	facts, err := server.repository.ListOverviewRecentFacts(r.Context(), query)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -35,17 +36,33 @@ func (server *Server) listOverviewRecentFacts(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, facts)
 }
 
-func parseOverviewRecentFactLimit(r *http.Request) (int, error) {
+func parseOverviewRecentFactQuery(r *http.Request) (data.OverviewRecentFactQuery, error) {
 	rawLimit := r.URL.Query().Get("limit")
+	query := data.OverviewRecentFactQuery{Limit: data.DefaultOverviewRecentFactLimit}
 	if rawLimit == "" {
-		return data.DefaultOverviewRecentFactLimit, nil
+		return parseOverviewRecentFactSince(r, query)
 	}
 	limit, err := strconv.Atoi(rawLimit)
 	if err != nil || limit <= 0 {
-		return 0, fmt.Errorf("limit must be a positive integer")
+		return data.OverviewRecentFactQuery{}, fmt.Errorf("limit must be a positive integer")
 	}
 	if limit > data.MaxOverviewRecentFactLimit {
-		return 0, fmt.Errorf("limit must be less than or equal to %d", data.MaxOverviewRecentFactLimit)
+		return data.OverviewRecentFactQuery{}, fmt.Errorf("limit must be less than or equal to %d", data.MaxOverviewRecentFactLimit)
 	}
-	return limit, nil
+	query.Limit = limit
+	return parseOverviewRecentFactSince(r, query)
+}
+
+func parseOverviewRecentFactSince(r *http.Request, query data.OverviewRecentFactQuery) (data.OverviewRecentFactQuery, error) {
+	rawSince := r.URL.Query().Get("since")
+	if rawSince == "" {
+		return query, nil
+	}
+	since, err := time.Parse(time.RFC3339Nano, rawSince)
+	if err != nil {
+		return data.OverviewRecentFactQuery{}, fmt.Errorf("since must be an RFC3339 date-time")
+	}
+	since = since.UTC()
+	query.Since = &since
+	return query, nil
 }

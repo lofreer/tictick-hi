@@ -3,21 +3,22 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
-func (store *Store) ListOverviewRecentFacts(ctx context.Context, limit int) (data.OverviewRecentFacts, error) {
-	if limit <= 0 {
-		limit = data.DefaultOverviewRecentFactLimit
+func (store *Store) ListOverviewRecentFacts(ctx context.Context, query data.OverviewRecentFactQuery) (data.OverviewRecentFacts, error) {
+	if query.Limit <= 0 {
+		query.Limit = data.DefaultOverviewRecentFactLimit
 	}
-	intents, err := store.listOverviewStrategyIntentFacts(ctx, limit)
+	intents, err := store.listOverviewStrategyIntentFacts(ctx, query)
 	if err != nil {
 		return data.OverviewRecentFacts{}, err
 	}
-	orders, err := store.listOverviewOrderFacts(ctx, limit)
+	orders, err := store.listOverviewOrderFacts(ctx, query)
 	if err != nil {
 		return data.OverviewRecentFacts{}, err
 	}
@@ -27,7 +28,7 @@ func (store *Store) ListOverviewRecentFacts(ctx context.Context, limit int) (dat
 	}, nil
 }
 
-func (store *Store) listOverviewStrategyIntentFacts(ctx context.Context, limit int) ([]data.OverviewStrategyIntentFact, error) {
+func (store *Store) listOverviewStrategyIntentFacts(ctx context.Context, query data.OverviewRecentFactQuery) ([]data.OverviewStrategyIntentFact, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT si.id, si.task_id, si.task_type, COALESCE(bt.name, tt.name) AS task_name,
 		       COALESCE(bt.exchange, tt.exchange) AS exchange,
@@ -41,10 +42,11 @@ func (store *Store) listOverviewStrategyIntentFacts(ctx context.Context, limit i
 		  LEFT JOIN trading_tasks tt
 		    ON si.task_type IN ('paper', 'live')
 		   AND si.task_id = tt.id
-		 WHERE (si.task_type = 'backtest' AND bt.id IS NOT NULL)
-		    OR (si.task_type IN ('paper', 'live') AND tt.id IS NOT NULL)
+		 WHERE ($2::timestamptz IS NULL OR si.created_at >= $2)
+		   AND ((si.task_type = 'backtest' AND bt.id IS NOT NULL)
+		    OR (si.task_type IN ('paper', 'live') AND tt.id IS NOT NULL))
 		 ORDER BY si.created_at DESC
-		 LIMIT $1`, limit)
+		 LIMIT $1`, query.Limit, overviewFactSinceParam(query.Since))
 	if err != nil {
 		return nil, fmt.Errorf("list overview strategy intent facts: %w", err)
 	}
@@ -53,7 +55,7 @@ func (store *Store) listOverviewStrategyIntentFacts(ctx context.Context, limit i
 	return pgx.CollectRows(rows, scanOverviewStrategyIntentFact)
 }
 
-func (store *Store) listOverviewOrderFacts(ctx context.Context, limit int) ([]data.OverviewOrderFact, error) {
+func (store *Store) listOverviewOrderFacts(ctx context.Context, query data.OverviewRecentFactQuery) ([]data.OverviewOrderFact, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT id, task_id, task_type, task_name, exchange, symbol, interval,
 		       COALESCE(intent_id, ''), side, price, quantity, status, occurred_at
@@ -74,14 +76,22 @@ func (store *Store) listOverviewOrderFacts(ctx context.Context, limit int) ([]da
 			  JOIN trading_tasks tt
 			    ON o.task_id = tt.id
 		  ) facts
+		 WHERE ($2::timestamptz IS NULL OR occurred_at >= $2)
 		 ORDER BY occurred_at DESC
-		 LIMIT $1`, limit)
+		 LIMIT $1`, query.Limit, overviewFactSinceParam(query.Since))
 	if err != nil {
 		return nil, fmt.Errorf("list overview order facts: %w", err)
 	}
 	defer rows.Close()
 
 	return pgx.CollectRows(rows, scanOverviewOrderFact)
+}
+
+func overviewFactSinceParam(since *time.Time) any {
+	if since == nil {
+		return nil
+	}
+	return since.UTC()
 }
 
 func scanOverviewStrategyIntentFact(row pgx.CollectableRow) (data.OverviewStrategyIntentFact, error) {

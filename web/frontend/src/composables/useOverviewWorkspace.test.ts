@@ -104,6 +104,7 @@ describe("useOverviewWorkspace", () => {
       },
     ]);
 
+    const beforeMount = Date.now();
     const workspace = mountWorkspace();
     await flushPromises();
 
@@ -112,6 +113,7 @@ describe("useOverviewWorkspace", () => {
     expect(backtestsApi.listBacktests).toHaveBeenCalledTimes(1);
     expect(tradingApi.listTasks).toHaveBeenCalledTimes(1);
     expect(overviewApi.recentFacts).toHaveBeenCalledTimes(1);
+    expectRecentFactsWindowSince(beforeMount);
     expect(systemApi.listNotifications).toHaveBeenCalledTimes(1);
     expect(workspace.hasLoaded.value).toBe(true);
     expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.value).toBe(3);
@@ -236,6 +238,15 @@ function mountWorkspace() {
     throw new Error("overview workspace was not mounted");
   }
   return holder.workspace;
+}
+
+function expectRecentFactsWindowSince(beforeMount: number) {
+  const options = apiMocks.overviewRecentFacts.mock.calls[0]?.[0];
+  expect(options).toEqual(expect.objectContaining({ limit: 8, since: expect.any(String) }));
+  const since = Date.parse(options.since);
+  expect(Number.isNaN(since)).toBe(false);
+  expect(since).toBeGreaterThanOrEqual(beforeMount - 24 * 60 * 60 * 1000 - 1000);
+  expect(since).toBeLessThanOrEqual(Date.now() - 24 * 60 * 60 * 1000 + 1000);
 }
 
 function task(id: string, status: string, updatedAt: string, overrides: Record<string, unknown> = {}) {

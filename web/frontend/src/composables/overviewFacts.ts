@@ -2,6 +2,7 @@ import type { RouteLocationRaw } from "vue-router";
 import type { TagProps } from "naive-ui";
 
 import { overviewApi } from "@/services/api/overview";
+import type { OverviewRecentFactsOptions } from "@/services/api/overview";
 import type { OverviewOrderFact as APIOverviewOrderFact, OverviewStrategyIntentFact as APIOverviewStrategyIntentFact } from "@/types/app";
 
 export type OverviewFactSource = "backtest" | "trading";
@@ -19,8 +20,8 @@ export type OverviewOrderFact = APIOverviewOrderFact & {
   to: RouteLocationRaw;
 };
 
-export async function loadOverviewFacts() {
-  const facts = await overviewApi.recentFacts();
+export async function loadOverviewFacts(options?: OverviewRecentFactsOptions) {
+  const facts = await overviewApi.recentFacts(options);
   return {
     orders: facts.orders.map(orderFact),
     strategyIntents: facts.strategyIntents.map(intentFact),

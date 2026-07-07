@@ -12,6 +12,11 @@ type OverviewRecentFacts struct {
 	Orders          []OverviewOrderFact          `json:"orders"`
 }
 
+type OverviewRecentFactQuery struct {
+	Limit int
+	Since *time.Time
+}
+
 type OverviewStrategyIntentFact struct {
 	ID         string    `json:"id"`
 	TaskID     string    `json:"taskId"`
