@@ -10143,6 +10143,49 @@ Definition of Done：
 - 单任务详情快照只更新 watched repair tasks；非 watched 任务仍依赖用户刷新或其它操作加载。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 研究页 repair source task 快照轮询补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `useResearchRepairTaskPolling` 新增 snapshot-only task ids，把 watched repair task ids 与额外快照任务 ids 去重后交给 targeted loader。
+- repair 轮询完成判定仍只看 created repair tasks；source task 快照即使仍是 running，也不会阻塞 `onSettled` 回调。
+- 研究页所有 repair 入口统一把 repair result 的 `sourceTaskId` 和当前缺口详情任务 id 传入 snapshot-only ids，修复任务轮询时同步刷新源任务健康状态。
+- 继续复用 `loadRepairTaskSnapshots` 的单任务详情读取和本地任务列表合并路径，不恢复全量 `/api/data/tasks` 轮询。
+- 前端测试覆盖额外 source snapshot id 会随 repair task 一起请求、不会参与终态判定，以及研究页接线包含 source task snapshot ids。
+
+范围外：
+
+- 不新增独立数据同步任务详情页、事件流、WebSocket 或实时订阅。
+- 不改变 repair API、data sync worker 调度、补同步任务创建、CandleProvider、交易所 adapter、回测 / 交易 runner 或实盘能力。
+- 不证明 repair task 一定成功，也不证明数据同步长期自动收敛。
+- 不把研究页或整体项目升级为 usable。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useResearchRepairTaskPolling.test.ts src/composables/useResearchWorkspace.taskGapRepair.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮只改变研究页 repair polling 数据读取集合，没有改变页面布局或图表渲染结构。
+
+剩余风险：
+
+- 轮询仍是有界前端轮询，不是后台自动收敛证明或实时订阅。
+- source task 健康状态只在 repair polling 窗口内按快照刷新；非相关任务仍依赖用户刷新或其它操作加载。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

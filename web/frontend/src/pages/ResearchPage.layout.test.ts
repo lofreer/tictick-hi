@@ -330,6 +330,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(source).toContain("const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadRepairTaskSnapshots);");
     expect(source).toContain("function startRepairPollingForResult(result: DataSyncGapRepairResult");
     expect(source).toContain("repairTaskIds: result.createdTasks.map((task) => task.id)");
+    expect(source).toContain("snapshotTaskIds: [result.sourceTaskId, options.refreshGapDetailsTask?.id]");
     expect(source).toContain("onSettled: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps })");
     expect(source).toContain("onExhausted: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps })");
     expect(source).toContain('<MarketCandleGapTag :exchange="exchange" :interval="interval" :symbol="symbol" :tasks="tasks" @repaired="startRepairPollingForResult" />');

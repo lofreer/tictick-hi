@@ -79,16 +79,17 @@ describe("useResearchRepairTaskPolling", () => {
   it("refreshes the chart and stops when watched repair tasks settle", async () => {
     const refreshChart = vi.fn().mockResolvedValue(undefined);
     const loadRepairTasks = vi.fn()
-      .mockResolvedValueOnce([dataSyncTask("dst_repair_1", "running")])
-      .mockResolvedValueOnce([dataSyncTask("dst_repair_1", "succeeded")]);
+      .mockResolvedValueOnce([dataSyncTask("dst_repair_1", "running"), dataSyncTask("dst_1", "running")])
+      .mockResolvedValueOnce([dataSyncTask("dst_repair_1", "succeeded"), dataSyncTask("dst_1", "running")]);
     const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 4 });
 
     wrapper.vm.startRepairTaskPolling({
       onSettled: refreshChart,
       repairTaskIds: ["dst_repair_1"],
+      snapshotTaskIds: ["dst_1"],
     });
     await flushPromises();
-    expect(loadRepairTasks).toHaveBeenLastCalledWith(["dst_repair_1"]);
+    expect(loadRepairTasks).toHaveBeenLastCalledWith(["dst_repair_1", "dst_1"]);
     expect(refreshChart).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(50);

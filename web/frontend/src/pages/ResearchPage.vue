@@ -331,7 +331,6 @@ const {
   viewTaskGaps,
 } = useResearchWorkspace();
 const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadRepairTaskSnapshots);
-
 const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "Binance", value: "binance" },
   { label: "OKX", value: "okx" },
@@ -378,6 +377,7 @@ function startRepairPollingForResult(result: DataSyncGapRepairResult, options: {
     onExhausted: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps }),
     onSettled: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps }),
     repairTaskIds: result.createdTasks.map((task) => task.id),
+    snapshotTaskIds: [result.sourceTaskId, options.refreshGapDetailsTask?.id].filter((id): id is string => Boolean(id)),
   });
 }
 

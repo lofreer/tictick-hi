@@ -12,6 +12,7 @@ type StartPollingOptions = {
   onExhausted?: () => Promise<void> | void;
   onSettled?: () => Promise<void> | void;
   repairTaskIds?: string[];
+  snapshotTaskIds?: string[];
 };
 
 type LoadRepairTasks = (ids: string[]) => Promise<DataSyncTask[] | void>;
@@ -27,6 +28,7 @@ export function useResearchRepairTaskPolling(loadRepairTasks: LoadRepairTasks, o
   let onExhausted: (() => Promise<void> | void) | null = null;
   let onSettled: (() => Promise<void> | void) | null = null;
   let repairTaskIds = new Set<string>();
+  let snapshotTaskIds = new Set<string>();
 
   function clearTimer() {
     if (timer === null) return;
@@ -40,6 +42,7 @@ export function useResearchRepairTaskPolling(loadRepairTasks: LoadRepairTasks, o
     onExhausted = null;
     onSettled = null;
     repairTaskIds = new Set();
+    snapshotTaskIds = new Set();
     clearTimer();
   }
 
@@ -49,6 +52,7 @@ export function useResearchRepairTaskPolling(loadRepairTasks: LoadRepairTasks, o
     onExhausted = startOptions.onExhausted ?? null;
     onSettled = startOptions.onSettled ?? null;
     repairTaskIds = new Set(startOptions.repairTaskIds ?? []);
+    snapshotTaskIds = new Set(startOptions.snapshotTaskIds ?? []);
     clearTimer();
     if (maxAttempts <= 0) return;
 
@@ -73,7 +77,7 @@ export function useResearchRepairTaskPolling(loadRepairTasks: LoadRepairTasks, o
     attempts += 1;
     let latestTasks: DataSyncTask[] | void;
     try {
-      latestTasks = await loadRepairTasks([...repairTaskIds]);
+      latestTasks = await loadRepairTasks(pollingSnapshotTaskIds(repairTaskIds, snapshotTaskIds));
     } catch {
       latestTasks = undefined;
     }
@@ -102,6 +106,10 @@ export function useResearchRepairTaskPolling(loadRepairTasks: LoadRepairTasks, o
 function watchedRepairTasksSettled(tasks: DataSyncTask[], ids: Set<string>) {
   const watchedTasks = tasks.filter((task) => ids.has(task.id));
   return watchedTasks.length === ids.size && watchedTasks.every((task) => terminalStatuses.has(task.status));
+}
+
+function pollingSnapshotTaskIds(repairTaskIds: Set<string>, snapshotTaskIds: Set<string>) {
+  return [...new Set([...repairTaskIds, ...snapshotTaskIds])];
 }
 
 async function runCallback(callback: (() => Promise<void> | void) | null) {
