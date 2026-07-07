@@ -81,6 +81,11 @@
           <div class="overview-panel__header">
             <h2>{{ t("overview.recentActivity") }}</h2>
             <div class="overview-panel__actions">
+              <NRadioGroup :value="recentActivityWindow" size="small" :aria-label="t('overview.recentActivityWindow')" @update:value="setRecentActivityWindow">
+                <NRadioButton v-for="option in recentActivityWindowOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </NRadioButton>
+              </NRadioGroup>
               <NTag v-if="factsError" type="warning" size="small" :title="factsError">{{ t("overview.degraded") }}</NTag>
               <NTag size="small">{{ recentActivities.length }}</NTag>
             </div>
@@ -111,7 +116,7 @@
 
 <script setup lang="ts">
 import { RefreshCw } from "@lucide/vue";
-import { NButton, NTag } from "naive-ui";
+import { NButton, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
@@ -129,7 +134,10 @@ const {
   loadOverview,
   loading,
   recentActivities,
+  recentActivityWindow,
+  recentActivityWindowOptions,
   serviceSummary,
+  setRecentActivityWindow,
   services,
   summaryCards,
   t,
@@ -225,7 +233,14 @@ const {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+}
+
+.overview-panel__actions :deep(.n-radio-button) {
+  min-width: 40px;
+  text-align: center;
 }
 
 .overview-health-summary {

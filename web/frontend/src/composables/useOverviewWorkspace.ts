@@ -42,8 +42,15 @@ type OverviewActivity = {
   to: RouteLocationRaw;
 };
 
+type RecentActivityWindow = "24h" | "7d" | "30d";
+
 const recentFactsLimit = 8;
-const recentFactsWindowMs = 24 * 60 * 60 * 1000;
+const recentActivityWindowMs: Record<RecentActivityWindow, number> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+};
+const recentActivityWindowValues = Object.keys(recentActivityWindowMs) as RecentActivityWindow[];
 
 export function useOverviewWorkspace() {
   const { t } = useI18n();
@@ -58,6 +65,8 @@ export function useOverviewWorkspace() {
   const hasLoaded = ref(false);
   const error = ref("");
   const factsError = ref("");
+  const recentActivityWindow = ref<RecentActivityWindow>("24h");
+  const recentActivitySince = ref(recentActivityWindowSince(recentActivityWindow.value));
 
   onMounted(() => {
     void loadOverview();
@@ -65,6 +74,7 @@ export function useOverviewWorkspace() {
 
   const services = computed(() => health.value?.services ?? []);
   const healthTagType = computed<TagProps["type"]>(() => (health.value?.status === "ok" ? "success" : "warning"));
+  const recentActivityWindowOptions = computed(() => recentActivityWindowValues.map((value) => ({ label: t(`overview.recentWindow.${value}`), value })));
 
   const summaryCards = computed<SummaryCard[]>(() => [
     {
@@ -192,6 +202,7 @@ export function useOverviewWorkspace() {
       })),
     ]
       .filter((item) => item.at)
+      .filter((item) => Date.parse(item.at ?? "") >= Date.parse(recentActivitySince.value))
       .sort((left, right) => Date.parse(right.at ?? "") - Date.parse(left.at ?? ""))
       .slice(0, 8),
   );
@@ -223,8 +234,9 @@ export function useOverviewWorkspace() {
   }
 
   async function loadRecentFactsSafely() {
+    recentActivitySince.value = recentActivityWindowSince(recentActivityWindow.value);
     try {
-      const nextFacts = await loadOverviewFacts({ limit: recentFactsLimit, since: recentFactsSince() });
+      const nextFacts = await loadOverviewFacts({ limit: recentFactsLimit, since: recentActivitySince.value });
       strategyIntents.value = nextFacts.strategyIntents;
       orders.value = nextFacts.orders;
     } catch (loadError) {
@@ -232,6 +244,13 @@ export function useOverviewWorkspace() {
       orders.value = [];
       factsError.value = errorMessage(loadError, t("overview.recentFactsLoadFailed"));
     }
+  }
+
+  async function setRecentActivityWindow(value: string) {
+    if (!isRecentActivityWindow(value) || value === recentActivityWindow.value) return;
+    recentActivityWindow.value = value;
+    factsError.value = "";
+    await loadRecentFactsSafely();
   }
 
   function addCountAlert(
@@ -304,7 +323,10 @@ export function useOverviewWorkspace() {
     loadOverview,
     loading,
     recentActivities,
+    recentActivityWindow,
+    recentActivityWindowOptions,
     serviceSummary,
+    setRecentActivityWindow,
     services,
     summaryCards,
     t,
@@ -345,8 +367,12 @@ function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
-function recentFactsSince() {
-  return new Date(Date.now() - recentFactsWindowMs).toISOString();
+function isRecentActivityWindow(value: string): value is RecentActivityWindow {
+  return Object.prototype.hasOwnProperty.call(recentActivityWindowMs, value);
+}
+
+function recentActivityWindowSince(value: RecentActivityWindow) {
+  return new Date(Date.now() - recentActivityWindowMs[value]).toISOString();
 }
 
 function errorMessage(loadError: unknown, fallback: string) {

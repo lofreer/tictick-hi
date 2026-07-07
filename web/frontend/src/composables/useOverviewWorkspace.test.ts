@@ -59,7 +59,7 @@ describe("useOverviewWorkspace", () => {
     apiMocks.systemHealth.mockResolvedValue({
       status: "warning",
       database: "ok",
-      checkedAt: "2026-06-28T01:00:00Z",
+      checkedAt: isoMinutesAgo(12),
       services: [
         {
           name: "sync",
@@ -72,26 +72,26 @@ describe("useOverviewWorkspace", () => {
       ],
     });
     apiMocks.listDataTasks.mockResolvedValue([
-      task("sync_1", "running", "2026-06-28T01:01:00Z", { dataHealth: "gap", realtimeEnabled: true }),
-      task("sync_2", "failed", "2026-06-28T01:02:00Z"),
-      task("sync_3", "succeeded", "2026-06-28T01:02:30Z", { dataHealth: "invalid" }),
+      task("sync_1", "running", isoMinutesAgo(11), { dataHealth: "gap", realtimeEnabled: true }),
+      task("sync_2", "failed", isoMinutesAgo(10)),
+      task("sync_3", "succeeded", isoMinutesAgo(9), { dataHealth: "invalid" }),
     ]);
     apiMocks.listBacktests.mockResolvedValue([
-      task("bt_1", "succeeded", "2026-06-28T01:03:00Z", { name: "Baseline" }),
-      task("bt_2", "failed", "2026-06-28T01:04:00Z", { name: "Failed test" }),
+      task("bt_1", "succeeded", isoMinutesAgo(8), { name: "Baseline" }),
+      task("bt_2", "failed", isoMinutesAgo(7), { name: "Failed test" }),
     ]);
     apiMocks.listTradingTasks.mockResolvedValue([
-      task("tt_1", "running", "2026-06-28T01:05:00Z", { name: "Paper", type: "paper" }),
-      task("tt_2", "failed", "2026-06-28T01:06:00Z", { name: "Live", type: "live" }),
+      task("tt_1", "running", isoMinutesAgo(6), { name: "Paper", type: "paper" }),
+      task("tt_2", "failed", isoMinutesAgo(5), { name: "Live", type: "live" }),
     ]);
     apiMocks.overviewRecentFacts.mockResolvedValue({
       orders: [
-        overviewOrder("ord_1", "tt_1", "paper", "Paper", "sell", "66000", "0.2", "filled", "2026-06-28T01:10:00Z"),
-        overviewOrder("bo_1", "bt_1", "backtest", "Baseline", "buy", "65000", "0.1", "filled", "2026-06-28T01:03:30Z"),
+        overviewOrder("ord_1", "tt_1", "paper", "Paper", "sell", "66000", "0.2", "filled", isoMinutesAgo(1)),
+        overviewOrder("bo_1", "bt_1", "backtest", "Baseline", "buy", "65000", "0.1", "filled", isoMinutesAgo(8)),
       ],
       strategyIntents: [
-        overviewIntent("si_bt_1", "bt_1", "backtest", "Baseline", "accepted", "order", "simulate", "2026-06-28T01:09:00Z"),
-        overviewIntent("si_tt_1", "tt_1", "paper", "Paper", "accepted", "order", "execute", "2026-06-28T01:08:00Z"),
+        overviewIntent("si_bt_1", "bt_1", "backtest", "Baseline", "accepted", "order", "simulate", isoMinutesAgo(2)),
+        overviewIntent("si_tt_1", "tt_1", "paper", "Paper", "accepted", "order", "execute", isoMinutesAgo(3)),
       ],
     });
     apiMocks.listNotifications.mockResolvedValue([
@@ -100,7 +100,7 @@ describe("useOverviewWorkspace", () => {
         channel: "ops",
         title: "failed alert",
         status: "failed",
-        createdAt: "2026-06-28T01:07:00Z",
+        createdAt: isoMinutesAgo(4),
       },
     ]);
 
@@ -170,17 +170,17 @@ describe("useOverviewWorkspace", () => {
     apiMocks.systemHealth.mockResolvedValue({
       status: "ok",
       database: "ok",
-      checkedAt: "2026-06-28T01:00:00Z",
+      checkedAt: isoMinutesAgo(4),
       services: [],
     });
     apiMocks.listDataTasks.mockResolvedValue([
-      task("sync_1", "running", "2026-06-28T01:01:00Z"),
+      task("sync_1", "running", isoMinutesAgo(4)),
     ]);
     apiMocks.listBacktests.mockResolvedValue([
-      task("bt_1", "succeeded", "2026-06-28T01:02:00Z", { name: "Baseline" }),
+      task("bt_1", "succeeded", isoMinutesAgo(3), { name: "Baseline" }),
     ]);
     apiMocks.listTradingTasks.mockResolvedValue([
-      task("tt_1", "running", "2026-06-28T01:03:00Z", { name: "Paper", type: "paper" }),
+      task("tt_1", "running", isoMinutesAgo(2), { name: "Paper", type: "paper" }),
     ]);
     apiMocks.listNotifications.mockResolvedValue([
       {
@@ -188,7 +188,7 @@ describe("useOverviewWorkspace", () => {
         channel: "ops",
         title: "filled alert",
         status: "sent",
-        createdAt: "2026-06-28T01:04:00Z",
+        createdAt: isoMinutesAgo(1),
       },
     ]);
     apiMocks.overviewRecentFacts.mockRejectedValue(new Error("recent facts unavailable"));
@@ -216,6 +216,67 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.recentActivities.value.some((activity) => activity.key.startsWith("intent-"))).toBe(false);
     expect(workspace.recentActivities.value.some((activity) => activity.key.startsWith("order-"))).toBe(false);
   });
+
+  it("switches the recent activity window by reloading only recent facts", async () => {
+    apiMocks.systemHealth.mockResolvedValue({ status: "ok", database: "ok", checkedAt: isoMinutesAgo(1), services: [] });
+    apiMocks.listDataTasks.mockResolvedValue([task("sync_recent", "running", isoMinutesAgo(10))]);
+    apiMocks.listBacktests.mockResolvedValue([]);
+    apiMocks.listTradingTasks.mockResolvedValue([]);
+    apiMocks.listNotifications.mockResolvedValue([
+      { id: "nt_old", channel: "ops", title: "old alert", status: "sent", createdAt: isoDaysAgo(3) },
+    ]);
+    apiMocks.overviewRecentFacts
+      .mockResolvedValueOnce({ orders: [], strategyIntents: [overviewIntent("si_recent", "bt_1", "backtest", "Recent", "accepted", "order", "simulate", isoMinutesAgo(5))] })
+      .mockResolvedValueOnce({ orders: [], strategyIntents: [overviewIntent("si_old", "bt_2", "backtest", "Old", "accepted", "order", "simulate", isoDaysAgo(3))] });
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+    expect(workspace.recentActivityWindow.value).toBe("24h");
+    expect(workspace.recentActivities.value.map((activity) => activity.key)).toEqual(["intent-si_recent", "数据同步-sync_recent"]);
+
+    const beforeSwitch = Date.now();
+    await workspace.setRecentActivityWindow("7d");
+    await flushPromises();
+
+    expect(systemApi.health).toHaveBeenCalledTimes(1);
+    expect(dataApi.listTasks).toHaveBeenCalledTimes(1);
+    expect(backtestsApi.listBacktests).toHaveBeenCalledTimes(1);
+    expect(tradingApi.listTasks).toHaveBeenCalledTimes(1);
+    expect(systemApi.listNotifications).toHaveBeenCalledTimes(1);
+    expect(overviewApi.recentFacts).toHaveBeenCalledTimes(2);
+    expect(workspace.recentActivityWindow.value).toBe("7d");
+    expectRecentFactsWindowSince(beforeSwitch, 7 * 24 * 60 * 60 * 1000, 1);
+    expect(workspace.recentActivities.value.map((activity) => activity.key)).toEqual(["数据同步-sync_recent", "intent-si_old", "notification-nt_old"]);
+  });
+
+  it("recalculates the recent facts window anchor on overview reload", async () => {
+    const firstNow = Date.parse("2026-07-07T12:00:00Z");
+    const secondNow = firstNow + 60 * 60 * 1000;
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(firstNow);
+
+    try {
+      apiMocks.systemHealth.mockResolvedValue({ status: "ok", database: "ok", checkedAt: "2026-07-07T12:00:00Z", services: [] });
+      apiMocks.listDataTasks.mockResolvedValue([]);
+      apiMocks.listBacktests.mockResolvedValue([]);
+      apiMocks.listTradingTasks.mockResolvedValue([]);
+      apiMocks.listNotifications.mockResolvedValue([]);
+      apiMocks.overviewRecentFacts.mockResolvedValue({ orders: [], strategyIntents: [] });
+
+      const workspace = mountWorkspace();
+      await flushPromises();
+      const firstSince = apiMocks.overviewRecentFacts.mock.calls[0]?.[0]?.since;
+
+      nowSpy.mockReturnValue(secondNow);
+      await workspace.loadOverview();
+      await flushPromises();
+      const secondSince = apiMocks.overviewRecentFacts.mock.calls[1]?.[0]?.since;
+
+      expect(Date.parse(firstSince)).toBe(firstNow - 24 * 60 * 60 * 1000);
+      expect(Date.parse(secondSince)).toBe(secondNow - 24 * 60 * 60 * 1000);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
 });
 
 function mountWorkspace() {
@@ -240,13 +301,13 @@ function mountWorkspace() {
   return holder.workspace;
 }
 
-function expectRecentFactsWindowSince(beforeMount: number) {
-  const options = apiMocks.overviewRecentFacts.mock.calls[0]?.[0];
+function expectRecentFactsWindowSince(beforeLoad: number, windowMs = 24 * 60 * 60 * 1000, callIndex = 0) {
+  const options = apiMocks.overviewRecentFacts.mock.calls[callIndex]?.[0];
   expect(options).toEqual(expect.objectContaining({ limit: 8, since: expect.any(String) }));
   const since = Date.parse(options.since);
   expect(Number.isNaN(since)).toBe(false);
-  expect(since).toBeGreaterThanOrEqual(beforeMount - 24 * 60 * 60 * 1000 - 1000);
-  expect(since).toBeLessThanOrEqual(Date.now() - 24 * 60 * 60 * 1000 + 1000);
+  expect(since).toBeGreaterThanOrEqual(beforeLoad - windowMs - 1000);
+  expect(since).toBeLessThanOrEqual(Date.now() - windowMs + 1000);
 }
 
 function task(id: string, status: string, updatedAt: string, overrides: Record<string, unknown> = {}) {
@@ -299,4 +360,12 @@ function overviewOrder(id: string, taskId: string, taskType: string, taskName: s
     status,
     occurredAt,
   };
+}
+
+function isoMinutesAgo(minutes: number) {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
+function isoDaysAgo(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
