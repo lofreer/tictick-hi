@@ -35,6 +35,8 @@ import type {
   OverviewOrderFact as APIOverviewOrderFact,
   OverviewRecentFacts as APIOverviewRecentFacts,
   OverviewStrategyIntentFact as APIOverviewStrategyIntentFact,
+  OverviewTrendBucket as APIOverviewTrendBucket,
+  OverviewTrends as APIOverviewTrends,
   Position as APIPosition,
   RepairDataSyncInvalidIssuesRequest as APIRepairDataSyncInvalidIssuesRequest,
   RepairDataSyncTaskGapRequest as APIRepairDataSyncTaskGapRequest,
@@ -159,6 +161,10 @@ export type OverviewOrderFact = APIOverviewOrderFact;
 export type OverviewRecentFacts = APIOverviewRecentFacts;
 
 export type OverviewStrategyIntentFact = APIOverviewStrategyIntentFact;
+
+export type OverviewTrendBucket = APIOverviewTrendBucket;
+
+export type OverviewTrends = APIOverviewTrends;
 
 export type Execution = APIExecution;
 

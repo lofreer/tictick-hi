@@ -1,9 +1,13 @@
 import { apiClient } from "@/services/api/client";
-import type { OverviewRecentFacts } from "@/types/app";
+import type { OverviewRecentFacts, OverviewTrends } from "@/types/app";
 
 export type OverviewRecentFactsOptions = {
   limit?: number;
   since?: string;
+};
+
+export type OverviewTrendsOptions = {
+  days?: number;
 };
 
 export const overviewApi = {
@@ -16,5 +20,14 @@ export const overviewApi = {
       return apiClient.get<OverviewRecentFacts>(`/overview/recent-facts?${query}`);
     }
     return apiClient.get<OverviewRecentFacts>("/overview/recent-facts");
+  },
+  trends(options: OverviewTrendsOptions = {}) {
+    const params = new URLSearchParams();
+    if (options.days !== undefined) params.set("days", String(options.days));
+    const query = params.toString();
+    if (query) {
+      return apiClient.get<OverviewTrends>(`/overview/trends?${query}`);
+    }
+    return apiClient.get<OverviewTrends>("/overview/trends");
   },
 };

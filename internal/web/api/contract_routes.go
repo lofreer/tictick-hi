@@ -207,6 +207,13 @@ func addOverviewContractPaths(paths map[string]apiPathItem) {
 		),
 		withErrors(http.StatusBadRequest),
 	))
+	addOperation(paths, "/api/overview/trends", http.MethodGet, operation(
+		"overview", "listOverviewTrends", "List daily overview trend buckets", http.StatusOK, schemaRef("OverviewTrends"),
+		withParameters(
+			queryParam("days", false, "Number of UTC days to include", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxOverviewTrendDays}),
+		),
+		withErrors(http.StatusBadRequest),
+	))
 }
 
 func addStrategyContractPaths(paths map[string]apiPathItem) {

@@ -151,6 +151,58 @@ func TestOverviewRecentFactsRouteRejectsInvalidSince(t *testing.T) {
 	}
 }
 
+func TestOverviewTrendsRouteReturnsDailyBuckets(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
+	repository.tasks = []data.DataSyncTask{
+		{ID: "dst_failed", Status: data.TaskStatusFailed, UpdatedAt: today.Add(1 * time.Hour)},
+	}
+	repository.backtests = []data.BacktestTask{
+		{ID: "bt_trend", Name: "Trend backtest", Exchange: "binance", Symbol: "BTCUSDT", Interval: "1m", Status: data.TaskStatusSucceeded, ResultSummary: map[string]any{}, CreatedAt: yesterday, UpdatedAt: yesterday},
+	}
+	repository.tradingTasks = []data.TradingTask{
+		{ID: "tt_trend", Name: "Trend trading", Type: "paper", Exchange: "binance", AccountID: "paper", Symbol: "ETHUSDT", Interval: "5m", Status: data.TaskStatusFailed, CreatedAt: yesterday, UpdatedAt: yesterday.Add(2 * time.Hour)},
+	}
+	repository.backtestIntents["bt_trend"] = []data.StrategyIntent{
+		strategyIntent("si_yesterday", "bt_trend", "backtest", "accepted", yesterday.Add(3*time.Hour)),
+	}
+	repository.backtestOrders["bt_trend"] = []data.BacktestOrder{
+		backtestOrder("bo_today", "bt_trend", "buy", "101", today.Add(2*time.Hour)),
+	}
+	repository.notifications = []data.Notification{
+		{ID: "nt_failed", Channel: "ops", Provider: "local", Target: "ops", Title: "failed", Status: "failed", CreatedAt: today.Add(3 * time.Hour)},
+	}
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/overview/trends?days=2", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	var trends data.OverviewTrends
+	if err := json.Unmarshal(recorder.Body.Bytes(), &trends); err != nil {
+		t.Fatalf("decode trends: %v", err)
+	}
+	if trends.Days != 2 || len(trends.Buckets) != 2 {
+		t.Fatalf("trends = %#v", trends)
+	}
+	if !trends.Buckets[0].BucketStart.Equal(yesterday) || trends.Buckets[0].StrategyIntents != 1 || trends.Buckets[0].Failures != 1 {
+		t.Fatalf("yesterday bucket = %#v", trends.Buckets[0])
+	}
+	if !trends.Buckets[1].BucketStart.Equal(today) || trends.Buckets[1].Orders != 1 || trends.Buckets[1].Notifications != 1 || trends.Buckets[1].Failures != 2 {
+		t.Fatalf("today bucket = %#v", trends.Buckets[1])
+	}
+}
+
+func TestOverviewTrendsRouteRejectsOversizedDays(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/overview/trends?days=31", "")
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+}
+
 func strategyIntent(id string, taskID string, taskType string, status string, createdAt time.Time) data.StrategyIntent {
 	return data.StrategyIntent{
 		ID:             id,

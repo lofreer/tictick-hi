@@ -42,4 +42,35 @@ describe("overview api", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("lists overview trend buckets", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          days: 7,
+          from: "2026-07-01T00:00:00Z",
+          to: "2026-07-08T00:00:00Z",
+          buckets: [
+            {
+              bucketStart: "2026-07-01T00:00:00Z",
+              strategyIntents: 2,
+              orders: 1,
+              notifications: 1,
+              failures: 0,
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const trends = await overviewApi.trends({ days: 7 });
+
+    expect(trends.buckets[0].strategyIntents).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/overview/trends?days=7",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

@@ -8,6 +8,19 @@ const zhMessages = readFileSync("src/i18n/messages.zh.ts", "utf8");
 const enMessages = readFileSync("src/i18n/messages.en.ts", "utf8");
 
 describe("OverviewPage layout contract", () => {
+  it("renders the overview trends panel", () => {
+    expect(source).toContain("OverviewTrendPanel");
+    expect(source).toContain(":points=\"trendPoints\"");
+    expect(source).toContain(":totals=\"trendTotals\"");
+    expect(source).toContain("@retry=\"loadOverviewTrends\"");
+    expect(source).toContain("useOverviewTrends");
+    for (const messages of [zhMessages, enMessages]) {
+      expect(messages).toContain("\"overview.trends\"");
+      expect(messages).toContain("\"overview.trendsLoadFailed\"");
+      expect(messages).toContain("\"overview.trendWindow.7d\"");
+    }
+  });
+
   it("renders overview summary cards as navigation entries", () => {
     expect(source).toContain("<RouterLink v-for=\"card in summaryCards\"");
     expect(source).toContain(":to=\"card.to\"");

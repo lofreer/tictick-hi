@@ -134,6 +134,8 @@ func buildContractSchemas() map[string]map[string]any {
 		{"OverviewRecentFacts", data.OverviewRecentFacts{}},
 		{"OverviewStrategyIntentFact", data.OverviewStrategyIntentFact{}},
 		{"OverviewOrderFact", data.OverviewOrderFact{}},
+		{"OverviewTrends", data.OverviewTrends{}},
+		{"OverviewTrendBucket", data.OverviewTrendBucket{}},
 		{"StrategyDefinition", strategy.Definition{}},
 		{"StrategyParamSpec", strategy.ParamSpec{}},
 		{"StrategyOption", strategy.Option{}},

@@ -5,7 +5,7 @@
         <h1 class="page-title">{{ t("page.overview.title") }}</h1>
         <p class="page-subtitle">{{ t("page.overview.subtitle") }}</p>
       </div>
-      <NButton :loading="loading" @click="loadOverview">
+      <NButton :loading="loading || trendsLoading" @click="refreshOverview">
         <template #icon>
           <RefreshCw :size="16" />
         </template>
@@ -13,8 +13,8 @@
       </NButton>
     </header>
 
-    <ErrorState v-if="error" :title="error" retryable @retry="loadOverview" />
-    <LoadingState v-else-if="loading && !hasLoaded" />
+    <ErrorState v-if="error" :title="error" retryable @retry="refreshOverview" />
+    <LoadingState v-else-if="(loading || trendsLoading) && !hasLoaded" />
 
     <template v-else>
       <section class="surface overview-banner">
@@ -33,6 +33,15 @@
           <ChevronRight class="overview-metric__icon" :size="16" aria-hidden="true" />
         </RouterLink>
       </div>
+
+      <OverviewTrendPanel
+        :error="trendsError"
+        :has-trend-data="hasTrendData"
+        :loading="trendsLoading"
+        :points="trendPoints"
+        :totals="trendTotals"
+        @retry="loadOverviewTrends"
+      />
 
       <div class="overview-grid">
         <section class="surface overview-panel">
@@ -122,6 +131,8 @@ import { NButton, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import OverviewTrendPanel from "@/components/overview/OverviewTrendPanel.vue";
+import { useOverviewTrends } from "@/composables/useOverviewTrends";
 import { useOverviewWorkspace } from "@/composables/useOverviewWorkspace";
 
 const {
@@ -143,6 +154,19 @@ const {
   summaryCards,
   t,
 } = useOverviewWorkspace();
+
+const {
+  error: trendsError,
+  hasTrendData,
+  loadOverviewTrends,
+  loading: trendsLoading,
+  trendPoints,
+  trendTotals,
+} = useOverviewTrends();
+
+async function refreshOverview() {
+  await Promise.all([loadOverview(), loadOverviewTrends()]);
+}
 </script>
 
 <style scoped>

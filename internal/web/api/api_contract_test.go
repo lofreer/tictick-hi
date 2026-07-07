@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func TestAPIContractRouteExposesOpenAPIContract(t *testing.T) {
@@ -69,6 +71,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodGet, "/api/market/instruments/status"},
 		{http.MethodPost, "/api/market/instruments/sync"},
 		{http.MethodGet, "/api/overview/recent-facts"},
+		{http.MethodGet, "/api/overview/trends"},
 		{http.MethodGet, "/api/strategies"},
 		{http.MethodGet, "/api/strategies/{id}"},
 		{http.MethodGet, "/api/backtests"},
@@ -121,6 +124,17 @@ func TestAPIContractDeclaresOverviewRecentFactFilters(t *testing.T) {
 	}
 	if since.Schema["format"] != "date-time" {
 		t.Fatalf("since schema = %#v, want date-time format", since.Schema)
+	}
+}
+
+func TestAPIContractDeclaresOverviewTrendFilters(t *testing.T) {
+	parameters := queryParametersByName(apiContractDocument().Paths["/api/overview/trends"]["get"].Parameters)
+	days, ok := parameters["days"]
+	if !ok {
+		t.Fatal("overview trends contract missing days query parameter")
+	}
+	if days.Schema["maximum"] != data.MaxOverviewTrendDays {
+		t.Fatalf("days schema = %#v, want max %d", days.Schema, data.MaxOverviewTrendDays)
 	}
 }
 

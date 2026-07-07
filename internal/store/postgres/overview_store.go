@@ -28,6 +28,89 @@ func (store *Store) ListOverviewRecentFacts(ctx context.Context, query data.Over
 	}, nil
 }
 
+func (store *Store) ListOverviewTrends(ctx context.Context, query data.OverviewTrendQuery) (data.OverviewTrends, error) {
+	if query.Days <= 0 {
+		query.Days = data.DefaultOverviewTrendDays
+	}
+	if query.From.IsZero() || query.To.IsZero() {
+		to := time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
+		query.To = to
+		query.From = to.AddDate(0, 0, -query.Days)
+	}
+	rows, err := store.pool.Query(ctx, `
+		WITH buckets AS (
+			SELECT generate_series($1::timestamptz, $2::timestamptz - interval '1 day', interval '1 day') AS bucket_start
+		),
+		intent_counts AS (
+			SELECT date_trunc('day', created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start, count(*) AS count
+			  FROM strategy_intents
+			 WHERE created_at >= $1
+			   AND created_at < $2
+			 GROUP BY 1
+		),
+		order_counts AS (
+			SELECT date_trunc('day', occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start, count(*) AS count
+			  FROM (
+				SELECT occurred_at
+				  FROM backtest_orders
+				UNION ALL
+				SELECT created_at AS occurred_at
+				  FROM orders
+			  ) facts
+			 WHERE occurred_at >= $1
+			   AND occurred_at < $2
+			 GROUP BY 1
+		),
+		notification_counts AS (
+			SELECT date_trunc('day', created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start, count(*) AS count
+			  FROM notifications
+			 WHERE created_at >= $1
+			   AND created_at < $2
+			 GROUP BY 1
+		),
+		failure_counts AS (
+			SELECT date_trunc('day', failed_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket_start, count(*) AS count
+			  FROM (
+				SELECT updated_at AS failed_at FROM data_sync_tasks WHERE status = 'failed'
+				UNION ALL
+				SELECT updated_at AS failed_at FROM backtest_tasks WHERE status = 'failed'
+				UNION ALL
+				SELECT updated_at AS failed_at FROM trading_tasks WHERE status = 'failed'
+				UNION ALL
+				SELECT created_at AS failed_at FROM notifications WHERE status = 'failed'
+			  ) failures
+			 WHERE failed_at >= $1
+			   AND failed_at < $2
+			 GROUP BY 1
+		)
+		SELECT buckets.bucket_start,
+		       COALESCE(intent_counts.count, 0),
+		       COALESCE(order_counts.count, 0),
+		       COALESCE(notification_counts.count, 0),
+		       COALESCE(failure_counts.count, 0)
+		  FROM buckets
+		  LEFT JOIN intent_counts USING (bucket_start)
+		  LEFT JOIN order_counts USING (bucket_start)
+		  LEFT JOIN notification_counts USING (bucket_start)
+		  LEFT JOIN failure_counts USING (bucket_start)
+		 ORDER BY buckets.bucket_start ASC`, query.From.UTC(), query.To.UTC())
+	if err != nil {
+		return data.OverviewTrends{}, fmt.Errorf("list overview trends: %w", err)
+	}
+	defer rows.Close()
+
+	buckets, err := pgx.CollectRows(rows, scanOverviewTrendBucket)
+	if err != nil {
+		return data.OverviewTrends{}, fmt.Errorf("scan overview trends: %w", err)
+	}
+	return data.OverviewTrends{
+		Days:    query.Days,
+		From:    query.From.UTC(),
+		To:      query.To.UTC(),
+		Buckets: buckets,
+	}, nil
+}
+
 func (store *Store) listOverviewStrategyIntentFacts(ctx context.Context, query data.OverviewRecentFactQuery) ([]data.OverviewStrategyIntentFact, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT si.id, si.task_id, si.task_type, COALESCE(bt.name, tt.name) AS task_name,
@@ -131,4 +214,16 @@ func scanOverviewOrderFact(row pgx.CollectableRow) (data.OverviewOrderFact, erro
 		&fact.OccurredAt,
 	)
 	return fact, err
+}
+
+func scanOverviewTrendBucket(row pgx.CollectableRow) (data.OverviewTrendBucket, error) {
+	var bucket data.OverviewTrendBucket
+	err := row.Scan(
+		&bucket.BucketStart,
+		&bucket.StrategyIntents,
+		&bucket.Orders,
+		&bucket.Notifications,
+		&bucket.Failures,
+	)
+	return bucket, err
 }

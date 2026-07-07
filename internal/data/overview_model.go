@@ -5,6 +5,8 @@ import "time"
 const (
 	DefaultOverviewRecentFactLimit = 8
 	MaxOverviewRecentFactLimit     = 50
+	DefaultOverviewTrendDays       = 7
+	MaxOverviewTrendDays           = 30
 )
 
 type OverviewRecentFacts struct {
@@ -15,6 +17,27 @@ type OverviewRecentFacts struct {
 type OverviewRecentFactQuery struct {
 	Limit int
 	Since *time.Time
+}
+
+type OverviewTrends struct {
+	Days    int                   `json:"days"`
+	From    time.Time             `json:"from"`
+	To      time.Time             `json:"to"`
+	Buckets []OverviewTrendBucket `json:"buckets"`
+}
+
+type OverviewTrendQuery struct {
+	Days int
+	From time.Time
+	To   time.Time
+}
+
+type OverviewTrendBucket struct {
+	BucketStart     time.Time `json:"bucketStart"`
+	StrategyIntents int       `json:"strategyIntents"`
+	Orders          int       `json:"orders"`
+	Notifications   int       `json:"notifications"`
+	Failures        int       `json:"failures"`
 }
 
 type OverviewStrategyIntentFact struct {

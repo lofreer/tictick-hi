@@ -19,6 +19,14 @@ func (server *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		server.listOverviewRecentFacts(w, r)
 		return
 	}
+	if len(parts) == 3 && parts[2] == "trends" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		server.listOverviewTrends(w, r)
+		return
+	}
 	writeError(w, http.StatusNotFound, "overview route not found")
 }
 
@@ -34,6 +42,20 @@ func (server *Server) listOverviewRecentFacts(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, facts)
+}
+
+func (server *Server) listOverviewTrends(w http.ResponseWriter, r *http.Request) {
+	query, err := parseOverviewTrendQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	trends, err := server.repository.ListOverviewTrends(r.Context(), query)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, trends)
 }
 
 func parseOverviewRecentFactQuery(r *http.Request) (data.OverviewRecentFactQuery, error) {
@@ -65,4 +87,25 @@ func parseOverviewRecentFactSince(r *http.Request, query data.OverviewRecentFact
 	since = since.UTC()
 	query.Since = &since
 	return query, nil
+}
+
+func parseOverviewTrendQuery(r *http.Request) (data.OverviewTrendQuery, error) {
+	rawDays := r.URL.Query().Get("days")
+	days := data.DefaultOverviewTrendDays
+	if rawDays != "" {
+		parsed, err := strconv.Atoi(rawDays)
+		if err != nil || parsed <= 0 {
+			return data.OverviewTrendQuery{}, fmt.Errorf("days must be a positive integer")
+		}
+		if parsed > data.MaxOverviewTrendDays {
+			return data.OverviewTrendQuery{}, fmt.Errorf("days must be less than or equal to %d", data.MaxOverviewTrendDays)
+		}
+		days = parsed
+	}
+	to := time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
+	return data.OverviewTrendQuery{
+		Days: days,
+		From: to.AddDate(0, 0, -days),
+		To:   to,
+	}, nil
 }

@@ -91,6 +91,70 @@ func (repository *fakeRepository) ListOverviewRecentFacts(_ context.Context, que
 	return data.OverviewRecentFacts{StrategyIntents: intents, Orders: orders}, nil
 }
 
+func (repository *fakeRepository) ListOverviewTrends(_ context.Context, query data.OverviewTrendQuery) (data.OverviewTrends, error) {
+	if query.Days <= 0 {
+		query.Days = data.DefaultOverviewTrendDays
+	}
+	buckets := make([]data.OverviewTrendBucket, 0, query.Days)
+	bucketIndexes := make(map[time.Time]int, query.Days)
+	for bucketStart := query.From.UTC(); bucketStart.Before(query.To); bucketStart = bucketStart.AddDate(0, 0, 1) {
+		bucketIndexes[bucketStart] = len(buckets)
+		buckets = append(buckets, data.OverviewTrendBucket{BucketStart: bucketStart})
+	}
+	add := func(at time.Time, update func(*data.OverviewTrendBucket)) {
+		bucketStart := at.UTC().Truncate(24 * time.Hour)
+		index, ok := bucketIndexes[bucketStart]
+		if !ok {
+			return
+		}
+		update(&buckets[index])
+	}
+	for _, intents := range repository.backtestIntents {
+		for _, intent := range intents {
+			add(intent.CreatedAt, func(bucket *data.OverviewTrendBucket) { bucket.StrategyIntents++ })
+		}
+	}
+	for _, intents := range repository.tradingIntents {
+		for _, intent := range intents {
+			add(intent.CreatedAt, func(bucket *data.OverviewTrendBucket) { bucket.StrategyIntents++ })
+		}
+	}
+	for _, orders := range repository.backtestOrders {
+		for _, order := range orders {
+			add(order.OccurredAt, func(bucket *data.OverviewTrendBucket) { bucket.Orders++ })
+		}
+	}
+	for _, orders := range repository.tradingOrders {
+		for _, order := range orders {
+			add(order.CreatedAt, func(bucket *data.OverviewTrendBucket) { bucket.Orders++ })
+		}
+	}
+	for _, notification := range repository.notifications {
+		add(notification.CreatedAt, func(bucket *data.OverviewTrendBucket) {
+			bucket.Notifications++
+			if notification.Status == "failed" {
+				bucket.Failures++
+			}
+		})
+	}
+	for _, task := range repository.tasks {
+		if task.Status == data.TaskStatusFailed {
+			add(task.UpdatedAt, func(bucket *data.OverviewTrendBucket) { bucket.Failures++ })
+		}
+	}
+	for _, task := range repository.backtests {
+		if task.Status == data.TaskStatusFailed {
+			add(task.UpdatedAt, func(bucket *data.OverviewTrendBucket) { bucket.Failures++ })
+		}
+	}
+	for _, task := range repository.tradingTasks {
+		if task.Status == data.TaskStatusFailed {
+			add(task.UpdatedAt, func(bucket *data.OverviewTrendBucket) { bucket.Failures++ })
+		}
+	}
+	return data.OverviewTrends{Days: query.Days, From: query.From.UTC(), To: query.To.UTC(), Buckets: buckets}, nil
+}
+
 func overviewFactAtOrAfter(at time.Time, since *time.Time) bool {
 	return since == nil || !at.Before(*since)
 }
