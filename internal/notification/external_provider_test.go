@@ -16,10 +16,12 @@ func TestTelegramProviderPostsSendMessagePayload(t *testing.T) {
 	t.Setenv("TELEGRAM_TEST_TOKEN", "123456:telegram-secret")
 
 	var payload telegramPayload
+	var requestID string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/bot123456:telegram-secret/sendMessage" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
+		requestID = r.Header.Get(outboundRequestIDHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -29,12 +31,16 @@ func TestTelegramProviderPostsSendMessagePayload(t *testing.T) {
 
 	provider := NewTelegramProvider(server.Client())
 	err := provider.Deliver(t.Context(), data.NotificationDelivery{
-		Target: "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_TEST_TOKEN&api_base=" + server.URL,
-		Title:  "Signal",
-		Body:   "Buy BTCUSDT",
+		RequestID: "request-id-telegram",
+		Target:    "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_TEST_TOKEN&api_base=" + server.URL,
+		Title:     "Signal",
+		Body:      "Buy BTCUSDT",
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if requestID != "request-id-telegram" {
+		t.Fatalf("request id header = %q", requestID)
 	}
 	if payload.ChatID != "ops-chat" || payload.Text != "Signal\n\nBuy BTCUSDT" {
 		t.Fatalf("unexpected telegram payload: %#v", payload)
@@ -62,7 +68,9 @@ func TestTelegramProviderRedactsTokenFromErrors(t *testing.T) {
 
 func TestFeishuProviderPostsTextMessage(t *testing.T) {
 	var payload feishuPayload
+	var requestID string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID = r.Header.Get(outboundRequestIDHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -72,12 +80,16 @@ func TestFeishuProviderPostsTextMessage(t *testing.T) {
 	t.Setenv("FEISHU_TEST_WEBHOOK", server.URL+"/open-apis/bot/v2/hook/secret")
 
 	err := NewFeishuProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
-		Target: "feishu://webhook?url_env=FEISHU_TEST_WEBHOOK",
-		Title:  "Signal",
-		Body:   "Buy BTCUSDT",
+		RequestID: "request-id-feishu",
+		Target:    "feishu://webhook?url_env=FEISHU_TEST_WEBHOOK",
+		Title:     "Signal",
+		Body:      "Buy BTCUSDT",
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if requestID != "request-id-feishu" {
+		t.Fatalf("request id header = %q", requestID)
 	}
 	if payload.MessageType != "text" || payload.Content.Text != "Signal\n\nBuy BTCUSDT" {
 		t.Fatalf("unexpected feishu payload: %#v", payload)
@@ -91,9 +103,10 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 	provider := NewEmailProvider(sender)
 
 	err := provider.Deliver(t.Context(), data.NotificationDelivery{
-		Target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com,dev@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD&starttls=required",
-		Title:  "Signal",
-		Body:   "Buy BTCUSDT",
+		RequestID: "request-id-email",
+		Target:    "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com,dev@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD&starttls=required",
+		Title:     "Signal",
+		Body:      "Buy BTCUSDT",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,12 +115,16 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 		sender.message.Username != "bot@example.com" ||
 		sender.message.Password != "smtp-secret" ||
 		sender.message.StartTLSMode != "required" ||
+		sender.message.RequestID != "request-id-email" ||
 		sender.message.Subject != "Signal" ||
 		sender.message.Body != "Signal\n\nBuy BTCUSDT" {
 		t.Fatalf("unexpected mail message: %#v", sender.message)
 	}
 	if len(sender.message.To) != 2 || sender.message.To[0] != "ops@example.com" || sender.message.To[1] != "dev@example.com" {
 		t.Fatalf("unexpected recipients: %#v", sender.message.To)
+	}
+	if !strings.Contains(formatEmail(sender.message), "X-Request-Id: request-id-email\r\n") {
+		t.Fatalf("email output missing request id header: %s", formatEmail(sender.message))
 	}
 }
 

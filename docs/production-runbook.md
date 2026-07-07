@@ -137,9 +137,11 @@ echoed. HTTP access logs include `request_id`, `method`, path without query
 string, status, bytes, and duration. API-created data sync, backtest, trading,
 data sync repair tasks, and trading-task notifications persist this value as
 `requestId`; data sync, backtest, trading, and notify worker task logs include
-`request_id` when the claimed task or delivery has one. This is still partial
-correlation: request IDs do not yet propagate into external provider requests or
-external systems.
+`request_id` when the claimed task or delivery has one. Notification provider
+outbound HTTP requests and SMTP message headers carry `X-Request-ID` when the
+delivery has one. This is still partial correlation: request IDs do not yet
+propagate into exchange or broader external systems, and no W3C trace context is
+emitted.
 
 Optional worker process probes:
 
@@ -364,7 +366,7 @@ close these production-safety gaps:
 - no automated backup scheduler;
 - no completed restore drill evidence for the target environment;
 - database pool limits exist, but no completed CPU / memory / disk sizing, capacity test, or retention policy;
-- no external provider / external system trace propagation or external log sink / retention policy;
+- no broader external system trace propagation, W3C trace context, or external log sink / retention policy;
 - no richer worker business readiness beyond process-level health probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

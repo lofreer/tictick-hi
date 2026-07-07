@@ -4,10 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
+
+const outboundRequestIDHeader = "X-Request-ID"
 
 func parseTargetURL(target string, scheme string) (*url.URL, url.Values, error) {
 	if strings.TrimSpace(target) == "" {
@@ -85,6 +88,22 @@ func notificationText(title string, body string) string {
 	default:
 		return title + "\n\n" + body
 	}
+}
+
+func setRequestIDHeader(request *http.Request, requestID string) {
+	value := safeRequestIDHeaderValue(requestID)
+	if value == "" {
+		return
+	}
+	request.Header.Set(outboundRequestIDHeader, value)
+}
+
+func safeRequestIDHeaderValue(requestID string) string {
+	value := strings.TrimSpace(requestID)
+	if value == "" || strings.ContainsAny(value, "\r\n") {
+		return ""
+	}
+	return value
 }
 
 func splitRecipients(value string) ([]string, error) {

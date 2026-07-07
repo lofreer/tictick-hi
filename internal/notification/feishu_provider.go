@@ -44,6 +44,7 @@ func (provider FeishuProvider) Deliver(ctx context.Context, delivery data.Notifi
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
+	setRequestIDHeader(request, delivery.RequestID)
 
 	response, err := provider.client.Do(request)
 	if err != nil {

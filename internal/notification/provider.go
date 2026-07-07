@@ -80,6 +80,7 @@ func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.Notif
 		DeliveryID:     delivery.ID,
 		TaskID:         delivery.TaskID,
 		IntentID:       delivery.IntentID,
+		RequestID:      safeRequestIDHeaderValue(delivery.RequestID),
 		Channel:        delivery.Channel,
 		Title:          delivery.Title,
 		Body:           delivery.Body,
@@ -97,6 +98,7 @@ func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.Notif
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
+	setRequestIDHeader(request, delivery.RequestID)
 
 	response, err := provider.client.Do(request)
 	if err != nil {
@@ -121,6 +123,7 @@ type webhookPayload struct {
 	DeliveryID     string    `json:"deliveryId"`
 	TaskID         string    `json:"taskId,omitempty"`
 	IntentID       string    `json:"intentId,omitempty"`
+	RequestID      string    `json:"requestId,omitempty"`
 	Channel        string    `json:"channel"`
 	Title          string    `json:"title"`
 	Body           string    `json:"body"`

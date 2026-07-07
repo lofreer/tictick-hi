@@ -14,6 +14,7 @@ import (
 
 func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	var payload webhookPayload
+	var requestID string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", r.Method)
@@ -21,6 +22,7 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Fatalf("content-type = %q", r.Header.Get("Content-Type"))
 		}
+		requestID = r.Header.Get(outboundRequestIDHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -35,6 +37,7 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 		NotificationID: "nt_1",
 		TaskID:         "tt_1",
 		IntentID:       "si_1",
+		RequestID:      "request-id-webhook",
 		Channel:        "ops",
 		Target:         server.URL,
 		Title:          "Strategy intent",
@@ -49,6 +52,9 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	if payload.NotificationID != "nt_1" || payload.DeliveryID != "no_1" {
 		t.Fatalf("unexpected ids: %#v", payload)
 	}
+	if requestID != "request-id-webhook" || payload.RequestID != "request-id-webhook" {
+		t.Fatalf("request id header = %q payload = %q", requestID, payload.RequestID)
+	}
 	if payload.Title != "Strategy intent" || payload.Body != "buy signal" {
 		t.Fatalf("unexpected message payload: %#v", payload)
 	}
@@ -57,6 +63,31 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	}
 	if !payload.CreatedAt.Equal(createdAt) {
 		t.Fatalf("createdAt = %v, want %v", payload.CreatedAt, createdAt)
+	}
+}
+
+func TestWebhookProviderSkipsUnsafeRequestIDHeader(t *testing.T) {
+	var requestID string
+	var payload webhookPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID = r.Header.Get(outboundRequestIDHeader)
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	provider := NewWebhookProvider(server.Client())
+	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+		RequestID: "bad\nrequest",
+		Target:    server.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requestID != "" || payload.RequestID != "" {
+		t.Fatalf("unsafe request id header = %q payload = %q", requestID, payload.RequestID)
 	}
 }
 
