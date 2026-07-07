@@ -54,19 +54,30 @@ func TestIntegrationListDataSyncTasksReportsWorkerLease(t *testing.T) {
 	if found == nil {
 		t.Fatal("leased task not listed")
 	}
-	if found.LockedBy != "sync-worker-1" {
-		t.Fatalf("locked by = %q, want sync-worker-1", found.LockedBy)
+	assertIntegrationDataSyncWorkerLease(t, *found, lockedUntil, heartbeatAt, startedAt)
+
+	direct, err := store.GetDataSyncTask(ctx, taskID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if found.LockedUntil == nil || found.LockedUntil.Sub(lockedUntil).Abs() > time.Second {
-		t.Fatalf("locked until = %#v, want %s", found.LockedUntil, lockedUntil)
+	assertIntegrationDataSyncWorkerLease(t, direct, lockedUntil, heartbeatAt, startedAt)
+}
+
+func assertIntegrationDataSyncWorkerLease(t *testing.T, task data.DataSyncTask, lockedUntil time.Time, heartbeatAt time.Time, startedAt time.Time) {
+	t.Helper()
+	if task.LockedBy != "sync-worker-1" {
+		t.Fatalf("locked by = %q, want sync-worker-1", task.LockedBy)
 	}
-	if found.HeartbeatAt == nil || found.HeartbeatAt.Sub(heartbeatAt).Abs() > time.Second {
-		t.Fatalf("heartbeat at = %#v, want %s", found.HeartbeatAt, heartbeatAt)
+	if task.LockedUntil == nil || task.LockedUntil.Sub(lockedUntil).Abs() > time.Second {
+		t.Fatalf("locked until = %#v, want %s", task.LockedUntil, lockedUntil)
 	}
-	if found.StartedAt == nil || found.StartedAt.Sub(startedAt).Abs() > time.Second {
-		t.Fatalf("started at = %#v, want %s", found.StartedAt, startedAt)
+	if task.HeartbeatAt == nil || task.HeartbeatAt.Sub(heartbeatAt).Abs() > time.Second {
+		t.Fatalf("heartbeat at = %#v, want %s", task.HeartbeatAt, heartbeatAt)
 	}
-	if found.FinishedAt != nil {
-		t.Fatalf("finished at = %#v, want nil for running task", found.FinishedAt)
+	if task.StartedAt == nil || task.StartedAt.Sub(startedAt).Abs() > time.Second {
+		t.Fatalf("started at = %#v, want %s", task.StartedAt, startedAt)
+	}
+	if task.FinishedAt != nil {
+		t.Fatalf("finished at = %#v, want nil for running task", task.FinishedAt)
 	}
 }

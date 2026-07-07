@@ -191,24 +191,18 @@ func (server *Server) writeDataSyncTaskMarketInstrumentCommandError(
 }
 
 func (server *Server) dataSyncTaskMarketInstrumentMessage(r *http.Request, id string) (string, bool) {
-	tasks, err := server.repository.ListDataSyncTasks(r.Context())
+	task, err := server.repository.GetDataSyncTask(r.Context(), id)
 	if err != nil {
 		return "", false
 	}
-	for _, task := range tasks {
-		if task.ID != id {
-			continue
-		}
-		switch task.MarketStatus {
-		case data.DataSyncMarketStatusInactive:
-			return marketInstrumentInactiveMessage, true
-		case data.DataSyncMarketStatusMissing:
-			return marketInstrumentMissingMessage, true
-		default:
-			return "", false
-		}
+	switch task.MarketStatus {
+	case data.DataSyncMarketStatusInactive:
+		return marketInstrumentInactiveMessage, true
+	case data.DataSyncMarketStatusMissing:
+		return marketInstrumentMissingMessage, true
+	default:
+		return "", false
 	}
-	return "", false
 }
 
 func (server *Server) listDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
@@ -304,16 +298,14 @@ func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, 
 }
 
 func (server *Server) dataSyncTaskInterval(ctx context.Context, id string) (string, bool, error) {
-	tasks, err := server.repository.ListDataSyncTasks(ctx)
+	task, err := server.repository.GetDataSyncTask(ctx, id)
 	if err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			return "", false, nil
+		}
 		return "", false, err
 	}
-	for _, task := range tasks {
-		if task.ID == id {
-			return task.Interval, true, nil
-		}
-	}
-	return "", false, nil
+	return task.Interval, true, nil
 }
 
 func sanitizeDataSyncTasks(tasks []data.DataSyncTask) []data.DataSyncTask {

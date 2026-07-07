@@ -7,6 +7,7 @@ import (
 
 type Repository interface {
 	ListDataSyncTasks(ctx context.Context) ([]DataSyncTask, error)
+	GetDataSyncTask(ctx context.Context, id string) (DataSyncTask, error)
 	CreateDataSyncTask(ctx context.Context, task CreateDataSyncTask) (DataSyncTask, error)
 	DeleteDataSyncTask(ctx context.Context, id string) error
 	RetryDataSyncTask(ctx context.Context, id string) (DataSyncTask, error)

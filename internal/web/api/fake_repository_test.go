@@ -89,6 +89,15 @@ func (repository *fakeRepository) ListDataSyncTasks(context.Context) ([]data.Dat
 	return tasks, nil
 }
 
+func (repository *fakeRepository) GetDataSyncTask(_ context.Context, id string) (data.DataSyncTask, error) {
+	for _, task := range repository.tasks {
+		if task.ID == id {
+			return normalizeFakeDataSyncTask(task), nil
+		}
+	}
+	return data.DataSyncTask{}, data.ErrNotFound
+}
+
 func (repository *fakeRepository) CreateDataSyncTask(
 	_ context.Context,
 	request data.CreateDataSyncTask,

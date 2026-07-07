@@ -57,6 +57,10 @@ func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask,
 	return pgx.CollectRows(rows, scanDataSyncTask)
 }
 
+func (store *Store) GetDataSyncTask(ctx context.Context, id string) (data.DataSyncTask, error) {
+	return getDataSyncTask(ctx, store.pool, id)
+}
+
 func (store *Store) CreateDataSyncTask(
 	ctx context.Context,
 	task data.CreateDataSyncTask,
