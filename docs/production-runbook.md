@@ -103,6 +103,21 @@ Database readiness:
 docker compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 
+Database pool limits:
+
+```bash
+DB_MAX_CONNS=10
+DB_MIN_CONNS=0
+DB_MAX_CONN_LIFETIME=1h
+DB_MAX_CONN_IDLE_TIME=30m
+```
+
+These settings apply to every `hi` process before PostgreSQL opens. Keep
+`DB_MAX_CONNS * number_of_hi_processes` below the PostgreSQL capacity reserved
+for the application. Invalid pool settings stop commands before PostgreSQL opens
+and do not log `DATABASE_URL`. This is a connection-pool guardrail, not a full
+CPU, memory, disk, or retention sizing model.
+
 Logging:
 
 ```bash
@@ -344,7 +359,7 @@ close these production-safety gaps:
 
 - no automated backup scheduler;
 - no completed restore drill evidence for the target environment;
-- no resource sizing, disk capacity, or retention policy;
+- database pool limits exist, but no completed CPU / memory / disk sizing, capacity test, or retention policy;
 - no worker task / external trace propagation or external log sink / retention policy;
 - no richer worker business readiness beyond process-level health probes;
 - no external uptime monitor or alert routing;

@@ -76,7 +76,7 @@ func runNotify(ctx context.Context, args []string) error {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, config.DatabaseURL)
+	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, config.DatabasePool)
 	if err != nil {
 		return err
 	}
@@ -97,6 +97,10 @@ func runNotify(ctx context.Context, args []string) error {
 		"poll_interval", config.PollInterval,
 		"retry_delay", config.RetryDelay,
 		"max_retry_delay", config.MaxRetryDelay,
+		"db_max_conns", config.DatabasePool.MaxConns,
+		"db_min_conns", config.DatabasePool.MinConns,
+		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
+		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
 	)...)
 
@@ -119,7 +123,7 @@ func runTrading(ctx context.Context, args []string) error {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, config.DatabaseURL)
+	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, config.DatabasePool)
 	if err != nil {
 		return err
 	}
@@ -138,6 +142,10 @@ func runTrading(ctx context.Context, args []string) error {
 		"lease_ttl", config.LeaseTTL,
 		"poll_interval", config.PollInterval,
 		"candle_limit", config.CandleLimit,
+		"db_max_conns", config.DatabasePool.MaxConns,
+		"db_min_conns", config.DatabasePool.MinConns,
+		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
+		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
 	)...)
 
@@ -160,7 +168,7 @@ func runBacktest(ctx context.Context, args []string) error {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, config.DatabaseURL)
+	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, config.DatabasePool)
 	if err != nil {
 		return err
 	}
@@ -179,6 +187,10 @@ func runBacktest(ctx context.Context, args []string) error {
 		"lease_ttl", config.LeaseTTL,
 		"poll_interval", config.PollInterval,
 		"candle_limit", config.CandleLimit,
+		"db_max_conns", config.DatabasePool.MaxConns,
+		"db_min_conns", config.DatabasePool.MinConns,
+		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
+		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
 	)...)
 
@@ -205,7 +217,7 @@ func runSync(ctx context.Context, args []string) error {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, config.DatabaseURL)
+	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, config.DatabasePool)
 	if err != nil {
 		return err
 	}
@@ -250,6 +262,10 @@ func runSync(ctx context.Context, args []string) error {
 		"binance_request_weight_window", exchangeConfig.BinanceRequestWeightWindow,
 		"okx_market_request_limit", exchangeConfig.OKXMarketRequestLimit,
 		"okx_market_request_window", exchangeConfig.OKXMarketRequestWindow,
+		"db_max_conns", config.DatabasePool.MaxConns,
+		"db_min_conns", config.DatabasePool.MinConns,
+		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
+		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
 	)...)
 
@@ -288,7 +304,7 @@ func runAPI(ctx context.Context) error {
 		return err
 	}
 
-	store, err := postgres.Open(ctx, config.DatabaseURL)
+	store, err := postgres.OpenWithOptions(ctx, config.DatabaseURL, config.DatabasePool)
 	if err != nil {
 		return err
 	}
@@ -330,6 +346,10 @@ func runAPI(ctx context.Context) error {
 		"binance_request_weight_window", exchangeConfig.BinanceRequestWeightWindow,
 		"okx_market_request_limit", exchangeConfig.OKXMarketRequestLimit,
 		"okx_market_request_window", exchangeConfig.OKXMarketRequestWindow,
+		"db_max_conns", config.DatabasePool.MaxConns,
+		"db_min_conns", config.DatabasePool.MinConns,
+		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
+		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 	)...)
 	err = server.ListenAndServe()
 	if err == nil || err == http.ErrServerClosed {
@@ -343,8 +363,12 @@ func runMigrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	databasePool, err := loadDatabasePoolOptions()
+	if err != nil {
+		return err
+	}
 
-	store, err := postgres.Open(ctx, databaseURL)
+	store, err := postgres.OpenWithOptions(ctx, databaseURL, databasePool)
 	if err != nil {
 		return err
 	}

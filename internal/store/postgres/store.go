@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,12 +18,36 @@ type Store struct {
 	secretBox *secretbox.Box
 }
 
+type PoolOptions struct {
+	MaxConns        int32
+	MinConns        int32
+	MaxConnLifetime time.Duration
+	MaxConnIdleTime time.Duration
+}
+
+func DefaultPoolOptions() PoolOptions {
+	return PoolOptions{
+		MaxConns:        10,
+		MinConns:        0,
+		MaxConnLifetime: time.Hour,
+		MaxConnIdleTime: 30 * time.Minute,
+	}
+}
+
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
+	return OpenWithOptions(ctx, databaseURL, DefaultPoolOptions())
+}
+
+func OpenWithOptions(ctx context.Context, databaseURL string, options PoolOptions) (*Store, error) {
 	box, err := secretbox.FromEnv()
 	if err != nil {
 		return nil, err
 	}
-	pool, err := pgxpool.New(ctx, databaseURL)
+	poolConfig, err := newPoolConfig(databaseURL, options)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
@@ -31,6 +56,55 @@ func Open(ctx context.Context, databaseURL string) (*Store, error) {
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	return &Store{pool: pool, secretBox: box}, nil
+}
+
+func newPoolConfig(databaseURL string, options PoolOptions) (*pgxpool.Config, error) {
+	options = normalizedPoolOptions(options)
+	if err := validatePoolOptions(options); err != nil {
+		return nil, err
+	}
+	poolConfig, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse postgres config: %w", err)
+	}
+	poolConfig.MaxConns = options.MaxConns
+	poolConfig.MinConns = options.MinConns
+	poolConfig.MaxConnLifetime = options.MaxConnLifetime
+	poolConfig.MaxConnIdleTime = options.MaxConnIdleTime
+	return poolConfig, nil
+}
+
+func normalizedPoolOptions(options PoolOptions) PoolOptions {
+	defaults := DefaultPoolOptions()
+	if options.MaxConns == 0 {
+		options.MaxConns = defaults.MaxConns
+	}
+	if options.MaxConnLifetime == 0 {
+		options.MaxConnLifetime = defaults.MaxConnLifetime
+	}
+	if options.MaxConnIdleTime == 0 {
+		options.MaxConnIdleTime = defaults.MaxConnIdleTime
+	}
+	return options
+}
+
+func validatePoolOptions(options PoolOptions) error {
+	if options.MaxConns <= 0 {
+		return fmt.Errorf("postgres max conns must be greater than 0")
+	}
+	if options.MinConns < 0 {
+		return fmt.Errorf("postgres min conns must be greater than or equal to 0")
+	}
+	if options.MinConns > options.MaxConns {
+		return fmt.Errorf("postgres min conns must be less than or equal to max conns")
+	}
+	if options.MaxConnLifetime <= 0 {
+		return fmt.Errorf("postgres max conn lifetime must be greater than 0")
+	}
+	if options.MaxConnIdleTime <= 0 {
+		return fmt.Errorf("postgres max conn idle time must be greater than 0")
+	}
+	return nil
 }
 
 func (store *Store) Close() {

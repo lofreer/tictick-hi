@@ -28,6 +28,18 @@ All subcommands that open PostgreSQL require:
 DATABASE_URL
 ```
 
+All subcommands apply PostgreSQL pool limits before opening PostgreSQL:
+
+```text
+DB_MAX_CONNS            default 10, allowed 1..1000
+DB_MIN_CONNS            default 0, must be <= DB_MAX_CONNS
+DB_MAX_CONN_LIFETIME    default 1h
+DB_MAX_CONN_IDLE_TIME   default 30m
+```
+
+Invalid pool settings fail before PostgreSQL opens, and startup summaries include
+the active pool limits without logging `DATABASE_URL`.
+
 All subcommands read logging configuration before opening PostgreSQL:
 
 ```text
@@ -181,6 +193,7 @@ The smoke builds a local `hi` binary and verifies:
 
 - missing `DATABASE_URL` fails with a clear error;
 - invalid `LOG_LEVEL` / `LOG_FORMAT` / `LOG_CORRELATION_ID` fails before the database opens and does not echo the invalid value;
+- invalid `DB_MAX_CONNS` / `DB_MIN_CONNS` / DB pool duration settings fail before the database opens;
 - invalid duration, int, and bool values name the failing env;
 - `SYNC_HEARTBEAT_INTERVAL > SYNC_LEASE_TTL` fails before the database opens;
 - worker health probe addresses must be valid `host:port` values;
@@ -204,5 +217,5 @@ Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` response headers, and API access logs with `request_id` exist, but trace IDs are not propagated into worker tasks, external systems, or subcommands;
 - worker subcommands have optional process-level health probes, but no richer subcommand-specific readiness model beyond process reachability;
-- backup/restore, resource limits, and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation;
+- backup/restore and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation; database connection pool limits exist, but broader CPU/memory/disk capacity planning is still not complete;
 - no claim that these commands are production-safe.

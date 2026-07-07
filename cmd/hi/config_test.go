@@ -48,6 +48,38 @@ func TestLoadAPICommandConfigRejectsInvalidBool(t *testing.T) {
 	}
 }
 
+func TestLoadAPICommandConfigLoadsDatabasePoolOptions(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("DB_MAX_CONNS", "17")
+	t.Setenv("DB_MIN_CONNS", "2")
+	t.Setenv("DB_MAX_CONN_LIFETIME", "45m")
+	t.Setenv("DB_MAX_CONN_IDLE_TIME", "5m")
+
+	config, err := loadAPICommandConfig()
+	if err != nil {
+		t.Fatalf("load api config: %v", err)
+	}
+	if config.DatabasePool.MaxConns != 17 ||
+		config.DatabasePool.MinConns != 2 ||
+		config.DatabasePool.MaxConnLifetime != 45*time.Minute ||
+		config.DatabasePool.MaxConnIdleTime != 5*time.Minute {
+		t.Fatalf("unexpected database pool config: %#v", config.DatabasePool)
+	}
+}
+
+func TestLoadAPICommandConfigRejectsInvalidDatabasePool(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("DB_MAX_CONNS", "2")
+	t.Setenv("DB_MIN_CONNS", "3")
+
+	_, err := loadAPICommandConfig()
+	if err == nil || !strings.Contains(err.Error(), "DB_MIN_CONNS") {
+		t.Fatalf("expected DB_MIN_CONNS error, got %v", err)
+	}
+}
+
 func TestLoadSyncCommandConfigDefaultsHeartbeatFromLeaseTTL(t *testing.T) {
 	clearCommandEnv(t)
 	t.Setenv("DATABASE_URL", "postgres://local")
@@ -128,6 +160,10 @@ func clearCommandEnv(t *testing.T) {
 		"LOG_LEVEL",
 		"LOG_FORMAT",
 		"LOG_CORRELATION_ID",
+		"DB_MAX_CONNS",
+		"DB_MIN_CONNS",
+		"DB_MAX_CONN_LIFETIME",
+		"DB_MAX_CONN_IDLE_TIME",
 		"HTTP_ADDR",
 		"WEB_FRONTEND_DIST",
 		"AUTH_SESSION_TTL",

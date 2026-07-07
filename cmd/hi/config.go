@@ -8,10 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lofreer/tictick-hi/internal/store/postgres"
 )
 
 type apiCommandConfig struct {
 	DatabaseURL  string
+	DatabasePool postgres.PoolOptions
 	Addr         string
 	StaticRoot   string
 	SessionTTL   time.Duration
@@ -20,6 +23,7 @@ type apiCommandConfig struct {
 
 type syncCommandConfig struct {
 	DatabaseURL                  string
+	DatabasePool                 postgres.PoolOptions
 	Once                         bool
 	WorkerID                     string
 	LeaseTTL                     time.Duration
@@ -39,6 +43,7 @@ type syncCommandConfig struct {
 
 type backtestCommandConfig struct {
 	DatabaseURL  string
+	DatabasePool postgres.PoolOptions
 	Once         bool
 	WorkerID     string
 	LeaseTTL     time.Duration
@@ -48,6 +53,7 @@ type backtestCommandConfig struct {
 
 type tradingCommandConfig struct {
 	DatabaseURL  string
+	DatabasePool postgres.PoolOptions
 	Once         bool
 	WorkerID     string
 	LeaseTTL     time.Duration
@@ -57,6 +63,7 @@ type tradingCommandConfig struct {
 
 type notifyCommandConfig struct {
 	DatabaseURL   string
+	DatabasePool  postgres.PoolOptions
 	Once          bool
 	WorkerID      string
 	LeaseTTL      time.Duration
@@ -78,6 +85,10 @@ func loadAPICommandConfig() (apiCommandConfig, error) {
 	if err != nil {
 		return apiCommandConfig{}, err
 	}
+	databasePool, err := loadDatabasePoolOptions()
+	if err != nil {
+		return apiCommandConfig{}, err
+	}
 	sessionTTL, err := durationEnvStrict("AUTH_SESSION_TTL", 12*time.Hour)
 	if err != nil {
 		return apiCommandConfig{}, err
@@ -88,6 +99,7 @@ func loadAPICommandConfig() (apiCommandConfig, error) {
 	}
 	return apiCommandConfig{
 		DatabaseURL:  databaseURL,
+		DatabasePool: databasePool,
 		Addr:         envOrDefault("HTTP_ADDR", "127.0.0.1:8080"),
 		StaticRoot:   envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist"),
 		SessionTTL:   sessionTTL,
@@ -103,6 +115,10 @@ func loadSyncCommandConfig(args []string) (syncCommandConfig, error) {
 	}
 
 	databaseURL, err := requiredEnv("DATABASE_URL")
+	if err != nil {
+		return syncCommandConfig{}, err
+	}
+	databasePool, err := loadDatabasePoolOptions()
 	if err != nil {
 		return syncCommandConfig{}, err
 	}
@@ -164,6 +180,7 @@ func loadSyncCommandConfig(args []string) (syncCommandConfig, error) {
 
 	return syncCommandConfig{
 		DatabaseURL:                  databaseURL,
+		DatabasePool:                 databasePool,
 		Once:                         *once,
 		WorkerID:                     envOrDefault("SYNC_WORKER_ID", defaultWorkerID()),
 		LeaseTTL:                     leaseTTL,
@@ -192,6 +209,10 @@ func loadBacktestCommandConfig(args []string) (backtestCommandConfig, error) {
 	if err != nil {
 		return backtestCommandConfig{}, err
 	}
+	databasePool, err := loadDatabasePoolOptions()
+	if err != nil {
+		return backtestCommandConfig{}, err
+	}
 	leaseTTL, err := durationEnvStrict("BACKTEST_LEASE_TTL", 30*time.Second)
 	if err != nil {
 		return backtestCommandConfig{}, err
@@ -206,6 +227,7 @@ func loadBacktestCommandConfig(args []string) (backtestCommandConfig, error) {
 	}
 	return backtestCommandConfig{
 		DatabaseURL:  databaseURL,
+		DatabasePool: databasePool,
 		Once:         *once,
 		WorkerID:     envOrDefault("BACKTEST_WORKER_ID", defaultWorkerID()),
 		LeaseTTL:     leaseTTL,
@@ -224,6 +246,10 @@ func loadTradingCommandConfig(args []string) (tradingCommandConfig, error) {
 	if err != nil {
 		return tradingCommandConfig{}, err
 	}
+	databasePool, err := loadDatabasePoolOptions()
+	if err != nil {
+		return tradingCommandConfig{}, err
+	}
 	leaseTTL, err := durationEnvStrict("TRADING_LEASE_TTL", 30*time.Second)
 	if err != nil {
 		return tradingCommandConfig{}, err
@@ -238,6 +264,7 @@ func loadTradingCommandConfig(args []string) (tradingCommandConfig, error) {
 	}
 	return tradingCommandConfig{
 		DatabaseURL:  databaseURL,
+		DatabasePool: databasePool,
 		Once:         *once,
 		WorkerID:     envOrDefault("TRADING_WORKER_ID", defaultWorkerID()),
 		LeaseTTL:     leaseTTL,
@@ -253,6 +280,10 @@ func loadNotifyCommandConfig(args []string) (notifyCommandConfig, error) {
 		return notifyCommandConfig{}, err
 	}
 	databaseURL, err := requiredEnv("DATABASE_URL")
+	if err != nil {
+		return notifyCommandConfig{}, err
+	}
+	databasePool, err := loadDatabasePoolOptions()
 	if err != nil {
 		return notifyCommandConfig{}, err
 	}
@@ -274,6 +305,7 @@ func loadNotifyCommandConfig(args []string) (notifyCommandConfig, error) {
 	}
 	return notifyCommandConfig{
 		DatabaseURL:   databaseURL,
+		DatabasePool:  databasePool,
 		Once:          *once,
 		WorkerID:      envOrDefault("NOTIFY_WORKER_ID", defaultWorkerID()),
 		LeaseTTL:      leaseTTL,
@@ -306,6 +338,40 @@ func loadExchangeClientConfig() (exchangeClientConfig, error) {
 		BinanceRequestWeightWindow: binanceWindow,
 		OKXMarketRequestLimit:      okxLimit,
 		OKXMarketRequestWindow:     okxWindow,
+	}, nil
+}
+
+func loadDatabasePoolOptions() (postgres.PoolOptions, error) {
+	maxConns, err := intEnvStrict("DB_MAX_CONNS", int(postgres.DefaultPoolOptions().MaxConns), 1)
+	if err != nil {
+		return postgres.PoolOptions{}, err
+	}
+	if maxConns > 1000 {
+		return postgres.PoolOptions{}, fmt.Errorf("DB_MAX_CONNS must be less than or equal to 1000")
+	}
+	minConns, err := intEnvStrict("DB_MIN_CONNS", int(postgres.DefaultPoolOptions().MinConns), 0)
+	if err != nil {
+		return postgres.PoolOptions{}, err
+	}
+	if minConns > 1000 {
+		return postgres.PoolOptions{}, fmt.Errorf("DB_MIN_CONNS must be less than or equal to 1000")
+	}
+	if minConns > maxConns {
+		return postgres.PoolOptions{}, fmt.Errorf("DB_MIN_CONNS must be less than or equal to DB_MAX_CONNS")
+	}
+	maxConnLifetime, err := durationEnvStrict("DB_MAX_CONN_LIFETIME", postgres.DefaultPoolOptions().MaxConnLifetime)
+	if err != nil {
+		return postgres.PoolOptions{}, err
+	}
+	maxConnIdleTime, err := durationEnvStrict("DB_MAX_CONN_IDLE_TIME", postgres.DefaultPoolOptions().MaxConnIdleTime)
+	if err != nil {
+		return postgres.PoolOptions{}, err
+	}
+	return postgres.PoolOptions{
+		MaxConns:        int32(maxConns),
+		MinConns:        int32(minConns),
+		MaxConnLifetime: maxConnLifetime,
+		MaxConnIdleTime: maxConnIdleTime,
 	}, nil
 }
 
