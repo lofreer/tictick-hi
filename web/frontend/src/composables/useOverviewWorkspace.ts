@@ -7,6 +7,7 @@ import { backtestsApi } from "@/services/api/backtests";
 import { dataApi } from "@/services/api/data";
 import { systemApi } from "@/services/api/system";
 import { tradingApi } from "@/services/api/trading";
+import { useAuthStore } from "@/stores/auth";
 import {
   loadOverviewFacts,
   overviewFactTagType,
@@ -56,6 +57,7 @@ const recentActivityWindowValues = Object.keys(recentActivityWindowMs) as Recent
 
 export function useOverviewWorkspace() {
   const { t } = useI18n();
+  const authStore = useAuthStore();
   const health = ref<SystemHealth | null>(null);
   const dataSyncTasks = ref<DataSyncTask[]>([]);
   const backtests = ref<BacktestTask[]>([]);
@@ -75,10 +77,11 @@ export function useOverviewWorkspace() {
   });
 
   const services = computed(() => health.value?.services ?? []);
+  const canReadSystemNotifications = computed(() => authStore.operator?.role === "admin");
   const healthTagType = computed<TagProps["type"]>(() => (health.value?.status === "ok" ? "success" : "warning"));
   const recentActivityWindowOptions = computed(() => recentActivityWindowValues.map((value) => ({ label: t(`overview.recentWindow.${value}`), value })));
-  const depthMetrics = computed(() =>
-    buildOverviewDepthMetrics(
+  const depthMetrics = computed(() => {
+    const metrics = buildOverviewDepthMetrics(
       {
         backtests: backtests.value,
         dataSyncTasks: dataSyncTasks.value,
@@ -87,55 +90,60 @@ export function useOverviewWorkspace() {
         tradingTasks: tradingTasks.value,
       },
       t,
-    ),
-  );
+    );
+    return canReadSystemNotifications.value ? metrics : metrics.filter((metric) => metric.key !== "delivery");
+  });
 
-  const summaryCards = computed<SummaryCard[]>(() => [
-    {
-      key: "sync",
-      label: t("overview.dataSync"),
-      value: dataSyncTasks.value.length,
-      detail: t("overview.dataSyncDetail", {
-        running: countStatus(dataSyncTasks.value, "running"),
-        failed: countStatus(dataSyncTasks.value, "failed"),
-        invalid: countDataHealth(dataSyncTasks.value, "invalid"),
-        realtime: dataSyncTasks.value.filter((task) => task.realtimeEnabled).length,
-      }),
-      to: { name: "research", query: { dataHealth: countStatus(dataSyncTasks.value, "failed") > 0 ? "failed" : countDataHealth(dataSyncTasks.value, "invalid") > 0 ? "invalid" : countDataHealth(dataSyncTasks.value, "gap") > 0 ? "gap" : "all" } },
-    },
-    {
-      key: "backtests",
-      label: t("overview.backtests"),
-      value: backtests.value.length,
-      detail: t("overview.backtestsDetail", {
-        running: countStatus(backtests.value, "running"),
-        failed: countStatus(backtests.value, "failed"),
-        succeeded: countStatus(backtests.value, "succeeded"),
-      }),
-      to: { name: "backtests", query: { status: countStatus(backtests.value, "failed") > 0 ? "failed" : "all" } },
-    },
-    {
-      key: "trading",
-      label: t("overview.tradingTasks"),
-      value: tradingTasks.value.length,
-      detail: t("overview.tradingDetail", {
-        running: countStatus(tradingTasks.value, "running"),
-        paper: tradingTasks.value.filter((task) => task.type === "paper").length,
-        live: tradingTasks.value.filter((task) => task.type === "live").length,
-      }),
-      to: { name: "trading", query: { status: countStatus(tradingTasks.value, "failed") > 0 ? "failed" : countStatus(tradingTasks.value, "running") > 0 ? "running" : "all" } },
-    },
-    {
-      key: "notifications",
-      label: t("overview.notifications"),
-      value: notifications.value.length,
-      detail: t("overview.notificationsDetail", {
-        failed: notifications.value.filter((item) => item.status === "failed").length,
-        pending: notifications.value.filter((item) => item.status === "pending" || item.status === "retry_scheduled").length,
-      }),
-      to: { name: "system-notifications", query: { status: notifications.value.some((item) => item.status === "failed") ? "failed" : notifications.value.some((item) => item.status === "pending" || item.status === "retry_scheduled") ? "pending" : "all" } },
-    },
-    {
+  const summaryCards = computed<SummaryCard[]>(() => {
+    const cards: SummaryCard[] = [
+      {
+        key: "sync",
+        label: t("overview.dataSync"),
+        value: dataSyncTasks.value.length,
+        detail: t("overview.dataSyncDetail", {
+          running: countStatus(dataSyncTasks.value, "running"),
+          failed: countStatus(dataSyncTasks.value, "failed"),
+          invalid: countDataHealth(dataSyncTasks.value, "invalid"),
+          realtime: dataSyncTasks.value.filter((task) => task.realtimeEnabled).length,
+        }),
+        to: { name: "research", query: { dataHealth: countStatus(dataSyncTasks.value, "failed") > 0 ? "failed" : countDataHealth(dataSyncTasks.value, "invalid") > 0 ? "invalid" : countDataHealth(dataSyncTasks.value, "gap") > 0 ? "gap" : "all" } },
+      },
+      {
+        key: "backtests",
+        label: t("overview.backtests"),
+        value: backtests.value.length,
+        detail: t("overview.backtestsDetail", {
+          running: countStatus(backtests.value, "running"),
+          failed: countStatus(backtests.value, "failed"),
+          succeeded: countStatus(backtests.value, "succeeded"),
+        }),
+        to: { name: "backtests", query: { status: countStatus(backtests.value, "failed") > 0 ? "failed" : "all" } },
+      },
+      {
+        key: "trading",
+        label: t("overview.tradingTasks"),
+        value: tradingTasks.value.length,
+        detail: t("overview.tradingDetail", {
+          running: countStatus(tradingTasks.value, "running"),
+          paper: tradingTasks.value.filter((task) => task.type === "paper").length,
+          live: tradingTasks.value.filter((task) => task.type === "live").length,
+        }),
+        to: { name: "trading", query: { status: countStatus(tradingTasks.value, "failed") > 0 ? "failed" : countStatus(tradingTasks.value, "running") > 0 ? "running" : "all" } },
+      },
+    ];
+    if (canReadSystemNotifications.value) {
+      cards.push({
+        key: "notifications",
+        label: t("overview.notifications"),
+        value: notifications.value.length,
+        detail: t("overview.notificationsDetail", {
+          failed: notifications.value.filter((item) => item.status === "failed").length,
+          pending: notifications.value.filter((item) => item.status === "pending" || item.status === "retry_scheduled").length,
+        }),
+        to: { name: "system-notifications", query: { status: notifications.value.some((item) => item.status === "failed") ? "failed" : notifications.value.some((item) => item.status === "pending" || item.status === "retry_scheduled") ? "pending" : "all" } },
+      });
+    }
+    cards.push({
       key: "workers",
       label: t("overview.workers"),
       value: services.value.length,
@@ -144,8 +152,9 @@ export function useOverviewWorkspace() {
         locked: services.value.reduce((total, service) => total + (service.lockedCount ?? 0), 0),
       }),
       to: { name: "system-health", query: { focus: services.value.some((service) => (service.staleLeaseCount ?? 0) > 0) ? "stale" : services.value.some((service) => (service.exchangeBackoffCount ?? 0) > 0) ? "backoff" : services.value.some((service) => service.status !== "ok") ? "unhealthy" : "all" } },
-    },
-  ]);
+    });
+    return cards;
+  });
 
   const alerts = computed<OverviewAlert[]>(() => {
     const items: OverviewAlert[] = [];
@@ -162,7 +171,7 @@ export function useOverviewWorkspace() {
     addCountAlert(items, "trading-failed", tradingTasks.value, "failed", t("overview.tradingTasks"), { name: "trading", query: { status: "failed" } });
 
     const failedNotifications = notifications.value.filter((item) => item.status === "failed").length;
-    if (failedNotifications > 0) {
+    if (canReadSystemNotifications.value && failedNotifications > 0) {
       items.push(
         alert(
           "notifications-failed",
@@ -236,7 +245,7 @@ export function useOverviewWorkspace() {
         dataApi.listTasks(),
         backtestsApi.listBacktests(),
         tradingApi.listTasks(),
-        systemApi.listNotifications(),
+        canReadSystemNotifications.value ? systemApi.listNotifications() : Promise.resolve<Notification[]>([]),
       ]);
       health.value = nextHealth;
       dataSyncTasks.value = nextSyncTasks;
@@ -353,17 +362,11 @@ export function useOverviewWorkspace() {
   };
 }
 
-function countStatus(tasks: { status: TaskStatus }[], status: TaskStatus) {
-  return tasks.filter((task) => task.status === status).length;
-}
+function countStatus(tasks: { status: TaskStatus }[], status: TaskStatus) { return tasks.filter((task) => task.status === status).length; }
 
-function countDataHealth(tasks: DataSyncTask[], health: DataSyncTask["dataHealth"]) {
-  return tasks.filter((task) => task.dataHealth === health).length;
-}
+function countDataHealth(tasks: DataSyncTask[], health: DataSyncTask["dataHealth"]) { return tasks.filter((task) => task.dataHealth === health).length; }
 
-function alert(key: string, title: string, label: string, detail: string, type: TagProps["type"], to: RouteLocationRaw): OverviewAlert {
-  return { key, title, label, detail, type, to };
-}
+function alert(key: string, title: string, label: string, detail: string, type: TagProps["type"], to: RouteLocationRaw): OverviewAlert { return { key, title, label, detail, type, to }; }
 
 function taskTagType(status: TaskStatus): TagProps["type"] {
   if (status === "running" || status === "succeeded") return "success";
@@ -379,13 +382,9 @@ function notificationTagType(status: string): TagProps["type"] {
   return "default";
 }
 
-function marketLabel(item: { exchange: string; symbol: string; interval: string }) {
-  return `${item.exchange} / ${item.symbol} / ${item.interval}`;
-}
+function marketLabel(item: { exchange: string; symbol: string; interval: string }) { return `${item.exchange} / ${item.symbol} / ${item.interval}`; }
 
-function formatDate(value?: string) {
-  return value ? new Date(value).toLocaleString() : "-";
-}
+function formatDate(value?: string) { return value ? new Date(value).toLocaleString() : "-"; }
 
 function isRecentActivityWindow(value: string): value is RecentActivityWindow {
   return Object.prototype.hasOwnProperty.call(recentActivityWindowMs, value);
@@ -395,6 +394,4 @@ function recentActivityWindowSince(value: RecentActivityWindow) {
   return new Date(Date.now() - recentActivityWindowMs[value]).toISOString();
 }
 
-function errorMessage(loadError: unknown, fallback: string) {
-  return loadError instanceof Error && loadError.message ? loadError.message : fallback;
-}
+function errorMessage(loadError: unknown, fallback: string) { return loadError instanceof Error && loadError.message ? loadError.message : fallback; }

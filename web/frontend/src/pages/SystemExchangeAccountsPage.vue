@@ -5,7 +5,7 @@
         <h1 class="page-title">{{ t("page.exchangeAccounts.title") }}</h1>
         <p class="page-subtitle">{{ t("system.exchangeAccountsSubtitle") }}</p>
       </div>
-      <NButton type="primary" @click="createOpen = true">
+      <NButton v-if="canManageSystemConfig" type="primary" @click="createOpen = true">
         <template #icon><Plus :size="17" /></template>
         {{ t("system.createAccount") }}
       </NButton>
@@ -60,23 +60,26 @@
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
 import { NButton, NForm, NFormItem, NInput, NModal, NSpace, NSwitch, NTag, type TagProps, useMessage } from "naive-ui";
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
+import { useAuthStore } from "@/stores/auth";
 import type { ExchangeAccount } from "@/types/app";
 
 const { t } = useI18n();
 const message = useMessage();
+const authStore = useAuthStore();
 const accounts = ref<ExchangeAccount[]>([]);
 const loading = ref(false);
 const creating = ref(false);
 const error = ref("");
 const createOpen = ref(false);
 const form = reactive({ exchange: "binance", alias: "", apiKey: "", apiSecret: "", enabled: true });
+const canManageSystemConfig = computed(() => authStore.operator?.role === "admin");
 
 onMounted(() => {
   void loadAccounts();
@@ -96,6 +99,7 @@ async function loadAccounts() {
 }
 
 async function createAccount() {
+  if (!canManageSystemConfig.value) return;
   creating.value = true;
   try {
     await systemApi.createExchangeAccount({ ...form });

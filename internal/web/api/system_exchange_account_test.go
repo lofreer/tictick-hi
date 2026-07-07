@@ -29,6 +29,63 @@ func TestSystemExchangeAccountRejectsBlankFields(t *testing.T) {
 	}
 }
 
+func TestSystemExchangeAccountManagementRequiresAdminRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.operators[0].Role = data.OperatorRoleOperator
+	repository.accounts = append(repository.accounts, data.ExchangeAccount{
+		ID:               "ea_ops",
+		Exchange:         "binance",
+		Alias:            "main",
+		Enabled:          true,
+		CredentialStatus: "encrypted",
+	})
+
+	cases := []struct {
+		name       string
+		method     string
+		path       string
+		body       string
+		action     string
+		resourceID string
+	}{
+		{
+			name:   "list accounts",
+			method: http.MethodGet,
+			path:   "/api/system/exchange-accounts",
+			action: "exchange_account.list",
+		},
+		{
+			name:   "create account",
+			method: http.MethodPost,
+			path:   "/api/system/exchange-accounts",
+			body:   `{"exchange":"binance","alias":"ops","apiKey":"key","apiSecret":"secret","enabled":true}`,
+			action: "exchange_account.create",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := serveAuthenticated(server, auth, test.method, test.path, test.body)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("%s status = %d body = %s", test.path, recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Code != "forbidden" || response.Message != "admin operator role is required" {
+				t.Fatalf("unexpected admin required response: %#v", response)
+			}
+			event := assertAuditAction(t, repository.auditEvents, test.action, "exchange_account", test.resourceID)
+			if event.Outcome != "failure" || event.Metadata["reason"] != "admin_required" ||
+				event.Metadata["actorRole"] != data.OperatorRoleOperator {
+				t.Fatalf("unexpected admin required audit event: %#v", event)
+			}
+		})
+	}
+
+	if len(repository.accounts) != 1 || repository.accounts[0].Alias != "main" {
+		t.Fatalf("exchange accounts changed by non-admin: %#v", repository.accounts)
+	}
+}
+
 func TestSystemExchangeAccountCreateStoreFailureAuditedWithoutSecrets(t *testing.T) {
 	base := newFakeRepository()
 	repository := &exchangeAccountFailureRepository{

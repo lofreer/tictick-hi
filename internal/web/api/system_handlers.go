@@ -46,6 +46,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 			writeMethodNotAllowed(w, http.MethodGet)
 			return
 		}
+		if _, ok := server.currentAdminOperator(w, r, "notification.list", "notification", "", nil); !ok {
+			return
+		}
 		notifications, err := server.repository.ListNotifications(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -121,9 +124,8 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 			writeMethodNotAllowed(w, http.MethodPost)
 			return
 		}
-		actor, _, authErr := server.currentOperator(r)
-		if authErr != nil {
-			writeAuthError(w, authErr)
+		actor, ok := server.currentAdminOperator(w, r, "notification.retry", "notification", parts[3], nil)
+		if !ok {
 			return
 		}
 		notification, err := server.repository.RetryNotification(r.Context(), parts[3])
@@ -160,6 +162,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if _, ok := server.currentAdminOperator(w, r, "notification_channel.list", "notification_channel", "", nil); !ok {
+			return
+		}
 		channels, err := server.repository.ListNotificationChannels(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -167,9 +172,8 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 		}
 		writeJSON(w, http.StatusOK, channels)
 	case http.MethodPost:
-		actor, _, authErr := server.currentOperator(r)
-		if authErr != nil {
-			writeAuthError(w, authErr)
+		actor, ok := server.currentAdminOperator(w, r, "notification_channel.create", "notification_channel", "", nil)
+		if !ok {
 			return
 		}
 		var request data.CreateNotificationChannel
@@ -203,9 +207,8 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 func (server *Server) handleNotificationChannel(w http.ResponseWriter, r *http.Request, id string) {
 	switch r.Method {
 	case http.MethodPut:
-		actor, _, authErr := server.currentOperator(r)
-		if authErr != nil {
-			writeAuthError(w, authErr)
+		actor, ok := server.currentAdminOperator(w, r, "notification_channel.update", "notification_channel", id, nil)
+		if !ok {
 			return
 		}
 		var request data.CreateNotificationChannel
@@ -232,9 +235,8 @@ func (server *Server) handleNotificationChannel(w http.ResponseWriter, r *http.R
 		}
 		writeJSON(w, http.StatusOK, channel)
 	case http.MethodDelete:
-		actor, _, authErr := server.currentOperator(r)
-		if authErr != nil {
-			writeAuthError(w, authErr)
+		actor, ok := server.currentAdminOperator(w, r, "notification_channel.delete", "notification_channel", id, nil)
+		if !ok {
 			return
 		}
 		channel, err := server.repository.DeleteNotificationChannel(r.Context(), id)
@@ -276,6 +278,12 @@ func (server *Server) handleNotificationChannelAction(w http.ResponseWriter, r *
 		writeError(w, http.StatusNotFound, "notification channel action not found")
 		return
 	}
+	if !actor.IsAdmin() {
+		server.writeAdminRequiredAudit(w, r, actor, "notification_channel."+action, "notification_channel", id, map[string]string{
+			"enabled": boolString(enabled),
+		})
+		return
+	}
 	channel, err := server.repository.SetNotificationChannelEnabled(r.Context(), id, enabled)
 	if err != nil {
 		if auditErr := server.recordAuditEvent(r, actor, "notification_channel."+action, "notification_channel", id, "failure", storeFailureMetadata(err, map[string]string{
@@ -313,6 +321,9 @@ func notificationChannelRequestFailureMetadata(err error, request data.CreateNot
 func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if _, ok := server.currentAdminOperator(w, r, "exchange_account.list", "exchange_account", "", nil); !ok {
+			return
+		}
 		accounts, err := server.repository.ListExchangeAccounts(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -320,9 +331,8 @@ func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Requ
 		}
 		writeJSON(w, http.StatusOK, accounts)
 	case http.MethodPost:
-		actor, _, authErr := server.currentOperator(r)
-		if authErr != nil {
-			writeAuthError(w, authErr)
+		actor, ok := server.currentAdminOperator(w, r, "exchange_account.create", "exchange_account", "", nil)
+		if !ok {
 			return
 		}
 		var request data.CreateExchangeAccount
@@ -363,4 +373,24 @@ func exchangeAccountRequestFailureMetadata(err error, request data.CreateExchang
 		"alias":    request.Alias,
 		"enabled":  boolString(request.Enabled),
 	})
+}
+
+func (server *Server) currentAdminOperator(
+	w http.ResponseWriter,
+	r *http.Request,
+	action string,
+	resourceType string,
+	resourceID string,
+	metadata map[string]string,
+) (data.Operator, bool) {
+	actor, _, authErr := server.currentOperator(r)
+	if authErr != nil {
+		writeAuthError(w, authErr)
+		return data.Operator{}, false
+	}
+	if !actor.IsAdmin() {
+		server.writeAdminRequiredAudit(w, r, actor, action, resourceType, resourceID, metadata)
+		return data.Operator{}, false
+	}
+	return actor, true
 }

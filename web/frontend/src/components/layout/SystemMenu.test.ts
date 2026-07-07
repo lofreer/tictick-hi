@@ -49,18 +49,23 @@ describe("SystemMenu", () => {
     setActivePinia(pinia);
   });
 
-  it("shows operator management to admins", () => {
+  it("shows sensitive system management entries to admins", () => {
     useAuthStore().operator = operator("op_admin", "admin", "admin");
     const wrapper = mountMenu();
 
+    expect(wrapper.text()).toContain("system.notifications");
+    expect(wrapper.text()).toContain("system.exchangeAccounts");
     expect(wrapper.text()).toContain("system.operators");
   });
 
-  it("hides operator management from non-admin operators", () => {
+  it("hides sensitive system management entries from non-admin operators", () => {
     useAuthStore().operator = operator("op_ops", "ops", "operator");
     const wrapper = mountMenu();
 
+    expect(wrapper.text()).not.toContain("system.notifications");
+    expect(wrapper.text()).not.toContain("system.exchangeAccounts");
     expect(wrapper.text()).not.toContain("system.operators");
+    expect(wrapper.text()).toContain("system.sessions");
   });
 });
 

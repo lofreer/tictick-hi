@@ -5,7 +5,7 @@
         <h1 class="page-title">{{ t("page.notifications.title") }}</h1>
         <p class="page-subtitle">{{ t("system.notificationsSubtitle") }}</p>
       </div>
-      <NButton type="primary" @click="createOpen = true">
+      <NButton v-if="canManageSystemConfig" type="primary" @click="createOpen = true">
         <template #icon><Plus :size="17" /></template>
         {{ t("system.createChannel") }}
       </NButton>
@@ -36,7 +36,7 @@
               <th>{{ t("system.attempts") }}</th>
               <th>{{ t("system.nextAttempt") }}</th>
               <th>{{ t("common.error") }}</th>
-              <th>{{ t("research.actions") }}</th>
+              <th v-if="canManageSystemConfig">{{ t("research.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -52,7 +52,7 @@
               <td>{{ notification.attemptCount }} / {{ notification.maxAttempts }}</td>
               <td>{{ formatDate(notification.nextAttemptAt) }}</td>
               <td><span class="system-table__error">{{ notification.error || "-" }}</span></td>
-              <td>
+              <td v-if="canManageSystemConfig">
                 <NButton
                   size="tiny"
                   quaternary
@@ -82,7 +82,7 @@
               <th>{{ t("system.target") }}</th>
               <th>{{ t("system.enabled") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
-              <th>{{ t("research.actions") }}</th>
+              <th v-if="canManageSystemConfig">{{ t("research.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -92,7 +92,7 @@
               <td>{{ channel.target }}</td>
               <td><NTag :type="channel.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(channel.enabled) }}</NTag></td>
               <td>{{ formatDate(channel.createdAt) }}</td>
-              <td>
+              <td v-if="canManageSystemConfig">
                 <NSpace class="system-table__actions" size="small">
                   <NButton size="small" secondary @click="openEditChannel(channel)">
                     <template #icon><Pencil :size="16" /></template>
@@ -170,6 +170,7 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import ConfirmAction from "@/components/common/ConfirmAction.vue";
 import NotificationChannelForm from "@/components/system/NotificationChannelForm.vue";
 import { systemApi } from "@/services/api/system";
+import { useAuthStore } from "@/stores/auth";
 import type { Notification, NotificationChannel } from "@/types/app";
 import {
   notificationMatchesStatusFilter,
@@ -182,6 +183,7 @@ const { t } = useI18n();
 const message = useMessage();
 const route = useRoute();
 const router = useRouter();
+const authStore = useAuthStore();
 const channels = ref<NotificationChannel[]>([]);
 const notifications = ref<Notification[]>([]);
 const loading = ref(false);
@@ -213,6 +215,7 @@ const notificationStatusFilterOptions = computed<SelectOption[]>(() => [
   { label: t("system.notificationStatus.pending"), value: "pending" },
   { label: t("system.notificationStatus.sent"), value: "sent" },
 ]);
+const canManageSystemConfig = computed(() => authStore.operator?.role === "admin");
 const filteredNotifications = computed(() =>
   notifications.value.filter((notification) => notificationMatchesStatusFilter(notification, notificationStatusFilter.value)),
 );
@@ -258,6 +261,7 @@ async function loadChannels() {
 }
 
 async function createChannel() {
+  if (!canManageSystemConfig.value) return;
   creating.value = true;
   try {
     await systemApi.createNotificationChannel({ ...form });
@@ -274,6 +278,7 @@ async function createChannel() {
 }
 
 async function toggleChannel(channel: NotificationChannel) {
+  if (!canManageSystemConfig.value) return;
   updatingChannelId.value = channel.id;
   try {
     await systemApi.setNotificationChannelEnabled(channel.id, !channel.enabled);
@@ -287,6 +292,7 @@ async function toggleChannel(channel: NotificationChannel) {
 }
 
 function openEditChannel(channel: NotificationChannel) {
+  if (!canManageSystemConfig.value) return;
   editingChannelId.value = channel.id;
   editForm.name = channel.name;
   editForm.provider = channel.provider;
@@ -296,6 +302,7 @@ function openEditChannel(channel: NotificationChannel) {
 }
 
 async function updateChannel() {
+  if (!canManageSystemConfig.value) return;
   if (!editingChannelId.value) return;
   savingChannel.value = true;
   try {
@@ -311,6 +318,7 @@ async function updateChannel() {
 }
 
 async function deleteChannel(channel: NotificationChannel) {
+  if (!canManageSystemConfig.value) return;
   deletingChannelId.value = channel.id;
   try {
     await systemApi.deleteNotificationChannel(channel.id);
@@ -324,6 +332,7 @@ async function deleteChannel(channel: NotificationChannel) {
 }
 
 async function retryNotification(id: string) {
+  if (!canManageSystemConfig.value) return;
   retryingId.value = id;
   try {
     await systemApi.retryNotification(id);
@@ -345,9 +354,7 @@ async function setNotificationStatusFilter(value: string) {
   await router.replace({ query: nextQuery });
 }
 
-function enabledLabel(enabled: boolean) {
-  return enabled ? t("common.yes") : t("common.no");
-}
+function enabledLabel(enabled: boolean) { return enabled ? t("common.yes") : t("common.no"); }
 
 function statusType(status: string): TagProps["type"] {
   if (status === "sent" || status === "delivered") return "success";
@@ -357,13 +364,9 @@ function statusType(status: string): TagProps["type"] {
   return "default";
 }
 
-function formatDate(value?: string) {
-  return value ? new Date(value).toLocaleString() : "-";
-}
+function formatDate(value?: string) { return value ? new Date(value).toLocaleString() : "-"; }
 
-function errorMessage(loadError: unknown, fallback: string) {
-  return loadError instanceof Error && loadError.message ? loadError.message : fallback;
-}
+function errorMessage(loadError: unknown, fallback: string) { return loadError instanceof Error && loadError.message ? loadError.message : fallback; }
 </script>
 
 <style scoped>
@@ -430,9 +433,7 @@ function errorMessage(loadError: unknown, fallback: string) {
   white-space: nowrap;
 }
 
-.system-table__error {
-  color: var(--tt-danger);
-}
+.system-table__error { color: var(--tt-danger); }
 
 .system-table__actions {
   min-width: 260px;

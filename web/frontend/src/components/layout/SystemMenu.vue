@@ -13,7 +13,7 @@
 <script setup lang="ts">
 import { Activity, Bell, ChevronDown, FileText, KeyRound, Settings, ShieldCheck, UsersRound } from "@lucide/vue";
 import { NButton, NDropdown, type DropdownOption } from "naive-ui";
-import { h, computed } from "vue";
+import { computed, h } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
@@ -22,15 +22,16 @@ import { useAuthStore } from "@/stores/auth";
 const router = useRouter();
 const { t } = useI18n();
 const authStore = useAuthStore();
+const canManageSystemConfig = computed(() => authStore.operator?.role === "admin");
 
 const options = computed<DropdownOption[]>(() => {
-  const entries = [
-    option("notifications", "system.notifications", Bell),
-    option("exchange-accounts", "system.exchangeAccounts", KeyRound),
-  ];
-  if (authStore.operator?.role === "admin") {
-    entries.push(option("operators", "system.operators", UsersRound));
-  }
+  const entries = canManageSystemConfig.value
+    ? [
+        option("notifications", "system.notifications", Bell),
+        option("exchange-accounts", "system.exchangeAccounts", KeyRound),
+        option("operators", "system.operators", UsersRound),
+      ]
+    : [];
   entries.push(
     option("sessions", "system.sessions", ShieldCheck),
     option("audit-events", "system.auditEvents", FileText),

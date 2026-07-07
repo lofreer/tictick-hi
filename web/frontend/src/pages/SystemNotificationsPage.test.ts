@@ -1,11 +1,13 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { NMessageProvider } from "naive-ui";
+import { createPinia, setActivePinia, type Pinia } from "pinia";
 import { defineComponent, h } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { i18n } from "@/i18n";
 import SystemNotificationsPage from "@/pages/SystemNotificationsPage.vue";
-import type { NotificationChannel } from "@/types/app";
+import { useAuthStore } from "@/stores/auth";
+import type { Notification, NotificationChannel } from "@/types/app";
 
 const apiMocks = vi.hoisted(() => ({
   listNotifications: vi.fn(),
@@ -39,10 +41,15 @@ vi.mock("vue-router", () => ({
   useRouter: () => ({ replace: routeMocks.replace }),
 }));
 
+let pinia: Pinia;
+
 describe("SystemNotificationsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     routeMocks.query = {};
+    pinia = createPinia();
+    setActivePinia(pinia);
+    useAuthStore().operator = operator("op_admin", "admin", "admin");
   });
 
   it("toggles notification channel enabled state from the channel table", async () => {
@@ -58,7 +65,7 @@ describe("SystemNotificationsPage", () => {
 
     const wrapper = mount(Host, {
       global: {
-        plugins: [i18n],
+        plugins: [i18n, pinia],
       },
     });
     await flushPromises();
@@ -92,7 +99,7 @@ describe("SystemNotificationsPage", () => {
 
     const wrapper = mount(Host, {
       global: {
-        plugins: [i18n],
+        plugins: [i18n, pinia],
         stubs: {
           NModal: {
             props: ["show"],
@@ -134,7 +141,46 @@ describe("SystemNotificationsPage", () => {
     expect(apiMocks.deleteNotificationChannel).toHaveBeenCalledWith("nc_ops");
     expect(apiMocks.listNotificationChannels).toHaveBeenCalledTimes(3);
   });
+
+  it("hides notification management actions from non-admin operators", async () => {
+    useAuthStore().operator = operator("op_ops", "ops", "operator");
+    apiMocks.listNotifications.mockResolvedValue([notification("nt_failed")]);
+    apiMocks.listNotificationChannels.mockResolvedValue([channel("nc_ops", true)]);
+
+    const Host = defineComponent({
+      render: () => h(NMessageProvider, null, { default: () => h(SystemNotificationsPage) }),
+    });
+
+    const wrapper = mount(Host, {
+      global: {
+        plugins: [i18n, pinia],
+      },
+    });
+    await flushPromises();
+
+    const buttonTexts = wrapper.findAll("button").map((button) => button.text());
+    expect(buttonTexts).not.toContain("创建通道");
+    expect(buttonTexts).not.toContain("重试");
+    expect(buttonTexts).not.toContain("编辑");
+    expect(buttonTexts).not.toContain("停用");
+    expect(buttonTexts).not.toContain("删除");
+  });
 });
+
+function notification(id: string): Notification {
+  return {
+    id,
+    channel: "Ops",
+    provider: "local",
+    target: "ops",
+    title: "Strategy intent",
+    body: "signal",
+    status: "failed",
+    attemptCount: 1,
+    maxAttempts: 3,
+    createdAt: "2026-01-01T00:00:00Z",
+  };
+}
 
 function channel(id: string, enabled: boolean, name = "Ops"): NotificationChannel {
   return {
@@ -143,6 +189,17 @@ function channel(id: string, enabled: boolean, name = "Ops"): NotificationChanne
     provider: "local",
     target: "default",
     enabled,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+}
+
+function operator(id: string, username: string, role: string) {
+  return {
+    id,
+    username,
+    role,
+    enabled: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   };

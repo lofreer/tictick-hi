@@ -1,4 +1,5 @@
 import { mount, flushPromises } from "@vue/test-utils";
+import { createPinia, setActivePinia, type Pinia } from "pinia";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { i18n } from "@/i18n";
@@ -7,6 +8,7 @@ import { dataApi } from "@/services/api/data";
 import { overviewApi } from "@/services/api/overview";
 import { systemApi } from "@/services/api/system";
 import { tradingApi } from "@/services/api/trading";
+import { useAuthStore } from "@/stores/auth";
 import { useOverviewWorkspace } from "@/composables/useOverviewWorkspace";
 
 const apiMocks = vi.hoisted(() => ({
@@ -17,6 +19,8 @@ const apiMocks = vi.hoisted(() => ({
   overviewRecentFacts: vi.fn(),
   systemHealth: vi.fn(),
 }));
+
+let pinia: Pinia;
 
 vi.mock("@/services/api/backtests", () => ({
   backtestsApi: {
@@ -52,6 +56,9 @@ vi.mock("@/services/api/trading", () => ({
 describe("useOverviewWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pinia = createPinia();
+    setActivePinia(pinia);
+    useAuthStore().operator = operator("op_admin", "admin", "admin");
     apiMocks.overviewRecentFacts.mockResolvedValue({ orders: [], strategyIntents: [] });
   });
 
@@ -215,6 +222,24 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.error.value).toBe("health unavailable");
   });
 
+  it("skips admin-only system notifications for non-admin operators", async () => {
+    useAuthStore().operator = operator("op_ops", "ops", "operator");
+    apiMocks.systemHealth.mockResolvedValue({ status: "ok", database: "ok", checkedAt: isoMinutesAgo(1), services: [] });
+    apiMocks.listDataTasks.mockResolvedValue([]);
+    apiMocks.listBacktests.mockResolvedValue([]);
+    apiMocks.listTradingTasks.mockResolvedValue([]);
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    expect(systemApi.listNotifications).not.toHaveBeenCalled();
+    expect(workspace.hasLoaded.value).toBe(true);
+    expect(workspace.error.value).toBe("");
+    expect(workspace.summaryCards.value.map((card) => card.key)).toEqual(["sync", "backtests", "trading", "workers"]);
+    expect(workspace.depthMetrics.value.map((metric) => metric.key)).toEqual(["data-quality", "automation", "execution"]);
+  });
+
+
   it("keeps the overview loaded when recent facts are degraded", async () => {
     apiMocks.systemHealth.mockResolvedValue({
       status: "ok",
@@ -340,7 +365,7 @@ function mountWorkspace() {
     },
     {
       global: {
-        plugins: [i18n],
+        plugins: [i18n, pinia],
       },
     },
   );
@@ -408,6 +433,17 @@ function overviewOrder(id: string, taskId: string, taskType: string, taskName: s
     quantity,
     status,
     occurredAt,
+  };
+}
+
+function operator(id: string, username: string, role: string) {
+  return {
+    id,
+    username,
+    role,
+    enabled: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
   };
 }
 

@@ -47,6 +47,115 @@ func TestSystemNotificationChannelsAcceptExternalProviders(t *testing.T) {
 	}
 }
 
+func TestSystemNotificationManagementRequiresAdminRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.operators[0].Role = data.OperatorRoleOperator
+	repository.notifications = append(repository.notifications, data.Notification{
+		ID:           "nt_ops",
+		Channel:      "Ops",
+		Provider:     "local",
+		Target:       "ops",
+		Title:        "Strategy intent",
+		Body:         "signal",
+		Status:       "failed",
+		AttemptCount: 1,
+		MaxAttempts:  3,
+		CreatedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	})
+	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
+
+	cases := []struct {
+		name         string
+		method       string
+		path         string
+		body         string
+		action       string
+		resourceType string
+		resourceID   string
+	}{
+		{
+			name:         "list notifications",
+			method:       http.MethodGet,
+			path:         "/api/system/notifications",
+			action:       "notification.list",
+			resourceType: "notification",
+		},
+		{
+			name:         "retry notification",
+			method:       http.MethodPost,
+			path:         "/api/system/notifications/nt_ops/retry",
+			action:       "notification.retry",
+			resourceType: "notification",
+			resourceID:   "nt_ops",
+		},
+		{
+			name:         "list channels",
+			method:       http.MethodGet,
+			path:         "/api/system/notifications/channels",
+			action:       "notification_channel.list",
+			resourceType: "notification_channel",
+		},
+		{
+			name:         "create channel",
+			method:       http.MethodPost,
+			path:         "/api/system/notifications/channels",
+			body:         `{"name":"Ops Webhook","provider":"webhook","target":"https://hooks.example.invalid/ops","enabled":true}`,
+			action:       "notification_channel.create",
+			resourceType: "notification_channel",
+		},
+		{
+			name:         "update channel",
+			method:       http.MethodPut,
+			path:         "/api/system/notifications/channels/nc_ops",
+			body:         `{"name":"Ops Edited","provider":"local","target":"default","enabled":false}`,
+			action:       "notification_channel.update",
+			resourceType: "notification_channel",
+			resourceID:   "nc_ops",
+		},
+		{
+			name:         "delete channel",
+			method:       http.MethodDelete,
+			path:         "/api/system/notifications/channels/nc_ops",
+			action:       "notification_channel.delete",
+			resourceType: "notification_channel",
+			resourceID:   "nc_ops",
+		},
+		{
+			name:         "disable channel",
+			method:       http.MethodPost,
+			path:         "/api/system/notifications/channels/nc_ops/disable",
+			action:       "notification_channel.disable",
+			resourceType: "notification_channel",
+			resourceID:   "nc_ops",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := serveAuthenticated(server, auth, test.method, test.path, test.body)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("%s status = %d body = %s", test.path, recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Code != "forbidden" || response.Message != "admin operator role is required" {
+				t.Fatalf("unexpected admin required response: %#v", response)
+			}
+			event := assertAuditAction(t, repository.auditEvents, test.action, test.resourceType, test.resourceID)
+			if event.Outcome != "failure" || event.Metadata["reason"] != "admin_required" ||
+				event.Metadata["actorRole"] != data.OperatorRoleOperator {
+				t.Fatalf("unexpected admin required audit event: %#v", event)
+			}
+		})
+	}
+
+	if repository.notifications[0].Status != "failed" {
+		t.Fatalf("notification was retried by non-admin: %#v", repository.notifications[0])
+	}
+	if len(repository.channels) != 1 || repository.channels[0].Name != "Ops" || !repository.channels[0].Enabled {
+		t.Fatalf("channel changed by non-admin: %#v", repository.channels)
+	}
+}
+
 func TestSystemNotificationRetryStoreFailureAudited(t *testing.T) {
 	base := newFakeRepository()
 	repository := &notificationRetryFailureRepository{
