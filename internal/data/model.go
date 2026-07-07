@@ -182,6 +182,7 @@ type Notification struct {
 	ID            string     `json:"id"`
 	TaskID        string     `json:"taskId,omitempty"`
 	IntentID      string     `json:"intentId,omitempty"`
+	RequestID     string     `json:"requestId,omitempty"`
 	Channel       string     `json:"channel"`
 	Provider      string     `json:"provider"`
 	Target        string     `json:"target"`
@@ -210,6 +211,7 @@ type NotificationDelivery struct {
 	NotificationID string
 	TaskID         string
 	IntentID       string
+	RequestID      string
 	Channel        string
 	Provider       string
 	Target         string

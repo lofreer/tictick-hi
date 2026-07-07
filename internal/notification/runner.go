@@ -8,6 +8,7 @@ import (
 
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/workerlease"
+	"github.com/lofreer/tictick-hi/internal/workerlog"
 )
 
 type Runner struct {
@@ -102,7 +103,10 @@ func (runner *Runner) runOne(ctx context.Context) (bool, error) {
 			}
 			return true, nil
 		}
-		slog.Error("notification delivery failed", "delivery_id", delivery.ID, "error", err)
+		slog.Error(
+			"notification delivery failed",
+			workerlog.TaskAttrs(delivery.TaskID, delivery.RequestID, "delivery_id", delivery.ID, "error", err)...,
+		)
 		nextAttemptAt := runner.nextAttemptAt(delivery)
 		if markErr := runner.repository.MarkNotificationFailed(ctx, delivery.ID, err, nextAttemptAt); markErr != nil {
 			return true, fmt.Errorf("mark notification failed: %w", markErr)

@@ -12,7 +12,7 @@ import (
 
 func (store *Store) ListNotifications(ctx context.Context) ([]data.Notification, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, task_id, COALESCE(intent_id, ''), channel, provider, target,
+		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), channel, provider, target,
 		       title, body, status, COALESCE(error, ''), attempt_count,
 		       max_attempts, next_attempt_at, last_attempt_at, created_at, sent_at
 		  FROM notifications
@@ -181,7 +181,8 @@ func (store *Store) ClaimNotificationDelivery(
 			extraAssignments: []string{
 				"last_attempt_at = now()",
 			},
-			returningColumns: `id, notification_id, task_id, COALESCE(intent_id, ''), channel,
+			returningColumns: `id, notification_id, task_id, COALESCE(intent_id, ''),
+		          COALESCE(request_id, ''), channel,
 		          provider, target, title, body, status, attempt_count, max_attempts,
 		          next_attempt_at, last_attempt_at, COALESCE(last_error, ''),
 		          created_at, updated_at`,
@@ -342,7 +343,7 @@ func (store *Store) ReleaseNotificationDelivery(ctx context.Context, deliveryID 
 
 func notificationByID(ctx context.Context, tx pgx.Tx, id string) (data.Notification, error) {
 	row := tx.QueryRow(ctx, `
-		SELECT id, task_id, COALESCE(intent_id, ''), channel, provider, target,
+		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), channel, provider, target,
 		       title, body, status, COALESCE(error, ''), attempt_count,
 		       max_attempts, next_attempt_at, last_attempt_at, created_at, sent_at
 		  FROM notifications
@@ -364,6 +365,7 @@ func scanNotificationDelivery(row rowScanner) (data.NotificationDelivery, error)
 		&delivery.NotificationID,
 		&delivery.TaskID,
 		&delivery.IntentID,
+		&delivery.RequestID,
 		&delivery.Channel,
 		&delivery.Provider,
 		&delivery.Target,

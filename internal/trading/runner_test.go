@@ -47,6 +47,7 @@ func TestRunnerRunOnceSavesNotification(t *testing.T) {
 		"orderIntent":         "notify",
 		"notificationChannel": "ops",
 	})
+	repository.task.RequestID = "request-id-notification"
 	runner := NewRunner(repository, strategy.BuiltinRegistry(), Config{WorkerID: "test-worker"})
 
 	if err := runner.RunOnce(context.Background()); err != nil {
@@ -58,6 +59,9 @@ func TestRunnerRunOnceSavesNotification(t *testing.T) {
 	}
 	if repository.result.Notifications[0].Channel != "ops" {
 		t.Fatalf("channel = %s", repository.result.Notifications[0].Channel)
+	}
+	if repository.result.Notifications[0].RequestID != "request-id-notification" {
+		t.Fatalf("notification request id = %q", repository.result.Notifications[0].RequestID)
 	}
 }
 

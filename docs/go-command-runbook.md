@@ -215,7 +215,7 @@ If a command exits immediately:
 
 Known remaining gaps:
 
-- structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` response headers, API access logs with `request_id`, API-created data sync / backtest / trading / data sync repair task `requestId` fields, and data sync / backtest / trading worker task logs with `request_id` exist, but trace IDs are not propagated into notification delivery, external systems, or subcommands;
+- structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` response headers, API access logs with `request_id`, API-created data sync / backtest / trading / data sync repair task and notification `requestId` fields, and data sync / backtest / trading / notify worker task logs with `request_id` exist, but trace IDs are not propagated into external provider requests, external systems, or subcommands;
 - worker subcommands have optional process-level health probes, but no richer subcommand-specific readiness model beyond process reachability;
 - backup/restore and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation; database connection pool limits exist, but broader CPU/memory/disk capacity planning is still not complete;
 - no claim that these commands are production-safe.

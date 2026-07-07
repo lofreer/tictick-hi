@@ -258,6 +258,7 @@ func (runner *Runner) notification(
 	return data.Notification{
 		ID:        notificationID,
 		IntentID:  intentID,
+		RequestID: task.RequestID,
 		Channel:   channel,
 		Title:     "Strategy intent",
 		Body:      notificationBody(task, intent),
