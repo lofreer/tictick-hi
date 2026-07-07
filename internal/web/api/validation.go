@@ -171,6 +171,9 @@ func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.
 	if task.Type != "paper" && task.Type != "live" {
 		return errors.New("type must be paper or live")
 	}
+	if task.Type == "live" && strings.TrimSpace(task.LiveConfirmation) != "LIVE" {
+		return errors.New("liveConfirmation must be LIVE for live tasks")
+	}
 	if !contains(definition.SupportedIntervals, task.Interval) {
 		return errors.New("strategy does not support interval")
 	}

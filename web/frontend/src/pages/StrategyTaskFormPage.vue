@@ -105,8 +105,12 @@
                 <NFormItem :label="t('trading.notificationChannel')">
                   <NInput v-model:value="form.notificationChannel" class="task-control" />
                 </NFormItem>
-                <NFormItem v-if="form.executionMode === 'live' && form.orderIntent === 'execute'" :label="t('trading.liveConfirm')">
-                  <NSwitch v-model:value="form.liveExecutionConfirmed" />
+                <NFormItem v-if="form.executionMode === 'live'" :label="t('trading.liveConfirm')">
+                  <NInput
+                    v-model:value="form.liveConfirmation"
+                    class="task-control"
+                    :placeholder="t('trading.liveConfirmPlaceholder')"
+                  />
                 </NFormItem>
               </template>
             </div>
@@ -177,7 +181,6 @@ import {
   NInput,
   NInputNumber,
   NSelect,
-  NSwitch,
   NTag,
   NText,
   type SelectOption,

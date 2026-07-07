@@ -219,6 +219,42 @@ describe("strategy task form", () => {
     expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "okx", limit: 1, q: "SOL-USDT", status: "all" });
   });
 
+  it("requires live confirmation before creating live trading tasks", async () => {
+    const taskForm = mountTaskForm("trading");
+    await flushPromises();
+
+    taskForm.form.executionMode = "live";
+    taskForm.form.accountId = "acct_live";
+    await flushPromises();
+
+    expect(taskForm.form.orderIntent).toBe("notify");
+    expect(taskForm.canSubmit.value).toBe(false);
+
+    await taskForm.submit();
+    await flushPromises();
+
+    expect(tradingApi.createTask).not.toHaveBeenCalled();
+    expect(messageMocks.error).toHaveBeenCalledWith("创建实盘任务前请输入 LIVE。");
+
+    taskForm.form.liveConfirmation = "LIVE";
+    await flushPromises();
+
+    expect(taskForm.canSubmit.value).toBe(true);
+
+    await taskForm.submit();
+    await flushPromises();
+
+    expect(tradingApi.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "live",
+        accountId: "acct_live",
+        liveConfirmation: "LIVE",
+      }),
+    );
+    const request = apiMocks.createTradingTask.mock.calls[0][0];
+    expect(request.intentPolicy).not.toHaveProperty("liveExecutionConfirmed");
+  });
+
   it("blocks backtest submit when the catalog symbol is inactive", async () => {
     apiMocks.listInstruments.mockImplementation(async ({ q }: { q?: string }) =>
       q === "SOLUSDT"

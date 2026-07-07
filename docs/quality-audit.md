@@ -41,8 +41,8 @@ done            用户确认关闭
 | 研究页 | scaffold | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary`、`invalidSummary`、同步窗口和交易所退避窗口，可区分正常、同步中、有缺口、失败、暂停、重试中、数据不足和数据异常，并在质量摘要列显示任务窗口内缺口数量/首个缺口和异常数量/首个异常原因，异常任务可打开逐根异常详情弹窗并按异常类型/时间范围筛选和分页查看完整窗口异常；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时会在 K 线上标记缺口，并可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先通过后端单缺口 repair API 并写入 `repairSourceTaskId`；删除任务弹窗已明确删除的是同步任务记录且不会删除已同步 K 线数据，确认后列表刷新并隐藏软删除任务；任务表格错误列、下次重试列、交易所退避列、failed retry 操作和图表高度已有前端约束，任务表外层改为可滚动视口且操作列固定在右侧，避免窄宽度裁掉关键操作；研究页图表面板不再继承全局 `.chart-panel` fixed height / size containment，图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: layout paint`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠，研究页工具栏已收敛为紧凑 market strip + 单行可滚动状态摘要，并保留图表刷新 icon；symbol 输入收敛为桌面/窄桌面 `96px`、移动端 `92px`，`stage8-visual-smoke.mjs` 将最大宽度阈值收敛到 `100px`、工具栏控件阈值 `500px`、工具栏高度阈值 `72px`；研究页、回测详情和交易详情复用共享 K 线图表槽，plot 高度收敛为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零，左右 gutter 收敛为桌面 `14px/2px`、窄桌面 `12px/2px`、移动端 `10px/2px`，避免首屏图表过窄、左侧贴边和右侧外边距失控；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度；lightweight-charts 外层受固定 viewport 尺寸约束，但内部 table / tbody / tr / td / canvas 不再被外部 CSS 强行写成整图宽高，`.tv-lightweight-charts` 根不再被外部 `width/height:100%!important` 强行缩放，避免价格轴、时间轴和主图 canvas 被外部布局规则裁切或拉伸；volume histogram 使用隐藏的 `volume` price scale，避免 overlay scale 撑出额外右侧坐标区；图表 root/canvas/lightweight-charts 外层使用明确 `top/left`，不再用 `inset: 0`，右侧价格轴按视口响应式使用桌面/窄桌面 `56px`、移动端 `54px` minimumWidth，开启 `entireTextOnly` 并把 `rightOffsetPixels` 收敛为 `0px`，价格轴保持完整数值显示，不允许 `k/K/m/M/b/B` 紧凑缩写，坐标轴字号收敛为桌面/窄桌面/移动端 `13px`，默认首屏按主绘图区宽度展示可读数量的最新 K 线，避免窄视口只剩网格或半截价格标签；headless Chrome 桌面、812x1320 窄桌面和移动连续采样会先验证主图 canvas、右侧价格轴和底部时间轴 canvas 均在固定图表槽内，且主图存在可见红/绿市场像素，正常首屏 tv 与固定槽等高且不留下人为缩图留白，外部高度污染后 document、panel、chart body、chart、canvas 高度不增长且不超过 viewport 上限，右侧价格轴超过 `72px`、坐标轴文字墨迹高度低于 `8px`、桌面/窄桌面/移动端高于 `15px`、canvas CSS scale 被明显拉伸/压缩、主图占比低于桌面 `90%` / 窄桌面 `82%` / 移动端 `70%`、最右侧 canvas 未贴住 viewport 右边或主图 canvas 未贴住右侧价格轴会失败，窄桌面还会验证初始首屏不截掉底部时间轴；显示 source / health / base interval / 当前窗口范围和当前数据源全历史缺口扫描摘要，摘要可打开详情弹窗并为单个或当前返回的多个全历史缺口排补同步任务，可通过最新 / 1H / 6H / 1D 时间范围按钮和上一/下一窗口按钮显式请求 K 线窗口，上一/下一优先保留 opaque cursor，旧 `from/to` URL 仍兼容；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；研究页会读取 `/api/market/instruments/status` 并在当前数据源和创建任务弹窗里显示所选交易所目录最近成功/失败状态；`/api/market/instruments` 支持按 `status=active/inactive/all` 查询，研究页、回测创建和交易创建在提交前会 exact 查询 catalog 并区分 active、inactive、missing，inactive 会给出明确不可用提示；`hi sync` 长运行模式会按配置后台定时同步 Binance / OKX instrument catalog 并写入 `market_instruments`；创建数据同步任务会先在前端校验 exact active catalog 命中，后端 `POST /api/data/tasks` 也会强制查询 PostgreSQL `market_instruments` active 记录，不命中返回 `market_instrument_not_active`；既有数据同步任务列表会返回并展示 `marketStatus=active/inactive/missing`，非 active 任务的 sync / realtime / retry 启动会被前后端阻止，`hi sync` claim 也只领取 active catalog 任务；catalog 失活时对应 data sync task 会带 market inactive 错误自动暂停并保留原同步期望，恢复 active 时只恢复这类自动暂停任务；但仍缺交易所业务状态细分、跨模块迁移和完整操作语义，图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点，并采用上方大图表、下方左窄摘要右宽列表的布局；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
-| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
-| 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
+| 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用，live 任务创建要求 API 顶层 `liveConfirmation=LIVE`；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和更完整实盘安全边界 |
+| 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用、凭据状态和 `liveConfirmation=LIVE`，前端 live 创建页提供 `LIVE` 文本确认；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；provider 外发 title/body 会 trim 并分别限制为 200/4000 rune，组合文本限制为 4096 rune；`NOTIFY_PROVIDER_MIN_INTERVAL` 可配置同一 notify worker 连续 provider delivery attempt 的本地最小间隔；provider 调用耗时会持久化为 `lastDeliveryDurationMs` 并进入 notify worker 日志 `delivery_duration_ms`；webhook / Telegram / 飞书成功响应中的常见 message ID 字段会持久化为 `providerMessageId`、进入 notify worker 成功日志 `provider_message_id` 并在系统通知页 / 交易详情通知列表可见；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停 / 更新 / 删除操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；生产级模板/多实例限流/回执解析和完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界、最右侧 canvas 必须贴住 viewport 右边界、主图占比、研究页工具栏高度最大 `72px` 的断言，并把 symbol 输入最大宽度阈值收敛到 `100px`、控件组最大宽度 `500px`、右侧价格轴最大宽度 `72px`、坐标轴文字墨迹高度范围收敛为桌面/窄桌面/移动端 `7px` 到 `13px`、图表高度收敛到桌面 `600px+` / 窄桌面 `620px+` / 移动端 `540px+`，防止右侧额外空白、工具栏过宽、坐标轴过小和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；汇总卡片已有到研究、回测、交易、通知和运维健康的操作入口；已有 7D 运行趋势条展示策略意图、订单、通知和失败信号；已有数据质量、自动化链路、执行面和通知投递深度指标；新增监控上下文展示快照时间、数据源降级、趋势覆盖和告警负载；通知、数据质量、自动化链路和回测/交易执行面入口已带状态筛选上下文跳转；仍缺 SLO、告警规则、实时订阅等生产级监控语义 |
@@ -14269,6 +14269,51 @@ Definition of Done：
 - 管理员重置密码仍是 demo 级人工管理动作，不包含自助恢复 token、二次验证、审批流或外部告警。
 - 密码历史保护不等同泄露密码库、密码过期轮换、MFA、SSO 或可信设备策略。
 - 审计事件仍写入主库，不提供外部不可篡改证明、签名或独立归档。
+
+### 阶段 8 实盘任务创建二次确认补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- `CreateTradingTask` 请求新增顶层 `liveConfirmation`，仅用于 live 任务创建安全确认，不持久化到 trading task。
+- API 在 `validateCreateTradingTask` 阶段要求 `type=live` 的创建请求必须提供 `liveConfirmation=LIVE`，缺失或大小写不匹配会在账号校验和落库前返回 400。
+- paper 任务不要求该字段；live execute 仍保持禁用，`intentPolicy.orderIntent=execute` 继续返回 400。
+- 交易创建页在 live 模式显示 `LIVE` 文本确认；前端 submit 前校验确认文本，确认后把 `liveConfirmation` 放在请求顶层，不再把旧的 `liveExecutionConfirmed` 放进 `intentPolicy`。
+- OpenAPI contract 生成的前端 DTO 暴露可选 `liveConfirmation?: string`，保持 API 类型与前端 wrapper 同步。
+
+范围外：
+
+- 不启用 live executor、真实交易所私有 API、订单提交、撤单、查单或 testnet/sandbox 下单。
+- 不新增审批流、二次身份认证、外部告警、生产级风控参数校验或密钥轮换。
+- 不改变现有默认风险百分比；风险默认值仍需随后续 live executor 阶段复核。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestCreateLiveTradingTaskRequiresConfirmation|TestTradingTaskRoutes|TestFrontendAPIRequestTypesMatchContractSchemas|TestFrontendAPIAppTypesReferenceGeneratedContract' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/composables/useStrategyTaskForm.test.ts src/services/api/trading.test.ts src/pages/StrategyTaskFormPage.layout.test.ts` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- Vite HTTP smoke：`/` 和 `/trading/new` 均返回非空 SPA HTML。
+
+未执行：
+
+- in-app Browser 视觉验证仍失败于 `sandboxCwd must be an absolute file URI: relative URL without a base`，本轮先用组件测试、typecheck、build 和 Vite HTTP smoke 兜底。
+
+剩余风险：
+
+- `LIVE` 文本确认只是 demo 级防误触护栏，不等同审批流、强认证、真实风控或生产级适当性确认。
+- live executor 仍禁用；真实 testnet/sandbox executor、订单幂等提交、交易所响应回写和生产密钥治理仍未完成。
+- 该确认字段不进入持久化审计；当前只证明创建请求前门被拦截，不证明后续 live 执行链安全。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

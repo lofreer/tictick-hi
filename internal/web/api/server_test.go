@@ -492,6 +492,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 	liveBody := `{
 		"name":"Live EMA",
 		"type":"live",
+		"liveConfirmation":"LIVE",
 		"exchange":"binance",
 		"accountId":"acct_live",
 		"symbol":"BTCUSDT",
@@ -508,6 +509,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 	disabledLiveBody := `{
 		"name":"Disabled Live EMA",
 		"type":"live",
+		"liveConfirmation":"LIVE",
 		"exchange":"binance",
 		"accountId":"acct_disabled",
 		"symbol":"BTCUSDT",
@@ -524,6 +526,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 	legacyLiveBody := `{
 		"name":"Legacy Live EMA",
 		"type":"live",
+		"liveConfirmation":"LIVE",
 		"exchange":"binance",
 		"accountId":"acct_legacy",
 		"symbol":"BTCUSDT",
@@ -540,6 +543,7 @@ func TestTradingTaskRoutes(t *testing.T) {
 	liveExecuteBody := `{
 		"name":"Live Execute EMA",
 		"type":"live",
+		"liveConfirmation":"LIVE",
 		"exchange":"binance",
 		"accountId":"acct_live",
 		"symbol":"BTCUSDT",

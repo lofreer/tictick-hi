@@ -104,17 +104,18 @@ type TradingTask struct {
 }
 
 type CreateTradingTask struct {
-	Name           string         `json:"name"`
-	Type           string         `json:"type"`
-	Exchange       string         `json:"exchange"`
-	AccountID      string         `json:"accountId"`
-	Symbol         string         `json:"symbol"`
-	Interval       string         `json:"interval"`
-	StrategyID     string         `json:"strategyId"`
-	StrategyParams map[string]any `json:"strategyParams"`
-	IntentPolicy   map[string]any `json:"intentPolicy"`
-	RequestID      string         `json:"-"`
-	TraceParent    string         `json:"-"`
+	Name             string         `json:"name"`
+	Type             string         `json:"type"`
+	Exchange         string         `json:"exchange"`
+	AccountID        string         `json:"accountId"`
+	Symbol           string         `json:"symbol"`
+	Interval         string         `json:"interval"`
+	StrategyID       string         `json:"strategyId"`
+	StrategyParams   map[string]any `json:"strategyParams"`
+	IntentPolicy     map[string]any `json:"intentPolicy"`
+	LiveConfirmation string         `json:"liveConfirmation,omitempty"`
+	RequestID        string         `json:"-"`
+	TraceParent      string         `json:"-"`
 }
 
 type StrategyIntent struct {

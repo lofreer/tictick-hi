@@ -39,7 +39,7 @@ type StrategyTaskForm = {
   accountId: string;
   orderIntent: "execute" | "notify";
   notificationChannel: string;
-  liveExecutionConfirmed: boolean;
+  liveConfirmation: string;
   riskLimitPct: number;
 };
 
@@ -72,7 +72,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     accountId: "paper",
     orderIntent: "execute",
     notificationChannel: "default",
-    liveExecutionConfirmed: false,
+    liveConfirmation: "",
     riskLimitPct: 10,
   });
 
@@ -152,7 +152,9 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
     (mode) => {
       if (mode === "live" && form.orderIntent === "execute") {
         form.orderIntent = "notify";
-        form.liveExecutionConfirmed = false;
+      }
+      if (mode !== "live") {
+        form.liveConfirmation = "";
       }
       if (mode === "paper" && form.accountId === "") {
         form.accountId = "paper";
@@ -183,11 +185,18 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
 
   async function submit() {
     if (!basicCanSubmit.value || selectedStrategy.value === undefined) {
-      message.error(
-        form.exchange && form.symbol && form.interval && !isSymbolFormatForExchange(form.exchange, form.symbol)
-          ? t("research.invalidSymbolFormat")
-          : t("strategy.requiredFields"),
-      );
+      let invalidMessage = t("strategy.requiredFields");
+      if (mode === "trading" && form.executionMode === "live" && !liveConfirmationValid()) {
+        invalidMessage = t("trading.liveConfirmationRequired");
+      } else if (
+        form.exchange &&
+        form.symbol &&
+        form.interval &&
+        !isSymbolFormatForExchange(form.exchange, form.symbol)
+      ) {
+        invalidMessage = t("research.invalidSymbolFormat");
+      }
+      message.error(invalidMessage);
       return;
     }
 
@@ -228,6 +237,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
         const created = await tradingApi.createTask({
           name: form.name,
           type: form.executionMode,
+          ...(form.executionMode === "live" ? { liveConfirmation: form.liveConfirmation.trim() } : {}),
           exchange: form.exchange,
           accountId: form.accountId,
           symbol: normalizeSymbolInput(form.symbol),
@@ -237,7 +247,6 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
           intentPolicy: {
             orderIntent: form.orderIntent,
             notificationChannel: form.notificationChannel,
-            liveExecutionConfirmed: form.liveExecutionConfirmed,
             riskLimitPct: form.riskLimitPct,
           },
         });
@@ -259,6 +268,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
         form.accountId !== "" &&
         form.riskLimitPct >= 0 &&
         form.riskLimitPct <= 100 &&
+        (form.executionMode !== "live" || liveConfirmationValid()) &&
         (form.executionMode !== "live" || form.orderIntent !== "execute")
       );
     }
@@ -271,6 +281,10 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       form.feeBps >= 0 &&
       form.slippageBps >= 0
     );
+  }
+
+  function liveConfirmationValid() {
+    return form.liveConfirmation.trim() === "LIVE";
   }
 
   return {
