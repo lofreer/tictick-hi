@@ -12,9 +12,18 @@
     </header>
 
     <section class="surface system-panel">
+      <div class="system-panel__header">
+        <h2>{{ t("system.notifications") }}</h2>
+        <NRadioGroup :value="notificationStatusFilter" size="small" :aria-label="t('system.notificationStatusFilter')" @update:value="setNotificationStatusFilter">
+          <NRadioButton v-for="option in notificationStatusFilterOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </NRadioButton>
+        </NRadioGroup>
+      </div>
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :title="error" retryable @retry="loadAll" />
       <EmptyState v-else-if="notifications.length === 0" :title="t('system.noNotifications')" />
+      <EmptyState v-else-if="filteredNotifications.length === 0" :title="t('system.noNotificationsForFilter')" />
       <div v-else class="system-table-wrap">
         <table class="system-table system-table--wide">
           <thead>
@@ -30,7 +39,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="notification in notifications" :key="notification.id">
+            <tr v-for="notification in filteredNotifications" :key="notification.id">
               <td><NTag :type="statusType(notification.status)" size="small">{{ notification.status }}</NTag></td>
               <td>{{ notification.channel }}</td>
               <td>{{ notification.provider }}</td>
@@ -111,6 +120,8 @@ import {
   NFormItem,
   NInput,
   NModal,
+  NRadioButton,
+  NRadioGroup,
   NSelect,
   NSpace,
   NSwitch,
@@ -119,17 +130,26 @@ import {
   type TagProps,
   useMessage,
 } from "naive-ui";
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
 import type { Notification, NotificationChannel } from "@/types/app";
+import {
+  notificationMatchesStatusFilter,
+  notificationStatusFilterFromQuery,
+  notificationStatusQueryValue,
+  type NotificationStatusFilter,
+} from "./systemNotificationsFilters";
 
 const { t } = useI18n();
 const message = useMessage();
+const route = useRoute();
+const router = useRouter();
 const channels = ref<NotificationChannel[]>([]);
 const notifications = ref<Notification[]>([]);
 const loading = ref(false);
@@ -139,6 +159,7 @@ const error = ref("");
 const channelsError = ref("");
 const createOpen = ref(false);
 const retryingId = ref("");
+const notificationStatusFilter = ref<NotificationStatusFilter>(notificationStatusFilterFromQuery(route.query.status));
 const form = reactive({ name: "", provider: "local", target: "default", enabled: true });
 const providerOptions: SelectOption[] = [
   { label: "local", value: "local" },
@@ -148,10 +169,26 @@ const providerOptions: SelectOption[] = [
   { label: "webhook", value: "webhook" },
   { label: "webhook-demo", value: "webhook-demo" },
 ];
+const notificationStatusFilterOptions = computed<SelectOption[]>(() => [
+  { label: t("system.notificationStatus.all"), value: "all" },
+  { label: t("system.notificationStatus.failed"), value: "failed" },
+  { label: t("system.notificationStatus.pending"), value: "pending" },
+  { label: t("system.notificationStatus.sent"), value: "sent" },
+]);
+const filteredNotifications = computed(() =>
+  notifications.value.filter((notification) => notificationMatchesStatusFilter(notification, notificationStatusFilter.value)),
+);
 
 onMounted(() => {
   void loadAll();
 });
+
+watch(
+  () => route.query.status,
+  (value) => {
+    notificationStatusFilter.value = notificationStatusFilterFromQuery(value);
+  },
+);
 
 async function loadAll() {
   loading.value = true;
@@ -211,6 +248,15 @@ async function retryNotification(id: string) {
   }
 }
 
+async function setNotificationStatusFilter(value: string) {
+  notificationStatusFilter.value = notificationStatusFilterFromQuery(value);
+  const nextQuery = { ...route.query };
+  const status = notificationStatusQueryValue(notificationStatusFilter.value);
+  if (status) nextQuery.status = status;
+  else delete nextQuery.status;
+  await router.replace({ query: nextQuery });
+}
+
 function enabledLabel(enabled: boolean) {
   return enabled ? t("common.yes") : t("common.no");
 }
@@ -235,6 +281,27 @@ function errorMessage(loadError: unknown, fallback: string) {
 <style scoped>
 .system-panel {
   overflow: hidden;
+}
+
+.system-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.system-panel__header h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.system-panel__header :deep(.n-radio-button) {
+  min-width: 64px;
+  text-align: center;
 }
 
 .system-table-wrap {

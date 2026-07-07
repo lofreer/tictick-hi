@@ -133,7 +133,7 @@ export function useOverviewWorkspace() {
         failed: notifications.value.filter((item) => item.status === "failed").length,
         pending: notifications.value.filter((item) => item.status === "pending" || item.status === "retry_scheduled").length,
       }),
-      to: { name: "system-notifications" },
+      to: { name: "system-notifications", query: { status: notifications.value.some((item) => item.status === "failed") ? "failed" : notifications.value.some((item) => item.status === "pending" || item.status === "retry_scheduled") ? "pending" : "all" } },
     },
     {
       key: "workers",
@@ -170,7 +170,7 @@ export function useOverviewWorkspace() {
           t("overview.failedCount", { count: failedNotifications }),
           t("overview.notificationAlert"),
           "error",
-          { name: "system-notifications" },
+          { name: "system-notifications", query: { status: "failed" } },
         ),
       );
     }
@@ -217,7 +217,7 @@ export function useOverviewWorkspace() {
         status: item.status,
         statusType: notificationTagType(item.status),
         at: item.sentAt ?? item.lastAttemptAt ?? item.createdAt,
-        to: { name: "system-notifications" },
+        to: { name: "system-notifications", query: { status: item.status === "failed" ? "failed" : item.status === "pending" || item.status === "retry_scheduled" ? "pending" : item.status === "sent" || item.status === "delivered" ? "sent" : "all" } },
       })),
     ]
       .filter((item) => item.at)

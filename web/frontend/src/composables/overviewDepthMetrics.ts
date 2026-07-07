@@ -97,7 +97,7 @@ function deliveryMetric(notifications: Notification[], t: Translate): OverviewDe
     detail: t("overview.depth.deliveryDetail", { failed, pending, sent }),
     statusLabel: statusLabel(statusType, t),
     statusType,
-    to: { name: "system-notifications" },
+    to: { name: "system-notifications", query: { status: failed > 0 ? "failed" : pending > 0 ? "pending" : "all" } },
   };
 }
 

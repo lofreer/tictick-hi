@@ -123,14 +123,14 @@ describe("useOverviewWorkspace", () => {
       { key: "sync", to: { name: "research" } },
       { key: "backtests", to: { name: "backtests" } },
       { key: "trading", to: { name: "trading" } },
-      { key: "notifications", to: { name: "system-notifications" } },
+      { key: "notifications", to: { name: "system-notifications", query: { status: "failed" } } },
       { key: "workers", to: { name: "system-health" } },
     ]);
     expect(workspace.depthMetrics.value.map((metric) => ({ key: metric.key, value: metric.value, statusType: metric.statusType, to: metric.to }))).toEqual([
       { key: "data-quality", value: "0/3", statusType: "error", to: { name: "research" } },
       { key: "automation", value: "1/3", statusType: "error", to: { name: "system-health" } },
       { key: "execution", value: "1/4", statusType: "error", to: { name: "trading" } },
-      { key: "delivery", value: "0/1", statusType: "error", to: { name: "system-notifications" } },
+      { key: "delivery", value: "0/1", statusType: "error", to: { name: "system-notifications", query: { status: "failed" } } },
     ]);
     expect(workspace.depthMetrics.value.find((metric) => metric.key === "data-quality")?.detail).toContain("缺口 1");
     expect(workspace.depthMetrics.value.find((metric) => metric.key === "automation")?.detail).toContain("过期锁 1");
@@ -145,6 +145,10 @@ describe("useOverviewWorkspace", () => {
       "trading-failed",
       "notifications-failed",
     ]);
+    expect(workspace.alerts.value.find((alert) => alert.key === "notifications-failed")?.to).toEqual({
+      name: "system-notifications",
+      query: { status: "failed" },
+    });
     expect(workspace.recentActivities.value.slice(0, 4).map((activity) => activity.key)).toEqual([
       "order-ord_1",
       "intent-si_bt_1",
@@ -167,6 +171,10 @@ describe("useOverviewWorkspace", () => {
         to: { name: "backtests-detail", params: { id: "bt_1" } },
       }),
     );
+    expect(workspace.recentActivities.value.find((activity) => activity.key === "notification-nt_1")?.to).toEqual({
+      name: "system-notifications",
+      query: { status: "failed" },
+    });
   });
 
   it("surfaces load failures without marking the overview loaded", async () => {
