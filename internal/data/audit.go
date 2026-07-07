@@ -32,6 +32,17 @@ type AuditEventPage struct {
 	NextCursor string       `json:"nextCursor,omitempty"`
 }
 
+type AuditEventHashChainVerification struct {
+	Status        string    `json:"status"`
+	CheckedCount  int       `json:"checkedCount"`
+	SkippedCount  int       `json:"skippedCount"`
+	RootCount     int       `json:"rootCount"`
+	TailCount     int       `json:"tailCount"`
+	BrokenEventID string    `json:"brokenEventId,omitempty"`
+	Message       string    `json:"message"`
+	CheckedAt     time.Time `json:"checkedAt"`
+}
+
 type AuditEventListQuery struct {
 	Limit  int
 	Cursor *AuditEventCursor

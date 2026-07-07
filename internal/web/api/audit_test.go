@@ -110,6 +110,22 @@ func TestSystemAuditEventsPageReturnsNextCursor(t *testing.T) {
 	}
 }
 
+func TestSystemAuditEventsHashChainVerifyRoute(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/audit-events/hash-chain/verify", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("verify hash chain status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var verification data.AuditEventHashChainVerification
+	if err := json.NewDecoder(recorder.Body).Decode(&verification); err != nil {
+		t.Fatal(err)
+	}
+	if verification.Status != "warning" || verification.SkippedCount == 0 || verification.CheckedAt.IsZero() {
+		t.Fatalf("verification = %#v, want warning with skipped legacy events", verification)
+	}
+}
+
 func TestSystemAuditEventsExportReturnsCSV(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 

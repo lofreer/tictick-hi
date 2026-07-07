@@ -580,6 +580,29 @@ func (repository *fakeRepository) ListAuditEventPage(_ context.Context, query da
 	return page, nil
 }
 
+func (repository *fakeRepository) VerifyAuditEventHashChain(_ context.Context) (data.AuditEventHashChainVerification, error) {
+	hashedCount := 0
+	for _, event := range repository.auditEvents {
+		if event.EventHash != "" {
+			hashedCount++
+		}
+	}
+	skippedCount := len(repository.auditEvents) - hashedCount
+	status := "ok"
+	message := "audit event hash chain is valid"
+	if skippedCount > 0 {
+		status = "warning"
+		message = "audit event hash chain is valid for hashed events; legacy unhashed events were skipped"
+	}
+	return data.AuditEventHashChainVerification{
+		Status:       status,
+		CheckedCount: hashedCount,
+		SkippedCount: skippedCount,
+		Message:      message,
+		CheckedAt:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}, nil
+}
+
 func (repository *fakeRepository) SystemHealth(ctx context.Context) (data.SystemHealth, error) {
 	repository.lastSystemHealthRequestID = RequestIDFromContext(ctx)
 	pendingCount := 1

@@ -180,6 +180,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"ServiceHealth", data.ServiceHealth{}},
 		{"AuditEvent", data.AuditEvent{}},
 		{"AuditEventPage", data.AuditEventPage{}},
+		{"AuditEventHashChainVerification", data.AuditEventHashChainVerification{}},
 	})
 	schemas := registry.schemas()
 	schemas["APIErrorCode"] = apiErrorCodeSchema()

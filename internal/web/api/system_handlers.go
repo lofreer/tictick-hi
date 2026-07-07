@@ -54,6 +54,19 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, notifications)
 		return
 	}
+	if len(parts) == 5 && parts[2] == "audit-events" && parts[3] == "hash-chain" && parts[4] == "verify" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		verification, err := server.repository.VerifyAuditEventHashChain(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, verification)
+		return
+	}
 	if len(parts) == 4 && parts[2] == "audit-events" && parts[3] == "page" {
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w, http.MethodGet)

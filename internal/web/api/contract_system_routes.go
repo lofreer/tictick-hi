@@ -48,6 +48,9 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 		withResponseContentType("text/csv"),
 		withParameters(auditEventLimitQueryParam()),
 	))
+	addOperation(paths, "/api/system/audit-events/hash-chain/verify", http.MethodGet, operation(
+		"system", "verifyAuditEventHashChain", "Verify the audit event hash chain", http.StatusOK, schemaRef("AuditEventHashChainVerification"),
+	))
 }
 
 func auditEventLimitQueryParam() apiParameter {

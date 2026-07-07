@@ -72,5 +72,6 @@ type Repository interface {
 	RecordAuditEvent(ctx context.Context, event CreateAuditEvent) (AuditEvent, error)
 	ListAuditEvents(ctx context.Context, limit int) ([]AuditEvent, error)
 	ListAuditEventPage(ctx context.Context, query AuditEventListQuery) (AuditEventPage, error)
+	VerifyAuditEventHashChain(ctx context.Context) (AuditEventHashChainVerification, error)
 	SystemHealth(ctx context.Context) (SystemHealth, error)
 }

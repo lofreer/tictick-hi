@@ -125,6 +125,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodGet, "/api/system/audit-events"},
 		{http.MethodGet, "/api/system/audit-events/page"},
 		{http.MethodGet, "/api/system/audit-events/export"},
+		{http.MethodGet, "/api/system/audit-events/hash-chain/verify"},
 		{http.MethodGet, "/api/system/api-contract"},
 	}
 
@@ -169,6 +170,19 @@ func TestAPIContractDeclaresAuditEventsCursorPage(t *testing.T) {
 	}
 	if _, ok := apiContractDocument().Components.Schemas["AuditEventPage"]; !ok {
 		t.Fatal("contract missing AuditEventPage schema")
+	}
+}
+
+func TestAPIContractDeclaresAuditEventHashChainVerification(t *testing.T) {
+	operation := apiContractDocument().Paths["/api/system/audit-events/hash-chain/verify"]["get"]
+	if ref := operation.Responses["200"].Content[jsonMediaType].Schema["$ref"]; ref != "#/components/schemas/AuditEventHashChainVerification" {
+		t.Fatalf("hash verification response schema = %#v, want AuditEventHashChainVerification", operation.Responses["200"].Content[jsonMediaType].Schema)
+	}
+	properties := schemaProperties(t, apiContractDocument().Components.Schemas["AuditEventHashChainVerification"])
+	for _, field := range []string{"status", "checkedCount", "skippedCount", "message", "checkedAt"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("hash verification schema missing %s: %#v", field, properties)
+		}
 	}
 }
 
