@@ -32,9 +32,9 @@ describe("SystemOperatorsPage", () => {
   it("blocks disabling the current operator in the UI", async () => {
     apiMocks.listOperators.mockResolvedValue([
       operator("op_admin", "admin", true),
-      operator("op_ops", "ops", true),
+      operator("op_ops", "ops", true, "operator"),
     ]);
-    apiMocks.setOperatorEnabled.mockResolvedValue(operator("op_ops", "ops", false));
+    apiMocks.setOperatorEnabled.mockResolvedValue(operator("op_ops", "ops", false, "operator"));
     const pinia = createPinia();
     setActivePinia(pinia);
     useAuthStore().operator = operator("op_admin", "admin", true);
@@ -52,6 +52,8 @@ describe("SystemOperatorsPage", () => {
 
     const rows = wrapper.findAll("tbody tr");
     expect(rows).toHaveLength(2);
+    expect(rows[0].text()).toContain("管理员");
+    expect(rows[1].text()).toContain("操作员");
     const selfButton = rows[0].get("button");
     expect(selfButton.attributes("disabled")).toBeDefined();
     expect(selfButton.attributes("title")).toBe("不能停用当前操作员。");
@@ -65,10 +67,11 @@ describe("SystemOperatorsPage", () => {
   });
 });
 
-function operator(id: string, username: string, enabled: boolean) {
+function operator(id: string, username: string, enabled: boolean, role = "admin") {
   return {
     id,
     username,
+    role,
     enabled,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",

@@ -56,6 +56,16 @@ func TestOperatorLastEnabledErrorPreservesInvalidStateCause(t *testing.T) {
 	}
 }
 
+func TestOperatorLastAdminErrorPreservesInvalidStateCause(t *testing.T) {
+	err := OperatorLastAdminError()
+	if !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("error %v does not unwrap ErrInvalidState", err)
+	}
+	if code, ok := DomainErrorCode(err); !ok || code != ErrorCodeOperatorLastAdminRequired {
+		t.Fatalf("DomainErrorCode = %q, %t; want %q, true", code, ok, ErrorCodeOperatorLastAdminRequired)
+	}
+}
+
 func TestAuthCurrentSessionRevokeForbiddenErrorPreservesInvalidStateCause(t *testing.T) {
 	err := AuthCurrentSessionRevokeForbiddenError()
 	if !errors.Is(err, ErrInvalidState) {

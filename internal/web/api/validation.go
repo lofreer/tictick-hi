@@ -73,6 +73,10 @@ func validateOperator(operator data.CreateOperator) error {
 	if strings.TrimSpace(operator.Username) == "" || strings.TrimSpace(operator.Password) == "" {
 		return errors.New("username and password are required")
 	}
+	role := data.NormalizeCreateOperatorRole(operator.Role)
+	if err := data.ValidateOperatorRole(role); err != nil {
+		return err
+	}
 	return data.ValidateOperatorPasswordForUsername(operator.Username, operator.Password)
 }
 

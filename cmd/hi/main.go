@@ -427,6 +427,7 @@ func bootstrapOperator(ctx context.Context, store *postgres.Store) error {
 	operator, created, err := store.EnsureOperator(ctx, data.CreateOperator{
 		Username: username,
 		Password: password,
+		Role:     data.OperatorRoleAdmin,
 		Enabled:  true,
 	})
 	if err != nil {

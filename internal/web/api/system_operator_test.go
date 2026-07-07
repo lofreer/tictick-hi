@@ -36,6 +36,33 @@ func TestOperatorCannotDisableSelf(t *testing.T) {
 	}
 }
 
+func TestOperatorManagementRequiresAdminRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.operators[0].Role = data.OperatorRoleOperator
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"ops","password":"secret123A","enabled":true}`,
+	)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("create operator status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "forbidden" || response.Message != "admin operator role is required" {
+		t.Fatalf("unexpected admin required response: %#v", response)
+	}
+	if len(repository.operators) != 1 {
+		t.Fatalf("operator was created by non-admin: %#v", repository.operators)
+	}
+	event := assertAuditAction(t, repository.auditEvents, "operator.create", "operator", "")
+	if event.Outcome != "failure" || event.Metadata["reason"] != "admin_required" || event.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected admin required audit event: %#v", event)
+	}
+}
+
 func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -86,6 +113,25 @@ func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 	}
 }
 
+func TestCreateOperatorRejectsInvalidRole(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"ops","password":"secret123A","role":"owner","enabled":true}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid role status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Message != "operator role must be admin or operator" {
+		t.Fatalf("unexpected invalid role response: %#v", response)
+	}
+}
+
 func TestCreateOperatorRejectsBlankUsername(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -117,5 +163,25 @@ func TestRepositoryRejectsDisablingLastEnabledOperator(t *testing.T) {
 	}
 	if _, err := repository.AuthenticateOperator(t.Context(), testUsername, testPassword); err != nil {
 		t.Fatalf("last enabled operator was disabled: %v", err)
+	}
+}
+
+func TestRepositoryRejectsDisablingLastEnabledAdmin(t *testing.T) {
+	repository := newFakeRepository()
+	repository.operators = append(repository.operators, data.Operator{
+		ID:        "op_ops",
+		Username:  "ops",
+		Role:      data.OperatorRoleOperator,
+		Enabled:   true,
+		CreatedAt: repository.operators[0].CreatedAt,
+		UpdatedAt: repository.operators[0].UpdatedAt,
+	})
+
+	_, err := repository.SetOperatorEnabled(t.Context(), "op_admin", false)
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("SetOperatorEnabled error = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorLastAdminRequired {
+		t.Fatalf("SetOperatorEnabled code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorLastAdminRequired)
 	}
 }

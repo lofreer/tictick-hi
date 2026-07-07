@@ -20,6 +20,7 @@
           <thead>
             <tr>
               <th>{{ t("auth.username") }}</th>
+              <th>{{ t("system.operatorRole") }}</th>
               <th>{{ t("system.enabled") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
               <th>{{ t("research.actions") }}</th>
@@ -28,6 +29,11 @@
           <tbody>
             <tr v-for="operator in operators" :key="operator.id">
               <td>{{ operator.username }}</td>
+              <td>
+                <NTag :type="operator.role === 'admin' ? 'warning' : 'info'" size="small">
+                  {{ operatorRoleLabel(operator.role) }}
+                </NTag>
+              </td>
               <td><NTag :type="operator.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(operator.enabled) }}</NTag></td>
               <td>{{ formatDate(operator.createdAt) }}</td>
               <td>
@@ -53,6 +59,7 @@
       <NForm label-placement="top">
         <NFormItem :label="t('auth.username')"><NInput v-model:value="form.username" /></NFormItem>
         <NFormItem :label="t('auth.password')"><NInput v-model:value="form.password" type="password" /></NFormItem>
+        <NFormItem :label="t('system.operatorRole')"><NSelect v-model:value="form.role" :options="roleOptions" /></NFormItem>
         <NFormItem :label="t('system.enabled')"><NSwitch v-model:value="form.enabled" /></NFormItem>
       </NForm>
       <template #footer>
@@ -67,8 +74,8 @@
 
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
-import { NButton, NForm, NFormItem, NInput, NModal, NSpace, NSwitch, NTag, useMessage } from "naive-ui";
-import { onMounted, reactive, ref } from "vue";
+import { NButton, NForm, NFormItem, NInput, NModal, NSelect, NSpace, NSwitch, NTag, useMessage } from "naive-ui";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -87,7 +94,11 @@ const creating = ref(false);
 const error = ref("");
 const updatingOperatorId = ref("");
 const createOpen = ref(false);
-const form = reactive({ username: "", password: "", enabled: true });
+const form = reactive({ username: "", password: "", role: "operator", enabled: true });
+const roleOptions = computed(() => [
+  { label: t("system.operatorRoleOperator"), value: "operator" },
+  { label: t("system.operatorRoleAdmin"), value: "admin" },
+]);
 
 onMounted(() => {
   void loadOperators();
@@ -114,6 +125,7 @@ async function createOperator() {
     message.success(t("system.created"));
     form.username = "";
     form.password = "";
+    form.role = "operator";
     await loadOperators();
   } catch (loadError) {
     message.error(errorMessage(loadError, t("system.createFailed")));
@@ -144,6 +156,10 @@ function operatorSelfDisableBlocked(operator: Operator) {
 
 function enabledLabel(enabled: boolean) {
   return enabled ? t("common.yes") : t("common.no");
+}
+
+function operatorRoleLabel(role: string) {
+  return role === "admin" ? t("system.operatorRoleAdmin") : t("system.operatorRoleOperator");
 }
 
 function formatDate(value?: string) {

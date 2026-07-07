@@ -101,7 +101,7 @@ func (store *Store) GetExchangeAccount(ctx context.Context, exchange string, acc
 
 func (store *Store) ListOperators(ctx context.Context) ([]data.Operator, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, username, enabled, created_at, updated_at
+		SELECT id, username, role, enabled, created_at, updated_at
 		  FROM operators
 		 ORDER BY created_at DESC`)
 	if err != nil {
@@ -116,6 +116,10 @@ func (store *Store) CreateOperator(ctx context.Context, operator data.CreateOper
 	if err := data.ValidateOperatorPasswordForUsername(operator.Username, operator.Password); err != nil {
 		return data.Operator{}, err
 	}
+	role := data.NormalizeCreateOperatorRole(operator.Role)
+	if err := data.ValidateOperatorRole(role); err != nil {
+		return data.Operator{}, err
+	}
 	id, err := core.NewPrefixedID("op")
 	if err != nil {
 		return data.Operator{}, err
@@ -126,12 +130,13 @@ func (store *Store) CreateOperator(ctx context.Context, operator data.CreateOper
 	}
 
 	row := store.pool.QueryRow(ctx, `
-		INSERT INTO operators (id, username, password_hash, enabled)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, username, enabled, created_at, updated_at`,
+		INSERT INTO operators (id, username, password_hash, role, enabled)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, username, role, enabled, created_at, updated_at`,
 		id,
 		operator.Username,
 		string(passwordHash),
+		role,
 		operator.Enabled,
 	)
 
@@ -153,12 +158,17 @@ func (store *Store) SetOperatorEnabled(ctx context.Context, id string, enabled b
 	}
 	defer tx.Rollback(ctx)
 
-	enabledIDs, err := lockedEnabledOperatorIDs(ctx, tx)
+	enabledOperators, err := lockedEnabledOperators(ctx, tx)
 	if err != nil {
 		return data.Operator{}, err
 	}
-	if containsString(enabledIDs, id) && len(enabledIDs) <= 1 {
-		return data.Operator{}, data.OperatorLastEnabledError()
+	if target, ok := findLockedOperator(enabledOperators, id); ok {
+		if len(enabledOperators) <= 1 {
+			return data.Operator{}, data.OperatorLastEnabledError()
+		}
+		if target.Role == data.OperatorRoleAdmin && enabledAdminOperatorCount(enabledOperators) <= 1 {
+			return data.Operator{}, data.OperatorLastAdminError()
+		}
 	}
 
 	operator, err := setOperatorEnabled(ctx, tx, id, enabled)
@@ -186,7 +196,7 @@ func setOperatorEnabled(
 		   SET enabled = $2,
 		       updated_at = now()
 		 WHERE id = $1
-		RETURNING id, username, enabled, created_at, updated_at`,
+		RETURNING id, username, role, enabled, created_at, updated_at`,
 		id,
 		enabled,
 	)
@@ -200,9 +210,14 @@ func setOperatorEnabled(
 	return operator, nil
 }
 
-func lockedEnabledOperatorIDs(ctx context.Context, tx pgx.Tx) ([]string, error) {
+type lockedOperator struct {
+	ID   string
+	Role string
+}
+
+func lockedEnabledOperators(ctx context.Context, tx pgx.Tx) ([]lockedOperator, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT id
+		SELECT id, role
 		  FROM operators
 		 WHERE enabled = true
 		 ORDER BY id
@@ -212,27 +227,37 @@ func lockedEnabledOperatorIDs(ctx context.Context, tx pgx.Tx) ([]string, error) 
 	}
 	defer rows.Close()
 
-	ids := []string{}
+	operators := []lockedOperator{}
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan enabled operator id: %w", err)
+		var operator lockedOperator
+		if err := rows.Scan(&operator.ID, &operator.Role); err != nil {
+			return nil, fmt.Errorf("scan enabled operator: %w", err)
 		}
-		ids = append(ids, id)
+		operators = append(operators, operator)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("scan enabled operator ids: %w", err)
+		return nil, fmt.Errorf("scan enabled operators: %w", err)
 	}
-	return ids, nil
+	return operators, nil
 }
 
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
+func findLockedOperator(operators []lockedOperator, target string) (lockedOperator, bool) {
+	for _, operator := range operators {
+		if operator.ID == target {
+			return operator, true
 		}
 	}
-	return false
+	return lockedOperator{}, false
+}
+
+func enabledAdminOperatorCount(operators []lockedOperator) int {
+	count := 0
+	for _, operator := range operators {
+		if operator.Role == data.OperatorRoleAdmin {
+			count++
+		}
+	}
+	return count
 }
 
 func (store *Store) EnsureOperator(
@@ -240,7 +265,7 @@ func (store *Store) EnsureOperator(
 	operator data.CreateOperator,
 ) (data.Operator, bool, error) {
 	row := store.pool.QueryRow(ctx, `
-		SELECT id, username, enabled, created_at, updated_at
+		SELECT id, username, role, enabled, created_at, updated_at
 		  FROM operators
 		 WHERE username = $1`, operator.Username)
 
@@ -267,11 +292,12 @@ func (store *Store) AuthenticateOperator(
 	var operator data.Operator
 	var passwordHash string
 	err := store.pool.QueryRow(ctx, `
-		SELECT id, username, password_hash, enabled, created_at, updated_at
+		SELECT id, username, role, password_hash, enabled, created_at, updated_at
 		  FROM operators
 		 WHERE username = $1`, username).Scan(
 		&operator.ID,
 		&operator.Username,
+		&operator.Role,
 		&passwordHash,
 		&operator.Enabled,
 		&operator.CreatedAt,
@@ -327,7 +353,8 @@ func (store *Store) GetOperatorBySession(
 	now time.Time,
 ) (data.Operator, error) {
 	row := store.pool.QueryRow(ctx, `
-		SELECT operators.id, operators.username, operators.enabled, operators.created_at, operators.updated_at
+		SELECT operators.id, operators.username, operators.role,
+		       operators.enabled, operators.created_at, operators.updated_at
 		  FROM operator_sessions
 		  JOIN operators ON operators.id = operator_sessions.operator_id
 		 WHERE operator_sessions.token_hash = $1
@@ -383,6 +410,7 @@ func scanOperatorRow(row rowScanner) (data.Operator, error) {
 	err := row.Scan(
 		&operator.ID,
 		&operator.Username,
+		&operator.Role,
 		&operator.Enabled,
 		&operator.CreatedAt,
 		&operator.UpdatedAt,

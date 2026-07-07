@@ -277,6 +277,7 @@ type CreateExchangeAccount struct {
 type Operator struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
+	Role      string    `json:"role"`
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -285,6 +286,7 @@ type Operator struct {
 type CreateOperator struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Role     string `json:"role,omitempty"`
 	Enabled  bool   `json:"enabled"`
 }
 

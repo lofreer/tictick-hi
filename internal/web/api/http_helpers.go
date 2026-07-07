@@ -127,6 +127,9 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		case data.ErrorCodeOperatorLastEnabledRequired:
 			writeAPIError(w, http.StatusConflict, apiErrorOperatorLastEnabledRequired, err.Error())
 			return
+		case data.ErrorCodeOperatorLastAdminRequired:
+			writeAPIError(w, http.StatusConflict, apiErrorOperatorLastAdminRequired, err.Error())
+			return
 		case data.ErrorCodeAuthCurrentSessionRevokeForbidden:
 			writeAPIError(w, http.StatusConflict, apiErrorAuthCurrentSessionRevokeForbidden, err.Error())
 			return

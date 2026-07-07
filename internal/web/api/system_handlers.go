@@ -338,6 +338,10 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 			writeAuthError(w, authErr)
 			return
 		}
+		if !actor.IsAdmin() {
+			server.writeAdminRequiredAudit(w, r, actor, "operator.create", "operator", "", nil)
+			return
+		}
 		var request data.CreateOperator
 		if err := readJSON(r, &request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -354,6 +358,7 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := server.recordAuditEvent(r, actor, "operator.create", "operator", operator.ID, "success", map[string]string{
 			"username": operator.Username,
+			"role":     operator.Role,
 			"enabled":  boolString(operator.Enabled),
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -385,9 +390,14 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "operator action not found")
 		return
 	}
+	if !actor.IsAdmin() {
+		server.writeAdminRequiredAudit(w, r, actor, "operator."+action, "operator", id, nil)
+		return
+	}
 	if !enabled && id == actor.ID {
 		if err := server.recordAuditEvent(r, actor, "operator.disable", "operator", actor.ID, "failure", map[string]string{
 			"username": actor.Username,
+			"role":     actor.Role,
 			"enabled":  boolString(actor.Enabled),
 			"reason":   "self_disable_forbidden",
 		}); err != nil {
@@ -404,12 +414,34 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 	}
 	if err := server.recordAuditEvent(r, actor, "operator."+action, "operator", operator.ID, "success", map[string]string{
 		"username": operator.Username,
+		"role":     operator.Role,
 		"enabled":  boolString(operator.Enabled),
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) writeAdminRequiredAudit(
+	w http.ResponseWriter,
+	r *http.Request,
+	actor data.Operator,
+	action string,
+	resourceType string,
+	resourceID string,
+	metadata map[string]string,
+) {
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+	metadata["reason"] = "admin_required"
+	metadata["actorRole"] = actor.Role
+	if err := server.recordAuditEvent(r, actor, action, resourceType, resourceID, "failure", metadata); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeAPIError(w, http.StatusForbidden, apiErrorForbidden, "admin operator role is required")
 }
 
 func boolString(value bool) string {

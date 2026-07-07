@@ -72,6 +72,7 @@ func newFakeRepository() *fakeRepository {
 	operator := data.Operator{
 		ID:        "op_admin",
 		Username:  testUsername,
+		Role:      data.OperatorRoleAdmin,
 		Enabled:   true,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -367,70 +368,6 @@ func (repository *fakeRepository) GetExchangeAccount(
 		}
 	}
 	return data.ExchangeAccount{}, data.ErrNotFound
-}
-
-func (repository *fakeRepository) ListOperators(context.Context) ([]data.Operator, error) {
-	return append([]data.Operator(nil), repository.operators...), nil
-}
-
-func (repository *fakeRepository) CreateOperator(
-	_ context.Context,
-	request data.CreateOperator,
-) (data.Operator, error) {
-	if err := data.ValidateOperatorPasswordForUsername(request.Username, request.Password); err != nil {
-		return data.Operator{}, err
-	}
-	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	operator := data.Operator{
-		ID:        "op_" + request.Username,
-		Username:  request.Username,
-		Enabled:   request.Enabled,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	repository.operators = append(repository.operators, operator)
-	repository.passwords[operator.ID] = request.Password
-	return operator, nil
-}
-
-func (repository *fakeRepository) SetOperatorEnabled(
-	_ context.Context,
-	id string,
-	enabled bool,
-) (data.Operator, error) {
-	for index := range repository.operators {
-		if repository.operators[index].ID == id {
-			if !enabled && repository.operators[index].Enabled && repository.enabledOperatorCount() <= 1 {
-				return data.Operator{}, data.OperatorLastEnabledError()
-			}
-			repository.operators[index].Enabled = enabled
-			return repository.operators[index], nil
-		}
-	}
-	return data.Operator{}, data.ErrNotFound
-}
-
-func (repository *fakeRepository) enabledOperatorCount() int {
-	count := 0
-	for _, operator := range repository.operators {
-		if operator.Enabled {
-			count++
-		}
-	}
-	return count
-}
-
-func (repository *fakeRepository) AuthenticateOperator(
-	_ context.Context,
-	username string,
-	password string,
-) (data.Operator, error) {
-	for _, operator := range repository.operators {
-		if operator.Username == username && operator.Enabled && repository.passwords[operator.ID] == password {
-			return operator, nil
-		}
-	}
-	return data.Operator{}, data.ErrUnauthorized
 }
 
 func (repository *fakeRepository) CreateOperatorSession(

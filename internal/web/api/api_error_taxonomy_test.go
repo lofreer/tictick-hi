@@ -57,6 +57,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorTradingTaskCommandInvalidState,
 		apiErrorOperatorSelfDisableForbidden,
 		apiErrorOperatorLastEnabledRequired,
+		apiErrorOperatorLastAdminRequired,
 		apiErrorAuthCurrentSessionRevokeForbidden,
 		apiErrorMarketInstrumentSyncUnavailable,
 		apiErrorMarketInstrumentSyncFailed,
@@ -166,6 +167,21 @@ func TestWriteStoreErrorMapsOperatorLastEnabledRequired(t *testing.T) {
 	response := decodeAPIError(t, recorder)
 	if response.Code != string(apiErrorOperatorLastEnabledRequired) ||
 		response.Message != "at least one operator must remain enabled" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+}
+
+func TestWriteStoreErrorMapsOperatorLastAdminRequired(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	writeStoreError(recorder, data.OperatorLastAdminError())
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusConflict)
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != string(apiErrorOperatorLastAdminRequired) ||
+		response.Message != "at least one admin operator must remain enabled" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }
