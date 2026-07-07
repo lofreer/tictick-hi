@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -136,6 +138,92 @@ func TestSystemNotificationChannelAuditMetadataExcludesTarget(t *testing.T) {
 	}
 }
 
+func TestSystemNotificationChannelCreateStoreFailureAudited(t *testing.T) {
+	base := newFakeRepository()
+	repository := &notificationChannelFailureRepository{
+		fakeRepository: base,
+		createErr:      errors.New("create failed"),
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/notifications/channels",
+		`{"name":"Ops Webhook","provider":"webhook","target":"https://hooks.example.invalid/ops?token=notification-secret","enabled":true}`,
+	)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("create failure status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "internal_error" || response.Message != "internal server error" {
+		t.Fatalf("unexpected create failure response: %#v", response)
+	}
+
+	event := assertAuditAction(t, base.auditEvents, "notification_channel.create", "notification_channel", "")
+	if event.Outcome != "failure" ||
+		event.Metadata["reason"] != "store_error" ||
+		event.Metadata["name"] != "Ops Webhook" ||
+		event.Metadata["provider"] != "webhook" ||
+		event.Metadata["enabled"] != "true" {
+		t.Fatalf("unexpected create failure audit metadata: %#v", event.Metadata)
+	}
+	if _, exists := event.Metadata["target"]; exists {
+		t.Fatalf("notification channel failure audit metadata includes target: %#v", event.Metadata)
+	}
+}
+
+func TestSystemNotificationChannelStoreFailuresAudited(t *testing.T) {
+	base := newFakeRepository()
+	repository := &notificationChannelFailureRepository{
+		fakeRepository: base,
+		updateErr:      data.ErrNotFound,
+		deleteErr:      data.ErrNotFound,
+		enabledErr:     data.ErrNotFound,
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	updateRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPut,
+		"/api/system/notifications/channels/nc_missing",
+		`{"name":"Ops","provider":"local","target":"default","enabled":true}`,
+	)
+	if updateRecorder.Code != http.StatusNotFound {
+		t.Fatalf("update failure status = %d body = %s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	updateEvent := assertAuditAction(t, base.auditEvents, "notification_channel.update", "notification_channel", "nc_missing")
+	if updateEvent.Outcome != "failure" ||
+		updateEvent.Metadata["reason"] != "not_found" ||
+		updateEvent.Metadata["name"] != "Ops" {
+		t.Fatalf("unexpected update failure audit metadata: %#v", updateEvent.Metadata)
+	}
+
+	deleteRecorder := serveAuthenticated(server, auth, http.MethodDelete, "/api/system/notifications/channels/nc_missing", "")
+	if deleteRecorder.Code != http.StatusNotFound {
+		t.Fatalf("delete failure status = %d body = %s", deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+	deleteEvent := assertAuditAction(t, base.auditEvents, "notification_channel.delete", "notification_channel", "nc_missing")
+	if deleteEvent.Outcome != "failure" || deleteEvent.Metadata["reason"] != "not_found" {
+		t.Fatalf("unexpected delete failure audit metadata: %#v", deleteEvent.Metadata)
+	}
+
+	disableRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/notifications/channels/nc_missing/disable", "")
+	if disableRecorder.Code != http.StatusNotFound {
+		t.Fatalf("disable failure status = %d body = %s", disableRecorder.Code, disableRecorder.Body.String())
+	}
+	disableEvent := assertAuditAction(t, base.auditEvents, "notification_channel.disable", "notification_channel", "nc_missing")
+	if disableEvent.Outcome != "failure" ||
+		disableEvent.Metadata["reason"] != "not_found" ||
+		disableEvent.Metadata["enabled"] != "false" {
+		t.Fatalf("unexpected disable failure audit metadata: %#v", disableEvent.Metadata)
+	}
+}
+
 func TestSystemNotificationChannelUpdateValidatesRequest(t *testing.T) {
 	repository, server, auth := newAuthenticatedTestServer(t)
 	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
@@ -204,4 +292,54 @@ func dataNotificationChannel(id string, enabled bool) data.NotificationChannel {
 		CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
+}
+
+type notificationChannelFailureRepository struct {
+	*fakeRepository
+	createErr  error
+	updateErr  error
+	deleteErr  error
+	enabledErr error
+}
+
+func (repository *notificationChannelFailureRepository) CreateNotificationChannel(
+	ctx context.Context,
+	request data.CreateNotificationChannel,
+) (data.NotificationChannel, error) {
+	if repository.createErr != nil {
+		return data.NotificationChannel{}, repository.createErr
+	}
+	return repository.fakeRepository.CreateNotificationChannel(ctx, request)
+}
+
+func (repository *notificationChannelFailureRepository) UpdateNotificationChannel(
+	ctx context.Context,
+	id string,
+	request data.CreateNotificationChannel,
+) (data.NotificationChannel, error) {
+	if repository.updateErr != nil {
+		return data.NotificationChannel{}, repository.updateErr
+	}
+	return repository.fakeRepository.UpdateNotificationChannel(ctx, id, request)
+}
+
+func (repository *notificationChannelFailureRepository) DeleteNotificationChannel(
+	ctx context.Context,
+	id string,
+) (data.NotificationChannel, error) {
+	if repository.deleteErr != nil {
+		return data.NotificationChannel{}, repository.deleteErr
+	}
+	return repository.fakeRepository.DeleteNotificationChannel(ctx, id)
+}
+
+func (repository *notificationChannelFailureRepository) SetNotificationChannelEnabled(
+	ctx context.Context,
+	id string,
+	enabled bool,
+) (data.NotificationChannel, error) {
+	if repository.enabledErr != nil {
+		return data.NotificationChannel{}, repository.enabledErr
+	}
+	return repository.fakeRepository.SetNotificationChannelEnabled(ctx, id, enabled)
 }

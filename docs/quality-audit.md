@@ -46,7 +46,7 @@ done            用户确认关闭
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；provider 外发 title/body 会 trim 并分别限制为 200/4000 rune，组合文本限制为 4096 rune；`NOTIFY_PROVIDER_MIN_INTERVAL` 可配置同一 notify worker 连续 provider delivery attempt 的本地最小间隔；provider 调用耗时会持久化为 `lastDeliveryDurationMs` 并进入 notify worker 日志 `delivery_duration_ms`；webhook / Telegram / 飞书成功响应中的常见 message ID 字段会持久化为 `providerMessageId`、进入 notify worker 成功日志 `provider_message_id` 并在系统通知页 / 交易详情通知列表可见；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停 / 更新 / 删除操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；生产级模板/多实例限流/回执解析和完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界、最右侧 canvas 必须贴住 viewport 右边界、主图占比、研究页工具栏高度最大 `72px` 的断言，并把 symbol 输入最大宽度阈值收敛到 `100px`、控件组最大宽度 `500px`、右侧价格轴最大宽度 `72px`、坐标轴文字墨迹高度范围收敛为桌面/窄桌面/移动端 `7px` 到 `13px`、图表高度收敛到桌面 `600px+` / 窄桌面 `620px+` / 移动端 `540px+`，防止右侧额外空白、工具栏过宽、坐标轴过小和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；汇总卡片已有到研究、回测、交易、通知和运维健康的操作入口；已有 7D 运行趋势条展示策略意图、订单、通知和失败信号；已有数据质量、自动化链路、执行面和通知投递深度指标；新增监控上下文展示快照时间、数据源降级、趋势覆盖和告警负载；通知、数据质量、自动化链路和回测/交易执行面入口已带状态筛选上下文跳转；仍缺 SLO、告警规则、实时订阅等生产级监控语义 |
-| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建、启停和变更角色，支持 admin/operator 基础角色，operator 管理写操作要求 admin，且会阻止当前操作员禁用自己、变更当前操作员角色、禁用最后一个启用操作员、禁用最后一个启用 admin 或把最后一个启用 admin 降权，其中当前操作员自禁用、当前操作员自角色变更、operator 启停 / 角色变更 store 冲突或缺失失败和非 admin 管理拒绝会写入失败审计；当前操作员 session 可查看来源地址 / User-Agent 并撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，审计列表支持同 limit 边界的 cursor page API 和 CSV 导出，审计页可查看事件 hash / 前序 hash 短码并触发 hash chain 在线校验，新写入审计事件会返回 `previousHash` / `eventHash` 并由 PostgreSQL store 用事务级 advisory lock 串行形成 demo 级 hash chain，API 可在线校验已哈希审计事件链并报告 legacy unhashed skipped 计数，`hi audit-prune` 可 dry-run/显式执行审计保留裁剪并写入数据库本地 retention anchor，审计事件客户端上下文会 trim 并按 255 rune 截断，审计 metadata 写库前会 trim、最多保留 20 项且 key/value 分别限制为 64/255 rune，审计列表 limit 已在 API 层归一化到 1..500，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺细粒度 RBAC / 角色策略、多人审批、外部不可篡改审计存储 / 签名 / 自动化归档和生产监控 |
+| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建、启停和变更角色，支持 admin/operator 基础角色，operator 管理写操作要求 admin，且会阻止当前操作员禁用自己、变更当前操作员角色、禁用最后一个启用操作员、禁用最后一个启用 admin 或把最后一个启用 admin 降权，其中当前操作员自禁用、当前操作员自角色变更、operator 启停 / 角色变更 store 冲突或缺失失败、notification channel 创建 / 更新 / 删除 / 启停 store 失败和非 admin 管理拒绝会写入失败审计；当前操作员 session 可查看来源地址 / User-Agent 并撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，审计列表支持同 limit 边界的 cursor page API 和 CSV 导出，审计页可查看事件 hash / 前序 hash 短码并触发 hash chain 在线校验，新写入审计事件会返回 `previousHash` / `eventHash` 并由 PostgreSQL store 用事务级 advisory lock 串行形成 demo 级 hash chain，API 可在线校验已哈希审计事件链并报告 legacy unhashed skipped 计数，`hi audit-prune` 可 dry-run/显式执行审计保留裁剪并写入数据库本地 retention anchor，审计事件客户端上下文会 trim 并按 255 rune 截断，审计 metadata 写库前会 trim、最多保留 20 项且 key/value 分别限制为 64/255 rune，审计列表 limit 已在 API 层归一化到 1..500，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺细粒度 RBAC / 角色策略、多人审批、外部不可篡改审计存储 / 签名 / 自动化归档和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、完整本地质量门禁 `scripts/full-quality-gate.sh`、GitHub Actions 默认 full gate、独立 Stage 8 heavy smoke workflow、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
 注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”和“instrument catalog 自动暂停恢复语义补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是跨模块迁移/删除处置和完整交易所业务状态语义。
@@ -13381,6 +13381,46 @@ Definition of Done：
 剩余风险：
 
 - operator 之外的系统管理写操作仍可能存在未专门审计的失败分支。
+- 审计事件仍写入主库，不提供外部不可篡改证明、签名、独立归档或告警。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
+### 阶段 8 notification channel store failure audit 补充
+
+执行日期：2026-07-07
+
+目标等级：demo。
+
+范围内：
+
+- `POST /api/system/notifications/channels` 在 repository 创建失败时，会先写入 `notification_channel.create` 失败审计，再返回原 500 安全错误响应。
+- `PUT /api/system/notifications/channels/{id}` 在 repository 更新失败时，会先写入 `notification_channel.update` 失败审计，再返回原错误响应。
+- `DELETE /api/system/notifications/channels/{id}` 在 repository 删除失败时，会先写入 `notification_channel.delete` 失败审计，再返回原错误响应。
+- `POST /api/system/notifications/channels/{id}/enable|disable` 在 repository 启停失败时，会先写入对应 `notification_channel.enable|disable` 失败审计，再返回原错误响应。
+- 失败审计 metadata 使用 `reason` 记录规范化 store failure；创建 / 更新失败记录 `name`、`provider`、`enabled`，启停失败记录目标 `enabled`，继续不记录 channel `target`。
+
+范围外：
+
+- 不新增审计重试队列、外部审计 sink、签名、不可篡改存储、告警或审批流。
+- 不改变 notification retry、exchange account、operator create validation 或其它系统管理写操作失败路径。
+- 不记录 notification channel target，避免把 webhook token、SMTP 凭据引用或 chat id 细节写入审计 metadata。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestSystemNotificationChannel|TestOperator' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行外部审计 sink、告警联动或不可篡改归档演练。
+- 未执行真实 PostgreSQL API round-trip；当前本机未设置 `TICTICK_TEST_DATABASE_URL`。
+
+剩余风险：
+
+- notification retry、exchange account 和其它系统管理写操作仍可能存在未专门审计的失败分支。
 - 审计事件仍写入主库，不提供外部不可篡改证明、签名、独立归档或告警。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 

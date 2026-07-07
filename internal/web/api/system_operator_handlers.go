@@ -96,7 +96,7 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 	}
 	operator, err := server.repository.SetOperatorEnabled(r.Context(), id, enabled)
 	if err != nil {
-		if auditErr := server.recordAuditEvent(r, actor, "operator."+action, "operator", id, "failure", operatorStoreFailureMetadata(err, map[string]string{
+		if auditErr := server.recordAuditEvent(r, actor, "operator."+action, "operator", id, "failure", storeFailureMetadata(err, map[string]string{
 			"enabled": boolString(enabled),
 		})); auditErr != nil {
 			writeError(w, http.StatusInternalServerError, auditErr.Error())
@@ -151,7 +151,7 @@ func (server *Server) handleOperatorRoleAction(
 	}
 	result, err := server.repository.SetOperatorRole(r.Context(), id, role)
 	if err != nil {
-		if auditErr := server.recordAuditEvent(r, actor, "operator.role", "operator", id, "failure", operatorStoreFailureMetadata(err, map[string]string{
+		if auditErr := server.recordAuditEvent(r, actor, "operator.role", "operator", id, "failure", storeFailureMetadata(err, map[string]string{
 			"requestedRole": role,
 		})); auditErr != nil {
 			writeError(w, http.StatusInternalServerError, auditErr.Error())
@@ -172,15 +172,15 @@ func (server *Server) handleOperatorRoleAction(
 	writeJSON(w, http.StatusOK, result.Operator)
 }
 
-func operatorStoreFailureMetadata(err error, metadata map[string]string) map[string]string {
+func storeFailureMetadata(err error, metadata map[string]string) map[string]string {
 	if metadata == nil {
 		metadata = map[string]string{}
 	}
-	metadata["reason"] = operatorStoreFailureReason(err)
+	metadata["reason"] = storeFailureReason(err)
 	return metadata
 }
 
-func operatorStoreFailureReason(err error) string {
+func storeFailureReason(err error) string {
 	if code, ok := data.DomainErrorCode(err); ok {
 		return string(code)
 	}

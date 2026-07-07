@@ -179,6 +179,10 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 		}
 		channel, err := server.repository.CreateNotificationChannel(r.Context(), request)
 		if err != nil {
+			if auditErr := server.recordAuditEvent(r, actor, "notification_channel.create", "notification_channel", "", "failure", notificationChannelRequestFailureMetadata(err, request)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -211,6 +215,10 @@ func (server *Server) handleNotificationChannel(w http.ResponseWriter, r *http.R
 		}
 		channel, err := server.repository.UpdateNotificationChannel(r.Context(), id, request)
 		if err != nil {
+			if auditErr := server.recordAuditEvent(r, actor, "notification_channel.update", "notification_channel", id, "failure", notificationChannelRequestFailureMetadata(err, request)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeStoreError(w, err)
 			return
 		}
@@ -227,6 +235,10 @@ func (server *Server) handleNotificationChannel(w http.ResponseWriter, r *http.R
 		}
 		channel, err := server.repository.DeleteNotificationChannel(r.Context(), id)
 		if err != nil {
+			if auditErr := server.recordAuditEvent(r, actor, "notification_channel.delete", "notification_channel", id, "failure", storeFailureMetadata(err, nil)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeStoreError(w, err)
 			return
 		}
@@ -262,6 +274,12 @@ func (server *Server) handleNotificationChannelAction(w http.ResponseWriter, r *
 	}
 	channel, err := server.repository.SetNotificationChannelEnabled(r.Context(), id, enabled)
 	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "notification_channel."+action, "notification_channel", id, "failure", storeFailureMetadata(err, map[string]string{
+			"enabled": boolString(enabled),
+		})); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
@@ -278,6 +296,14 @@ func notificationChannelAuditMetadata(channel data.NotificationChannel) map[stri
 		"provider": channel.Provider,
 		"enabled":  boolString(channel.Enabled),
 	}
+}
+
+func notificationChannelRequestFailureMetadata(err error, request data.CreateNotificationChannel) map[string]string {
+	return storeFailureMetadata(err, map[string]string{
+		"name":     request.Name,
+		"provider": request.Provider,
+		"enabled":  boolString(request.Enabled),
+	})
 }
 
 func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Request) {
