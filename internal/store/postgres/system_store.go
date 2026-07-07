@@ -52,6 +52,30 @@ func (store *Store) CreateNotificationChannel(
 	return created, nil
 }
 
+func (store *Store) SetNotificationChannelEnabled(
+	ctx context.Context,
+	id string,
+	enabled bool,
+) (data.NotificationChannel, error) {
+	row := store.pool.QueryRow(ctx, `
+		UPDATE notification_channels
+		   SET enabled = $2,
+		       updated_at = now()
+		 WHERE id = $1
+		RETURNING id, name, provider, target, enabled, created_at, updated_at`,
+		id,
+		enabled,
+	)
+	channel, err := scanNotificationChannelRow(row)
+	if err == pgx.ErrNoRows {
+		return data.NotificationChannel{}, data.ErrNotFound
+	}
+	if err != nil {
+		return data.NotificationChannel{}, fmt.Errorf("set notification channel enabled: %w", err)
+	}
+	return channel, nil
+}
+
 func (store *Store) ListExchangeAccounts(ctx context.Context) ([]data.ExchangeAccount, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT id, exchange, alias, enabled,

@@ -46,6 +46,7 @@ type Repository interface {
 	RetryNotification(ctx context.Context, id string) (Notification, error)
 	ListNotificationChannels(ctx context.Context) ([]NotificationChannel, error)
 	CreateNotificationChannel(ctx context.Context, channel CreateNotificationChannel) (NotificationChannel, error)
+	SetNotificationChannelEnabled(ctx context.Context, id string, enabled bool) (NotificationChannel, error)
 	ListExchangeAccounts(ctx context.Context) ([]ExchangeAccount, error)
 	GetExchangeAccount(ctx context.Context, exchange string, accountID string) (ExchangeAccount, error)
 	GetActiveMarketInstrument(ctx context.Context, exchange string, symbol string) (MarketInstrument, error)

@@ -704,7 +704,7 @@ i18n：vue-i18n
 - `feishu`：`feishu://webhook?url_env=FEISHU_WEBHOOK_URL`。
 - `email`：`smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=SMTP_USERNAME&password_env=SMTP_PASSWORD`。
 
-真实邮件、Telegram、飞书 provider 已接入基础发送路径；生产级模板、限流、回执、密钥轮换、审计签名和通道更新 / 删除仍未完成。
+真实邮件、Telegram、飞书 provider 已接入基础发送路径，通知通道启用 / 停用 API 已补；生产级模板、限流、回执、密钥轮换、审计签名和通道更新 / 删除仍未完成。
 
 ### 12.2 交易所账号管理
 
@@ -1467,6 +1467,8 @@ GET  /api/system/notifications
 POST /api/system/notifications/:id/retry
 GET  /api/system/notifications/channels
 POST /api/system/notifications/channels
+POST /api/system/notifications/channels/:id/enable
+POST /api/system/notifications/channels/:id/disable
 GET  /api/system/exchange-accounts
 POST /api/system/exchange-accounts
 GET  /api/system/operators

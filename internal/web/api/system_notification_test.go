@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func TestSystemNotificationChannelsAcceptExternalProviders(t *testing.T) {
@@ -38,5 +40,48 @@ func TestSystemNotificationChannelsAcceptExternalProviders(t *testing.T) {
 	}
 	if len(channels) != len(repository.channels) {
 		t.Fatalf("channel count mismatch response=%d repository=%d", len(channels), len(repository.channels))
+	}
+}
+
+func TestSystemNotificationChannelEnableDisable(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
+
+	disableRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/notifications/channels/nc_ops/disable", "")
+	if disableRecorder.Code != http.StatusOK {
+		t.Fatalf("disable status = %d body = %s", disableRecorder.Code, disableRecorder.Body.String())
+	}
+	if repository.channels[0].Enabled {
+		t.Fatalf("channel enabled = true after disable")
+	}
+
+	enableRecorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/notifications/channels/nc_ops/enable", "")
+	if enableRecorder.Code != http.StatusOK {
+		t.Fatalf("enable status = %d body = %s", enableRecorder.Code, enableRecorder.Body.String())
+	}
+	if !repository.channels[0].Enabled {
+		t.Fatalf("channel enabled = false after enable")
+	}
+
+	assertAuditAction(t, repository.auditEvents, "notification_channel.disable", "notification_channel", "nc_ops")
+	assertAuditAction(t, repository.auditEvents, "notification_channel.enable", "notification_channel", "nc_ops")
+}
+
+func TestSystemNotificationChannelActionNotFound(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/notifications/channels/missing/disable", "")
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("missing channel status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func dataNotificationChannel(id string, enabled bool) data.NotificationChannel {
+	return data.NotificationChannel{
+		ID:       id,
+		Name:     "Ops",
+		Provider: "local",
+		Target:   "default",
+		Enabled:  enabled,
 	}
 }

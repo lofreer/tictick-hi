@@ -371,6 +371,21 @@ func (repository *fakeRepository) CreateNotificationChannel(
 	return channel, nil
 }
 
+func (repository *fakeRepository) SetNotificationChannelEnabled(
+	_ context.Context,
+	id string,
+	enabled bool,
+) (data.NotificationChannel, error) {
+	for index := range repository.channels {
+		if repository.channels[index].ID == id {
+			repository.channels[index].Enabled = enabled
+			repository.channels[index].UpdatedAt = time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC)
+			return repository.channels[index], nil
+		}
+	}
+	return data.NotificationChannel{}, data.ErrNotFound
+}
+
 func (repository *fakeRepository) ListExchangeAccounts(context.Context) ([]data.ExchangeAccount, error) {
 	return append([]data.ExchangeAccount(nil), repository.accounts...), nil
 }

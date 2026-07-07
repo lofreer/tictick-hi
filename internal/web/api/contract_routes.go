@@ -307,6 +307,8 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 		"system", "createNotificationChannel", "Create a notification channel", http.StatusCreated, schemaRef("NotificationChannel"),
 		withCSRF(), withRequest(schemaRef("CreateNotificationChannel")), withErrors(http.StatusBadRequest),
 	))
+	addSystemActionContractPaths(paths, "/api/system/notifications/channels/{id}",
+		"setNotificationChannel", "Set notification channel", "NotificationChannel", "Notification channel id", "enable", "disable")
 	addOperation(paths, "/api/system/exchange-accounts", http.MethodGet, operation(
 		"system", "listExchangeAccounts", "List exchange accounts without secret material", http.StatusOK, arraySchema(schemaRef("ExchangeAccount")),
 	))
@@ -321,12 +323,8 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 		"system", "createOperator", "Create an operator", http.StatusCreated, schemaRef("Operator"),
 		withCSRF(), withRequest(schemaRef("CreateOperator")), withErrors(http.StatusBadRequest),
 	))
-	for _, action := range []string{"enable", "disable"} {
-		addOperation(paths, "/api/system/operators/{id}/"+action, http.MethodPost, operation(
-			"system", "setOperator"+titleWord(action), "Set operator "+action, http.StatusOK, schemaRef("Operator"),
-			withCSRF(), withParameters(pathParam("id", "Operator id")), withErrors(http.StatusNotFound),
-		))
-	}
+	addSystemActionContractPaths(paths, "/api/system/operators/{id}",
+		"setOperator", "Set operator", "Operator", "Operator id", "enable", "disable")
 	addOperation(paths, "/api/system/audit-events", http.MethodGet, operation(
 		"system", "listAuditEvents", "List operation audit events", http.StatusOK, arraySchema(schemaRef("AuditEvent")),
 		withParameters(queryParam("limit", false, "Maximum number of events", map[string]any{"type": "integer", "minimum": 1, "maximum": 500})),

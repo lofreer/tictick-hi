@@ -33,6 +33,10 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleNotificationChannels(w, r)
 		return
 	}
+	if len(parts) == 6 && parts[2] == "notifications" && parts[3] == "channels" {
+		server.handleNotificationChannelAction(w, r, parts[4], parts[5])
+		return
+	}
 	if len(parts) == 3 && parts[2] == "notifications" {
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w, http.MethodGet)
@@ -137,6 +141,42 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 	default:
 		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
+}
+
+func (server *Server) handleNotificationChannelAction(w http.ResponseWriter, r *http.Request, id string, action string) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+	actor, _, authErr := server.currentOperator(r)
+	if authErr != nil {
+		writeAuthError(w, authErr)
+		return
+	}
+	var enabled bool
+	switch action {
+	case "enable":
+		enabled = true
+	case "disable":
+		enabled = false
+	default:
+		writeError(w, http.StatusNotFound, "notification channel action not found")
+		return
+	}
+	channel, err := server.repository.SetNotificationChannelEnabled(r.Context(), id, enabled)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if err := server.recordAuditEvent(r, actor, "notification_channel."+action, "notification_channel", channel.ID, "success", map[string]string{
+		"name":     channel.Name,
+		"provider": channel.Provider,
+		"enabled":  boolString(channel.Enabled),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, channel)
 }
 
 func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Request) {
