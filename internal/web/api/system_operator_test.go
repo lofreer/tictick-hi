@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -238,6 +239,62 @@ func TestUpdateOperatorRoleRejectsInvalidRole(t *testing.T) {
 	}
 }
 
+func TestOperatorEnableDisableStoreFailureAudited(t *testing.T) {
+	base := newFakeRepository()
+	repository := &operatorActionFailureRepository{
+		fakeRepository: base,
+		enabledErr:     data.OperatorLastAdminError(),
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/operators/op_target/disable", "")
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("disable status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "operator_last_admin_required" {
+		t.Fatalf("unexpected disable response: %#v", response)
+	}
+	event := assertAuditAction(t, base.auditEvents, "operator.disable", "operator", "op_target")
+	if event.Outcome != "failure" ||
+		event.Metadata["reason"] != string(data.ErrorCodeOperatorLastAdminRequired) ||
+		event.Metadata["enabled"] != "false" {
+		t.Fatalf("unexpected disable failure audit metadata: %#v", event)
+	}
+}
+
+func TestOperatorRoleStoreFailureAudited(t *testing.T) {
+	base := newFakeRepository()
+	repository := &operatorActionFailureRepository{
+		fakeRepository: base,
+		roleErr:        data.OperatorLastAdminError(),
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators/op_target/role",
+		`{"role":"operator"}`,
+	)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("role status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "operator_last_admin_required" {
+		t.Fatalf("unexpected role response: %#v", response)
+	}
+	event := assertAuditAction(t, base.auditEvents, "operator.role", "operator", "op_target")
+	if event.Outcome != "failure" ||
+		event.Metadata["reason"] != string(data.ErrorCodeOperatorLastAdminRequired) ||
+		event.Metadata["requestedRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected role failure audit metadata: %#v", event)
+	}
+}
+
 func TestCreateOperatorRejectsBlankUsername(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -313,4 +370,26 @@ func TestRepositoryRejectsDemotingLastEnabledAdmin(t *testing.T) {
 	if repository.operators[0].Role != data.OperatorRoleAdmin {
 		t.Fatalf("last admin role changed: %#v", repository.operators[0])
 	}
+}
+
+type operatorActionFailureRepository struct {
+	*fakeRepository
+	enabledErr error
+	roleErr    error
+}
+
+func (repository *operatorActionFailureRepository) SetOperatorEnabled(
+	_ context.Context,
+	_ string,
+	_ bool,
+) (data.Operator, error) {
+	return data.Operator{}, repository.enabledErr
+}
+
+func (repository *operatorActionFailureRepository) SetOperatorRole(
+	_ context.Context,
+	_ string,
+	_ string,
+) (data.OperatorRoleUpdateResult, error) {
+	return data.OperatorRoleUpdateResult{}, repository.roleErr
 }

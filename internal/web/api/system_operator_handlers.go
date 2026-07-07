@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -95,6 +96,12 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 	}
 	operator, err := server.repository.SetOperatorEnabled(r.Context(), id, enabled)
 	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator."+action, "operator", id, "failure", operatorStoreFailureMetadata(err, map[string]string{
+			"enabled": boolString(enabled),
+		})); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
@@ -144,6 +151,12 @@ func (server *Server) handleOperatorRoleAction(
 	}
 	result, err := server.repository.SetOperatorRole(r.Context(), id, role)
 	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.role", "operator", id, "failure", operatorStoreFailureMetadata(err, map[string]string{
+			"requestedRole": role,
+		})); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
 		writeStoreError(w, err)
 		return
 	}
@@ -157,6 +170,27 @@ func (server *Server) handleOperatorRoleAction(
 		return
 	}
 	writeJSON(w, http.StatusOK, result.Operator)
+}
+
+func operatorStoreFailureMetadata(err error, metadata map[string]string) map[string]string {
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+	metadata["reason"] = operatorStoreFailureReason(err)
+	return metadata
+}
+
+func operatorStoreFailureReason(err error) string {
+	if code, ok := data.DomainErrorCode(err); ok {
+		return string(code)
+	}
+	if errors.Is(err, data.ErrNotFound) {
+		return "not_found"
+	}
+	if errors.Is(err, data.ErrInvalidState) {
+		return "invalid_state"
+	}
+	return "store_error"
 }
 
 func (server *Server) writeAdminRequiredAudit(
