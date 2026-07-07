@@ -62,6 +62,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 			writeMethodNotAllowed(w, http.MethodGet)
 			return
 		}
+		if _, ok := server.currentAdminOperator(w, r, "audit_event.hash_chain_verify", "audit_event", "", nil); !ok {
+			return
+		}
 		verification, err := server.repository.VerifyAuditEventHashChain(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -73,6 +76,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 4 && parts[2] == "audit-events" && parts[3] == "page" {
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		if _, ok := server.currentAdminOperator(w, r, "audit_event.page", "audit_event", "", nil); !ok {
 			return
 		}
 		query, err := parseAuditEventListQuery(r)
@@ -93,6 +99,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 			writeMethodNotAllowed(w, http.MethodGet)
 			return
 		}
+		if _, ok := server.currentAdminOperator(w, r, "audit_event.export", "audit_event", "", nil); !ok {
+			return
+		}
 		events, err := server.repository.ListAuditEvents(r.Context(), parseAuditLimit(r))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -109,6 +118,9 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 3 && parts[2] == "audit-events" {
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		if _, ok := server.currentAdminOperator(w, r, "audit_event.list", "audit_event", "", nil); !ok {
 			return
 		}
 		events, err := server.repository.ListAuditEvents(r.Context(), parseAuditLimit(r))

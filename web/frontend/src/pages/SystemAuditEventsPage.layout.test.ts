@@ -14,6 +14,9 @@ describe("SystemAuditEventsPage layout contract", () => {
     expect(source).toContain("ShieldCheck");
     expect(source).toContain("NAlert");
     expect(source).toContain("NSpace");
+    expect(source).toContain("useAuthStore");
+    expect(source).toContain("canManageAudit");
+    expect(source).toContain('v-if="canManageAudit"');
     expect(source).toContain('href="/api/system/audit-events/export?limit=100"');
     expect(source).toContain("systemApi.listAuditEventPage(100)");
     expect(source).toContain("systemApi.listAuditEventPage(100, nextCursor.value)");

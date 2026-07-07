@@ -32,11 +32,11 @@ const options = computed<DropdownOption[]>(() => {
         option("operators", "system.operators", UsersRound),
       ]
     : [];
-  entries.push(
-    option("sessions", "system.sessions", ShieldCheck),
-    option("audit-events", "system.auditEvents", FileText),
-    option("health", "system.health", Activity),
-  );
+  entries.push(option("sessions", "system.sessions", ShieldCheck));
+  if (canManageSystemConfig.value) {
+    entries.push(option("audit-events", "system.auditEvents", FileText));
+  }
+  entries.push(option("health", "system.health", Activity));
   return entries;
 });
 

@@ -56,6 +56,7 @@ describe("SystemMenu", () => {
     expect(wrapper.text()).toContain("system.notifications");
     expect(wrapper.text()).toContain("system.exchangeAccounts");
     expect(wrapper.text()).toContain("system.operators");
+    expect(wrapper.text()).toContain("system.auditEvents");
   });
 
   it("hides sensitive system management entries from non-admin operators", () => {
@@ -65,7 +66,9 @@ describe("SystemMenu", () => {
     expect(wrapper.text()).not.toContain("system.notifications");
     expect(wrapper.text()).not.toContain("system.exchangeAccounts");
     expect(wrapper.text()).not.toContain("system.operators");
+    expect(wrapper.text()).not.toContain("system.auditEvents");
     expect(wrapper.text()).toContain("system.sessions");
+    expect(wrapper.text()).toContain("system.health");
   });
 });
 

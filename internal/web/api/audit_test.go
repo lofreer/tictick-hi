@@ -62,6 +62,56 @@ func TestSystemAuditEventsRouteRecordsSecurityActions(t *testing.T) {
 	}
 }
 
+func TestSystemAuditEventsRequireAdminRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.operators[0].Role = data.OperatorRoleOperator
+
+	cases := []struct {
+		name   string
+		path   string
+		action string
+	}{
+		{
+			name:   "list",
+			path:   "/api/system/audit-events?limit=10",
+			action: "audit_event.list",
+		},
+		{
+			name:   "page",
+			path:   "/api/system/audit-events/page?limit=10",
+			action: "audit_event.page",
+		},
+		{
+			name:   "export",
+			path:   "/api/system/audit-events/export?limit=10",
+			action: "audit_event.export",
+		},
+		{
+			name:   "verify hash chain",
+			path:   "/api/system/audit-events/hash-chain/verify",
+			action: "audit_event.hash_chain_verify",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := serveAuthenticated(server, auth, http.MethodGet, test.path, "")
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("%s status = %d body = %s", test.path, recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Code != "forbidden" || response.Message != "admin operator role is required" {
+				t.Fatalf("unexpected admin required response: %#v", response)
+			}
+			event := assertAuditAction(t, repository.auditEvents, test.action, "audit_event", "")
+			if event.Outcome != "failure" || event.Metadata["reason"] != "admin_required" ||
+				event.Metadata["actorRole"] != data.OperatorRoleOperator {
+				t.Fatalf("unexpected admin required audit event: %#v", event)
+			}
+		})
+	}
+}
+
 func TestSystemAuditEventsPageReturnsNextCursor(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 	for _, username := range []string{"ops-page-a", "ops-page-b", "ops-page-c"} {

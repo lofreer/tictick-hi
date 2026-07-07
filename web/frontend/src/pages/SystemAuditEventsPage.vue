@@ -5,7 +5,7 @@
         <h1 class="page-title">{{ t("page.auditEvents.title") }}</h1>
         <p class="page-subtitle">{{ t("system.auditEventsSubtitle") }}</p>
       </div>
-      <NSpace size="small">
+      <NSpace v-if="canManageAudit" size="small">
         <NButton secondary :loading="verifyingHashChain" @click="verifyHashChain">
           <template #icon><ShieldCheck :size="17" /></template>
           {{ t("system.verifyAuditHashChain") }}
@@ -97,10 +97,12 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
+import { useAuthStore } from "@/stores/auth";
 import type { AuditEvent, AuditEventHashChainVerification } from "@/types/app";
 
 const { t } = useI18n();
 const message = useMessage();
+const authStore = useAuthStore();
 const events = ref<AuditEvent[]>([]);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -109,6 +111,7 @@ const error = ref("");
 const nextCursor = ref("");
 const hashVerification = ref<AuditEventHashChainVerification | null>(null);
 
+const canManageAudit = computed(() => authStore.operator?.role === "admin");
 const hashVerificationType = computed(() => {
   if (!hashVerification.value) return "info";
   if (hashVerification.value.status === "failure") return "error";
@@ -153,6 +156,7 @@ async function loadOlderEvents() {
 }
 
 async function verifyHashChain() {
+  if (!canManageAudit.value) return;
   if (verifyingHashChain.value) return;
   verifyingHashChain.value = true;
   try {
