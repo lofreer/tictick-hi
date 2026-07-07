@@ -108,11 +108,14 @@ Logging:
 ```bash
 LOG_LEVEL=info
 LOG_FORMAT=text
+LOG_CORRELATION_ID=
 ```
 
 Use `LOG_FORMAT=json` when logs are collected by a structured log pipeline.
-Invalid logging settings stop commands before PostgreSQL opens and do not echo
-the invalid value. Current logs still do not include propagated trace IDs.
+When `LOG_CORRELATION_ID` is empty, each command process generates one and
+attaches it to every `slog` record as `correlation_id`. Invalid logging settings
+stop commands before PostgreSQL opens and do not echo the invalid value. Current
+logs still do not propagate trace IDs across HTTP requests or worker tasks.
 
 Optional worker process probes:
 
@@ -337,7 +340,7 @@ close these production-safety gaps:
 - no automated backup scheduler;
 - no completed restore drill evidence for the target environment;
 - no resource sizing, disk capacity, or retention policy;
-- no propagated trace IDs or external log sink;
+- no HTTP / task trace propagation or external log sink;
 - no richer worker business readiness beyond process-level health probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

@@ -10,6 +10,7 @@ x-app-environment: &app-environment
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   LOG_FORMAT: ${LOG_FORMAT:-text}
+  LOG_CORRELATION_ID: ${LOG_CORRELATION_ID:-}
 
 services:
   postgres:

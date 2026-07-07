@@ -31,13 +31,15 @@ DATABASE_URL
 All subcommands read logging configuration before opening PostgreSQL:
 
 ```text
-LOG_LEVEL   debug | info | warn | error
-LOG_FORMAT  text | json
+LOG_LEVEL           debug | info | warn | error
+LOG_FORMAT          text | json
+LOG_CORRELATION_ID  optional run-level correlation id
 ```
 
 Defaults are `LOG_LEVEL=info` and `LOG_FORMAT=text`. Invalid logging env values
 fail before PostgreSQL opens, and errors name only the env key, not the invalid
-value.
+value. When `LOG_CORRELATION_ID` is empty, the command generates one and attaches
+it to all `slog` records as `correlation_id`.
 
 `hi api` also reads:
 
@@ -178,7 +180,7 @@ scripts/stage8-command-config-smoke.sh
 The smoke builds a local `hi` binary and verifies:
 
 - missing `DATABASE_URL` fails with a clear error;
-- invalid `LOG_LEVEL` / `LOG_FORMAT` fails before the database opens and does not echo the invalid value;
+- invalid `LOG_LEVEL` / `LOG_FORMAT` / `LOG_CORRELATION_ID` fails before the database opens and does not echo the invalid value;
 - invalid duration, int, and bool values name the failing env;
 - `SYNC_HEARTBEAT_INTERVAL > SYNC_LEASE_TTL` fails before the database opens;
 - worker health probe addresses must be valid `host:port` values;
@@ -200,7 +202,7 @@ If a command exits immediately:
 
 Known remaining gaps:
 
-- structured text / JSON log output and log level config exist, but trace IDs are not propagated across subcommands;
+- structured text / JSON log output, log level config, and command run-level correlation IDs exist, but trace IDs are not propagated across HTTP requests, tasks, or subcommands;
 - worker subcommands have optional process-level health probes, but no richer subcommand-specific readiness model beyond process reachability;
 - backup/restore, resource limits, and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation;
 - no claim that these commands are production-safe.

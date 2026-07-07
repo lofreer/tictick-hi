@@ -127,6 +127,7 @@ func clearCommandEnv(t *testing.T) {
 		"DATABASE_URL",
 		"LOG_LEVEL",
 		"LOG_FORMAT",
+		"LOG_CORRELATION_ID",
 		"HTTP_ADDR",
 		"WEB_FRONTEND_DIST",
 		"AUTH_SESSION_TTL",

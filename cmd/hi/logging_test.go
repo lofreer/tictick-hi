@@ -10,6 +10,7 @@ func TestNewLoggerFromEnvWritesJSONDebugLogs(t *testing.T) {
 	clearCommandEnv(t)
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("LOG_FORMAT", "json")
+	t.Setenv("LOG_CORRELATION_ID", "test-correlation-01")
 	var output bytes.Buffer
 
 	logger, err := newLoggerFromEnv(&output)
@@ -21,6 +22,7 @@ func TestNewLoggerFromEnvWritesJSONDebugLogs(t *testing.T) {
 	logged := output.String()
 	if !strings.Contains(logged, `"level":"DEBUG"`) ||
 		!strings.Contains(logged, `"msg":"debug message"`) ||
+		!strings.Contains(logged, `"correlation_id":"test-correlation-01"`) ||
 		!strings.Contains(logged, `"component":"test"`) {
 		t.Fatalf("unexpected json log output: %s", logged)
 	}
@@ -38,7 +40,10 @@ func TestNewLoggerFromEnvDefaultsToInfoText(t *testing.T) {
 	logger.Info("visible")
 
 	logged := output.String()
-	if strings.Contains(logged, "hidden") || !strings.Contains(logged, "visible") || !strings.Contains(logged, "level=INFO") {
+	if strings.Contains(logged, "hidden") ||
+		!strings.Contains(logged, "visible") ||
+		!strings.Contains(logged, "level=INFO") ||
+		!strings.Contains(logged, "correlation_id=") {
 		t.Fatalf("unexpected text log output: %s", logged)
 	}
 }
@@ -66,5 +71,30 @@ func TestNewLoggerFromEnvRejectsInvalidFormatWithoutEchoingValue(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "stage8_config_secret") {
 		t.Fatalf("error leaked invalid log format value: %v", err)
+	}
+}
+
+func TestLogCorrelationIDFromEnvGeneratesDefault(t *testing.T) {
+	clearCommandEnv(t)
+
+	correlationID, err := logCorrelationIDFromEnv()
+	if err != nil {
+		t.Fatalf("correlation id: %v", err)
+	}
+	if len(correlationID) != generatedCorrelationIDBytes*2 || !isValidCorrelationID(correlationID) {
+		t.Fatalf("unexpected generated correlation id: %q", correlationID)
+	}
+}
+
+func TestNewLoggerFromEnvRejectsInvalidCorrelationIDWithoutEchoingValue(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("LOG_CORRELATION_ID", "stage8_config_secret!")
+
+	_, err := newLoggerFromEnv(&bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "LOG_CORRELATION_ID") {
+		t.Fatalf("expected LOG_CORRELATION_ID error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "stage8_config_secret") {
+		t.Fatalf("error leaked invalid correlation id value: %v", err)
 	}
 }
