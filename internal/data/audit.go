@@ -15,6 +15,8 @@ type AuditEvent struct {
 	RemoteAddr      string            `json:"remoteAddr,omitempty"`
 	UserAgent       string            `json:"userAgent,omitempty"`
 	Metadata        map[string]string `json:"metadata"`
+	PreviousHash    string            `json:"previousHash,omitempty"`
+	EventHash       string            `json:"eventHash,omitempty"`
 	CreatedAt       time.Time         `json:"createdAt"`
 }
 
