@@ -14481,6 +14481,48 @@ Definition of Done：
 - REST polling 不是低延迟实时流，不适合声明 tick 级或订单簿级实时能力。
 - WebSocket、交易所差异化订阅、长期外网恢复压测和多实例频率治理仍是后续生产级风险项。
 
+### 阶段 8 repo structure 门禁补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- 保留当前 `tictick-hi` Go + Vue 结构：后端入口在 `cmd/hi`，后端领域代码在 `internal/*`，前端应用在 `web/frontend/src/*`。
+- 新增 `scripts/check-repo-structure.sh`，校验关键 Go domain 目录、前端基础目录、docs/scripts/deploy systemd 目录存在。
+- 门禁拒绝新增重复顶层 `api` / `backend` / `client` / `frontend` / `server` 目录，避免把仓库重新拆成平行项目根。
+- 门禁拒绝 `.vue` / `.ts` / `.tsx` 出现在 `cmd` / `internal` 下，也拒绝 `.go` 出现在 `web/frontend/src` 下，维持跨栈源码边界。
+- `scripts/quality-gate.sh` 已纳入 repo structure 检查。
+
+范围外：
+
+- 不移动现有目录，不重命名 Go package，不调整 module 或 Vite 配置。
+- 不强制锁死所有二级业务组件目录，后续仍可按领域新增 `components/*` 或 `internal/*` 子包。
+- 不把完整架构治理升级为 monorepo policy 系统。
+
+当前验证：
+
+- `scripts/check-repo-structure.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+
+未执行：
+
+- 本切片未改前端页面运行态，未执行额外 Browser / Vite HTTP smoke。
+
+剩余风险：
+
+- 该门禁只锁住当前目录边界，不替代后续模块拆分、package ownership、dependency graph 或 ADR 流程。
+- 如果未来确实需要新增顶层 app，需要先更新计划文档和门禁脚本，避免绕过结构决策。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

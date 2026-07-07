@@ -2003,4 +2003,4 @@ go vet ./...
 5. 生产级交易所账号密钥来源、轮换和历史账号迁移策略。
 6. 实盘任务创建二次输入确认已收敛为输入 `LIVE`；风险默认值仍需随 live executor 阶段继续复核。
 7. 回测第一版保留 `feeBps` / `slippageBps`，runner 已按 bps 应用到成交价、手续费和结果摘要；生产级撮合曲线仍后续复核。
-8. 是否保留现有 `tictick-hi` Go + Vue 结构，还是进一步收敛目录。
+8. 保留现有 `tictick-hi` Go + Vue 结构：后端集中在 `cmd/hi` 和 `internal/*`，前端集中在 `web/frontend/src/*`；`scripts/check-repo-structure.sh` 已进入质量门禁防止重复 backend/frontend 根目录和跨栈源码漂移。
