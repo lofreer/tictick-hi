@@ -171,6 +171,10 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleOperatorSessions(w, r, parts[3])
 		return
 	}
+	if len(parts) == 5 && parts[2] == "operators" && parts[4] == "password" {
+		server.handleOperatorPasswordReset(w, r, parts[3])
+		return
+	}
 	if len(parts) == 6 && parts[2] == "operators" && parts[4] == "sessions" && parts[5] == "revoke" {
 		server.handleOperatorSessionsRevoke(w, r, parts[3])
 		return

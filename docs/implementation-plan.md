@@ -770,7 +770,7 @@ i18n：vue-i18n
 - 审批流。
 - MFA。
 
-CSRF 写请求保护、可配置登录失败持久化节流、基础会话列表 / 来源上下文 / IP-UA 变化提示与 24h 去重 warning 审计 / 撤销、当前操作员修改密码 / 其它会话吊销、禁用操作员撤销该账号既有 session 并在成功审计记录撤销数量、管理员独立撤销指定 operator 全部 session 并在成功审计记录撤销数量、管理员查看并精确撤销指定 operator 单个 session、可配置最近密码历史复用保护、基础认证审计、审计列表 cursor 分页 / CSV 导出 / hash 短码可观察 / hash chain 在线校验和页面入口、操作员 username 非空白校验、基础密码长度 / 复杂度 / 扩展弱密码字典 / 不含用户名策略、当前操作员自禁用保护、最后启用操作员保护、admin/operator 基础角色、最后启用 admin 保护、admin-only 角色变更、当前操作员自角色变更保护、当前操作员自 session 全量撤销保护、当前 session 精确撤销保护、角色变更审计、operator 列表读取、系统通知读取 / retry / channel 管理、交易所账号读取 / 创建、审计读取 / 导出 / hash chain 校验和 api-contract 读取已进入本地 demo 边界；定期轮换 / 重置流程、MFA、细粒度 RBAC、多人审批和生产级设备上下文仍后续确认。
+CSRF 写请求保护、可配置登录失败持久化节流、基础会话列表 / 来源上下文 / IP-UA 变化提示与 24h 去重 warning 审计 / 撤销、当前操作员修改密码 / 其它会话吊销、禁用操作员撤销该账号既有 session 并在成功审计记录撤销数量、管理员独立撤销指定 operator 全部 session 并在成功审计记录撤销数量、管理员查看并精确撤销指定 operator 单个 session、管理员重置指定 operator 密码并撤销该账号 sessions、可配置最近密码历史复用保护、基础认证审计、审计列表 cursor 分页 / CSV 导出 / hash 短码可观察 / hash chain 在线校验和页面入口、操作员 username 非空白校验、基础密码长度 / 复杂度 / 扩展弱密码字典 / 不含用户名策略、当前操作员自禁用保护、最后启用操作员保护、admin/operator 基础角色、最后启用 admin 保护、admin-only 角色变更、当前操作员自角色变更保护、当前操作员自 session 全量撤销保护、当前 session 精确撤销保护、角色变更审计、operator 列表读取、系统通知读取 / retry / channel 管理、交易所账号读取 / 创建、审计读取 / 导出 / hash chain 校验和 api-contract 读取已进入本地 demo 边界；定期轮换 / 自助忘记密码或账号恢复、MFA、细粒度 RBAC、多人审批和生产级设备上下文仍后续确认。
 
 ## 14. 后端模块边界
 
@@ -1488,6 +1488,7 @@ POST /api/system/operators
 POST /api/system/operators/:id/enable
 POST /api/system/operators/:id/disable
 POST /api/system/operators/:id/role
+POST /api/system/operators/:id/password
 GET  /api/system/operators/:id/sessions
 DELETE /api/system/operators/:id/sessions/:sessionId
 POST /api/system/operators/:id/sessions/revoke

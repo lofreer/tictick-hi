@@ -51,6 +51,16 @@
                   <NButton
                     size="small"
                     secondary
+                    :disabled="operatorSelfPasswordResetBlocked(operator)"
+                    :title="operatorSelfPasswordResetBlocked(operator) ? t('system.currentOperatorPasswordResetBlocked') : undefined"
+                    @click="openPasswordModal(operator)"
+                  >
+                    <template #icon><KeyRound :size="16" /></template>
+                    {{ t("system.resetOperatorPassword") }}
+                  </NButton>
+                  <NButton
+                    size="small"
+                    secondary
                     :loading="sessionsOperator?.id === operator.id && sessionsLoading"
                     @click="openSessionsModal(operator)"
                   >
@@ -115,69 +125,30 @@
       </template>
     </NModal>
 
-    <NModal v-model:show="sessionsOpen" preset="card" :title="sessionsModalTitle" class="system-modal system-sessions-modal">
-      <LoadingState v-if="sessionsLoading" />
-      <ErrorState v-else-if="sessionsError" :title="sessionsError" retryable @retry="loadOperatorSessions" />
-      <EmptyState v-else-if="operatorSessions.length === 0" :title="t('system.noSessions')" />
-      <div v-else class="system-table-wrap">
-        <table class="system-table operator-sessions-table">
-          <thead>
-            <tr>
-              <th>{{ t("system.sessionId") }}</th>
-              <th>{{ t("system.status") }}</th>
-              <th>{{ t("system.remoteAddr") }}</th>
-              <th>{{ t("system.userAgent") }}</th>
-              <th>{{ t("backtests.createdAt") }}</th>
-              <th>{{ t("system.expiresAt") }}</th>
-              <th>{{ t("research.actions") }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="session in operatorSessions" :key="session.id">
-              <td><span class="session-id">{{ session.id }}</span></td>
-              <td>
-                <NTag :type="session.current ? 'success' : 'default'" size="small">
-                  {{ session.current ? t("system.currentSession") : t("system.activeSession") }}
-                </NTag>
-              </td>
-              <td>{{ emptyText(session.remoteAddr) }}</td>
-              <td>
-                <span class="session-user-agent" :title="session.userAgent || undefined">
-                  {{ emptyText(session.userAgent) }}
-                </span>
-              </td>
-              <td>{{ formatDate(session.createdAt) }}</td>
-              <td>{{ formatDate(session.expiresAt) }}</td>
-              <td>
-                <NButton
-                  size="small"
-                  type="error"
-                  secondary
-                  :disabled="session.current"
-                  :loading="revokingSessionId === session.id"
-                  :title="session.current ? t('system.currentOperatorSessionRevokeBlocked') : undefined"
-                  @click="revokeOperatorSession(session)"
-                >
-                  <template #icon><LogOut :size="16" /></template>
-                  {{ t("system.revokeSession") }}
-                </NButton>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <template #footer>
-        <NSpace justify="end">
-          <NButton secondary @click="loadOperatorSessions">{{ t("common.retry") }}</NButton>
-          <NButton @click="sessionsOpen = false">{{ t("common.close") }}</NButton>
-        </NSpace>
-      </template>
-    </NModal>
+    <OperatorPasswordResetModal
+      v-model:show="passwordOpen"
+      v-model:new-password="passwordForm.newPassword"
+      :resetting="passwordResetting"
+      :title="passwordModalTitle"
+      :username="passwordOperator?.username ?? ''"
+      @submit="resetOperatorPassword"
+    />
+
+    <OperatorSessionsModal
+      v-model:show="sessionsOpen"
+      :error="sessionsError"
+      :loading="sessionsLoading"
+      :revoking-session-id="revokingSessionId"
+      :sessions="operatorSessions"
+      :title="sessionsModalTitle"
+      @retry="loadOperatorSessions"
+      @revoke="revokeOperatorSession"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { LogOut, Monitor, Plus, ShieldCheck } from "@lucide/vue";
+import { KeyRound, LogOut, Monitor, Plus, ShieldCheck } from "@lucide/vue";
 import { NButton, NForm, NFormItem, NInput, NModal, NSelect, NSpace, NSwitch, NTag, useMessage } from "naive-ui";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -185,6 +156,8 @@ import { useI18n } from "vue-i18n";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import OperatorPasswordResetModal from "@/pages/system/OperatorPasswordResetModal.vue";
+import OperatorSessionsModal from "@/pages/system/OperatorSessionsModal.vue";
 import { systemApi } from "@/services/api/system";
 import { useAuthStore } from "@/stores/auth";
 import type { Operator, OperatorSession } from "@/types/app";
@@ -203,6 +176,9 @@ const createOpen = ref(false);
 const roleOpen = ref(false);
 const roleUpdating = ref(false);
 const roleOperator = ref<Operator | null>(null);
+const passwordOpen = ref(false);
+const passwordResetting = ref(false);
+const passwordOperator = ref<Operator | null>(null);
 const sessionsOpen = ref(false);
 const sessionsLoading = ref(false);
 const sessionsError = ref("");
@@ -210,6 +186,7 @@ const sessionsOperator = ref<Operator | null>(null);
 const operatorSessions = ref<OperatorSession[]>([]);
 const form = reactive({ username: "", password: "", role: "operator", enabled: true });
 const roleForm = reactive({ role: "operator" });
+const passwordForm = reactive({ newPassword: "" });
 const roleOptions = computed(() => [
   { label: t("system.operatorRoleOperator"), value: "operator" },
   { label: t("system.operatorRoleAdmin"), value: "admin" },
@@ -219,6 +196,11 @@ const sessionsModalTitle = computed(() =>
   sessionsOperator.value
     ? `${t("system.operatorSessionsTitle")} / ${sessionsOperator.value.username}`
     : t("system.operatorSessionsTitle"),
+);
+const passwordModalTitle = computed(() =>
+  passwordOperator.value
+    ? `${t("system.updateOperatorPassword")} / ${passwordOperator.value.username}`
+    : t("system.updateOperatorPassword"),
 );
 
 onMounted(() => {
@@ -279,6 +261,40 @@ async function updateOperatorRole() {
     message.error(errorMessage(loadError, t("system.operatorUpdateFailed")));
   } finally {
     roleUpdating.value = false;
+  }
+}
+
+function openPasswordModal(operator: Operator) {
+  if (operatorSelfPasswordResetBlocked(operator)) {
+    return;
+  }
+  passwordOperator.value = operator;
+  passwordForm.newPassword = "";
+  passwordOpen.value = true;
+}
+
+async function resetOperatorPassword() {
+  if (!passwordOperator.value) {
+    return;
+  }
+  if (passwordForm.newPassword.trim() === "") {
+    message.error(t("system.operatorPasswordResetRequired"));
+    return;
+  }
+  passwordResetting.value = true;
+  try {
+    const result = await systemApi.resetOperatorPassword(passwordOperator.value.id, {
+      newPassword: passwordForm.newPassword,
+    });
+    passwordOpen.value = false;
+    passwordOperator.value = null;
+    passwordForm.newPassword = "";
+    message.success(t("system.operatorPasswordReset", { count: result.revokedSessionCount }));
+    await loadOperators();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.operatorPasswordResetFailed")));
+  } finally {
+    passwordResetting.value = false;
   }
 }
 
@@ -360,6 +376,10 @@ function operatorSelfRoleBlocked(operator: Operator) {
   return authStore.operator?.id === operator.id;
 }
 
+function operatorSelfPasswordResetBlocked(operator: Operator) {
+  return authStore.operator?.id === operator.id;
+}
+
 function operatorSelfSessionRevokeBlocked(operator: Operator) {
   return authStore.operator?.id === operator.id;
 }
@@ -374,10 +394,6 @@ function operatorRoleLabel(role: string) {
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
-}
-
-function emptyText(value?: string) {
-  return value || "-";
 }
 
 function errorMessage(loadError: unknown, fallback: string) {
@@ -396,7 +412,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .system-table {
   width: 100%;
-  min-width: 920px;
+  min-width: 1080px;
   border-collapse: collapse;
 }
 
@@ -418,25 +434,7 @@ function errorMessage(loadError: unknown, fallback: string) {
   border-bottom: 0;
 }
 
-.session-id,
-.session-user-agent {
-  display: inline-block;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-  white-space: nowrap;
-}
-
-.operator-sessions-table {
-  min-width: 860px;
-}
-
 :global(.system-modal) {
   width: min(560px, calc(100vw - 32px));
-}
-
-:global(.system-sessions-modal) {
-  width: min(960px, calc(100vw - 32px));
 }
 </style>

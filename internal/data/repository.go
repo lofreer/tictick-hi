@@ -63,6 +63,7 @@ type Repository interface {
 	SetOperatorRole(ctx context.Context, id string, role string) (OperatorRoleUpdateResult, error)
 	AuthenticateOperator(ctx context.Context, username string, password string) (Operator, error)
 	ChangeOperatorPassword(ctx context.Context, operatorID string, currentTokenHash string, currentPassword string, newPassword string) (int, error)
+	ResetOperatorPassword(ctx context.Context, operatorID string, newPassword string) (int, error)
 	CheckLoginRateLimit(ctx context.Context, keyHash string, now time.Time, window time.Duration) (bool, error)
 	RecordLoginFailure(ctx context.Context, keyHash string, now time.Time, limit int, window time.Duration, lockout time.Duration) error
 	ClearLoginRateLimit(ctx context.Context, keyHash string) error

@@ -142,6 +142,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodPost, "/api/system/operators/{id}/enable"},
 		{http.MethodPost, "/api/system/operators/{id}/disable"},
 		{http.MethodPost, "/api/system/operators/{id}/role"},
+		{http.MethodPost, "/api/system/operators/{id}/password"},
 		{http.MethodGet, "/api/system/operators/{id}/sessions"},
 		{http.MethodDelete, "/api/system/operators/{id}/sessions/{sessionId}"},
 		{http.MethodPost, "/api/system/operators/{id}/sessions/revoke"},

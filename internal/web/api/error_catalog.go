@@ -21,6 +21,7 @@ const (
 	apiErrorOperatorSelfDisableForbidden       apiErrorCode = "operator_self_disable_forbidden"
 	apiErrorOperatorSelfRoleChangeForbidden    apiErrorCode = "operator_self_role_change_forbidden"
 	apiErrorOperatorSelfSessionRevokeForbidden apiErrorCode = "operator_self_session_revoke_forbidden"
+	apiErrorOperatorSelfPasswordResetForbidden apiErrorCode = "operator_self_password_reset_forbidden"
 	apiErrorOperatorLastEnabledRequired        apiErrorCode = "operator_last_enabled_required"
 	apiErrorOperatorLastAdminRequired          apiErrorCode = "operator_last_admin_required"
 	apiErrorOperatorPasswordReused             apiErrorCode = "operator_password_reused"
@@ -56,6 +57,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorOperatorSelfDisableForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot disable its own account."},
 	{Code: string(apiErrorOperatorSelfRoleChangeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot change its own role."},
 	{Code: string(apiErrorOperatorSelfSessionRevokeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot revoke all of its own sessions."},
+	{Code: string(apiErrorOperatorSelfPasswordResetForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot reset its own password through operator management."},
 	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
 	{Code: string(apiErrorOperatorLastAdminRequired), HTTPStatus: http.StatusConflict, Description: "At least one admin operator account must remain enabled."},
 	{Code: string(apiErrorOperatorPasswordReused), HTTPStatus: http.StatusBadRequest, Description: "The new operator password must not reuse the current or recent passwords."},

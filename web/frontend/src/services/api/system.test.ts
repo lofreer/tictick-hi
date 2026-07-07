@@ -133,6 +133,25 @@ describe("system api", () => {
     );
   });
 
+  it("resets operator passwords", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ status: "ok", revokedSessionCount: 2 }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.resetOperatorPassword("op_ops", { newPassword: "reset456B" })).resolves.toEqual({
+      status: "ok",
+      revokedSessionCount: 2,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/system/operators/op_ops/password",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ newPassword: "reset456B" }),
+      }),
+    );
+  });
+
   it("lists and revokes a single operator session", async () => {
     const fetchMock = vi
       .fn()

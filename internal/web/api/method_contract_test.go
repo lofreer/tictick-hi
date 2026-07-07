@@ -49,6 +49,7 @@ func TestAPIMethodNotAllowedContracts(t *testing.T) {
 		{method: http.MethodGet, path: "/api/system/notifications/channels/nc_1/disable", allow: http.MethodPost},
 		{method: http.MethodGet, path: "/api/system/operators/op_admin/disable", allow: http.MethodPost},
 		{method: http.MethodGet, path: "/api/system/operators/op_admin/role", allow: http.MethodPost},
+		{method: http.MethodGet, path: "/api/system/operators/op_admin/password", allow: http.MethodPost},
 		{method: http.MethodPost, path: "/api/system/operators/op_admin/sessions", allow: http.MethodGet},
 		{method: http.MethodGet, path: "/api/system/operators/op_admin/sessions/session_1", allow: http.MethodDelete},
 		{method: http.MethodGet, path: "/api/system/operators/op_admin/sessions/revoke", allow: http.MethodPost},

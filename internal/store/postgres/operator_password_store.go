@@ -113,6 +113,97 @@ func (store *Store) ChangeOperatorPassword(
 	return int(tag.RowsAffected()), nil
 }
 
+func (store *Store) ResetOperatorPassword(
+	ctx context.Context,
+	operatorID string,
+	newPassword string,
+) (int, error) {
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin reset operator password: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var username string
+	var passwordHash string
+	err = tx.QueryRow(ctx, `
+		SELECT username, password_hash
+		  FROM operators
+		 WHERE id = $1
+		 FOR UPDATE`,
+		operatorID,
+	).Scan(&username, &passwordHash)
+	if err == pgx.ErrNoRows {
+		return 0, data.ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("get operator password hash: %w", err)
+	}
+	if err := data.ValidateOperatorPasswordForUsername(username, newPassword); err != nil {
+		return 0, err
+	}
+	if passwordMatchesHash(newPassword, passwordHash) {
+		return 0, data.OperatorPasswordReusedError()
+	}
+	historyLimit := store.operatorPasswordHistoryLimit
+	if historyLimit > 0 {
+		historyHashes, err := recentOperatorPasswordHashes(ctx, tx, operatorID, historyLimit)
+		if err != nil {
+			return 0, err
+		}
+		for _, historyHash := range historyHashes {
+			if passwordMatchesHash(newPassword, historyHash) {
+				return 0, data.OperatorPasswordReusedError()
+			}
+		}
+	}
+
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return 0, fmt.Errorf("hash operator password: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE operators
+		   SET password_hash = $2,
+		       updated_at = now()
+		 WHERE id = $1`,
+		operatorID,
+		string(newPasswordHash),
+	); err != nil {
+		return 0, fmt.Errorf("reset operator password: %w", err)
+	}
+	if historyLimit > 0 {
+		historyID, err := core.NewPrefixedID("oph")
+		if err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO operator_password_history (id, operator_id, password_hash)
+			VALUES ($1, $2, $3)`,
+			historyID,
+			operatorID,
+			passwordHash,
+		); err != nil {
+			return 0, fmt.Errorf("record operator password history: %w", err)
+		}
+		if err := pruneOperatorPasswordHistory(ctx, tx, operatorID, historyLimit); err != nil {
+			return 0, err
+		}
+	}
+	tag, err := tx.Exec(ctx, `
+		DELETE FROM operator_sessions
+		 WHERE operator_id = $1`,
+		operatorID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete operator sessions after password reset: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit reset operator password: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 func passwordMatchesHash(password string, passwordHash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) == nil
 }

@@ -48,6 +48,8 @@ import type {
   RepairMarketCandleGapRequest as APIRepairMarketCandleGapRequest,
   RepairMarketCandleGapsRequest as APIRepairMarketCandleGapsRequest,
   RepairMarketCandleInvalidIssuesRequest as APIRepairMarketCandleInvalidIssuesRequest,
+  ResetOperatorPasswordRequest as APIResetOperatorPasswordRequest,
+  ResetOperatorPasswordResult as APIResetOperatorPasswordResult,
   QuarantineMarketCandleInvalidIssuesRequest as APIQuarantineMarketCandleInvalidIssuesRequest,
   ServiceHealth as APIServiceHealth,
   StrategyDefinition as APIStrategyDefinition,
@@ -214,6 +216,10 @@ export type LoginCredentials = APILoginRequest;
 export type ChangeOperatorPasswordRequest = APIChangeOperatorPasswordRequest;
 
 export type ChangeOperatorPasswordResult = APIChangeOperatorPasswordResult;
+
+export type ResetOperatorPasswordRequest = APIResetOperatorPasswordRequest;
+
+export type ResetOperatorPasswordResult = APIResetOperatorPasswordResult;
 
 export type OperatorSession = APIOperatorSession;
 

@@ -58,6 +58,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorOperatorSelfDisableForbidden,
 		apiErrorOperatorSelfRoleChangeForbidden,
 		apiErrorOperatorSelfSessionRevokeForbidden,
+		apiErrorOperatorSelfPasswordResetForbidden,
 		apiErrorOperatorLastEnabledRequired,
 		apiErrorOperatorLastAdminRequired,
 		apiErrorOperatorPasswordReused,

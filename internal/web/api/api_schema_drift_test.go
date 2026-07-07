@@ -41,6 +41,7 @@ func TestFrontendAPIRequestTypesMatchContractSchemas(t *testing.T) {
 		{"CreateExchangeAccount", "CreateExchangeAccount"},
 		{"CreateOperator", "CreateOperator"},
 		{"UpdateOperatorRole", "UpdateOperatorRole"},
+		{"ResetOperatorPasswordRequest", "ResetOperatorPasswordRequest"},
 	} {
 		assertTSFieldsEqualSchema(t, types[item.tsType], item.schemaName, schemas[item.schemaName])
 		assertTSOptionalityMatchesSchema(t, types[item.tsType], item.schemaName, schemas[item.schemaName])
@@ -80,6 +81,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 		{"ExchangeAccount", "ExchangeAccount"},
 		{"Operator", "Operator"},
 		{"ChangeOperatorPasswordResult", "ChangeOperatorPasswordResult"},
+		{"ResetOperatorPasswordResult", "ResetOperatorPasswordResult"},
 		{"OperatorSession", "OperatorSession"},
 		{"OperatorSessionRevokeResult", "OperatorSessionRevokeResult"},
 		{"AuditEvent", "AuditEvent"},
@@ -126,6 +128,8 @@ func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
 		"export type Notification = APINotification;",
 		"export type ChangeOperatorPasswordRequest = APIChangeOperatorPasswordRequest;",
 		"export type ChangeOperatorPasswordResult = APIChangeOperatorPasswordResult;",
+		"export type ResetOperatorPasswordRequest = APIResetOperatorPasswordRequest;",
+		"export type ResetOperatorPasswordResult = APIResetOperatorPasswordResult;",
 		"export type OperatorSessionRevokeResult = APIOperatorSessionRevokeResult;",
 		"export type SystemHealth = APISystemHealth;",
 	} {

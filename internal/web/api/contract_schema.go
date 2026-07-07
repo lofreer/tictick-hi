@@ -178,6 +178,8 @@ func buildContractSchemas() map[string]map[string]any {
 		{"LoginRequest", data.LoginRequest{}},
 		{"ChangeOperatorPasswordRequest", data.ChangeOperatorPasswordRequest{}},
 		{"ChangeOperatorPasswordResult", data.ChangeOperatorPasswordResult{}},
+		{"ResetOperatorPasswordRequest", data.ResetOperatorPasswordRequest{}},
+		{"ResetOperatorPasswordResult", data.ResetOperatorPasswordResult{}},
 		{"OperatorSession", data.OperatorSession{}},
 		{"OperatorSessionRevokeResult", data.OperatorSessionRevokeResult{}},
 		{"SystemHealth", data.SystemHealth{}},

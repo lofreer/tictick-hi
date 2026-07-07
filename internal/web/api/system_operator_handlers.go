@@ -233,6 +233,83 @@ func (server *Server) handleOperatorSessions(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, sessions)
 }
 
+func (server *Server) handleOperatorPasswordReset(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+	actor, ok := server.currentAdminOperator(w, r, "operator.password_reset", "operator", id, nil)
+	if !ok {
+		return
+	}
+	if id == actor.ID {
+		if err := server.recordAuditEvent(r, actor, "operator.password_reset", "operator", actor.ID, "failure", map[string]string{
+			"username": actor.Username,
+			"role":     actor.Role,
+			"enabled":  boolString(actor.Enabled),
+			"reason":   "self_password_reset_forbidden",
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeAPIError(w, http.StatusConflict, apiErrorOperatorSelfPasswordResetForbidden, "current operator password cannot be reset here")
+		return
+	}
+	var request data.ResetOperatorPasswordRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	operator, err := server.operatorByID(r, id)
+	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.password_reset", "operator", id, "failure", storeFailureMetadata(err, nil)); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeStoreError(w, err)
+		return
+	}
+	if err := data.ValidateOperatorPasswordForUsername(operator.Username, request.NewPassword); err != nil {
+		metadata := operatorMetadata(operator)
+		metadata["reason"] = "password_policy"
+		if auditErr := server.recordAuditEvent(r, actor, "operator.password_reset", "operator", operator.ID, "failure", metadata); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	revokedSessionCount, err := server.repository.ResetOperatorPassword(r.Context(), operator.ID, request.NewPassword)
+	if err != nil {
+		metadata := operatorMetadata(operator)
+		if code, ok := data.DomainErrorCode(err); ok && code == data.ErrorCodeOperatorPasswordReused {
+			metadata["reason"] = "password_history"
+			if auditErr := server.recordAuditEvent(r, actor, "operator.password_reset", "operator", operator.ID, "failure", metadata); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
+			writeStoreError(w, err)
+			return
+		}
+		if auditErr := server.recordAuditEvent(r, actor, "operator.password_reset", "operator", operator.ID, "failure", storeFailureMetadata(err, metadata)); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeStoreError(w, err)
+		return
+	}
+	metadata := operatorMetadata(operator)
+	metadata["revokedSessionCount"] = strconv.Itoa(revokedSessionCount)
+	if err := server.recordAuditEvent(r, actor, "operator.password_reset", "operator", operator.ID, "success", metadata); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data.ResetOperatorPasswordResult{
+		Status:              "ok",
+		RevokedSessionCount: revokedSessionCount,
+	})
+}
+
 func (server *Server) handleOperatorSessionRevoke(w http.ResponseWriter, r *http.Request, operatorID string, sessionID string) {
 	if r.Method != http.MethodDelete {
 		writeMethodNotAllowed(w, http.MethodDelete)

@@ -318,6 +318,15 @@ type ChangeOperatorPasswordResult struct {
 	RevokedSessionCount int    `json:"revokedSessionCount"`
 }
 
+type ResetOperatorPasswordRequest struct {
+	NewPassword string `json:"newPassword"`
+}
+
+type ResetOperatorPasswordResult struct {
+	Status              string `json:"status"`
+	RevokedSessionCount int    `json:"revokedSessionCount"`
+}
+
 type OperatorSession struct {
 	ID                string    `json:"id"`
 	OperatorID        string    `json:"operatorId,omitempty"`

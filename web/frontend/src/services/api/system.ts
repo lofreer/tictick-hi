@@ -12,6 +12,8 @@ import type {
   Operator,
   OperatorSession,
   OperatorSessionRevokeResult,
+  ResetOperatorPasswordRequest,
+  ResetOperatorPasswordResult,
   SystemHealth,
   UpdateOperatorRole,
 } from "@/types/app";
@@ -69,6 +71,10 @@ export const systemApi = {
 
   setOperatorRole(id: string, request: UpdateOperatorRole) {
     return apiClient.post<Operator>(`/system/operators/${encodeURIComponent(id)}/role`, request);
+  },
+
+  resetOperatorPassword(id: string, request: ResetOperatorPasswordRequest) {
+    return apiClient.post<ResetOperatorPasswordResult>(`/system/operators/${encodeURIComponent(id)}/password`, request);
   },
 
   revokeOperatorSessions(id: string) {
