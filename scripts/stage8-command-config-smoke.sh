@@ -117,6 +117,11 @@ run_failing_case \
   clean_env DATABASE_URL="$SECRET_DSN" SYNC_READY_MAX_AGE=stage8_config_secret "$BIN" sync --once
 
 run_failing_case \
+  "sync invalid ready stale leases" \
+  "SYNC_READY_MAX_STALE_LEASES" \
+  clean_env DATABASE_URL="$SECRET_DSN" SYNC_READY_MAX_STALE_LEASES=-1 "$BIN" sync --once
+
+run_failing_case \
   "trading invalid candle limit" \
   "TRADING_CANDLE_LIMIT" \
   clean_env DATABASE_URL="$SECRET_DSN" TRADING_CANDLE_LIMIT=0 "$BIN" trading --once

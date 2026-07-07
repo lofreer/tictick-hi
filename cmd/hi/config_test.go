@@ -202,6 +202,43 @@ func TestLoadWorkerReadinessBacklogConfigRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestLoadWorkerReadinessStaleLeaseConfig(t *testing.T) {
+	clearCommandEnv(t)
+
+	config, err := loadWorkerReadinessStaleLeaseConfig("sync")
+	if err != nil {
+		t.Fatalf("load disabled stale lease config: %v", err)
+	}
+	if config.Enabled {
+		t.Fatalf("blank stale lease config should be disabled: %#v", config)
+	}
+
+	t.Setenv("SYNC_READY_MAX_STALE_LEASES", "0")
+	config, err = loadWorkerReadinessStaleLeaseConfig("sync")
+	if err != nil {
+		t.Fatalf("load stale lease config: %v", err)
+	}
+	if !config.Enabled || config.MaxStaleLeases != 0 {
+		t.Fatalf("unexpected stale lease config: %#v", config)
+	}
+	if limits := config.limits(); limits.MaxStaleLeases != 0 {
+		t.Fatalf("unexpected stale lease limits: %#v", limits)
+	}
+	if value := config.summaryValue(); value != 0 {
+		t.Fatalf("summary value = %#v, want 0", value)
+	}
+}
+
+func TestLoadWorkerReadinessStaleLeaseConfigRejectsInvalidValues(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("BACKTEST_READY_MAX_STALE_LEASES", "-1")
+
+	_, err := loadWorkerReadinessStaleLeaseConfig("backtest")
+	if err == nil || !strings.Contains(err.Error(), "BACKTEST_READY_MAX_STALE_LEASES") {
+		t.Fatalf("expected max stale leases error, got %v", err)
+	}
+}
+
 func clearCommandEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
@@ -231,6 +268,7 @@ func clearCommandEnv(t *testing.T) {
 		"SYNC_HEALTH_ADDR",
 		"SYNC_READY_MAX_BACKLOG",
 		"SYNC_READY_MAX_AGE",
+		"SYNC_READY_MAX_STALE_LEASES",
 		"MARKET_INSTRUMENT_SYNC_ENABLED",
 		"MARKET_INSTRUMENT_SYNC_ON_START",
 		"MARKET_INSTRUMENT_SYNC_INTERVAL",
@@ -241,6 +279,7 @@ func clearCommandEnv(t *testing.T) {
 		"BACKTEST_HEALTH_ADDR",
 		"BACKTEST_READY_MAX_BACKLOG",
 		"BACKTEST_READY_MAX_AGE",
+		"BACKTEST_READY_MAX_STALE_LEASES",
 		"TRADING_WORKER_ID",
 		"TRADING_LEASE_TTL",
 		"TRADING_POLL_INTERVAL",
@@ -248,6 +287,7 @@ func clearCommandEnv(t *testing.T) {
 		"TRADING_HEALTH_ADDR",
 		"TRADING_READY_MAX_BACKLOG",
 		"TRADING_READY_MAX_AGE",
+		"TRADING_READY_MAX_STALE_LEASES",
 		"NOTIFY_WORKER_ID",
 		"NOTIFY_LEASE_TTL",
 		"NOTIFY_POLL_INTERVAL",
@@ -256,6 +296,7 @@ func clearCommandEnv(t *testing.T) {
 		"NOTIFY_HEALTH_ADDR",
 		"NOTIFY_READY_MAX_BACKLOG",
 		"NOTIFY_READY_MAX_AGE",
+		"NOTIFY_READY_MAX_STALE_LEASES",
 		"BINANCE_BASE_URLS",
 		"BINANCE_REQUEST_WEIGHT_LIMIT",
 		"BINANCE_REQUEST_WEIGHT_WINDOW",

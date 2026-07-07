@@ -71,7 +71,7 @@ func runNotify(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("notify")
+	probeConfig, err := loadWorkerProbeRuntimeConfig("notify")
 	if err != nil {
 		return err
 	}
@@ -101,15 +101,16 @@ func runNotify(ctx context.Context, args []string) error {
 		"db_min_conns", config.DatabasePool.MinConns,
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
-		"health_probe_addr", healthAddr,
-		"ready_max_backlog", backlogReadiness.MaxBacklog,
-		"ready_max_age", backlogReadiness.MaxAge,
+		"health_probe_addr", probeConfig.HealthAddr,
+		"ready_max_backlog", probeConfig.Backlog.MaxBacklog,
+		"ready_max_age", probeConfig.Backlog.MaxAge,
+		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID, workerReadinessChecks(store, "notify", backlogReadiness)); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "notify", probeConfig.HealthAddr, config.WorkerID, workerReadinessChecks(store, "notify", probeConfig)); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -120,7 +121,7 @@ func runTrading(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("trading")
+	probeConfig, err := loadWorkerProbeRuntimeConfig("trading")
 	if err != nil {
 		return err
 	}
@@ -148,15 +149,16 @@ func runTrading(ctx context.Context, args []string) error {
 		"db_min_conns", config.DatabasePool.MinConns,
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
-		"health_probe_addr", healthAddr,
-		"ready_max_backlog", backlogReadiness.MaxBacklog,
-		"ready_max_age", backlogReadiness.MaxAge,
+		"health_probe_addr", probeConfig.HealthAddr,
+		"ready_max_backlog", probeConfig.Backlog.MaxBacklog,
+		"ready_max_age", probeConfig.Backlog.MaxAge,
+		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID, workerReadinessChecks(store, "trading", backlogReadiness)); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "trading", probeConfig.HealthAddr, config.WorkerID, workerReadinessChecks(store, "trading", probeConfig)); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -167,7 +169,7 @@ func runBacktest(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("backtest")
+	probeConfig, err := loadWorkerProbeRuntimeConfig("backtest")
 	if err != nil {
 		return err
 	}
@@ -195,15 +197,16 @@ func runBacktest(ctx context.Context, args []string) error {
 		"db_min_conns", config.DatabasePool.MinConns,
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
-		"health_probe_addr", healthAddr,
-		"ready_max_backlog", backlogReadiness.MaxBacklog,
-		"ready_max_age", backlogReadiness.MaxAge,
+		"health_probe_addr", probeConfig.HealthAddr,
+		"ready_max_backlog", probeConfig.Backlog.MaxBacklog,
+		"ready_max_age", probeConfig.Backlog.MaxAge,
+		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID, workerReadinessChecks(store, "backtest", backlogReadiness)); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", probeConfig.HealthAddr, config.WorkerID, workerReadinessChecks(store, "backtest", probeConfig)); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -214,7 +217,7 @@ func runSync(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("sync")
+	probeConfig, err := loadWorkerProbeRuntimeConfig("sync")
 	if err != nil {
 		return err
 	}
@@ -272,15 +275,16 @@ func runSync(ctx context.Context, args []string) error {
 		"db_min_conns", config.DatabasePool.MinConns,
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
-		"health_probe_addr", healthAddr,
-		"ready_max_backlog", backlogReadiness.MaxBacklog,
-		"ready_max_age", backlogReadiness.MaxAge,
+		"health_probe_addr", probeConfig.HealthAddr,
+		"ready_max_backlog", probeConfig.Backlog.MaxBacklog,
+		"ready_max_age", probeConfig.Backlog.MaxAge,
+		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID, workerReadinessChecks(store, "sync", backlogReadiness)); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "sync", probeConfig.HealthAddr, config.WorkerID, workerReadinessChecks(store, "sync", probeConfig)); err != nil {
 		return err
 	}
 	if config.MarketInstrumentSyncEnabled {

@@ -34,6 +34,17 @@ func TestCheckWorkerQueueBacklogLimits(t *testing.T) {
 	}
 }
 
+func TestCheckWorkerStaleLeaseLimits(t *testing.T) {
+	if err := checkWorkerStaleLeaseLimits("sync", 0, WorkerStaleLeaseLimits{MaxStaleLeases: 0}); err != nil {
+		t.Fatalf("exact stale lease limit should pass: %v", err)
+	}
+
+	err := checkWorkerStaleLeaseLimits("trading", 2, WorkerStaleLeaseLimits{MaxStaleLeases: 1})
+	if err == nil || !strings.Contains(err.Error(), "stale leases 2 exceeds limit 1") {
+		t.Fatalf("expected stale lease limit error, got %v", err)
+	}
+}
+
 func TestWorkerQueueBacklogReadinessQueries(t *testing.T) {
 	tests := []struct {
 		command string
@@ -98,6 +109,65 @@ func TestWorkerQueueBacklogReadinessQueries(t *testing.T) {
 	}
 
 	if _, err := workerQueueBacklogReadinessQuery("unknown"); err == nil {
+		t.Fatal("expected unknown worker command error")
+	}
+}
+
+func TestWorkerStaleLeaseReadinessQueries(t *testing.T) {
+	tests := []struct {
+		command string
+		want    []string
+	}{
+		{
+			command: "sync",
+			want: []string{
+				"FROM data_sync_tasks",
+				"deleted_at IS NULL",
+				"locked_until IS NOT NULL",
+				"locked_until < now()",
+			},
+		},
+		{
+			command: "backtest",
+			want: []string{
+				"FROM backtest_tasks",
+				"locked_until IS NOT NULL",
+				"locked_until < now()",
+			},
+		},
+		{
+			command: "trading",
+			want: []string{
+				"FROM trading_tasks",
+				"locked_until IS NOT NULL",
+				"locked_until < now()",
+			},
+		},
+		{
+			command: "notify",
+			want: []string{
+				"FROM notification_outbox",
+				"locked_until IS NOT NULL",
+				"locked_until < now()",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			query, err := workerStaleLeaseReadinessQuery(tt.command)
+			if err != nil {
+				t.Fatalf("query: %v", err)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(query, want) {
+					t.Fatalf("query missing %q:\n%s", want, query)
+				}
+			}
+		})
+	}
+
+	if _, err := workerStaleLeaseReadinessQuery("unknown"); err == nil {
 		t.Fatal("expected unknown worker command error")
 	}
 }

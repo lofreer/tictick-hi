@@ -80,11 +80,6 @@ type exchangeClientConfig struct {
 	OKXMarketRequestWindow     time.Duration
 }
 
-type workerReadinessBacklogConfig struct {
-	MaxBacklog int
-	MaxAge     time.Duration
-}
-
 func loadAPICommandConfig() (apiCommandConfig, error) {
 	databaseURL, err := requiredEnv("DATABASE_URL")
 	if err != nil {
@@ -344,33 +339,6 @@ func loadExchangeClientConfig() (exchangeClientConfig, error) {
 		OKXMarketRequestLimit:      okxLimit,
 		OKXMarketRequestWindow:     okxWindow,
 	}, nil
-}
-
-func loadWorkerReadinessBacklogConfig(command string) (workerReadinessBacklogConfig, error) {
-	prefix := strings.ToUpper(command)
-	maxBacklog, err := intEnvStrict(prefix+"_READY_MAX_BACKLOG", 0, 0)
-	if err != nil {
-		return workerReadinessBacklogConfig{}, err
-	}
-	maxAge, err := durationEnvNonNegative(prefix+"_READY_MAX_AGE", 0)
-	if err != nil {
-		return workerReadinessBacklogConfig{}, err
-	}
-	return workerReadinessBacklogConfig{
-		MaxBacklog: maxBacklog,
-		MaxAge:     maxAge,
-	}, nil
-}
-
-func (config workerReadinessBacklogConfig) enabled() bool {
-	return config.MaxBacklog > 0 || config.MaxAge > 0
-}
-
-func (config workerReadinessBacklogConfig) limits() postgres.WorkerQueueBacklogLimits {
-	return postgres.WorkerQueueBacklogLimits{
-		MaxBacklog:  config.MaxBacklog,
-		MaxReadyAge: config.MaxAge,
-	}
 }
 
 func loadDatabasePoolOptions() (postgres.PoolOptions, error) {

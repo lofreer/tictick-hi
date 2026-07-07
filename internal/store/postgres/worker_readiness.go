@@ -14,6 +14,10 @@ type WorkerQueueBacklogLimits struct {
 	MaxReadyAge time.Duration
 }
 
+type WorkerStaleLeaseLimits struct {
+	MaxStaleLeases int
+}
+
 func (store *Store) CheckWorkerQueue(ctx context.Context, command string) error {
 	query, err := workerQueueReadinessQuery(command)
 	if err != nil {
@@ -54,6 +58,22 @@ func (store *Store) CheckWorkerQueueBacklog(
 		metrics.OldestReadyAt = &readyAt
 	}
 	return checkWorkerQueueBacklogLimits(command, metrics, limits, time.Now().UTC())
+}
+
+func (store *Store) CheckWorkerStaleLeases(
+	ctx context.Context,
+	command string,
+	limits WorkerStaleLeaseLimits,
+) error {
+	query, err := workerStaleLeaseReadinessQuery(command)
+	if err != nil {
+		return err
+	}
+	var count int
+	if err := store.pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return fmt.Errorf("read %s worker stale leases: %w", command, err)
+	}
+	return checkWorkerStaleLeaseLimits(command, count, limits)
 }
 
 func workerQueueReadinessQuery(command string) (string, error) {
@@ -117,6 +137,18 @@ func checkWorkerQueueBacklogLimits(
 	return nil
 }
 
+func checkWorkerStaleLeaseLimits(command string, staleLeaseCount int, limits WorkerStaleLeaseLimits) error {
+	if staleLeaseCount > limits.MaxStaleLeases {
+		return fmt.Errorf(
+			"%s worker stale leases %d exceeds limit %d",
+			command,
+			staleLeaseCount,
+			limits.MaxStaleLeases,
+		)
+	}
+	return nil
+}
+
 func workerQueueBacklogReadinessQuery(command string) (string, error) {
 	switch command {
 	case "sync":
@@ -164,6 +196,38 @@ func workerQueueBacklogReadinessQuery(command string) (string, error) {
 			 WHERE status IN ('pending', 'retry_scheduled')
 			   AND next_attempt_at <= now()
 			   AND (locked_until IS NULL OR locked_until < now())`, nil
+	default:
+		return "", fmt.Errorf("unknown worker command %q", command)
+	}
+}
+
+func workerStaleLeaseReadinessQuery(command string) (string, error) {
+	switch command {
+	case "sync":
+		return `
+			SELECT count(*)::int
+			  FROM data_sync_tasks
+			 WHERE deleted_at IS NULL
+			   AND locked_until IS NOT NULL
+			   AND locked_until < now()`, nil
+	case "backtest":
+		return `
+			SELECT count(*)::int
+			  FROM backtest_tasks
+			 WHERE locked_until IS NOT NULL
+			   AND locked_until < now()`, nil
+	case "trading":
+		return `
+			SELECT count(*)::int
+			  FROM trading_tasks
+			 WHERE locked_until IS NOT NULL
+			   AND locked_until < now()`, nil
+	case "notify":
+		return `
+			SELECT count(*)::int
+			  FROM notification_outbox
+			 WHERE locked_until IS NOT NULL
+			   AND locked_until < now()`, nil
 	default:
 		return "", fmt.Errorf("unknown worker command %q", command)
 	}

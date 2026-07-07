@@ -105,12 +105,16 @@ TRADING_HEALTH_ADDR
 NOTIFY_HEALTH_ADDR
 SYNC_READY_MAX_BACKLOG
 SYNC_READY_MAX_AGE
+SYNC_READY_MAX_STALE_LEASES
 BACKTEST_READY_MAX_BACKLOG
 BACKTEST_READY_MAX_AGE
+BACKTEST_READY_MAX_STALE_LEASES
 TRADING_READY_MAX_BACKLOG
 TRADING_READY_MAX_AGE
+TRADING_READY_MAX_STALE_LEASES
 NOTIFY_READY_MAX_BACKLOG
 NOTIFY_READY_MAX_AGE
+NOTIFY_READY_MAX_STALE_LEASES
 ```
 
 When set to a TCP `host:port`, the corresponding worker serves `GET /livez`,
@@ -128,8 +132,13 @@ counts claim-ready work only: sync pending tasks that are enabled, due, active i
 the instrument catalog, and not exchange-backoff blocked; backtest pending tasks;
 trading running tasks that are ready for another claim cycle; and notify
 pending/retry deliveries whose `next_attempt_at` is due. Task lease state,
-general queue depth, exchange backoff, stale workers, fetch-lock skips, and
-catalog health remain visible through `hi api` system health.
+general queue depth, exchange backoff, fetch-lock skips, and catalog health
+remain visible through `hi api` system health.
+
+Stale lease readiness is disabled by default. Set
+`<COMMAND>_READY_MAX_STALE_LEASES` to a non-negative integer to add a
+`stale_leases` check to `/readyz` and `/healthz`; blank disables the check, and
+`0` means any stale lease makes readiness return HTTP 503.
 
 Public market clients read:
 
@@ -234,6 +243,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, notification provider outbound `X-Request-ID` / `traceparent` propagation, and data sync Binance / OKX market HTTP request metadata propagation exist, but broader external systems and subcommands still do not carry W3C trace context end to end;
-- worker subcommands have optional health probes with PostgreSQL, queue table, and configured claim-ready backlog readiness, but no richer readiness model for claim success rate, exchange/provider availability, or stale worker diagnosis;
+- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, and configured stale-lease readiness, but no richer readiness model for claim success rate or exchange/provider availability;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.
