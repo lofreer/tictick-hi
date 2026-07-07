@@ -12811,6 +12811,43 @@ Definition of Done：
 - `NOTIFY_PROVIDER_MIN_INTERVAL` 只是单进程本地等待，不保证多实例部署下的全局额度。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 notification provider throttle env surface 补充
+
+执行日期：2026-07-07
+
+目标等级：demo。
+
+范围内：
+
+- `.env.example` 新增 `NOTIFY_PROVIDER_MIN_INTERVAL=0` 示例，避免部署示例遗漏该非敏感配置。
+- `docker-compose.yml` 为 notify service 透传 `NOTIFY_PROVIDER_MIN_INTERVAL`，默认值为 `0`。
+- `scripts/stage8-command-config-smoke.sh` 新增负值拒绝回归，确保非法 provider min interval 会在启动前失败且不泄露 DSN / secret marker。
+- `docs/production-runbook.md` 的 worker env 示例块同步展示该配置。
+
+范围外：
+
+- 不改变 notification runner 的节流逻辑、provider target、outbox lease、retry/backoff 或第三方 provider 投递行为。
+- 不新增 Docker Compose 运行态多实例节流 smoke，不宣称这是分布式额度控制。
+
+当前验证：
+
+- `scripts/stage8-command-config-smoke.sh` 通过。
+- `go test ./cmd/hi -run 'TestLoadNotifyCommandConfigLoadsProviderMinInterval|TestLoadNotifyCommandConfigRejectsNegativeProviderMinInterval' -count=1 -v` 通过。
+- `docker compose config --quiet` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 Docker Compose `up` / 多 notify worker 运行态节流 smoke；本轮只验证配置模板、Compose 解析和启动前配置失败路径。
+- 未执行真实 Telegram / 飞书 / SMTP / webhook 外网投递 smoke。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- `NOTIFY_PROVIDER_MIN_INTERVAL` 仍只是单进程本地等待，不保证多实例部署下的全局 provider quota。
+- 通知仍缺生产级模板、多实例 / provider 级限流、回执、第三方消息 ID、投递延迟指标和完整统一 worker lease。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -147,6 +147,11 @@ run_failing_case \
   clean_env DATABASE_URL="$SECRET_DSN" NOTIFY_RETRY_DELAY=-1s "$BIN" notify --once
 
 run_failing_case \
+  "notify invalid provider min interval" \
+  "NOTIFY_PROVIDER_MIN_INTERVAL" \
+  clean_env DATABASE_URL="$SECRET_DSN" NOTIFY_PROVIDER_MIN_INTERVAL=-1ms "$BIN" notify --once
+
+run_failing_case \
   "notify invalid provider config readiness" \
   "NOTIFY_READY_VALIDATE_PROVIDER_CONFIG" \
   clean_env DATABASE_URL="$SECRET_DSN" NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=maybe "$BIN" notify --once
