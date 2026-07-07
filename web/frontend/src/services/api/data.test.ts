@@ -251,6 +251,11 @@ describe("data api", () => {
               exchangeBackoffUntil: "2026-06-28T01:45:00Z",
               exchangeBackoffLastError:
                 'binance klines temporary unavailable: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT": EOF',
+              lockedBy: "sync-worker-1",
+              lockedUntil: "2026-06-28T01:32:00Z",
+              heartbeatAt: "2026-06-28T01:29:45Z",
+              startedAt: "2026-06-28T01:28:00Z",
+              finishedAt: "2026-06-28T01:31:00Z",
             },
           ]),
           { status: 200 },
@@ -286,6 +291,11 @@ describe("data api", () => {
         nextAttemptAt: "2026-06-28T01:30:00Z",
         exchangeBackoffUntil: "2026-06-28T01:45:00Z",
         exchangeBackoffLastError: "binance klines temporary unavailable: api.binance.com: EOF",
+        lockedBy: "sync-worker-1",
+        lockedUntil: "2026-06-28T01:32:00Z",
+        heartbeatAt: "2026-06-28T01:29:45Z",
+        startedAt: "2026-06-28T01:28:00Z",
+        finishedAt: "2026-06-28T01:31:00Z",
       },
     ]);
   });

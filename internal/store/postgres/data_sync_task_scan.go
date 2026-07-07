@@ -18,7 +18,7 @@ func dataSyncTaskReturningColumns() string {
 }
 
 func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL string, invalidSummarySQL string) string {
-	return fmt.Sprintf(`%s, %s, %s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s`,
+	return fmt.Sprintf(`%s, %s, %s, %s AS data_health, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s`,
 		dataSyncTaskColumnList(alias, "id", "exchange", "symbol", "interval", "start_time", "end_time",
 			"sync_enabled", "realtime_enabled", "status"),
 		dataSyncTaskMarketStatusSQL(alias),
@@ -33,6 +33,11 @@ func dataSyncTaskScanColumns(alias string, healthSQL string, gapSummarySQL strin
 		dataSyncTaskColumn(alias, "next_attempt_at"),
 		dataSyncTaskExchangeBackoffUntilSQL(alias),
 		dataSyncTaskExchangeBackoffLastErrorSQL(alias),
+		fmt.Sprintf("COALESCE(%s, '')", dataSyncTaskColumn(alias, "locked_by")),
+		dataSyncTaskColumn(alias, "locked_until"),
+		dataSyncTaskColumn(alias, "heartbeat_at"),
+		dataSyncTaskColumn(alias, "started_at"),
+		dataSyncTaskColumn(alias, "finished_at"),
 		dataSyncTaskColumn(alias, "created_at"),
 		dataSyncTaskColumn(alias, "updated_at"),
 	)
@@ -429,6 +434,11 @@ func scanDataSyncTaskRow(row rowScanner) (data.DataSyncTask, error) {
 		&task.NextAttemptAt,
 		&task.ExchangeBackoffUntil,
 		&task.ExchangeBackoffError,
+		&task.LockedBy,
+		&task.LockedUntil,
+		&task.HeartbeatAt,
+		&task.StartedAt,
+		&task.FinishedAt,
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	)

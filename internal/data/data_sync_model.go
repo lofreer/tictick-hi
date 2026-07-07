@@ -73,6 +73,11 @@ type DataSyncTask struct {
 	NextAttemptAt        *time.Time              `json:"nextAttemptAt,omitempty"`
 	ExchangeBackoffUntil *time.Time              `json:"exchangeBackoffUntil,omitempty"`
 	ExchangeBackoffError string                  `json:"exchangeBackoffLastError,omitempty"`
+	LockedBy             string                  `json:"lockedBy,omitempty"`
+	LockedUntil          *time.Time              `json:"lockedUntil,omitempty"`
+	HeartbeatAt          *time.Time              `json:"heartbeatAt,omitempty"`
+	StartedAt            *time.Time              `json:"startedAt,omitempty"`
+	FinishedAt           *time.Time              `json:"finishedAt,omitempty"`
 	CreatedAt            time.Time               `json:"createdAt"`
 	UpdatedAt            time.Time               `json:"updatedAt"`
 }

@@ -211,6 +211,11 @@ function normalizeTask(response: DataSyncTaskResponse): DataSyncTask {
     nextAttemptAt: response.nextAttemptAt,
     exchangeBackoffUntil: response.exchangeBackoffUntil,
     exchangeBackoffLastError: sanitizeExternalError(response.exchangeBackoffLastError),
+    lockedBy: response.lockedBy,
+    lockedUntil: response.lockedUntil,
+    heartbeatAt: response.heartbeatAt,
+    startedAt: response.startedAt,
+    finishedAt: response.finishedAt,
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   };
