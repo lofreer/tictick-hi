@@ -5,24 +5,25 @@ import "net/http"
 type apiErrorCode string
 
 const (
-	apiErrorInvalidRequest                 apiErrorCode = "invalid_request"
-	apiErrorUnauthorized                   apiErrorCode = "unauthorized"
-	apiErrorForbidden                      apiErrorCode = "forbidden"
-	apiErrorCSRFRequired                   apiErrorCode = "csrf_required"
-	apiErrorCSRFInvalid                    apiErrorCode = "csrf_invalid"
-	apiErrorNotFound                       apiErrorCode = "not_found"
-	apiErrorMethodNotAllowed               apiErrorCode = "method_not_allowed"
-	apiErrorConflict                       apiErrorCode = "conflict"
-	apiErrorInvalidState                   apiErrorCode = "invalid_state"
-	apiErrorMarketInstrumentNotActive      apiErrorCode = "market_instrument_not_active"
-	apiErrorDataSyncRetryRequiresFailed    apiErrorCode = "data_sync_retry_requires_failed"
-	apiErrorDataSyncCommandInvalidState    apiErrorCode = "data_sync_command_invalid_state"
-	apiErrorTradingTaskCommandInvalidState apiErrorCode = "trading_task_command_invalid_state"
-	apiErrorOperatorSelfDisableForbidden   apiErrorCode = "operator_self_disable_forbidden"
-	apiErrorOperatorLastEnabledRequired    apiErrorCode = "operator_last_enabled_required"
-	apiErrorTooManyRequests                apiErrorCode = "too_many_requests"
-	apiErrorInternal                       apiErrorCode = "internal_error"
-	apiErrorRequestFailed                  apiErrorCode = "request_failed"
+	apiErrorInvalidRequest                    apiErrorCode = "invalid_request"
+	apiErrorUnauthorized                      apiErrorCode = "unauthorized"
+	apiErrorForbidden                         apiErrorCode = "forbidden"
+	apiErrorCSRFRequired                      apiErrorCode = "csrf_required"
+	apiErrorCSRFInvalid                       apiErrorCode = "csrf_invalid"
+	apiErrorNotFound                          apiErrorCode = "not_found"
+	apiErrorMethodNotAllowed                  apiErrorCode = "method_not_allowed"
+	apiErrorConflict                          apiErrorCode = "conflict"
+	apiErrorInvalidState                      apiErrorCode = "invalid_state"
+	apiErrorMarketInstrumentNotActive         apiErrorCode = "market_instrument_not_active"
+	apiErrorDataSyncRetryRequiresFailed       apiErrorCode = "data_sync_retry_requires_failed"
+	apiErrorDataSyncCommandInvalidState       apiErrorCode = "data_sync_command_invalid_state"
+	apiErrorTradingTaskCommandInvalidState    apiErrorCode = "trading_task_command_invalid_state"
+	apiErrorOperatorSelfDisableForbidden      apiErrorCode = "operator_self_disable_forbidden"
+	apiErrorOperatorLastEnabledRequired       apiErrorCode = "operator_last_enabled_required"
+	apiErrorAuthCurrentSessionRevokeForbidden apiErrorCode = "auth_current_session_revoke_forbidden"
+	apiErrorTooManyRequests                   apiErrorCode = "too_many_requests"
+	apiErrorInternal                          apiErrorCode = "internal_error"
+	apiErrorRequestFailed                     apiErrorCode = "request_failed"
 )
 
 type apiErrorDefinition struct {
@@ -48,6 +49,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorTradingTaskCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The trading task state does not allow the requested command."},
 	{Code: string(apiErrorOperatorSelfDisableForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot disable its own account."},
 	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
+	{Code: string(apiErrorAuthCurrentSessionRevokeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator session cannot be revoked from the session list."},
 	{Code: string(apiErrorTooManyRequests), HTTPStatus: http.StatusTooManyRequests, Description: "The caller has exceeded the accepted request rate.", Retryable: true},
 	{Code: string(apiErrorInternal), HTTPStatus: http.StatusInternalServerError, Description: "The server failed while processing the request.", Retryable: true},
 	{Code: string(apiErrorRequestFailed), HTTPStatus: http.StatusBadRequest, Description: "The request failed but does not map to a more specific API error code."},

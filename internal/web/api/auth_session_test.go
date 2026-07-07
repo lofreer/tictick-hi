@@ -61,7 +61,8 @@ func TestAuthSessionManagementRoutes(t *testing.T) {
 		t.Fatalf("delete current session status = %d body = %s", currentDeleteRecorder.Code, currentDeleteRecorder.Body.String())
 	}
 	currentDeleteResponse := decodeAPIError(t, currentDeleteRecorder)
-	if currentDeleteResponse.Code != "invalid_state" {
+	if currentDeleteResponse.Code != "auth_current_session_revoke_forbidden" ||
+		currentDeleteResponse.Message != "current session cannot be revoked" {
 		t.Fatalf("unexpected delete current response: %#v", currentDeleteResponse)
 	}
 

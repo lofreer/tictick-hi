@@ -55,3 +55,13 @@ func TestOperatorLastEnabledErrorPreservesInvalidStateCause(t *testing.T) {
 		t.Fatalf("DomainErrorCode = %q, %t; want %q, true", code, ok, ErrorCodeOperatorLastEnabledRequired)
 	}
 }
+
+func TestAuthCurrentSessionRevokeForbiddenErrorPreservesInvalidStateCause(t *testing.T) {
+	err := AuthCurrentSessionRevokeForbiddenError()
+	if !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("error %v does not unwrap ErrInvalidState", err)
+	}
+	if code, ok := DomainErrorCode(err); !ok || code != ErrorCodeAuthCurrentSessionRevokeForbidden {
+		t.Fatalf("DomainErrorCode = %q, %t; want %q, true", code, ok, ErrorCodeAuthCurrentSessionRevokeForbidden)
+	}
+}

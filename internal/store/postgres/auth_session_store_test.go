@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -48,5 +49,42 @@ func TestOperatorSessionStorePersistsClientContext(t *testing.T) {
 	}
 	if sessions[0].RemoteAddr != session.RemoteAddr || sessions[0].UserAgent != session.UserAgent {
 		t.Fatalf("unexpected session context: %#v", sessions[0])
+	}
+}
+
+func TestOperatorSessionStoreRejectsRevokingCurrentSession(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("session_current"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := data.OperatorSession{
+		ID:         integrationID("os_current"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_current"),
+		ExpiresAt:  time.Now().UTC().Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	err = store.DeleteOperatorSessionByID(ctx, operator.ID, session.ID, session.TokenHash)
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("DeleteOperatorSessionByID error = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeAuthCurrentSessionRevokeForbidden {
+		t.Fatalf("DeleteOperatorSessionByID code = %q, %t; want %q, true", code, ok, data.ErrorCodeAuthCurrentSessionRevokeForbidden)
 	}
 }

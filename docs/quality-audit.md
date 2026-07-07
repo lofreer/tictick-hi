@@ -12409,6 +12409,47 @@ Definition of Done：
 - 操作员管理仍缺 RBAC、角色级自保护、多人审批和生产级账号恢复流程。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 auth current session revoke error code 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `internal/data` 新增 `auth_current_session_revoke_forbidden` 领域错误码，仍以 `ErrInvalidState` 作为 cause。
+- PostgreSQL store 和 API fake repository 在用户尝试通过 session 列表撤销当前 session 时返回 `AuthCurrentSessionRevokeForbiddenError()`。
+- API error catalog 新增 HTTP 409 `auth_current_session_revoke_forbidden`，`writeStoreError` 优先映射该领域错误码。
+- 重新生成 `web/frontend/src/types/api.generated.ts`，使前端 `APIErrorCode` union 包含新增错误码。
+- 测试覆盖当前 session 删除 API 响应 code、领域错误保留 `ErrInvalidState` cause、API helper 映射、API error catalog / schema enum；PostgreSQL store 当前 session 删除测试补充断言但当前无真实测试库时跳过。
+
+范围外：
+
+- 不改变 session 列表、非当前 session 撤销、logout 当前 session、CSRF 行为、cookie 行为、审计事件行为或前端提示文案。
+- 不补 notification、backtest 等其它领域的细分错误码。
+
+当前验证：
+
+- `go test ./internal/data ./internal/web/api ./internal/store/postgres -run 'TestAuthCurrentSessionRevokeForbiddenErrorPreservesInvalidStateCause|TestAuthSessionManagementRoutes|TestOperatorSessionStoreRejectsRevokingCurrentSession|TestWriteStoreErrorMapsAuthCurrentSessionRevokeForbidden|TestAPIErrorCatalogHasUniqueKnownCodes|TestAPIErrorResponseSchemaUsesCatalogEnum' -count=1 -v` 通过；PostgreSQL 集成用例因未设置 `TICTICK_TEST_DATABASE_URL` 按约定跳过。
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/data ./internal/web/api ./internal/store/postgres -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 PostgreSQL 真实数据库当前 session 删除冲突测试；当前本机未设置 `TICTICK_TEST_DATABASE_URL`。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- API server 仍缺更多领域的错误语义细分和生产级审计边界。
+- 登录会话仍缺更完整弱密码字典、历史 / 轮换、MFA、RBAC、角色级自保护和生产级设备上下文。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

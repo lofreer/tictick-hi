@@ -11,11 +11,12 @@ var ErrInvalidState = errors.New("invalid state")
 type ErrorCode string
 
 const (
-	ErrorCodeMarketInstrumentNotActive      ErrorCode = "market_instrument_not_active"
-	ErrorCodeDataSyncRetryRequiresFailed    ErrorCode = "data_sync_retry_requires_failed"
-	ErrorCodeDataSyncCommandInvalidState    ErrorCode = "data_sync_command_invalid_state"
-	ErrorCodeTradingTaskCommandInvalidState ErrorCode = "trading_task_command_invalid_state"
-	ErrorCodeOperatorLastEnabledRequired    ErrorCode = "operator_last_enabled_required"
+	ErrorCodeMarketInstrumentNotActive         ErrorCode = "market_instrument_not_active"
+	ErrorCodeDataSyncRetryRequiresFailed       ErrorCode = "data_sync_retry_requires_failed"
+	ErrorCodeDataSyncCommandInvalidState       ErrorCode = "data_sync_command_invalid_state"
+	ErrorCodeTradingTaskCommandInvalidState    ErrorCode = "trading_task_command_invalid_state"
+	ErrorCodeOperatorLastEnabledRequired       ErrorCode = "operator_last_enabled_required"
+	ErrorCodeAuthCurrentSessionRevokeForbidden ErrorCode = "auth_current_session_revoke_forbidden"
 )
 
 type DomainError struct {
@@ -76,6 +77,14 @@ func OperatorLastEnabledError() error {
 	return &DomainError{
 		Code:    ErrorCodeOperatorLastEnabledRequired,
 		Message: "at least one operator must remain enabled",
+		Cause:   ErrInvalidState,
+	}
+}
+
+func AuthCurrentSessionRevokeForbiddenError() error {
+	return &DomainError{
+		Code:    ErrorCodeAuthCurrentSessionRevokeForbidden,
+		Message: "current session cannot be revoked",
 		Cause:   ErrInvalidState,
 	}
 }

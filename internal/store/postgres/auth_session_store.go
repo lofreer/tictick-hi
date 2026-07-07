@@ -67,7 +67,7 @@ func (store *Store) DeleteOperatorSessionByID(
 		return fmt.Errorf("get operator session: %w", err)
 	}
 	if tokenHash == currentTokenHash {
-		return data.ErrInvalidState
+		return data.AuthCurrentSessionRevokeForbiddenError()
 	}
 
 	tag, err := store.pool.Exec(ctx, `

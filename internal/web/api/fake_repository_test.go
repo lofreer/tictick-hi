@@ -501,7 +501,7 @@ func (repository *fakeRepository) DeleteOperatorSessionByID(
 			continue
 		}
 		if tokenHash == currentTokenHash {
-			return data.ErrInvalidState
+			return data.AuthCurrentSessionRevokeForbiddenError()
 		}
 		delete(repository.sessions, tokenHash)
 		return nil

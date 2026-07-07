@@ -57,6 +57,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorTradingTaskCommandInvalidState,
 		apiErrorOperatorSelfDisableForbidden,
 		apiErrorOperatorLastEnabledRequired,
+		apiErrorAuthCurrentSessionRevokeForbidden,
 		apiErrorTooManyRequests,
 		apiErrorInternal,
 		apiErrorRequestFailed,
@@ -163,6 +164,21 @@ func TestWriteStoreErrorMapsOperatorLastEnabledRequired(t *testing.T) {
 	response := decodeAPIError(t, recorder)
 	if response.Code != string(apiErrorOperatorLastEnabledRequired) ||
 		response.Message != "at least one operator must remain enabled" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+}
+
+func TestWriteStoreErrorMapsAuthCurrentSessionRevokeForbidden(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	writeStoreError(recorder, data.AuthCurrentSessionRevokeForbiddenError())
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusConflict)
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != string(apiErrorAuthCurrentSessionRevokeForbidden) ||
+		response.Message != "current session cannot be revoked" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }
