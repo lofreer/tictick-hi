@@ -26,9 +26,9 @@
           @retry="loadTasks"
         />
         <DataSyncTaskTable
-          v-else-if="tasks.length > 0"
+          v-else-if="filteredTasks.length > 0"
           :repairing-task-id="repairTaskGapsLoadingId"
-          :tasks="tasks"
+          :tasks="filteredTasks"
           @view="selectTask"
           @view-gaps="viewTaskGaps"
           @view-invalid="viewTaskInvalidIssues"
@@ -38,7 +38,7 @@
           @toggle-realtime="toggleRealtime"
           @toggle-sync="toggleSync"
         />
-        <EmptyState v-else :title="t('research.noTasks')" />
+        <EmptyState v-else :title="tasksEmptyTitle" />
       </section>
 
       <section class="surface research-chart-panel">
@@ -298,7 +298,7 @@ const {
   createTask,
   currentMarketInstrumentSyncStatus,
   deleteTask,
-  exchange,
+  exchange, filteredTasks,
   applyTimeRange,
   gapDetails,
   gapDetailsError,
@@ -320,7 +320,7 @@ const {
   selectTask,
   symbol,
   marketInstrumentSyncStatusError,
-  tasks,
+  tasks, tasksEmptyTitle,
   tasksError,
   tasksLoading,
   taskGapRepairNotice,

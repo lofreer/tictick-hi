@@ -45,7 +45,7 @@ function dataQualityMetric(tasks: DataSyncTask[], t: Translate): OverviewDepthMe
     detail: t("overview.depth.dataQualityDetail", { failed, gap, healthy, invalid }),
     statusLabel: statusLabel(statusType, t),
     statusType,
-    to: { name: "research" },
+    to: { name: "research", query: { dataHealth: failed > 0 ? "failed" : invalid > 0 ? "invalid" : gap > 0 ? "gap" : "all" } },
   };
 }
 

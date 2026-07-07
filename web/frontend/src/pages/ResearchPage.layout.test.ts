@@ -7,6 +7,8 @@ import invalidIssueModalSource from "@/components/research/ResearchTaskInvalidIs
 import gapDetailsModalSource from "@/components/research/ResearchTaskGapDetailsModal.vue?raw";
 import windowControlsSource from "@/components/research/ResearchWindowControls.vue?raw";
 import repairPollingRefreshSource from "@/composables/researchRepairPollingRefresh.ts?raw";
+import researchFiltersSource from "@/composables/researchTaskFilters.ts?raw";
+import researchWorkspaceSource from "@/composables/useResearchWorkspace.ts?raw";
 import source from "./ResearchPage.vue?raw";
 
 const pageStyles = readFileSync("src/pages/ResearchPage.css", "utf8");
@@ -203,6 +205,20 @@ describe("ResearchPage chart layout contract", () => {
     expect(windowControlsSource).toContain("research.nextWindow");
     expect(windowControlsSource).toContain("timeRangePresets");
     expect(windowControlsSource).toContain("research.timeRange");
+  });
+
+  it("filters sync tasks from data health query context", () => {
+    expect(source).toContain('v-else-if="filteredTasks.length > 0"');
+    expect(source).toContain(':tasks="filteredTasks"');
+    expect(source).toContain('tasksEmptyTitle');
+    expect(researchWorkspaceSource).toContain("dataHealthFilterFromQuery(route.query.dataHealth)");
+    expect(researchWorkspaceSource).toContain("taskMatchesDataHealthFilter");
+    expect(researchWorkspaceSource).toContain("dataHealthQueryValue(dataHealthFilter.value)");
+    expect(researchFiltersSource).toContain('"gap"');
+    expect(researchFiltersSource).toContain('"invalid"');
+    for (const messages of [zhResearchMessages, enResearchMessages]) {
+      expect(messages).toContain('"research.noTasksForFilter"');
+    }
   });
 
   it("shows the current candle window metadata", () => {

@@ -35,6 +35,7 @@ export const enUSResearchMessages: Record<string, string> = {
     "research.dataHealth.retrying": "Retrying",
     "research.dataHealth.insufficient": "Insufficient",
     "research.dataHealth.invalid": "Invalid",
+    "research.noTasksForFilter": "No sync tasks for this filter",
     "research.worker": "Worker",
     "research.workerFinished": "Finished",
     "research.workerStarted": "Started",

@@ -22,6 +22,7 @@ import {
 } from "@/composables/researchWorkspaceHelpers";
 import { researchChartGapMarkers } from "@/composables/researchChartGapMarkers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
+import { dataHealthFilterFromQuery, dataHealthQueryValue, taskMatchesDataHealthFilter } from "@/composables/researchTaskFilters";
 import { loadResearchTaskSnapshots } from "@/composables/researchTaskSnapshots";
 import { retryResearchSyncTask, toggleResearchRealtimeTask, toggleResearchSyncTask } from "@/composables/researchTaskCommandActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
@@ -66,6 +67,7 @@ export function useResearchWorkspace() {
   const candlesError = ref("");
   const createModalOpen = ref(false);
   const selectedChartTask = ref<DataSyncTask | null>(null);
+  const dataHealthFilter = ref(dataHealthFilterFromQuery(route.query.dataHealth));
   const createForm = reactive(initialResearchForm(exchange.value, symbol.value, interval.value));
   const {
     create: createMarketInstrumentSyncStatus,
@@ -91,6 +93,8 @@ export function useResearchWorkspace() {
   );
   const canLoadPreviousCandles = computed(() => canLoadPreviousCandleWindow(candleResult.value));
   const canLoadNextCandles = computed(() => canLoadNextCandleWindow(candleResult.value));
+  const filteredTasks = computed(() => tasks.value.filter((task) => taskMatchesDataHealthFilter(task, dataHealthFilter.value)));
+  const tasksEmptyTitle = computed(() => dataHealthFilter.value === "all" ? t("research.noTasks") : t("research.noTasksForFilter"));
   useMarketSymbolNormalization(exchange, symbol, createForm);
 
   watch([exchange, symbol, interval, candleWindowFrom, candleWindowTo, candleWindowCursor], (nextValues, previousValues) => {
@@ -223,7 +227,7 @@ export function useResearchWorkspace() {
   }
 
   function replaceResearchQuery() {
-    const query = researchQuery(exchange.value, symbol.value, interval.value, candleWindowFrom.value, candleWindowTo.value, candleWindowCursor.value);
+    const query = researchQuery(exchange.value, symbol.value, interval.value, candleWindowFrom.value, candleWindowTo.value, candleWindowCursor.value, dataHealthQueryValue(dataHealthFilter.value));
     router.replace({
       name: "research",
       query,
@@ -358,6 +362,7 @@ export function useResearchWorkspace() {
     currentMarketInstrumentSyncStatus,
     deleteTask,
     exchange,
+    filteredTasks,
     applyTimeRange,
     gapDetails,
     gapDetailsError,
@@ -380,7 +385,7 @@ export function useResearchWorkspace() {
     selectTask,
     symbol,
     marketInstrumentSyncStatusError,
-    tasks,
+    tasks, tasksEmptyTitle,
     tasksError,
     tasksLoading,
     taskGapRepairNotice,

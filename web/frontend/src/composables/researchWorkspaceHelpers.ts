@@ -33,8 +33,9 @@ export function readOptionalQuery(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : "";
 }
 
-export function researchQuery(exchange: string, symbol: string, interval: string, from: string, to: string, cursor = "") {
+export function researchQuery(exchange: string, symbol: string, interval: string, from: string, to: string, cursor = "", dataHealth = "") {
   const query: Record<string, string> = { exchange, symbol, interval };
+  if (dataHealth) query.dataHealth = dataHealth;
   if (cursor) {
     query.cursor = cursor;
     return query;

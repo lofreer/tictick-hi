@@ -35,6 +35,7 @@ export const zhCNResearchMessages: Record<string, string> = {
     "research.dataHealth.retrying": "重试中",
     "research.dataHealth.insufficient": "数据不足",
     "research.dataHealth.invalid": "数据异常",
+    "research.noTasksForFilter": "当前筛选下暂无同步任务",
     "research.worker": "Worker",
     "research.workerFinished": "已结束",
     "research.workerStarted": "已启动",

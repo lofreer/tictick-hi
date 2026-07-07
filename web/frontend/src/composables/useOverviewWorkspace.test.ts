@@ -120,14 +120,14 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.detail).toContain("异常 1");
     expect(workspace.summaryCards.value.find((card) => card.key === "workers")?.detail).toContain("过期锁 1");
     expect(workspace.summaryCards.value.map((card) => ({ key: card.key, to: card.to }))).toEqual([
-      { key: "sync", to: { name: "research" } },
+      { key: "sync", to: { name: "research", query: { dataHealth: "failed" } } },
       { key: "backtests", to: { name: "backtests", query: { status: "failed" } } },
       { key: "trading", to: { name: "trading", query: { status: "failed" } } },
       { key: "notifications", to: { name: "system-notifications", query: { status: "failed" } } },
       { key: "workers", to: { name: "system-health" } },
     ]);
     expect(workspace.depthMetrics.value.map((metric) => ({ key: metric.key, value: metric.value, statusType: metric.statusType, to: metric.to }))).toEqual([
-      { key: "data-quality", value: "0/3", statusType: "error", to: { name: "research" } },
+      { key: "data-quality", value: "0/3", statusType: "error", to: { name: "research", query: { dataHealth: "failed" } } },
       { key: "automation", value: "1/3", statusType: "error", to: { name: "system-health" } },
       { key: "execution", value: "1/4", statusType: "error", to: { name: "trading", query: { status: "failed" } } },
       { key: "delivery", value: "0/1", statusType: "error", to: { name: "system-notifications", query: { status: "failed" } } },
@@ -145,6 +145,18 @@ describe("useOverviewWorkspace", () => {
       "trading-failed",
       "notifications-failed",
     ]);
+    expect(workspace.alerts.value.find((alert) => alert.key === "sync-failed")?.to).toEqual({
+      name: "research",
+      query: { dataHealth: "failed" },
+    });
+    expect(workspace.alerts.value.find((alert) => alert.key === "sync-gap")?.to).toEqual({
+      name: "research",
+      query: { dataHealth: "gap" },
+    });
+    expect(workspace.alerts.value.find((alert) => alert.key === "sync-invalid")?.to).toEqual({
+      name: "research",
+      query: { dataHealth: "invalid" },
+    });
     expect(workspace.alerts.value.find((alert) => alert.key === "notifications-failed")?.to).toEqual({
       name: "system-notifications",
       query: { status: "failed" },

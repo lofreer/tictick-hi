@@ -101,7 +101,7 @@ export function useOverviewWorkspace() {
         invalid: countDataHealth(dataSyncTasks.value, "invalid"),
         realtime: dataSyncTasks.value.filter((task) => task.realtimeEnabled).length,
       }),
-      to: { name: "research" },
+      to: { name: "research", query: { dataHealth: countStatus(dataSyncTasks.value, "failed") > 0 ? "failed" : countDataHealth(dataSyncTasks.value, "invalid") > 0 ? "invalid" : countDataHealth(dataSyncTasks.value, "gap") > 0 ? "gap" : "all" } },
     },
     {
       key: "backtests",
@@ -155,9 +155,9 @@ export function useOverviewWorkspace() {
     if (factsError.value) {
       items.push(alert("recent-facts-degraded", t("overview.recentActivity"), t("overview.degraded"), factsError.value, "warning", { name: "overview" }));
     }
-    addCountAlert(items, "sync-failed", dataSyncTasks.value, "failed", t("overview.dataSync"), { name: "research" });
-    addDataHealthAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research" });
-    addDataHealthAlert(items, "sync-invalid", dataSyncTasks.value, "invalid", t("overview.dataSync"), { name: "research" });
+    addCountAlert(items, "sync-failed", dataSyncTasks.value, "failed", t("overview.dataSync"), { name: "research", query: { dataHealth: "failed" } });
+    addDataHealthAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research", query: { dataHealth: "gap" } });
+    addDataHealthAlert(items, "sync-invalid", dataSyncTasks.value, "invalid", t("overview.dataSync"), { name: "research", query: { dataHealth: "invalid" } });
     addCountAlert(items, "backtests-failed", backtests.value, "failed", t("overview.backtests"), { name: "backtests", query: { status: "failed" } });
     addCountAlert(items, "trading-failed", tradingTasks.value, "failed", t("overview.tradingTasks"), { name: "trading", query: { status: "failed" } });
 
