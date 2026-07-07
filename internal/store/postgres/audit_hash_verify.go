@@ -34,6 +34,10 @@ func (store *Store) VerifyAuditEventHashChain(ctx context.Context) (data.AuditEv
 	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE event_hash = ''`).Scan(&skippedCount); err != nil {
 		return data.AuditEventHashChainVerification{}, fmt.Errorf("count unhashed audit events: %w", err)
 	}
+	anchorHashes, err := store.listAuditEventRetentionAnchorHashes(ctx)
+	if err != nil {
+		return data.AuditEventHashChainVerification{}, err
+	}
 	rows, err := store.pool.Query(ctx, `
 			SELECT id, coalesce(actor_operator_id, ''), actor_username, action, resource_type,
 			       resource_id, outcome, request_method, request_path, remote_addr,
@@ -50,7 +54,28 @@ func (store *Store) VerifyAuditEventHashChain(ctx context.Context) (data.AuditEv
 	if err != nil {
 		return data.AuditEventHashChainVerification{}, fmt.Errorf("collect hashed audit events: %w", err)
 	}
-	return verifyAuditEventHashRecords(records, skippedCount, time.Now().UTC())
+	return verifyAuditEventHashRecords(records, skippedCount, anchorHashes, time.Now().UTC())
+}
+
+func (store *Store) listAuditEventRetentionAnchorHashes(ctx context.Context) (map[string]struct{}, error) {
+	rows, err := store.pool.Query(ctx, `SELECT anchor_hash FROM audit_event_retention_anchors`)
+	if err != nil {
+		return nil, fmt.Errorf("list audit event retention anchors: %w", err)
+	}
+	defer rows.Close()
+
+	anchors := map[string]struct{}{}
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, fmt.Errorf("scan audit event retention anchor: %w", err)
+		}
+		anchors[hash] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("collect audit event retention anchors: %w", err)
+	}
+	return anchors, nil
 }
 
 func scanAuditEventHashRecord(row pgx.CollectableRow) (auditEventHashRecord, error) {
@@ -75,7 +100,12 @@ func scanAuditEventHashRecord(row pgx.CollectableRow) (auditEventHashRecord, err
 	return record, err
 }
 
-func verifyAuditEventHashRecords(records []auditEventHashRecord, skippedCount int, checkedAt time.Time) (data.AuditEventHashChainVerification, error) {
+func verifyAuditEventHashRecords(
+	records []auditEventHashRecord,
+	skippedCount int,
+	retentionAnchorHashes map[string]struct{},
+	checkedAt time.Time,
+) (data.AuditEventHashChainVerification, error) {
 	result := data.AuditEventHashChainVerification{
 		Status:       "ok",
 		CheckedCount: len(records),
@@ -95,7 +125,6 @@ func verifyAuditEventHashRecords(records []auditEventHashRecord, skippedCount in
 	}
 
 	byHash := make(map[string]auditEventHashRecord, len(records))
-	childByPrevious := make(map[string]auditEventHashRecord, len(records))
 	for _, record := range records {
 		expected, err := recomputeAuditEventHash(record)
 		if err != nil {
@@ -108,24 +137,26 @@ func verifyAuditEventHashRecords(records []auditEventHashRecord, skippedCount in
 			return failedAuditEventHashVerification(result, record.ID, "duplicate audit event hash"), nil
 		}
 		byHash[record.EventHash] = record
+	}
+
+	var root auditEventHashRecord
+	childByPrevious := make(map[string]auditEventHashRecord, len(records))
+	for _, record := range records {
 		if record.PreviousHash == "" {
 			result.RootCount++
+			root = record
 			continue
 		}
 		if _, exists := childByPrevious[record.PreviousHash]; exists {
 			return failedAuditEventHashVerification(result, record.ID, "audit event hash chain forks"), nil
 		}
 		childByPrevious[record.PreviousHash] = record
-	}
-
-	var root auditEventHashRecord
-	for _, record := range records {
-		if record.PreviousHash == "" {
-			root = record
-			continue
-		}
 		if _, exists := byHash[record.PreviousHash]; !exists {
-			return failedAuditEventHashVerification(result, record.ID, "audit event previous hash is missing"), nil
+			if _, anchored := retentionAnchorHashes[record.PreviousHash]; !anchored {
+				return failedAuditEventHashVerification(result, record.ID, "audit event previous hash is missing"), nil
+			}
+			result.RootCount++
+			root = record
 		}
 	}
 	if result.RootCount != 1 {

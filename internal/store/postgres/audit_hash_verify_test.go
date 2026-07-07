@@ -10,7 +10,12 @@ func TestVerifyAuditEventHashRecordsAcceptsValidChain(t *testing.T) {
 	first := testAuditHashRecord(t, "ae_1", "")
 	second := testAuditHashRecord(t, "ae_2", first.EventHash)
 
-	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{first, second}, 1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	result, err := verifyAuditEventHashRecords(
+		[]auditEventHashRecord{first, second},
+		1,
+		nil,
+		time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,11 +29,33 @@ func TestVerifyAuditEventHashRecordsAcceptsValidChain(t *testing.T) {
 	}
 }
 
+func TestVerifyAuditEventHashRecordsAcceptsRetentionAnchor(t *testing.T) {
+	anchorHash := strings.Repeat("a", 64)
+	record := testAuditHashRecord(t, "ae_2", anchorHash)
+
+	result, err := verifyAuditEventHashRecords(
+		[]auditEventHashRecord{record},
+		0,
+		map[string]struct{}{anchorHash: {}},
+		time.Now(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "ok" ||
+		result.CheckedCount != 1 ||
+		result.RootCount != 1 ||
+		result.TailCount != 1 ||
+		result.BrokenEventID != "" {
+		t.Fatalf("verification result = %#v", result)
+	}
+}
+
 func TestVerifyAuditEventHashRecordsDetectsHashMismatch(t *testing.T) {
 	record := testAuditHashRecord(t, "ae_1", "")
 	record.Action = "operator.enable"
 
-	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{record}, 0, time.Now())
+	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{record}, 0, nil, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +69,7 @@ func TestVerifyAuditEventHashRecordsDetectsHashMismatch(t *testing.T) {
 func TestVerifyAuditEventHashRecordsDetectsMissingPreviousHash(t *testing.T) {
 	record := testAuditHashRecord(t, "ae_2", strings.Repeat("a", 64))
 
-	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{record}, 0, time.Now())
+	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{record}, 0, nil, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +84,7 @@ func TestVerifyAuditEventHashRecordsReportsMalformedMetadata(t *testing.T) {
 	record := testAuditHashRecord(t, "ae_1", "")
 	record.Metadata = []byte(`{"enabled":false}`)
 
-	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{record}, 0, time.Now())
+	result, err := verifyAuditEventHashRecords([]auditEventHashRecord{record}, 0, nil, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
