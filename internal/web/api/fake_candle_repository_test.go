@@ -198,6 +198,7 @@ func (repository *fakeRepository) RepairMarketCandleGap(
 		StartTime:       &gap.From,
 		EndTime:         &gap.To,
 		RequestID:       request.RequestID,
+		TraceParent:     request.TraceParent,
 		SyncEnabled:     true,
 		RealtimeEnabled: false,
 		Status:          data.TaskStatusPending,
@@ -222,12 +223,13 @@ func (repository *fakeRepository) RepairMarketCandleGaps(
 	gaps := make([]data.CandleGap, 0, len(request.Gaps))
 	for _, gapRequest := range request.Gaps {
 		gap, ok, err := repository.fakeMarketCandleGap(data.RepairMarketCandleGapRequest{
-			Exchange:  request.Exchange,
-			Symbol:    request.Symbol,
-			Interval:  request.Interval,
-			From:      gapRequest.From,
-			To:        gapRequest.To,
-			RequestID: request.RequestID,
+			Exchange:    request.Exchange,
+			Symbol:      request.Symbol,
+			Interval:    request.Interval,
+			From:        gapRequest.From,
+			To:          gapRequest.To,
+			RequestID:   request.RequestID,
+			TraceParent: request.TraceParent,
 		})
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err
@@ -255,6 +257,7 @@ func (repository *fakeRepository) RepairMarketCandleGaps(
 			StartTime:       &startTime,
 			EndTime:         &endTime,
 			RequestID:       request.RequestID,
+			TraceParent:     request.TraceParent,
 			SyncEnabled:     true,
 			RealtimeEnabled: false,
 			Status:          data.TaskStatusPending,
@@ -312,6 +315,7 @@ func (repository *fakeRepository) RepairMarketCandleInvalidIssues(
 			StartTime:       &startTime,
 			EndTime:         &endTime,
 			RequestID:       request.RequestID,
+			TraceParent:     request.TraceParent,
 			SyncEnabled:     true,
 			RealtimeEnabled: false,
 			Status:          data.TaskStatusPending,

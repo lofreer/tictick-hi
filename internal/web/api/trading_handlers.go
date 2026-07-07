@@ -85,6 +85,7 @@ func (server *Server) handleTradingTaskCollection(w http.ResponseWriter, r *http
 		}
 		request.StrategyParams = normalizedParams
 		request.RequestID = RequestIDFromContext(r.Context())
+		request.TraceParent = TraceParentFromContext(r.Context())
 		task, err := server.repository.CreateTradingTask(r.Context(), request)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

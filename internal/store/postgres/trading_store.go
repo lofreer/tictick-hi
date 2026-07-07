@@ -13,7 +13,7 @@ import (
 
 const tradingTaskColumns = `
 	id, name, type, exchange, account_id, symbol, interval, strategy_id,
-	strategy_params::text, intent_policy::text, COALESCE(request_id, ''), status,
+	strategy_params::text, intent_policy::text, COALESCE(request_id, ''), COALESCE(traceparent, ''), status,
 	COALESCE(locked_by, ''), locked_until, heartbeat_at, started_at,
 	finished_at, COALESCE(last_error, ''), attempt_count, created_at, updated_at`
 
@@ -50,9 +50,9 @@ func (store *Store) CreateTradingTask(
 	row := store.pool.QueryRow(ctx, `
 		INSERT INTO trading_tasks (
 			id, name, type, exchange, account_id, symbol, interval, strategy_id,
-			strategy_params, intent_policy, request_id
+			strategy_params, intent_policy, request_id, traceparent
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, NULLIF($11, ''))
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, NULLIF($11, ''), NULLIF($12, ''))
 		RETURNING `+tradingTaskColumns,
 		id,
 		task.Name,
@@ -65,6 +65,7 @@ func (store *Store) CreateTradingTask(
 		paramsJSON,
 		policyJSON,
 		task.RequestID,
+		task.TraceParent,
 	)
 
 	created, err := scanTradingTaskRow(row)

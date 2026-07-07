@@ -94,6 +94,7 @@ func (server *Server) repairMarketCandleGap(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	request.RequestID = RequestIDFromContext(r.Context())
+	request.TraceParent = TraceParentFromContext(r.Context())
 	result, err := server.repository.RepairMarketCandleGap(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)
@@ -121,6 +122,7 @@ func (server *Server) repairMarketCandleGaps(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	request.RequestID = RequestIDFromContext(r.Context())
+	request.TraceParent = TraceParentFromContext(r.Context())
 	result, err := server.repository.RepairMarketCandleGaps(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)
@@ -148,6 +150,7 @@ func (server *Server) repairMarketCandleInvalidIssues(w http.ResponseWriter, r *
 		return
 	}
 	request.RequestID = RequestIDFromContext(r.Context())
+	request.TraceParent = TraceParentFromContext(r.Context())
 	result, err := server.repository.RepairMarketCandleInvalidIssues(r.Context(), request)
 	if err != nil {
 		writeStoreError(w, err)

@@ -26,6 +26,7 @@ type BacktestTask struct {
 	StartTime      *time.Time     `json:"startTime,omitempty"`
 	EndTime        *time.Time     `json:"endTime,omitempty"`
 	RequestID      string         `json:"requestId,omitempty"`
+	TraceParent    string         `json:"traceparent,omitempty"`
 	StrategyID     string         `json:"strategyId"`
 	StrategyParams map[string]any `json:"strategyParams"`
 	InitialBalance string         `json:"initialBalance"`
@@ -56,6 +57,7 @@ type CreateBacktestTask struct {
 	SlippageBps    string         `json:"slippageBps"`
 	TriggerMode    string         `json:"triggerMode"`
 	RequestID      string         `json:"-"`
+	TraceParent    string         `json:"-"`
 }
 
 type BacktestOrder struct {
@@ -88,6 +90,7 @@ type TradingTask struct {
 	StrategyParams map[string]any `json:"strategyParams"`
 	IntentPolicy   map[string]any `json:"intentPolicy"`
 	RequestID      string         `json:"requestId,omitempty"`
+	TraceParent    string         `json:"traceparent,omitempty"`
 	Status         TaskStatus     `json:"status"`
 	LockedBy       string         `json:"lockedBy,omitempty"`
 	LockedUntil    *time.Time     `json:"lockedUntil,omitempty"`
@@ -111,6 +114,7 @@ type CreateTradingTask struct {
 	StrategyParams map[string]any `json:"strategyParams"`
 	IntentPolicy   map[string]any `json:"intentPolicy"`
 	RequestID      string         `json:"-"`
+	TraceParent    string         `json:"-"`
 }
 
 type StrategyIntent struct {

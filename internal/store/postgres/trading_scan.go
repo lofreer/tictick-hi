@@ -28,6 +28,7 @@ func scanTradingTaskRow(row rowScanner) (data.TradingTask, error) {
 		&strategyParamsJSON,
 		&intentPolicyJSON,
 		&task.RequestID,
+		&task.TraceParent,
 		&task.Status,
 		&task.LockedBy,
 		&task.LockedUntil,

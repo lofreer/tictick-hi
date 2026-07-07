@@ -115,6 +115,7 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		request.RequestID = RequestIDFromContext(r.Context())
+		request.TraceParent = TraceParentFromContext(r.Context())
 		task, err := server.repository.CreateDataSyncTask(r.Context(), request)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -243,7 +244,8 @@ func (server *Server) listDataTaskInvalidIssues(w http.ResponseWriter, r *http.R
 
 func (server *Server) repairDataTaskGaps(w http.ResponseWriter, r *http.Request, id string) {
 	request := data.RepairDataSyncTaskGapsRequest{
-		RequestID: RequestIDFromContext(r.Context()),
+		RequestID:   RequestIDFromContext(r.Context()),
+		TraceParent: TraceParentFromContext(r.Context()),
 	}
 	result, err := server.repository.RepairDataSyncTaskGaps(r.Context(), id, request)
 	if err != nil {
@@ -267,6 +269,7 @@ func (server *Server) repairDataTaskInvalidIssues(w http.ResponseWriter, r *http
 		return
 	}
 	request.RequestID = RequestIDFromContext(r.Context())
+	request.TraceParent = TraceParentFromContext(r.Context())
 	result, err := server.repository.RepairDataSyncTaskInvalidIssues(r.Context(), id, request)
 	if err != nil {
 		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {
@@ -304,6 +307,7 @@ func (server *Server) repairDataTaskGap(w http.ResponseWriter, r *http.Request, 
 		request.To = to
 	}
 	request.RequestID = RequestIDFromContext(r.Context())
+	request.TraceParent = TraceParentFromContext(r.Context())
 	result, err := server.repository.RepairDataSyncTaskGap(r.Context(), id, request)
 	if err != nil {
 		if server.writeDataSyncTaskMarketInstrumentCommandError(w, r, id, err) {

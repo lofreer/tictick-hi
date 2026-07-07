@@ -153,10 +153,10 @@ func (store *Store) CreateDataSyncTask(
 	}
 
 	row := store.pool.QueryRow(ctx, `
-		INSERT INTO data_sync_tasks (id, exchange, symbol, interval, start_time, end_time, request_id)
-		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''))
+		INSERT INTO data_sync_tasks (id, exchange, symbol, interval, start_time, end_time, request_id, traceparent)
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), NULLIF($8, ''))
 		RETURNING `+dataSyncTaskReturningColumns(),
-		id, task.Exchange, task.Symbol, task.Interval, task.StartTime, task.EndTime, task.RequestID,
+		id, task.Exchange, task.Symbol, task.Interval, task.StartTime, task.EndTime, task.RequestID, task.TraceParent,
 	)
 
 	created, err := scanDataSyncTaskRow(row)

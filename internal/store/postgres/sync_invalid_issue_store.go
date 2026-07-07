@@ -95,7 +95,7 @@ func (store *Store) RepairDataSyncTaskInvalidIssues(
 			result.SkippedExisting++
 			continue
 		}
-		task, err := insertDataSyncRepairTask(ctx, tx, source, window, request.RequestID)
+		task, err := insertDataSyncRepairTask(ctx, tx, source, window, request.RequestID, request.TraceParent)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err
 		}

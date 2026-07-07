@@ -60,6 +60,7 @@ type DataSyncTask struct {
 	EndTime              *time.Time              `json:"endTime,omitempty"`
 	RepairSourceTaskID   string                  `json:"repairSourceTaskId,omitempty"`
 	RequestID            string                  `json:"requestId,omitempty"`
+	TraceParent          string                  `json:"traceparent,omitempty"`
 	SyncEnabled          bool                    `json:"syncEnabled"`
 	RealtimeEnabled      bool                    `json:"realtimeEnabled"`
 	Status               TaskStatus              `json:"status"`
@@ -163,20 +164,23 @@ type DataSyncGapRepairResult struct {
 }
 
 type RepairDataSyncTaskGapRequest struct {
-	From      time.Time `json:"from"`
-	To        time.Time `json:"to"`
-	RequestID string    `json:"-"`
+	From        time.Time `json:"from"`
+	To          time.Time `json:"to"`
+	RequestID   string    `json:"-"`
+	TraceParent string    `json:"-"`
 }
 
 type RepairDataSyncTaskGapsRequest struct {
-	RequestID string `json:"-"`
+	RequestID   string `json:"-"`
+	TraceParent string `json:"-"`
 }
 
 type RepairDataSyncInvalidIssuesRequest struct {
-	Code      string     `json:"code,omitempty"`
-	From      *time.Time `json:"from,omitempty"`
-	To        *time.Time `json:"to,omitempty"`
-	RequestID string     `json:"-"`
+	Code        string     `json:"code,omitempty"`
+	From        *time.Time `json:"from,omitempty"`
+	To          *time.Time `json:"to,omitempty"`
+	RequestID   string     `json:"-"`
+	TraceParent string     `json:"-"`
 }
 
 type DataSyncResult struct {
@@ -188,10 +192,11 @@ type DataSyncResult struct {
 }
 
 type CreateDataSyncTask struct {
-	Exchange  string     `json:"exchange"`
-	Symbol    string     `json:"symbol"`
-	Interval  string     `json:"interval"`
-	StartTime *time.Time `json:"startTime,omitempty"`
-	EndTime   *time.Time `json:"endTime,omitempty"`
-	RequestID string     `json:"-"`
+	Exchange    string     `json:"exchange"`
+	Symbol      string     `json:"symbol"`
+	Interval    string     `json:"interval"`
+	StartTime   *time.Time `json:"startTime,omitempty"`
+	EndTime     *time.Time `json:"endTime,omitempty"`
+	RequestID   string     `json:"-"`
+	TraceParent string     `json:"-"`
 }
