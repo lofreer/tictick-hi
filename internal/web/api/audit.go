@@ -102,6 +102,20 @@ func parseAuditLimit(r *http.Request) int {
 	return limit
 }
 
+func parseAuditEventListQuery(r *http.Request) (data.AuditEventListQuery, error) {
+	query := data.AuditEventListQuery{Limit: parseAuditLimit(r)}
+	value := strings.TrimSpace(r.URL.Query().Get("cursor"))
+	if value == "" {
+		return query, nil
+	}
+	cursor, err := data.DecodeAuditEventCursor(value)
+	if err != nil {
+		return data.AuditEventListQuery{}, err
+	}
+	query.Cursor = &cursor
+	return query, nil
+}
+
 func auditEventsCSV(events []data.AuditEvent) ([]byte, error) {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)

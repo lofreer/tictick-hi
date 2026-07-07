@@ -111,25 +111,55 @@ func (store *Store) RecordAuditEvent(ctx context.Context, event data.CreateAudit
 }
 
 func (store *Store) ListAuditEvents(ctx context.Context, limit int) ([]data.AuditEvent, error) {
-	rows, err := store.pool.Query(ctx, `
+	page, err := store.ListAuditEventPage(ctx, data.AuditEventListQuery{Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	return page.Events, nil
+}
+
+func (store *Store) ListAuditEventPage(ctx context.Context, query data.AuditEventListQuery) (data.AuditEventPage, error) {
+	limit := normalizeAuditEventLimit(query.Limit)
+	dbLimit := limit + 1
+	sql := `
 			SELECT id, coalesce(actor_operator_id, ''), actor_username, action, resource_type,
 			       resource_id, outcome, request_method, request_path, remote_addr,
 			       user_agent, metadata, previous_hash, event_hash, created_at
 			  FROM audit_events
-		 ORDER BY created_at DESC
-		 LIMIT $1`,
-		normalizeAuditEventLimit(limit),
-	)
+		 ORDER BY created_at DESC, id DESC
+		 LIMIT $1`
+	args := []any{dbLimit}
+	if query.Cursor != nil {
+		sql = `
+			SELECT id, coalesce(actor_operator_id, ''), actor_username, action, resource_type,
+			       resource_id, outcome, request_method, request_path, remote_addr,
+			       user_agent, metadata, previous_hash, event_hash, created_at
+			  FROM audit_events
+			 WHERE (created_at, id) < ($2, $3)
+		 ORDER BY created_at DESC, id DESC
+		 LIMIT $1`
+		args = append(args, query.Cursor.CreatedAt, query.Cursor.ID)
+	}
+	rows, err := store.pool.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list audit events: %w", err)
+		return data.AuditEventPage{}, fmt.Errorf("list audit events: %w", err)
 	}
 	defer rows.Close()
 
 	events, err := pgx.CollectRows(rows, scanAuditEvent)
 	if err != nil {
-		return nil, fmt.Errorf("collect audit events: %w", err)
+		return data.AuditEventPage{}, fmt.Errorf("collect audit events: %w", err)
 	}
-	return events, nil
+	page := data.AuditEventPage{Events: events}
+	if len(events) > limit {
+		page.Events = events[:limit]
+		nextCursor, err := data.EncodeAuditEventCursor(data.NewAuditEventCursor(page.Events[len(page.Events)-1]))
+		if err != nil {
+			return data.AuditEventPage{}, fmt.Errorf("encode audit event cursor: %w", err)
+		}
+		page.NextCursor = nextCursor
+	}
+	return page, nil
 }
 
 func scanAuditEvent(row pgx.CollectableRow) (data.AuditEvent, error) {

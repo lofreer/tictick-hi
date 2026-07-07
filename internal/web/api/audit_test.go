@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -58,6 +59,54 @@ func TestSystemAuditEventsRouteRecordsSecurityActions(t *testing.T) {
 		if event.ActorOperatorID == "" || event.ActorUsername != testUsername {
 			t.Fatalf("unexpected actor on audit event: %#v", event)
 		}
+	}
+}
+
+func TestSystemAuditEventsPageReturnsNextCursor(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+	for _, username := range []string{"ops-page-a", "ops-page-b", "ops-page-c"} {
+		recorder := serveAuthenticated(
+			server,
+			auth,
+			http.MethodPost,
+			"/api/system/operators",
+			`{"username":"`+username+`","password":"secret123A","enabled":true}`,
+		)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("create operator status = %d body = %s", recorder.Code, recorder.Body.String())
+		}
+	}
+
+	firstRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/audit-events/page?limit=2", "")
+	if firstRecorder.Code != http.StatusOK {
+		t.Fatalf("first page status = %d body = %s", firstRecorder.Code, firstRecorder.Body.String())
+	}
+	var firstPage data.AuditEventPage
+	if err := json.NewDecoder(firstRecorder.Body).Decode(&firstPage); err != nil {
+		t.Fatal(err)
+	}
+	if len(firstPage.Events) != 2 || firstPage.NextCursor == "" {
+		t.Fatalf("first page = %#v, want two events and next cursor", firstPage)
+	}
+
+	secondRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/audit-events/page?limit=2&cursor="+url.QueryEscape(firstPage.NextCursor), "")
+	if secondRecorder.Code != http.StatusOK {
+		t.Fatalf("second page status = %d body = %s", secondRecorder.Code, secondRecorder.Body.String())
+	}
+	var secondPage data.AuditEventPage
+	if err := json.NewDecoder(secondRecorder.Body).Decode(&secondPage); err != nil {
+		t.Fatal(err)
+	}
+	if len(secondPage.Events) != 2 {
+		t.Fatalf("second page events = %#v, want two older events", secondPage.Events)
+	}
+	if firstPage.Events[0].ID == secondPage.Events[0].ID || firstPage.Events[1].ID == secondPage.Events[0].ID {
+		t.Fatalf("second page overlapped first page: first=%#v second=%#v", firstPage.Events, secondPage.Events)
+	}
+
+	invalidRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/audit-events/page?cursor=bad", "")
+	if invalidRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid cursor status = %d body = %s", invalidRecorder.Code, invalidRecorder.Body.String())
 	}
 }
 

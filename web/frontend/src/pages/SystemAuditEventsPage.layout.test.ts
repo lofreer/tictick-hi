@@ -10,11 +10,21 @@ const enMessages = readFileSync("src/i18n/messages.en.ts", "utf8");
 describe("SystemAuditEventsPage layout contract", () => {
   it("exposes audit CSV export from the page header", () => {
     expect(source).toContain("Download");
+    expect(source).toContain("ChevronDown");
     expect(source).toContain("NSpace");
     expect(source).toContain('href="/api/system/audit-events/export?limit=100"');
+    expect(source).toContain("systemApi.listAuditEventPage(100)");
+    expect(source).toContain("systemApi.listAuditEventPage(100, nextCursor.value)");
+    expect(source).toContain('v-if="nextCursor"');
+    expect(source).toContain('t("system.loadOlderAuditEvents")');
     expect(source).toContain('t("system.exportAuditEvents")');
     expect(source).toContain("@click=\"loadEvents\"");
+    expect(source).toContain("@click=\"loadOlderEvents\"");
     expect(zhMessages).toContain("\"system.exportAuditEvents\"");
+    expect(zhMessages).toContain("\"system.loadOlderAuditEvents\"");
+    expect(zhMessages).toContain("\"system.auditEventsLoadMoreFailed\"");
     expect(enMessages).toContain("\"system.exportAuditEvents\"");
+    expect(enMessages).toContain("\"system.loadOlderAuditEvents\"");
+    expect(enMessages).toContain("\"system.auditEventsLoadMoreFailed\"");
   });
 });

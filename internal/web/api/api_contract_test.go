@@ -123,6 +123,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodPost, "/api/system/operators/{id}/disable"},
 		{http.MethodGet, "/api/system/health"},
 		{http.MethodGet, "/api/system/audit-events"},
+		{http.MethodGet, "/api/system/audit-events/page"},
 		{http.MethodGet, "/api/system/audit-events/export"},
 		{http.MethodGet, "/api/system/api-contract"},
 	}
@@ -148,6 +149,26 @@ func TestAPIContractDeclaresAuditEventsCSVExport(t *testing.T) {
 	}
 	if limit.Schema["maximum"] != maxAuditEventLimit {
 		t.Fatalf("limit schema = %#v, want max %d", limit.Schema, maxAuditEventLimit)
+	}
+}
+
+func TestAPIContractDeclaresAuditEventsCursorPage(t *testing.T) {
+	operation := apiContractDocument().Paths["/api/system/audit-events/page"]["get"]
+	if ref := operation.Responses["200"].Content[jsonMediaType].Schema["$ref"]; ref != "#/components/schemas/AuditEventPage" {
+		t.Fatalf("audit page response schema = %#v, want AuditEventPage", operation.Responses["200"].Content[jsonMediaType].Schema)
+	}
+	parameters := queryParametersByName(operation.Parameters)
+	if _, ok := parameters["cursor"]; !ok {
+		t.Fatal("audit page contract missing cursor query parameter")
+	}
+	if parameters["limit"].Schema["maximum"] != maxAuditEventLimit {
+		t.Fatalf("limit schema = %#v, want max %d", parameters["limit"].Schema, maxAuditEventLimit)
+	}
+	if _, ok := operation.Responses["400"]; !ok {
+		t.Fatal("audit page contract missing 400 response")
+	}
+	if _, ok := apiContractDocument().Components.Schemas["AuditEventPage"]; !ok {
+		t.Fatal("contract missing AuditEventPage schema")
 	}
 }
 

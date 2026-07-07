@@ -535,15 +535,49 @@ func (repository *fakeRepository) RecordAuditEvent(
 	return event, nil
 }
 
-func (repository *fakeRepository) ListAuditEvents(_ context.Context, limit int) ([]data.AuditEvent, error) {
+func (repository *fakeRepository) ListAuditEvents(ctx context.Context, limit int) ([]data.AuditEvent, error) {
+	page, err := repository.ListAuditEventPage(ctx, data.AuditEventListQuery{Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	return page.Events, nil
+}
+
+func (repository *fakeRepository) ListAuditEventPage(_ context.Context, query data.AuditEventListQuery) (data.AuditEventPage, error) {
 	events := append([]data.AuditEvent(nil), repository.auditEvents...)
 	sort.SliceStable(events, func(left int, right int) bool {
+		if events[left].CreatedAt.Equal(events[right].CreatedAt) {
+			return events[left].ID > events[right].ID
+		}
 		return events[left].CreatedAt.After(events[right].CreatedAt)
 	})
-	if limit <= 0 || limit > len(events) {
-		return events, nil
+	if query.Cursor != nil {
+		filtered := events[:0]
+		for _, event := range events {
+			if event.CreatedAt.Before(query.Cursor.CreatedAt) ||
+				(event.CreatedAt.Equal(query.Cursor.CreatedAt) && event.ID < query.Cursor.ID) {
+				filtered = append(filtered, event)
+			}
+		}
+		events = filtered
 	}
-	return events[:limit], nil
+	limit := query.Limit
+	if limit <= 0 {
+		limit = defaultAuditEventLimit
+	}
+	if limit > maxAuditEventLimit {
+		limit = maxAuditEventLimit
+	}
+	page := data.AuditEventPage{Events: events}
+	if len(events) > limit {
+		page.Events = events[:limit]
+		nextCursor, err := data.EncodeAuditEventCursor(data.NewAuditEventCursor(page.Events[len(page.Events)-1]))
+		if err != nil {
+			return data.AuditEventPage{}, err
+		}
+		page.NextCursor = nextCursor
+	}
+	return page, nil
 }
 
 func (repository *fakeRepository) SystemHealth(ctx context.Context) (data.SystemHealth, error) {

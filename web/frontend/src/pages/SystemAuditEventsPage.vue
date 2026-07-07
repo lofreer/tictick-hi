@@ -21,48 +21,56 @@
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :title="error" retryable @retry="loadEvents" />
       <EmptyState v-else-if="events.length === 0" :title="t('system.noAuditEvents')" />
-      <div v-else class="system-table-wrap">
-        <table class="system-table">
-          <thead>
-            <tr>
-              <th>{{ t("system.auditTime") }}</th>
-              <th>{{ t("system.actor") }}</th>
-              <th>{{ t("system.action") }}</th>
-              <th>{{ t("system.resource") }}</th>
-              <th>{{ t("system.outcome") }}</th>
-              <th>{{ t("system.request") }}</th>
-              <th>{{ t("system.metadata") }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="event in events" :key="event.id">
-              <td>{{ formatDate(event.createdAt) }}</td>
-              <td>{{ event.actorUsername || "-" }}</td>
-              <td><span class="audit-code">{{ event.action }}</span></td>
-              <td>
-                <span class="audit-code">{{ event.resourceType }}</span>
-                <span v-if="event.resourceId" class="audit-muted"> / {{ event.resourceId }}</span>
-              </td>
-              <td>
-                <NTag :type="event.outcome === 'success' ? 'success' : 'error'" size="small">
-                  {{ outcomeLabel(event.outcome) }}
-                </NTag>
-              </td>
-              <td>
-                <span class="audit-code">{{ event.requestMethod || "-" }}</span>
-                <span class="audit-muted"> {{ event.requestPath || "" }}</span>
-              </td>
-              <td><span class="audit-muted">{{ metadataText(event.metadata) }}</span></td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else>
+        <div class="system-table-wrap">
+          <table class="system-table">
+            <thead>
+              <tr>
+                <th>{{ t("system.auditTime") }}</th>
+                <th>{{ t("system.actor") }}</th>
+                <th>{{ t("system.action") }}</th>
+                <th>{{ t("system.resource") }}</th>
+                <th>{{ t("system.outcome") }}</th>
+                <th>{{ t("system.request") }}</th>
+                <th>{{ t("system.metadata") }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="event in events" :key="event.id">
+                <td>{{ formatDate(event.createdAt) }}</td>
+                <td>{{ event.actorUsername || "-" }}</td>
+                <td><span class="audit-code">{{ event.action }}</span></td>
+                <td>
+                  <span class="audit-code">{{ event.resourceType }}</span>
+                  <span v-if="event.resourceId" class="audit-muted"> / {{ event.resourceId }}</span>
+                </td>
+                <td>
+                  <NTag :type="event.outcome === 'success' ? 'success' : 'error'" size="small">
+                    {{ outcomeLabel(event.outcome) }}
+                  </NTag>
+                </td>
+                <td>
+                  <span class="audit-code">{{ event.requestMethod || "-" }}</span>
+                  <span class="audit-muted"> {{ event.requestPath || "" }}</span>
+                </td>
+                <td><span class="audit-muted">{{ metadataText(event.metadata) }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="nextCursor" class="audit-pagination">
+          <NButton secondary :loading="loadingMore" @click="loadOlderEvents">
+            <template #icon><ChevronDown :size="17" /></template>
+            {{ t("system.loadOlderAuditEvents") }}
+          </NButton>
+        </div>
       </div>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
-import { Download, RefreshCw } from "@lucide/vue";
+import { ChevronDown, Download, RefreshCw } from "@lucide/vue";
 import { NButton, NSpace, NTag, useMessage } from "naive-ui";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -77,7 +85,9 @@ const { t } = useI18n();
 const message = useMessage();
 const events = ref<AuditEvent[]>([]);
 const loading = ref(false);
+const loadingMore = ref(false);
 const error = ref("");
+const nextCursor = ref("");
 
 onMounted(() => {
   void loadEvents();
@@ -86,14 +96,32 @@ onMounted(() => {
 async function loadEvents() {
   loading.value = true;
   error.value = "";
+  nextCursor.value = "";
   try {
-    events.value = await systemApi.listAuditEvents(100);
+    const page = await systemApi.listAuditEventPage(100);
+    events.value = page.events;
+    nextCursor.value = page.nextCursor ?? "";
   } catch (loadError) {
     events.value = [];
     error.value = errorMessage(loadError, t("system.auditEventsLoadFailed"));
     message.error(error.value);
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadOlderEvents() {
+  if (loadingMore.value || nextCursor.value === "") return;
+  loadingMore.value = true;
+  try {
+    const page = await systemApi.listAuditEventPage(100, nextCursor.value);
+    events.value = [...events.value, ...page.events];
+    nextCursor.value = page.nextCursor ?? "";
+  } catch (loadError) {
+    const loadMoreError = errorMessage(loadError, t("system.auditEventsLoadMoreFailed"));
+    message.error(loadMoreError);
+  } finally {
+    loadingMore.value = false;
   }
 }
 
@@ -156,5 +184,12 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .audit-muted {
   color: var(--tt-muted);
+}
+
+.audit-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 14px;
+  border-top: 1px solid var(--tt-line);
 }
 </style>

@@ -54,6 +54,24 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, notifications)
 		return
 	}
+	if len(parts) == 4 && parts[2] == "audit-events" && parts[3] == "page" {
+		if r.Method != http.MethodGet {
+			writeMethodNotAllowed(w, http.MethodGet)
+			return
+		}
+		query, err := parseAuditEventListQuery(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		page, err := server.repository.ListAuditEventPage(r.Context(), query)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
+		return
+	}
 	if len(parts) == 4 && parts[2] == "audit-events" && parts[3] == "export" {
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w, http.MethodGet)

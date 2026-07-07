@@ -302,4 +302,40 @@ describe("system api", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("lists paginated audit events with cursor", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          events: [
+            {
+              id: "ae_1",
+              actorOperatorId: "op_1",
+              actorUsername: "admin",
+              action: "operator.disable",
+              resourceType: "operator",
+              resourceId: "op_2",
+              outcome: "success",
+              metadata: { enabled: "false" },
+              createdAt: "2026-01-01T00:00:00Z",
+            },
+          ],
+          nextCursor: "next cursor",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.listAuditEventPage(50, "older cursor")).resolves.toEqual(
+      expect.objectContaining({
+        events: [expect.objectContaining({ id: "ae_1", action: "operator.disable" })],
+        nextCursor: "next cursor",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/system/audit-events/page?limit=50&cursor=older+cursor",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

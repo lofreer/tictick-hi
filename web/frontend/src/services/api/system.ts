@@ -1,6 +1,7 @@
 import { apiClient } from "@/services/api/client";
 import type {
   AuditEvent,
+  AuditEventPage,
   CreateExchangeAccount,
   CreateNotificationChannel,
   CreateOperator,
@@ -68,5 +69,13 @@ export const systemApi = {
 
   listAuditEvents(limit = 100) {
     return apiClient.get<AuditEvent[]>(`/system/audit-events?limit=${encodeURIComponent(String(limit))}`);
+  },
+
+  listAuditEventPage(limit = 100, cursor = "") {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor !== "") {
+      params.set("cursor", cursor);
+    }
+    return apiClient.get<AuditEventPage>(`/system/audit-events/page?${params.toString()}`);
   },
 };

@@ -38,6 +38,11 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 		"system", "listAuditEvents", "List operation audit events", http.StatusOK, arraySchema(schemaRef("AuditEvent")),
 		withParameters(auditEventLimitQueryParam()),
 	))
+	addOperation(paths, "/api/system/audit-events/page", http.MethodGet, operation(
+		"system", "listAuditEventPage", "List operation audit events with cursor pagination", http.StatusOK, schemaRef("AuditEventPage"),
+		withParameters(auditEventLimitQueryParam(), queryParam("cursor", false, "Opaque audit event cursor", map[string]any{"type": "string"})),
+		withErrors(http.StatusBadRequest),
+	))
 	addOperation(paths, "/api/system/audit-events/export", http.MethodGet, operation(
 		"system", "exportAuditEvents", "Export operation audit events as CSV", http.StatusOK, map[string]any{"type": "string"},
 		withResponseContentType("text/csv"),
