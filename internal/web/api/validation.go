@@ -125,8 +125,8 @@ func validateCreateBacktest(task data.CreateBacktestTask, definition strategy.De
 	if !validDecimal(task.InitialBalance, true) {
 		return errors.New("initialBalance must be a positive number")
 	}
-	if !validDecimal(task.FeeBps, false) || !validDecimal(task.SlippageBps, false) {
-		return errors.New("feeBps and slippageBps must be non-negative numbers")
+	if !validBasisPoints(task.FeeBps) || !validBasisPoints(task.SlippageBps) {
+		return errors.New("feeBps and slippageBps must be numbers between 0 and 10000")
 	}
 	if task.TriggerMode != "closed_candle" && task.TriggerMode != "minute_replay" {
 		return errors.New("triggerMode must be closed_candle or minute_replay")
@@ -199,4 +199,12 @@ func validDecimal(value string, positive bool) bool {
 		return number > 0
 	}
 	return number >= 0
+}
+
+func validBasisPoints(value string) bool {
+	number, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return false
+	}
+	return number >= 0 && number <= 10000
 }

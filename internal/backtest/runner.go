@@ -231,9 +231,18 @@ func (runner *Runner) execute(
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse initial balance: %w", err)
 	}
+	feeBps, feeRate, err := parseBacktestBps(task.FeeBps, "feeBps")
+	if err != nil {
+		return nil, nil, err
+	}
+	slippageBps, slippageRate, err := parseBacktestBps(task.SlippageBps, "slippageBps")
+	if err != nil {
+		return nil, nil, err
+	}
 
 	cash := initialBalance
 	position := decimal.Zero()
+	totalFees := decimal.Zero()
 	var orders []data.BacktestOrder
 	for _, intent := range intents {
 		if intent.Type != strategy.IntentTypeOrder {
@@ -253,8 +262,6 @@ func (runner *Runner) execute(
 
 		switch intent.Side {
 		case "buy":
-			cash = cash.Sub(price.Mul(quantity))
-			position = position.Add(quantity)
 		case "sell":
 			if !position.Positive() {
 				continue
@@ -262,11 +269,23 @@ func (runner *Runner) execute(
 			if quantity.GreaterThan(position) {
 				quantity = position
 			}
-			cash = cash.Add(price.Mul(quantity))
-			position = position.Sub(quantity)
 		default:
 			continue
 		}
+		fillPrice := applySlippage(price, intent.Side, slippageRate)
+		if !fillPrice.Positive() {
+			continue
+		}
+		notional := fillPrice.Mul(quantity)
+		fee := notional.Mul(feeRate)
+		if intent.Side == "buy" {
+			cash = cash.Sub(notional.Add(fee))
+			position = position.Add(quantity)
+		} else {
+			cash = cash.Add(notional.Sub(fee))
+			position = position.Sub(quantity)
+		}
+		totalFees = totalFees.Add(fee)
 
 		orderID, err := core.NewPrefixedID("bo")
 		if err != nil {
@@ -277,7 +296,7 @@ func (runner *Runner) execute(
 			BacktestID: task.ID,
 			IntentID:   intentIDs[intent.ID],
 			Side:       intent.Side,
-			Price:      intent.Price,
+			Price:      fillPrice.String(),
 			Quantity:   quantity.String(),
 			Status:     "filled",
 			OccurredAt: intent.OccurredAt,
@@ -291,11 +310,39 @@ func (runner *Runner) execute(
 	}
 	return orders, map[string]any{
 		"initialBalance": initialBalance.Format(4),
+		"feeBps":         feeBps.Format(4),
+		"slippageBps":    slippageBps.Format(4),
+		"totalFees":      totalFees.Format(4),
 		"finalEquity":    finalEquity.Format(4),
 		"returnPct":      returnPct.Format(4),
 		"totalIntents":   len(intents),
 		"totalOrders":    len(orders),
 	}, nil
+}
+
+func parseBacktestBps(value string, field string) (decimal.Decimal, decimal.Decimal, error) {
+	if value == "" {
+		return decimal.Zero(), decimal.Zero(), nil
+	}
+	bps, err := decimal.Parse(value)
+	if err != nil {
+		return decimal.Decimal{}, decimal.Decimal{}, fmt.Errorf("parse %s: %w", field, err)
+	}
+	if bps.GreaterThan(decimal.NewInt(10000)) {
+		return decimal.Decimal{}, decimal.Decimal{}, fmt.Errorf("%s must be <= 10000", field)
+	}
+	return bps, bps.Quo(decimal.NewInt(10000)), nil
+}
+
+func applySlippage(price decimal.Decimal, side string, slippageRate decimal.Decimal) decimal.Decimal {
+	if !slippageRate.Positive() {
+		return price
+	}
+	one := decimal.NewInt(1)
+	if side == "buy" {
+		return price.Mul(one.Add(slippageRate))
+	}
+	return price.Mul(one.Sub(slippageRate))
 }
 
 func lastClose(candles []data.Candle) decimal.Decimal {

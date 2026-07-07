@@ -40,7 +40,7 @@ done            用户确认关闭
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；Binance 默认 client 会在成功读取 exchangeInfo 后解析 `REQUEST_WEIGHT` rateLimits 并切换为本地多窗口 fixed-window 限流，K 线请求仍按 weight=2、exchangeInfo 按 weight=20 计重，自定义 limiter 不被覆盖；OKX history-candles 和 public instruments 按 20 次/2s 本地限流；仍缺 OKX 动态额度、多实例共享额度、真实网络韧性和更完整交易所业务码分类 |
 | 研究页 | scaffold | 保留后打磨 | 列表在上、图表在下，任务表格展示后端派生 `dataHealth`、`gapSummary`、`invalidSummary`、同步窗口和交易所退避窗口，可区分正常、同步中、有缺口、失败、暂停、重试中、数据不足和数据异常，并在质量摘要列显示任务窗口内缺口数量/首个缺口和异常数量/首个异常原因，异常任务可打开逐根异常详情弹窗并按异常类型/时间范围筛选和分页查看完整窗口异常；任务行可查看缺口详情弹窗，受限时显示已返回/总数/单次修复上限，也可调用后端 `repair-gaps` 为窗口内缺口批量排补同步任务，补同步任务在列表中可通过 `repairSourceTaskId` 与 `startTime/endTime` 窗口识别；图表 metadata 出现 CandleProvider 缺口时会在 K 线上标记缺口，并可为首个缺口创建并启动补同步任务；如果图表来自已选同步任务且基础周期匹配，修复会优先通过后端单缺口 repair API 并写入 `repairSourceTaskId`；删除任务弹窗已明确删除的是同步任务记录且不会删除已同步 K 线数据，确认后列表刷新并隐藏软删除任务；任务表格错误列、下次重试列、交易所退避列、failed retry 操作和图表高度已有前端约束，任务表外层改为可滚动视口且操作列固定在右侧，避免窄宽度裁掉关键操作；研究页图表面板不再继承全局 `.chart-panel` fixed height / size containment，图表槽改为 CSS 变量控制的固定 viewport 高度，`.research-chart-body` 使用固定 `flex-basis` / `height` / `max-height` 和 `contain: layout paint`，`.research-chart-panel` 覆盖为 `contain: layout paint` 避免 auto 高度被全局 size containment 折叠，研究页工具栏已收敛为紧凑 market strip + 单行可滚动状态摘要，并保留图表刷新 icon；symbol 输入收敛为桌面/窄桌面 `96px`、移动端 `92px`，`stage8-visual-smoke.mjs` 将最大宽度阈值收敛到 `100px`、工具栏控件阈值 `500px`、工具栏高度阈值 `72px`；研究页、回测详情和交易详情复用共享 K 线图表槽，plot 高度收敛为桌面 `clamp(680px, 72dvh, 820px)`、窄桌面 `700px`、移动端 `580px`，上下 padding 归零，左右 gutter 收敛为桌面 `14px/2px`、窄桌面 `12px/2px`、移动端 `10px/2px`，避免首屏图表过窄、左侧贴边和右侧外边距失控；`TradingViewChart` 只观察并读取最近带 `data-chart-viewport="fixed"` 的声明式固定图表槽，不观察传给 lightweight-charts 的 mount canvas，也不响应 `.trading-chart` root / canvas / 内部图表节点的 resize entry，固定槽高度不再信任 `ResizeObserver` content height 或被污染的 `clientHeight`，窗口尺寸不变时拒绝任何固定槽高度变化反馈，即使宽度变化也只更新宽度；lightweight-charts 外层受固定 viewport 尺寸约束，但内部 table / tbody / tr / td / canvas 不再被外部 CSS 强行写成整图宽高，`.tv-lightweight-charts` 根不再被外部 `width/height:100%!important` 强行缩放，避免价格轴、时间轴和主图 canvas 被外部布局规则裁切或拉伸；volume histogram 使用隐藏的 `volume` price scale，避免 overlay scale 撑出额外右侧坐标区；图表 root/canvas/lightweight-charts 外层使用明确 `top/left`，不再用 `inset: 0`，右侧价格轴按视口响应式使用桌面/窄桌面 `56px`、移动端 `54px` minimumWidth，开启 `entireTextOnly` 并把 `rightOffsetPixels` 收敛为 `0px`，价格轴保持完整数值显示，不允许 `k/K/m/M/b/B` 紧凑缩写，坐标轴字号收敛为桌面/窄桌面/移动端 `13px`，默认首屏按主绘图区宽度展示可读数量的最新 K 线，避免窄视口只剩网格或半截价格标签；headless Chrome 桌面、812x1320 窄桌面和移动连续采样会先验证主图 canvas、右侧价格轴和底部时间轴 canvas 均在固定图表槽内，且主图存在可见红/绿市场像素，正常首屏 tv 与固定槽等高且不留下人为缩图留白，外部高度污染后 document、panel、chart body、chart、canvas 高度不增长且不超过 viewport 上限，右侧价格轴超过 `72px`、坐标轴文字墨迹高度低于 `8px`、桌面/窄桌面/移动端高于 `15px`、canvas CSS scale 被明显拉伸/压缩、主图占比低于桌面 `90%` / 窄桌面 `82%` / 移动端 `70%`、最右侧 canvas 未贴住 viewport 右边或主图 canvas 未贴住右侧价格轴会失败，窄桌面还会验证初始首屏不截掉底部时间轴；显示 source / health / base interval / 当前窗口范围和当前数据源全历史缺口扫描摘要，摘要可打开详情弹窗并为单个或当前返回的多个全历史缺口排补同步任务，可通过最新 / 1H / 6H / 1D 时间范围按钮和上一/下一窗口按钮显式请求 K 线窗口，上一/下一优先保留 opaque cursor，旧 `from/to` URL 仍兼容；研究页、回测创建和交易创建的 symbol 输入已从 BTC/ETH 固定白名单收敛为交易所格式校验，并通过 `/api/market/instruments` 读取 PostgreSQL instrument catalog 建议项，前端可手动触发 Binance `/exchangeInfo` 和 OKX public instruments 同步，失败时回退本地建议；研究页会读取 `/api/market/instruments/status` 并在当前数据源和创建任务弹窗里显示所选交易所目录最近成功/失败状态；`/api/market/instruments` 支持按 `status=active/inactive/all` 查询，研究页、回测创建和交易创建在提交前会 exact 查询 catalog 并区分 active、inactive、missing，inactive 会给出明确不可用提示；`hi sync` 长运行模式会按配置后台定时同步 Binance / OKX instrument catalog 并写入 `market_instruments`；创建数据同步任务会先在前端校验 exact active catalog 命中，后端 `POST /api/data/tasks` 也会强制查询 PostgreSQL `market_instruments` active 记录，不命中返回 `market_instrument_not_active`；既有数据同步任务列表会返回并展示 `marketStatus=active/inactive/missing`，非 active 任务的 sync / realtime / retry 启动会被前后端阻止，`hi sync` claim 也只领取 active catalog 任务；catalog 失活时对应 data sync task 会带 market inactive 错误自动暂停并保留原同步期望，恢复 active 时只恢复这类自动暂停任务；但仍缺交易所业务状态细分、跨模块迁移和完整操作语义，图表研究能力仍薄 |
 | 策略 registry / runtime | demo | 保留后加强 | 已有策略 schema 校验、默认参数规范化、order / notification intent 和边界门禁，仍缺策略沙箱、参数版本迁移和更多真实策略 |
-| 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点，并采用上方大图表、下方左窄摘要右宽列表的布局；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
+| 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点，并采用上方大图表、下方左窄摘要右宽列表的布局；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；第一版 `feeBps` / `slippageBps` 会在创建时限制到 `0..10000` 并由 runner 应用到成交价、手续费现金流和结果摘要；撮合模型、费用/滑点曲线和指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用，live 任务创建要求 API 顶层 `liveConfirmation=LIVE`；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和更完整实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用、凭据状态和 `liveConfirmation=LIVE`，前端 live 创建页提供 `LIVE` 文本确认；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；provider 外发 title/body 会 trim 并分别限制为 200/4000 rune，组合文本限制为 4096 rune；`NOTIFY_PROVIDER_MIN_INTERVAL` 可配置同一 notify worker 连续 provider delivery attempt 的本地最小间隔；provider 调用耗时会持久化为 `lastDeliveryDurationMs` 并进入 notify worker 日志 `delivery_duration_ms`；webhook / Telegram / 飞书成功响应中的常见 message ID 字段会持久化为 `providerMessageId`、进入 notify worker 成功日志 `provider_message_id` 并在系统通知页 / 交易详情通知列表可见；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停 / 更新 / 删除操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；生产级模板/多实例限流/回执解析和完整统一 worker lease 仍未完成 |
@@ -14314,6 +14314,49 @@ Definition of Done：
 - `LIVE` 文本确认只是 demo 级防误触护栏，不等同审批流、强认证、真实风控或生产级适当性确认。
 - live executor 仍禁用；真实 testnet/sandbox executor、订单幂等提交、交易所响应回写和生产密钥治理仍未完成。
 - 该确认字段不进入持久化审计；当前只证明创建请求前门被拦截，不证明后续 live 执行链安全。
+
+### 阶段 8 回测费用 / 滑点基础撮合补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- 回测创建继续保留 `feeBps` / `slippageBps`，API 将二者校验为 `0..10000` 范围内的数值，避免明显不可用的 100% 以上成本参数落库。
+- 回测 runner 将 bps 转为费率；买入成交价按 `price * (1 + slippage)`，卖出成交价按 `price * (1 - slippage)`。
+- 买卖成交都会按滑点后 notional 计算手续费，并在现金流中扣除手续费。
+- 回测订单保存滑点后的成交价；结果摘要新增 / 保留 `feeBps`、`slippageBps`、`totalFees`、`finalEquity` 和 `returnPct`，用于观察成本影响。
+
+范围外：
+
+- 不实现订单簿、盘口深度、部分成交、动态费率、maker/taker 区分、资金费率、借贷成本或真实撮合曲线。
+- 不改变现有策略信号生成、K 线选择、回测详情图表结构或指标体系。
+- 不把回测升级为生产级投资绩效系统；当前仍是 demo 级简单撮合。
+
+当前验证：
+
+- `go test ./internal/backtest -run 'TestRunnerExecuteAppliesFeeAndSlippage|TestRunnerRunOnceSavesOrders' -count=1` 通过。
+- `go test ./internal/web/api -run 'TestCreateBacktestRejectsOutOfRangeCostBps|TestCreateBacktestRejectsBlankRequiredText|TestCreateBacktestNormalizesDefaultStrategyParams' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+未执行：
+
+- 本切片未改前端页面运行态，未执行额外 Browser / Vite HTTP smoke。
+
+剩余风险：
+
+- 成本模型仍是固定 bps，不随交易所、账号、订单类型、流动性或成交规模变化。
+- 回测仍缺订单簿深度、部分成交、撮合排队、资金费率、风险指标和生产级绩效统计。
+- 该补充只影响回测，不改变 paper/live trading executor 或真实交易安全边界。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

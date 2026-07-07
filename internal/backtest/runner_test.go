@@ -248,6 +248,58 @@ func TestRunnerReleasesLeaseOnShutdown(t *testing.T) {
 	}
 }
 
+func TestRunnerExecuteAppliesFeeAndSlippage(t *testing.T) {
+	runner := &Runner{}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	task := data.BacktestTask{
+		ID:             "bt_fee",
+		InitialBalance: "1000",
+		FeeBps:         "10",
+		SlippageBps:    "100",
+	}
+	intents := []strategy.Intent{
+		{
+			ID:         "buy_1",
+			Type:       strategy.IntentTypeOrder,
+			Side:       "buy",
+			Price:      "100",
+			Quantity:   "1",
+			OccurredAt: start,
+		},
+		{
+			ID:         "sell_1",
+			Type:       strategy.IntentTypeOrder,
+			Side:       "sell",
+			Price:      "120",
+			Quantity:   "1",
+			OccurredAt: start.Add(time.Minute),
+		},
+	}
+
+	orders, summary, err := runner.execute(
+		task,
+		runnerTestCandles([]string{"120"}),
+		intents,
+		map[string]string{"buy_1": "si_buy", "sell_1": "si_sell"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(orders) != 2 {
+		t.Fatalf("orders = %#v", orders)
+	}
+	if orders[0].Price != "101.00000000" || orders[1].Price != "118.80000000" {
+		t.Fatalf("unexpected fill prices: %#v", orders)
+	}
+	if summary["feeBps"] != "10.0000" ||
+		summary["slippageBps"] != "100.0000" ||
+		summary["totalFees"] != "0.2198" ||
+		summary["finalEquity"] != "1017.5802" ||
+		summary["returnPct"] != "1.7580" {
+		t.Fatalf("unexpected summary: %#v", summary)
+	}
+}
+
 type fakeBacktestRepository struct {
 	task               data.BacktestTask
 	candles            []data.Candle
