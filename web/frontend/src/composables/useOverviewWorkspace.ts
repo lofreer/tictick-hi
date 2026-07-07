@@ -7,6 +7,7 @@ import { backtestsApi } from "@/services/api/backtests";
 import { dataApi } from "@/services/api/data";
 import { systemApi } from "@/services/api/system";
 import { tradingApi } from "@/services/api/trading";
+import { loadOverviewFacts, overviewFactTagType, type OverviewFactSource, type OverviewIntentFact, type OverviewOrderFact } from "@/composables/overviewFacts";
 import type { BacktestTask, DataSyncTask, Notification, ServiceHealth, SystemHealth, TaskStatus, TradingTask } from "@/types/app";
 
 type SummaryCard = {
@@ -41,6 +42,8 @@ export function useOverviewWorkspace() {
   const dataSyncTasks = ref<DataSyncTask[]>([]);
   const backtests = ref<BacktestTask[]>([]);
   const tradingTasks = ref<TradingTask[]>([]);
+  const strategyIntents = ref<OverviewIntentFact[]>([]);
+  const orders = ref<OverviewOrderFact[]>([]);
   const notifications = ref<Notification[]>([]);
   const loading = ref(false);
   const hasLoaded = ref(false);
@@ -147,6 +150,24 @@ export function useOverviewWorkspace() {
           params: { id: task.id },
         }),
       ),
+      ...strategyIntents.value.map((item) => ({
+        key: `intent-${item.intent.id}`,
+        title: t("overview.strategyIntents"),
+        detail: `${sourceLabel(item.source)} / ${item.taskName} / ${item.market} / ${item.intent.intentType} / ${item.intent.policy}`,
+        status: item.intent.status,
+        statusType: overviewFactTagType(item.intent.status),
+        at: item.intent.createdAt,
+        to: item.to,
+      })),
+      ...orders.value.map((item) => ({
+        key: `order-${item.id}`,
+        title: t("overview.orders"),
+        detail: `${sourceLabel(item.source)} / ${item.taskName} / ${item.market} / ${item.side} ${item.quantity} @ ${item.price}`,
+        status: item.status,
+        statusType: overviewFactTagType(item.status),
+        at: item.at,
+        to: item.to,
+      })),
       ...notifications.value.map((item) => ({
         key: `notification-${item.id}`,
         title: t("overview.notifications"),
@@ -173,10 +194,13 @@ export function useOverviewWorkspace() {
         tradingApi.listTasks(),
         systemApi.listNotifications(),
       ]);
+      const nextFacts = await loadOverviewFacts(nextBacktests, nextTradingTasks);
       health.value = nextHealth;
       dataSyncTasks.value = nextSyncTasks;
       backtests.value = nextBacktests;
       tradingTasks.value = nextTradingTasks;
+      strategyIntents.value = nextFacts.strategyIntents;
+      orders.value = nextFacts.orders;
       notifications.value = nextNotifications;
       hasLoaded.value = true;
     } catch (loadError) {
@@ -239,6 +263,10 @@ export function useOverviewWorkspace() {
       running: service.runningCount ?? 0,
       locked: service.lockedCount ?? 0,
     });
+  }
+
+  function sourceLabel(source: OverviewFactSource) {
+    return source === "backtest" ? t("overview.backtests") : t("overview.tradingTasks");
   }
 
   return {
