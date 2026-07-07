@@ -30,9 +30,10 @@ func (runner *Runner) fetchCandles(
 
 		slog.Warn(
 			"temporary market data fetch failed; retrying",
-			workerlog.TaskAttrs(
+			workerlog.TaskTraceAttrs(
 				task.ID,
 				task.RequestID,
+				task.TraceParent,
 				"exchange",
 				request.Exchange,
 				"symbol",

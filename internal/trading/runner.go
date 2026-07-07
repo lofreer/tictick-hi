@@ -97,7 +97,10 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			return nil
 		}
-		slog.Error("trading task failed", workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...)
+		slog.Error(
+			"trading task failed",
+			workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", err)...,
+		)
 		if markErr := runner.repository.MarkTradingTaskFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark trading task failed: %w", markErr)
 		}

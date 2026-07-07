@@ -22,7 +22,7 @@ func (runner *Runner) releaseDataSyncTaskOnShutdown(ctx context.Context, task da
 	if isDataSyncLeaseRace(err) {
 		slog.Info(
 			"data sync task no longer owned before shutdown release",
-			workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...,
+			workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", err)...,
 		)
 		return nil
 	}
@@ -40,7 +40,7 @@ func (runner *Runner) releaseDataSyncTaskAfterExchangeFetchLockSkip(
 	if isDataSyncLeaseRace(err) {
 		slog.Info(
 			"data sync task no longer owned after exchange fetch lock skip",
-			workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...,
+			workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", err)...,
 		)
 		return nil
 	}
@@ -58,7 +58,7 @@ func (runner *Runner) releaseDataSyncTaskAfterExchangeFetchLockError(
 	if isDataSyncLeaseRace(err) {
 		slog.Info(
 			"data sync task no longer owned after exchange fetch lock error",
-			workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...,
+			workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", err)...,
 		)
 		return nil
 	}

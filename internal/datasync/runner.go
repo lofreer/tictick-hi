@@ -145,7 +145,15 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			if recordErr := runner.recordDataSyncExchangeFetchLockSkipped(releaseCtx, task.Exchange); recordErr != nil {
 				slog.Error(
 					"record data sync exchange fetch lock skip failed",
-					workerlog.TaskAttrs(task.ID, task.RequestID, "exchange", task.Exchange, "error", recordErr)...,
+					workerlog.TaskTraceAttrs(
+						task.ID,
+						task.RequestID,
+						task.TraceParent,
+						"exchange",
+						task.Exchange,
+						"error",
+						recordErr,
+					)...,
 				)
 			}
 			if releaseErr := runner.releaseDataSyncTaskAfterExchangeFetchLockSkip(releaseCtx, task); releaseErr != nil {
@@ -153,7 +161,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			slog.Info(
 				"data sync task released; exchange fetch lock held",
-				workerlog.TaskAttrs(task.ID, task.RequestID, "exchange", task.Exchange)...,
+				workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "exchange", task.Exchange)...,
 			)
 			return nil
 		}
@@ -167,20 +175,31 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			return lockErr
 		}
 		if isDataSyncLeaseRace(err) {
-			slog.Info("data sync task no longer owned by worker", workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...)
+			slog.Info(
+				"data sync task no longer owned by worker",
+				workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", err)...,
+			)
 			return nil
 		}
 		if exchange.IsTemporaryError(err) {
 			nextAttemptAt := runner.nextAttemptAt(task, err)
 			slog.Warn(
 				"data sync task will retry after temporary market data error",
-				workerlog.TaskAttrs(task.ID, task.RequestID, "next_attempt_at", nextAttemptAt, "error", err)...,
+				workerlog.TaskTraceAttrs(
+					task.ID,
+					task.RequestID,
+					task.TraceParent,
+					"next_attempt_at",
+					nextAttemptAt,
+					"error",
+					err,
+				)...,
 			)
 			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, runner.config.WorkerID, err, &nextAttemptAt); retryErr != nil {
 				if isDataSyncLeaseRace(retryErr) {
 					slog.Info(
 						"data sync task no longer owned before retry was recorded",
-						workerlog.TaskAttrs(task.ID, task.RequestID, "error", retryErr)...,
+						workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", retryErr)...,
 					)
 					return nil
 				}
@@ -188,12 +207,15 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			return nil
 		}
-		slog.Error("data sync task failed", workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...)
+		slog.Error(
+			"data sync task failed",
+			workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", err)...,
+		)
 		if markErr := runner.repository.MarkDataSyncFailed(ctx, task.ID, runner.config.WorkerID, err); markErr != nil {
 			if isDataSyncLeaseRace(markErr) {
 				slog.Info(
 					"data sync task no longer owned before failure was recorded",
-					workerlog.TaskAttrs(task.ID, task.RequestID, "error", markErr)...,
+					workerlog.TaskTraceAttrs(task.ID, task.RequestID, task.TraceParent, "error", markErr)...,
 				)
 				return nil
 			}

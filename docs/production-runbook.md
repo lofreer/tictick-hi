@@ -153,11 +153,12 @@ backtest, trading, data sync repair tasks, and trading-task notifications persis
 `X-Request-ID` as `requestId`; API-created data sync, backtest, trading, and
 data sync repair tasks also persist W3C `traceparent`. Data sync, backtest,
 trading, and notify worker task logs include `request_id` when the claimed task
-or delivery has one.
+or delivery has one. Data sync, backtest, and trading worker task logs include
+`trace_id` when the claimed task has a valid persisted `traceparent`.
 Notification provider outbound HTTP requests and SMTP message headers carry
 `X-Request-ID` when the delivery has one. This is still partial correlation:
-W3C trace context is not yet propagated through worker logs, exchange / broader
-external systems, or subcommands.
+W3C trace context is not yet propagated to notification delivery, exchange /
+broader external systems, or subcommands.
 
 Optional worker process probes:
 
@@ -402,7 +403,7 @@ close these production-safety gaps:
 - backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
-- no worker-log, cross-worker, or broader external system W3C trace propagation, external log sink, or retention policy;
+- no notification-delivery, cross-worker, or broader external system W3C trace propagation, external log sink, or retention policy;
 - no richer worker backlog / external dependency readiness beyond PostgreSQL and queue-table-ready worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
