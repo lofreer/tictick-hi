@@ -59,6 +59,7 @@ type DataSyncTask struct {
 	StartTime            *time.Time              `json:"startTime,omitempty"`
 	EndTime              *time.Time              `json:"endTime,omitempty"`
 	RepairSourceTaskID   string                  `json:"repairSourceTaskId,omitempty"`
+	RequestID            string                  `json:"requestId,omitempty"`
 	SyncEnabled          bool                    `json:"syncEnabled"`
 	RealtimeEnabled      bool                    `json:"realtimeEnabled"`
 	Status               TaskStatus              `json:"status"`
@@ -186,4 +187,5 @@ type CreateDataSyncTask struct {
 	Interval  string     `json:"interval"`
 	StartTime *time.Time `json:"startTime,omitempty"`
 	EndTime   *time.Time `json:"endTime,omitempty"`
+	RequestID string     `json:"-"`
 }

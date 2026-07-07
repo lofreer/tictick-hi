@@ -114,6 +114,7 @@ func (server *Server) handleTaskCollection(w http.ResponseWriter, r *http.Reques
 		if !server.requireActiveMarketInstrument(w, r, request.Exchange, request.Symbol) {
 			return
 		}
+		request.RequestID = RequestIDFromContext(r.Context())
 		task, err := server.repository.CreateDataSyncTask(r.Context(), request)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

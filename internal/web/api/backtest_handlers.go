@@ -70,6 +70,7 @@ func (server *Server) handleBacktestCollection(w http.ResponseWriter, r *http.Re
 			return
 		}
 		request.StrategyParams = normalizedParams
+		request.RequestID = RequestIDFromContext(r.Context())
 		task, err := server.repository.CreateBacktestTask(r.Context(), request)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

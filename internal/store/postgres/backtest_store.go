@@ -14,7 +14,7 @@ import (
 
 const backtestTaskColumns = `
 	id, name, exchange, symbol, interval, start_time, end_time,
-	strategy_id, strategy_params::text, initial_balance::text,
+	COALESCE(request_id, ''), strategy_id, strategy_params::text, initial_balance::text,
 	fee_bps::text, slippage_bps::text, trigger_mode, status,
 	started_at, finished_at, COALESCE(last_error, ''), attempt_count,
 	result_summary::text, created_at, updated_at`
@@ -49,10 +49,10 @@ func (store *Store) CreateBacktestTask(
 		INSERT INTO backtest_tasks (
 			id, name, exchange, symbol, interval, start_time, end_time,
 			strategy_id, strategy_params, initial_balance, fee_bps,
-			slippage_bps, trigger_mode
+			slippage_bps, trigger_mode, request_id
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb,
-		        $10::numeric, $11::numeric, $12::numeric, $13)
+		        $10::numeric, $11::numeric, $12::numeric, $13, NULLIF($14, ''))
 		RETURNING `+backtestTaskColumns,
 		id,
 		task.Name,
@@ -67,6 +67,7 @@ func (store *Store) CreateBacktestTask(
 		task.FeeBps,
 		task.SlippageBps,
 		task.TriggerMode,
+		task.RequestID,
 	)
 
 	created, err := scanBacktestTaskRow(row)
@@ -346,6 +347,7 @@ func scanBacktestTaskRow(row rowScanner) (data.BacktestTask, error) {
 		&task.Interval,
 		&task.StartTime,
 		&task.EndTime,
+		&task.RequestID,
 		&task.StrategyID,
 		&strategyParamsJSON,
 		&task.InitialBalance,

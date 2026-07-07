@@ -134,8 +134,10 @@ stop commands before PostgreSQL opens and do not echo the invalid value.
 `hi api` accepts a valid `X-Request-ID` header and returns `X-Request-ID` on
 responses. Missing or invalid request IDs are replaced and invalid values are not
 echoed. HTTP access logs include `request_id`, `method`, path without query
-string, status, bytes, and duration. This is HTTP-boundary correlation only;
-trace IDs still do not propagate into worker tasks or external systems.
+string, status, bytes, and duration. API-created data sync, backtest, and trading
+tasks persist this value as `requestId`. This is still partial correlation:
+request IDs do not yet propagate into repair-derived tasks, notification
+delivery, or external systems.
 
 Optional worker process probes:
 
@@ -360,7 +362,7 @@ close these production-safety gaps:
 - no automated backup scheduler;
 - no completed restore drill evidence for the target environment;
 - database pool limits exist, but no completed CPU / memory / disk sizing, capacity test, or retention policy;
-- no worker task / external trace propagation or external log sink / retention policy;
+- no repair-derived task / notification / external trace propagation or external log sink / retention policy;
 - no richer worker business readiness beyond process-level health probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
