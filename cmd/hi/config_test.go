@@ -68,6 +68,46 @@ func TestLoadAPICommandConfigLoadsDatabasePoolOptions(t *testing.T) {
 	}
 }
 
+func TestLoadAPICommandConfigLoadsLoginRateLimitOptions(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUTH_LOGIN_FAILURE_LIMIT", "3")
+	t.Setenv("AUTH_LOGIN_FAILURE_WINDOW", "2m")
+	t.Setenv("AUTH_LOGIN_LOCKOUT", "10m")
+
+	config, err := loadAPICommandConfig()
+	if err != nil {
+		t.Fatalf("load api config: %v", err)
+	}
+	if config.LoginFailureLimit != 3 ||
+		config.LoginFailureWindow != 2*time.Minute ||
+		config.LoginLockout != 10*time.Minute {
+		t.Fatalf("unexpected login rate limit config: %#v", config)
+	}
+}
+
+func TestLoadAPICommandConfigRejectsInvalidLoginRateLimit(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUTH_LOGIN_FAILURE_LIMIT", "0")
+
+	_, err := loadAPICommandConfig()
+	if err == nil || !strings.Contains(err.Error(), "AUTH_LOGIN_FAILURE_LIMIT") {
+		t.Fatalf("expected AUTH_LOGIN_FAILURE_LIMIT error, got %v", err)
+	}
+}
+
+func TestLoadAPICommandConfigRejectsInvalidLoginRateLimitDuration(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUTH_LOGIN_FAILURE_WINDOW", "not-a-duration")
+
+	_, err := loadAPICommandConfig()
+	if err == nil || !strings.Contains(err.Error(), "AUTH_LOGIN_FAILURE_WINDOW") {
+		t.Fatalf("expected AUTH_LOGIN_FAILURE_WINDOW error, got %v", err)
+	}
+}
+
 func TestLoadAPICommandConfigRejectsInvalidDatabasePool(t *testing.T) {
 	clearCommandEnv(t)
 	t.Setenv("DATABASE_URL", "postgres://local")

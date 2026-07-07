@@ -63,6 +63,9 @@ HTTP_ADDR
 WEB_FRONTEND_DIST
 AUTH_SESSION_TTL
 AUTH_COOKIE_SECURE
+AUTH_LOGIN_FAILURE_LIMIT
+AUTH_LOGIN_FAILURE_WINDOW
+AUTH_LOGIN_LOCKOUT
 BOOTSTRAP_OPERATOR_USERNAME
 BOOTSTRAP_OPERATOR_PASSWORD
 ```
@@ -198,7 +201,7 @@ provider credentials
 DSNs
 ```
 
-Startup summaries are limited to non-sensitive values such as worker id, poll interval, lease TTL, retry windows, static root, bind address, and public market rate limits.
+Startup summaries are limited to non-sensitive values such as worker id, poll interval, lease TTL, retry windows, static root, bind address, login rate-limit thresholds, and public market rate limits.
 
 ## Local Start
 

@@ -341,9 +341,12 @@ func runAPI(ctx context.Context) error {
 	server := &http.Server{
 		Addr: config.Addr,
 		Handler: webapi.NewServerWithConfig(store, webapi.Config{
-			StaticRoot:   config.StaticRoot,
-			SessionTTL:   config.SessionTTL,
-			CookieSecure: config.CookieSecure,
+			StaticRoot:         config.StaticRoot,
+			SessionTTL:         config.SessionTTL,
+			CookieSecure:       config.CookieSecure,
+			LoginFailureLimit:  config.LoginFailureLimit,
+			LoginFailureWindow: config.LoginFailureWindow,
+			LoginLockout:       config.LoginLockout,
 			InstrumentClients: map[string]exchange.InstrumentClient{
 				"binance": newBinanceMarketClient(exchangeConfig),
 				"okx":     newOKXMarketClient(exchangeConfig),
@@ -366,6 +369,9 @@ func runAPI(ctx context.Context) error {
 		"static_root", config.StaticRoot,
 		"session_ttl", config.SessionTTL,
 		"cookie_secure", config.CookieSecure,
+		"login_failure_limit", config.LoginFailureLimit,
+		"login_failure_window", config.LoginFailureWindow,
+		"login_lockout", config.LoginLockout,
 		"binance_request_weight_limit", exchangeConfig.BinanceRequestWeightLimit,
 		"binance_request_weight_window", exchangeConfig.BinanceRequestWeightWindow,
 		"okx_market_request_limit", exchangeConfig.OKXMarketRequestLimit,

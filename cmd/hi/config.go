@@ -13,12 +13,15 @@ import (
 )
 
 type apiCommandConfig struct {
-	DatabaseURL  string
-	DatabasePool postgres.PoolOptions
-	Addr         string
-	StaticRoot   string
-	SessionTTL   time.Duration
-	CookieSecure bool
+	DatabaseURL        string
+	DatabasePool       postgres.PoolOptions
+	Addr               string
+	StaticRoot         string
+	SessionTTL         time.Duration
+	CookieSecure       bool
+	LoginFailureLimit  int
+	LoginFailureWindow time.Duration
+	LoginLockout       time.Duration
 }
 
 type syncCommandConfig struct {
@@ -97,13 +100,28 @@ func loadAPICommandConfig() (apiCommandConfig, error) {
 	if err != nil {
 		return apiCommandConfig{}, err
 	}
+	loginFailureLimit, err := intEnvStrict("AUTH_LOGIN_FAILURE_LIMIT", 5, 1)
+	if err != nil {
+		return apiCommandConfig{}, err
+	}
+	loginFailureWindow, err := durationEnvStrict("AUTH_LOGIN_FAILURE_WINDOW", 5*time.Minute)
+	if err != nil {
+		return apiCommandConfig{}, err
+	}
+	loginLockout, err := durationEnvStrict("AUTH_LOGIN_LOCKOUT", 5*time.Minute)
+	if err != nil {
+		return apiCommandConfig{}, err
+	}
 	return apiCommandConfig{
-		DatabaseURL:  databaseURL,
-		DatabasePool: databasePool,
-		Addr:         envOrDefault("HTTP_ADDR", "127.0.0.1:8080"),
-		StaticRoot:   envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist"),
-		SessionTTL:   sessionTTL,
-		CookieSecure: cookieSecure,
+		DatabaseURL:        databaseURL,
+		DatabasePool:       databasePool,
+		Addr:               envOrDefault("HTTP_ADDR", "127.0.0.1:8080"),
+		StaticRoot:         envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist"),
+		SessionTTL:         sessionTTL,
+		CookieSecure:       cookieSecure,
+		LoginFailureLimit:  loginFailureLimit,
+		LoginFailureWindow: loginFailureWindow,
+		LoginLockout:       loginLockout,
 	}, nil
 }
 
