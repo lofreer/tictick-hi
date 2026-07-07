@@ -9833,6 +9833,46 @@ Definition of Done：
 - DPR / canvas 重绘只覆盖当前已知的窗口缩放和 canvas 几何异常路径，仍缺真实浏览器长时间交互与跨屏拖拽视觉 smoke。
 - 本轮没有补充 OKX 真实外网恢复证据、长期 soak、多实例共享额度或实盘能力。
 
+### 阶段 1 data sync task 单任务读取收敛补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `data.Repository` 新增 `GetDataSyncTask(ctx, id)`，PostgreSQL 实现复用既有单任务查询语义，并继续过滤软删除任务。
+- `/api/data/tasks/{id}/repair-gap` 的 HTTP 层窗口对齐预校验不再通过 `ListDataSyncTasks` 扫描全量任务，而是直接读取当前源任务 interval。
+- data sync task inactive / missing catalog 错误文案诊断不再依赖全量任务列表，改为读取当前任务的 `marketStatus`。
+- API 回归测试覆盖 `ListDataSyncTasks` 故意失败时，单缺口 repair 仍能通过直接任务读取完成排队。
+- PostgreSQL 集成测试覆盖 `GetDataSyncTask` 与列表读取一样返回 worker lease / heartbeat 字段。
+
+范围外：
+
+- 不改变 gap repair 判定、去重、创建补同步任务或 data sync worker 调度语义。
+- 不新增 `GET /api/data/tasks/{id}` HTTP 路由。
+- 不改变 CandleProvider、交易所 adapter、研究页 UI、回测 / 交易 runner 或实盘能力。
+- 不把研究页、API server 或整体项目升级为 usable。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestDataSyncTaskSingleGapRepairUsesDirectTaskLookup|TestDataSyncTaskRoutes|TestDataSyncTaskRepairRoutesRequireActiveMarketInstrument' -count=1` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegrationListDataSyncTasksReportsWorkerLease' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+剩余风险：
+
+- 该补充只收敛 API handler 的读取路径，不扩大 repair 能力，也不证明补同步最终成功。
+- data sync task 仍没有独立 HTTP 详情接口；当前单任务读取只服务后端内部命令语义。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
