@@ -30,7 +30,7 @@ done            用户确认关闭
 | 模块 | 当前等级 | 处理 | 主要问题 |
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
-| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`LOG_LEVEL` / `LOG_FORMAT` 已提供基础 text/json 结构化日志配置，`LOG_CORRELATION_ID` 已提供运行级日志关联 ID，API HTTP 边界已提供 `X-Request-ID` 响应头和带 `request_id` 的 access log，API 创建的 data sync / backtest / trading task、data sync repair task 和 trading notification 已保存 `requestId`，data sync / backtest / trading / notify worker 业务日志已在 task 或 delivery 带 request ID 时输出 `request_id`，notification provider 外发 HTTP 请求和 SMTP 邮件头已在 delivery 带 request ID 时传播 `X-Request-ID`，`DB_MAX_CONNS` / `DB_MIN_CONNS` / DB 连接生命周期配置已提供 PostgreSQL pool 上限，非法日志/资源配置不会回显；`SYNC_HEALTH_ADDR` / `BACKTEST_HEALTH_ADDR` / `TRADING_HEALTH_ADDR` / `NOTIFY_HEALTH_ADDR` 已提供可选 worker `/livez` 进程存活探针和带 PostgreSQL ping 的 `/readyz` / `/healthz` readiness 探针，`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-backup-restore-drill.sh` 已补可重复 PostgreSQL 备份/恢复演练入口，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺交易所等更广外部系统 trace 传播、W3C trace context、worker 队列级 / 外部依赖 readiness 语义、已通过的目标环境备份恢复演练、CPU/内存/磁盘容量策略和更完整优雅停止证据 |
+| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`LOG_LEVEL` / `LOG_FORMAT` 已提供基础 text/json 结构化日志配置，`LOG_CORRELATION_ID` 已提供运行级日志关联 ID，API HTTP 边界已提供 `X-Request-ID` 响应头和带 `request_id` 的 access log，API 创建的 data sync / backtest / trading task、data sync repair task 和 trading notification 已保存 `requestId`，data sync / backtest / trading / notify worker 业务日志已在 task 或 delivery 带 request ID 时输出 `request_id`，notification provider 外发 HTTP 请求和 SMTP 邮件头已在 delivery 带 request ID 时传播 `X-Request-ID`，`DB_MAX_CONNS` / `DB_MIN_CONNS` / DB 连接生命周期配置已提供 PostgreSQL pool 上限，非法日志/资源配置不会回显；`SYNC_HEALTH_ADDR` / `BACKTEST_HEALTH_ADDR` / `TRADING_HEALTH_ADDR` / `NOTIFY_HEALTH_ADDR` 已提供可选 worker `/livez` 进程存活探针和带 PostgreSQL ping / 队列表可读检查的 `/readyz` / `/healthz` readiness 探针，`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-backup-restore-drill.sh` 已补可重复 PostgreSQL 备份/恢复演练入口，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺交易所等更广外部系统 trace 传播、W3C trace context、worker backlog / 外部依赖 readiness 语义、已通过的目标环境备份恢复演练、CPU/内存/磁盘容量策略和更完整优雅停止证据 |
 | Docker Compose | demo | 保留 | 运行形态对，Compose 已透传后台 worker health probe env，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-backup-restore-drill.sh` 已补本地 restore drill 脚本，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺自动化备份、已记录且通过的目标环境恢复演练、资源容量策略和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE），`0034_task_request_ids.sql` 已补充 task request ID 字段；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks`、`POST /api/backtests` 和 `POST /api/trading/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active` 且不落库，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary`、窗口内历史异常 OHLCV K 线 `dataHealth=invalid`、`invalidSummary`、`GET /api/data/tasks/{id}/invalid-issues` 异常详情列表和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，`GET /api/market/instruments/status` 返回各交易所 instrument catalog 最近同步状态供研究页和运维上下文使用，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
@@ -11202,6 +11202,46 @@ Definition of Done：
 剩余风险：
 
 - worker probe 只覆盖进程存活和 PostgreSQL ping，不覆盖任务队列积压、claim 成功率、stale worker、交易所退避、fetch-lock skip、catalog freshness 或 provider 可达性。
+- 仍缺生产级监控、SLO、告警规则、外部 uptime monitor、资源容量策略和目标环境恢复演练证据。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
+### 阶段 8 worker 队列表 readiness 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- worker readiness check 从单个函数扩展为多个命名检查，`/readyz` 和 `/healthz` 响应的 `checks` 可同时返回 `postgres` 与 `queue` 状态。
+- `hi sync`、`hi backtest`、`hi trading`、`hi notify` 的 probe 启动时分别注册 PostgreSQL ping 和对应队列表可读检查。
+- `CheckWorkerQueue` 按 worker 类型轻量读取对应表：`data_sync_tasks`、`backtest_tasks`、`trading_tasks`、`notification_outbox`，验证 pending/running 状态列和表结构可访问；查询成功即为 ready，不要求当前一定有可 claim 任务。
+- 任一 readiness check 失败时 `/readyz` / `/healthz` 返回 HTTP 503、`status=unavailable`，失败 check 标记为 `unavailable`，已通过的 check 保持 `ok`；`/livez` 仍不触发 readiness check。
+- `cmd/hi` 单元测试覆盖多 check 成功、queue check 失败、`/livez` 不触发 readiness check。
+
+范围外：
+
+- 不把队列为空、任务积压、claim 饥饿、stale worker、exchange backoff、fetch-lock skip、catalog freshness 或 notification provider 可达性作为 readiness 失败条件。
+- 不新增 Prometheus 指标、SLO、告警规则、外部 uptime monitor 或 Docker Compose 默认 healthcheck。
+- 不改变 worker lease、heartbeat、claim、retry/backoff、SIGTERM 收尾、system health API 或运维健康页逻辑。
+
+当前验证：
+
+- `go test ./cmd/hi ./internal/store/postgres -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 Docker Compose worker health probe smoke；当前本机 Docker daemon 仍不可用。该能力已由本地 Go HTTP listener 单元测试和 store 包编译/测试覆盖，Compose 运行态证据仍需 Docker 可用后补跑。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- worker probe 只证明对应队列表可读，不衡量任务 backlog、claim 成功率、处理时延、stale worker、交易所退避、fetch-lock skip、catalog freshness 或 provider 可达性。
 - 仍缺生产级监控、SLO、告警规则、外部 uptime monitor、资源容量策略和目标环境恢复演练证据。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 

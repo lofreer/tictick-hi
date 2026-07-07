@@ -107,10 +107,25 @@ func runNotify(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID, store.Ping); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID, workerReadinessChecks(store, "notify")); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
+}
+
+func workerReadinessChecks(store *postgres.Store, command string) []workerReadinessCheck {
+	return []workerReadinessCheck{
+		{
+			Name:  "postgres",
+			Check: store.Ping,
+		},
+		{
+			Name: "queue",
+			Check: func(ctx context.Context) error {
+				return store.CheckWorkerQueue(ctx, command)
+			},
+		},
+	}
 }
 
 func runTrading(ctx context.Context, args []string) error {
@@ -152,7 +167,7 @@ func runTrading(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID, store.Ping); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID, workerReadinessChecks(store, "trading")); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -197,7 +212,7 @@ func runBacktest(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID, store.Ping); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID, workerReadinessChecks(store, "backtest")); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -272,7 +287,7 @@ func runSync(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID, store.Ping); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID, workerReadinessChecks(store, "sync")); err != nil {
 		return err
 	}
 	if config.MarketInstrumentSyncEnabled {

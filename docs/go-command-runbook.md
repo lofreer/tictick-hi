@@ -108,11 +108,12 @@ NOTIFY_HEALTH_ADDR
 When set to a TCP `host:port`, the corresponding worker serves `GET /livez`,
 `GET /readyz`, and `GET /healthz` after the command has opened PostgreSQL and
 before the long-running runner loop starts. `/livez` only proves the process is
-reachable. `/readyz` and `/healthz` run a PostgreSQL ping and return HTTP 503
-with `status=unavailable` if that check fails. These probes are disabled by
-default and are not started for `--once`. Task lease state, queue depth,
-exchange backoff, stale workers, fetch-lock skips, and catalog health remain
-visible through `hi api` system health.
+reachable. `/readyz` and `/healthz` run a PostgreSQL ping and a lightweight
+worker queue table read, then return HTTP 503 with `status=unavailable` if
+either check fails. These probes are disabled by default and are not started for
+`--once`. Task lease state, queue depth, exchange backoff, stale workers,
+fetch-lock skips, and catalog health remain visible through `hi api` system
+health.
 
 Public market clients read:
 
@@ -217,6 +218,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` response headers, API access logs with `request_id`, API-created data sync / backtest / trading / data sync repair task and notification `requestId` fields, data sync / backtest / trading / notify worker task logs with `request_id`, and notification provider outbound `X-Request-ID` propagation exist, but W3C trace context is not propagated into exchange / broader external systems or subcommands;
-- worker subcommands have optional health probes with PostgreSQL readiness, but no queue-specific readiness model for task backlog, exchange/provider availability, or stale worker diagnosis;
+- worker subcommands have optional health probes with PostgreSQL and queue table readiness, but no richer readiness model for task backlog, exchange/provider availability, or stale worker diagnosis;
 - backup/restore and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation; database connection pool limits exist, but broader CPU/memory/disk capacity planning is still not complete;
 - no claim that these commands are production-safe.

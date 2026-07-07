@@ -14,14 +14,17 @@ import (
 )
 
 type workerHealthProbeConfig struct {
-	Command        string
-	Addr           string
-	WorkerID       string
-	StartedAt      time.Time
-	ReadinessCheck workerReadinessCheck
+	Command         string
+	Addr            string
+	WorkerID        string
+	StartedAt       time.Time
+	ReadinessChecks []workerReadinessCheck
 }
 
-type workerReadinessCheck func(context.Context) error
+type workerReadinessCheck struct {
+	Name  string
+	Check func(context.Context) error
+}
 
 type workerHealthProbeResponse struct {
 	Status        string            `json:"status"`
@@ -100,13 +103,13 @@ func startConfiguredWorkerHealthProbe(
 	command string,
 	addr string,
 	workerID string,
-	readinessCheck workerReadinessCheck,
+	readinessChecks []workerReadinessCheck,
 ) error {
 	_, err := startWorkerHealthProbe(ctx, workerHealthProbeConfig{
-		Command:        command,
-		Addr:           addr,
-		WorkerID:       workerID,
-		ReadinessCheck: readinessCheck,
+		Command:         command,
+		Addr:            addr,
+		WorkerID:        workerID,
+		ReadinessChecks: readinessChecks,
 	})
 	return err
 }
@@ -129,12 +132,18 @@ func newWorkerHealthProbeHandler(config workerHealthProbeConfig) http.Handler {
 			UptimeSeconds: int64(time.Since(config.StartedAt).Seconds()),
 		}
 		statusCode := http.StatusOK
-		if isWorkerReadinessPath(request.URL.Path) && config.ReadinessCheck != nil {
-			payload.Checks = map[string]string{"postgres": "ok"}
-			if err := config.ReadinessCheck(request.Context()); err != nil {
-				payload.Status = "unavailable"
-				payload.Checks["postgres"] = "unavailable"
-				statusCode = http.StatusServiceUnavailable
+		if isWorkerReadinessPath(request.URL.Path) && len(config.ReadinessChecks) > 0 {
+			payload.Checks = make(map[string]string, len(config.ReadinessChecks))
+			for _, check := range config.ReadinessChecks {
+				if check.Name == "" || check.Check == nil {
+					continue
+				}
+				payload.Checks[check.Name] = "ok"
+				if err := check.Check(request.Context()); err != nil {
+					payload.Status = "unavailable"
+					payload.Checks[check.Name] = "unavailable"
+					statusCode = http.StatusServiceUnavailable
+				}
 			}
 		}
 		response.Header().Set("Content-Type", "application/json")

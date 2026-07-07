@@ -39,8 +39,19 @@ func TestWorkerHealthProbeHandler(t *testing.T) {
 		Command:   "sync",
 		WorkerID:  "worker-1",
 		StartedAt: time.Now().Add(-5 * time.Second),
-		ReadinessCheck: func(context.Context) error {
-			return nil
+		ReadinessChecks: []workerReadinessCheck{
+			{
+				Name: "postgres",
+				Check: func(context.Context) error {
+					return nil
+				},
+			},
+			{
+				Name: "queue",
+				Check: func(context.Context) error {
+					return nil
+				},
+			},
 		},
 	})
 	request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
@@ -62,6 +73,7 @@ func TestWorkerHealthProbeHandler(t *testing.T) {
 		body.Command != "sync" ||
 		body.WorkerID != "worker-1" ||
 		body.Checks["postgres"] != "ok" ||
+		body.Checks["queue"] != "ok" ||
 		body.UptimeSeconds < 0 {
 		t.Fatalf("unexpected body: %#v", body)
 	}
@@ -72,9 +84,21 @@ func TestWorkerHealthProbeReadinessFailure(t *testing.T) {
 	handler := newWorkerHealthProbeHandler(workerHealthProbeConfig{
 		Command:  "trading",
 		WorkerID: "worker-2",
-		ReadinessCheck: func(context.Context) error {
-			checks++
-			return errors.New("database offline")
+		ReadinessChecks: []workerReadinessCheck{
+			{
+				Name: "postgres",
+				Check: func(context.Context) error {
+					checks++
+					return nil
+				},
+			},
+			{
+				Name: "queue",
+				Check: func(context.Context) error {
+					checks++
+					return errors.New("queue unavailable")
+				},
+			},
 		},
 	})
 
@@ -96,7 +120,9 @@ func TestWorkerHealthProbeReadinessFailure(t *testing.T) {
 	if err := json.Unmarshal(readyRecorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.Status != "unavailable" || body.Checks["postgres"] != "unavailable" {
+	if body.Status != "unavailable" ||
+		body.Checks["postgres"] != "ok" ||
+		body.Checks["queue"] != "unavailable" {
 		t.Fatalf("unexpected readiness body: %#v", body)
 	}
 }
