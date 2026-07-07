@@ -36,6 +36,8 @@ type Config struct {
 	MaxRetryBackoff   time.Duration
 }
 
+const RealtimeSyncModeRESTPolling = "rest_polling"
+
 var errDataSyncExchangeFetchLockHeld = errors.New("data sync exchange fetch lock is held")
 
 type dataSyncExchangeFetchLockError struct {

@@ -14439,6 +14439,48 @@ Definition of Done：
 - 该补充不替代完整许可证法务审查或第三方依赖供应链审计。
 - 后续升级 `lightweight-charts` 主版本或新增图表依赖时，仍需复核许可证、包体、API 兼容和真实浏览器视觉回归。
 
+### 阶段 8 数据同步实时轮询模式边界补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- 第一版数据同步实时方式明确为 `hi sync` REST polling，不接入 WebSocket 订阅。
+- `internal/datasync` 暴露 `RealtimeSyncModeRESTPolling=rest_polling`，并由单元测试锁定常量值。
+- `hi sync` 启动摘要新增 `realtime_sync_mode=rest_polling`，运维日志能看到当前实时语义。
+- 运行手册和实施计划同步说明 `SYNC_POLL_INTERVAL` 控制 claim 周期，realtime 任务继续按持久化 cursor + overlap + upsert 拉取 K 线 REST 数据。
+
+范围外：
+
+- 不实现 WebSocket、交易所差异化订阅、tick / 秒级数据或推送式 UI。
+- 不改变现有 data sync claim、lease、heartbeat、exchange fetch lock、退避或 catalog pause/restore 语义。
+- 不做真实外部交易所长期延迟 / 频率压测。
+
+当前验证：
+
+- `go test ./internal/datasync -run 'TestRealtimeSyncModeDocumentsRESTPolling|TestRunnerRunSyncsOnStartAndInterval' -count=1` 通过。
+- `go test ./cmd/hi -run 'TestLoadSyncCommandConfigDefaultsHeartbeatFromLeaseTTL|TestSafeConfigSummaryRedactsSensitiveValues' -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+未执行：
+
+- 本切片未改前端页面运行态，未执行额外 Browser / Vite HTTP smoke。
+
+剩余风险：
+
+- REST polling 不是低延迟实时流，不适合声明 tick 级或订单簿级实时能力。
+- WebSocket、交易所差异化订阅、长期外网恢复压测和多实例频率治理仍是后续生产级风险项。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

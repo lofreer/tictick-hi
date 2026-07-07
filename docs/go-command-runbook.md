@@ -117,6 +117,12 @@ NOTIFY_PROVIDER_MIN_INTERVAL
 interval between consecutive notification provider delivery attempts by the same
 `hi notify` worker.
 
+`hi sync` first-version realtime mode is REST polling, not WebSocket
+subscription. `SYNC_POLL_INTERVAL` controls how often the worker claims
+eligible sync / realtime tasks; each claimed realtime task continues from its
+persisted candle cursor and fetches exchange K-line REST data with overlap and
+upsert semantics.
+
 Long-running worker commands can expose optional HTTP probes:
 
 ```text

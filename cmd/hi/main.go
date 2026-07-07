@@ -269,6 +269,7 @@ func runSync(ctx context.Context, args []string) error {
 		"lease_ttl", config.LeaseTTL,
 		"heartbeat_interval", config.HeartbeatInterval,
 		"poll_interval", config.PollInterval,
+		"realtime_sync_mode", datasync.RealtimeSyncModeRESTPolling,
 		"batch_limit", config.BatchLimit,
 		"overlap_candles", config.OverlapCandles,
 		"default_lookback", config.DefaultLookback,
