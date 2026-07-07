@@ -103,6 +103,14 @@ SYNC_HEALTH_ADDR
 BACKTEST_HEALTH_ADDR
 TRADING_HEALTH_ADDR
 NOTIFY_HEALTH_ADDR
+SYNC_READY_MAX_BACKLOG
+SYNC_READY_MAX_AGE
+BACKTEST_READY_MAX_BACKLOG
+BACKTEST_READY_MAX_AGE
+TRADING_READY_MAX_BACKLOG
+TRADING_READY_MAX_AGE
+NOTIFY_READY_MAX_BACKLOG
+NOTIFY_READY_MAX_AGE
 ```
 
 When set to a TCP `host:port`, the corresponding worker serves `GET /livez`,
@@ -111,9 +119,17 @@ before the long-running runner loop starts. `/livez` only proves the process is
 reachable. `/readyz` and `/healthz` run a PostgreSQL ping and a lightweight
 worker queue table read, then return HTTP 503 with `status=unavailable` if
 either check fails. These probes are disabled by default and are not started for
-`--once`. Task lease state, queue depth, exchange backoff, stale workers,
-fetch-lock skips, and catalog health remain visible through `hi api` system
-health.
+`--once`.
+
+Backlog readiness is also disabled by default. Set `<COMMAND>_READY_MAX_BACKLOG`
+to a positive integer, `<COMMAND>_READY_MAX_AGE` to a positive duration, or both,
+to add a `queue_backlog` check to `/readyz` and `/healthz`. The backlog check
+counts claim-ready work only: sync pending tasks that are enabled, due, active in
+the instrument catalog, and not exchange-backoff blocked; backtest pending tasks;
+trading running tasks that are ready for another claim cycle; and notify
+pending/retry deliveries whose `next_attempt_at` is due. Task lease state,
+general queue depth, exchange backoff, stale workers, fetch-lock skips, and
+catalog health remain visible through `hi api` system health.
 
 Public market clients read:
 
@@ -218,6 +234,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, and notification provider outbound `X-Request-ID` / `traceparent` propagation exist, but W3C trace context is not propagated to exchange / broader external systems or across subcommands;
-- worker subcommands have optional health probes with PostgreSQL and queue table readiness, but no richer readiness model for task backlog, exchange/provider availability, or stale worker diagnosis;
+- worker subcommands have optional health probes with PostgreSQL, queue table, and configured claim-ready backlog readiness, but no richer readiness model for claim success rate, exchange/provider availability, or stale worker diagnosis;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.

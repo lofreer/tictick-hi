@@ -71,7 +71,7 @@ func runNotify(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, err := loadWorkerHealthProbeAddr("notify")
+	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("notify")
 	if err != nil {
 		return err
 	}
@@ -102,30 +102,17 @@ func runNotify(ctx context.Context, args []string) error {
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
+		"ready_max_backlog", backlogReadiness.MaxBacklog,
+		"ready_max_age", backlogReadiness.MaxAge,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID, workerReadinessChecks(store, "notify")); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID, workerReadinessChecks(store, "notify", backlogReadiness)); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
-}
-
-func workerReadinessChecks(store *postgres.Store, command string) []workerReadinessCheck {
-	return []workerReadinessCheck{
-		{
-			Name:  "postgres",
-			Check: store.Ping,
-		},
-		{
-			Name: "queue",
-			Check: func(ctx context.Context) error {
-				return store.CheckWorkerQueue(ctx, command)
-			},
-		},
-	}
 }
 
 func runTrading(ctx context.Context, args []string) error {
@@ -133,7 +120,7 @@ func runTrading(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, err := loadWorkerHealthProbeAddr("trading")
+	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("trading")
 	if err != nil {
 		return err
 	}
@@ -162,12 +149,14 @@ func runTrading(ctx context.Context, args []string) error {
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
+		"ready_max_backlog", backlogReadiness.MaxBacklog,
+		"ready_max_age", backlogReadiness.MaxAge,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID, workerReadinessChecks(store, "trading")); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID, workerReadinessChecks(store, "trading", backlogReadiness)); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -178,7 +167,7 @@ func runBacktest(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, err := loadWorkerHealthProbeAddr("backtest")
+	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("backtest")
 	if err != nil {
 		return err
 	}
@@ -207,12 +196,14 @@ func runBacktest(ctx context.Context, args []string) error {
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
+		"ready_max_backlog", backlogReadiness.MaxBacklog,
+		"ready_max_age", backlogReadiness.MaxAge,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID, workerReadinessChecks(store, "backtest")); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID, workerReadinessChecks(store, "backtest", backlogReadiness)); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -223,7 +214,7 @@ func runSync(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	healthAddr, err := loadWorkerHealthProbeAddr("sync")
+	healthAddr, backlogReadiness, err := loadWorkerProbeRuntimeConfig("sync")
 	if err != nil {
 		return err
 	}
@@ -282,12 +273,14 @@ func runSync(ctx context.Context, args []string) error {
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
 		"db_max_conn_idle_time", config.DatabasePool.MaxConnIdleTime,
 		"health_probe_addr", healthAddr,
+		"ready_max_backlog", backlogReadiness.MaxBacklog,
+		"ready_max_age", backlogReadiness.MaxAge,
 	)...)
 
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID, workerReadinessChecks(store, "sync")); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID, workerReadinessChecks(store, "sync", backlogReadiness)); err != nil {
 		return err
 	}
 	if config.MarketInstrumentSyncEnabled {

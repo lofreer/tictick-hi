@@ -153,6 +153,55 @@ func TestDurationEnvStrictNamesInvalidEnv(t *testing.T) {
 	}
 }
 
+func TestLoadWorkerReadinessBacklogConfig(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("SYNC_READY_MAX_BACKLOG", "12")
+	t.Setenv("SYNC_READY_MAX_AGE", "45s")
+
+	config, err := loadWorkerReadinessBacklogConfig("sync")
+	if err != nil {
+		t.Fatalf("load worker readiness backlog config: %v", err)
+	}
+	if config.MaxBacklog != 12 || config.MaxAge != 45*time.Second {
+		t.Fatalf("unexpected backlog config: %#v", config)
+	}
+	if !config.enabled() {
+		t.Fatalf("expected backlog readiness to be enabled")
+	}
+	if limits := config.limits(); limits.MaxBacklog != 12 || limits.MaxReadyAge != 45*time.Second {
+		t.Fatalf("unexpected backlog limits: %#v", limits)
+	}
+
+	clearCommandEnv(t)
+	t.Setenv("TRADING_READY_MAX_AGE", "0s")
+
+	config, err = loadWorkerReadinessBacklogConfig("trading")
+	if err != nil {
+		t.Fatalf("load disabled worker readiness backlog config: %v", err)
+	}
+	if config.enabled() {
+		t.Fatalf("zero backlog config should be disabled: %#v", config)
+	}
+}
+
+func TestLoadWorkerReadinessBacklogConfigRejectsInvalidValues(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("NOTIFY_READY_MAX_BACKLOG", "-1")
+
+	_, err := loadWorkerReadinessBacklogConfig("notify")
+	if err == nil || !strings.Contains(err.Error(), "NOTIFY_READY_MAX_BACKLOG") {
+		t.Fatalf("expected max backlog error, got %v", err)
+	}
+
+	clearCommandEnv(t)
+	t.Setenv("NOTIFY_READY_MAX_AGE", "-1s")
+
+	_, err = loadWorkerReadinessBacklogConfig("notify")
+	if err == nil || !strings.Contains(err.Error(), "NOTIFY_READY_MAX_AGE") {
+		t.Fatalf("expected max age error, got %v", err)
+	}
+}
+
 func clearCommandEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
@@ -180,6 +229,8 @@ func clearCommandEnv(t *testing.T) {
 		"SYNC_RETRY_BACKOFF",
 		"SYNC_MAX_RETRY_BACKOFF",
 		"SYNC_HEALTH_ADDR",
+		"SYNC_READY_MAX_BACKLOG",
+		"SYNC_READY_MAX_AGE",
 		"MARKET_INSTRUMENT_SYNC_ENABLED",
 		"MARKET_INSTRUMENT_SYNC_ON_START",
 		"MARKET_INSTRUMENT_SYNC_INTERVAL",
@@ -188,17 +239,23 @@ func clearCommandEnv(t *testing.T) {
 		"BACKTEST_POLL_INTERVAL",
 		"BACKTEST_CANDLE_LIMIT",
 		"BACKTEST_HEALTH_ADDR",
+		"BACKTEST_READY_MAX_BACKLOG",
+		"BACKTEST_READY_MAX_AGE",
 		"TRADING_WORKER_ID",
 		"TRADING_LEASE_TTL",
 		"TRADING_POLL_INTERVAL",
 		"TRADING_CANDLE_LIMIT",
 		"TRADING_HEALTH_ADDR",
+		"TRADING_READY_MAX_BACKLOG",
+		"TRADING_READY_MAX_AGE",
 		"NOTIFY_WORKER_ID",
 		"NOTIFY_LEASE_TTL",
 		"NOTIFY_POLL_INTERVAL",
 		"NOTIFY_RETRY_DELAY",
 		"NOTIFY_MAX_RETRY_DELAY",
 		"NOTIFY_HEALTH_ADDR",
+		"NOTIFY_READY_MAX_BACKLOG",
+		"NOTIFY_READY_MAX_AGE",
 		"BINANCE_BASE_URLS",
 		"BINANCE_REQUEST_WEIGHT_LIMIT",
 		"BINANCE_REQUEST_WEIGHT_WINDOW",

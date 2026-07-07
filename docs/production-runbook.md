@@ -166,15 +166,26 @@ SYNC_HEALTH_ADDR=0.0.0.0:8091
 BACKTEST_HEALTH_ADDR=0.0.0.0:8092
 TRADING_HEALTH_ADDR=0.0.0.0:8093
 NOTIFY_HEALTH_ADDR=0.0.0.0:8094
+# Optional; blank disables the backlog readiness check.
+SYNC_READY_MAX_BACKLOG=
+SYNC_READY_MAX_AGE=
+BACKTEST_READY_MAX_BACKLOG=
+BACKTEST_READY_MAX_AGE=
+TRADING_READY_MAX_BACKLOG=
+TRADING_READY_MAX_AGE=
+NOTIFY_READY_MAX_BACKLOG=
+NOTIFY_READY_MAX_AGE=
 ```
 
 When these values are set before starting Compose, the corresponding worker
 serves `/livez`, `/readyz`, and `/healthz` after PostgreSQL is open and before
 the runner loop starts. `/livez` only proves process reachability. `/readyz` and
 `/healthz` run a PostgreSQL ping plus a lightweight read of the worker's queue
-table and return HTTP 503 with `status=unavailable` if either check fails. Keep
-using `/system/health` for task leases, queue depth, stale workers, exchange
-backoff, fetch-lock skips, and instrument catalog status.
+table and return HTTP 503 with `status=unavailable` if either check fails. If a
+positive `<COMMAND>_READY_MAX_BACKLOG` or `<COMMAND>_READY_MAX_AGE` is set, the
+same endpoints also run `queue_backlog` readiness against claim-ready work. Keep
+using `/system/health` for task leases, general queue depth, stale workers,
+exchange backoff, fetch-lock skips, and instrument catalog status.
 
 Operational UI checks:
 
@@ -403,7 +414,7 @@ close these production-safety gaps:
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
 - no exchange / broader external system W3C trace propagation, external log sink, or retention policy;
-- no richer worker backlog / external dependency readiness beyond PostgreSQL and queue-table-ready worker probes;
+- no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, and configured claim-ready backlog worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
 - no long-running multi-instance exchange quota proof;

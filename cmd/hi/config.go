@@ -80,6 +80,11 @@ type exchangeClientConfig struct {
 	OKXMarketRequestWindow     time.Duration
 }
 
+type workerReadinessBacklogConfig struct {
+	MaxBacklog int
+	MaxAge     time.Duration
+}
+
 func loadAPICommandConfig() (apiCommandConfig, error) {
 	databaseURL, err := requiredEnv("DATABASE_URL")
 	if err != nil {
@@ -341,6 +346,33 @@ func loadExchangeClientConfig() (exchangeClientConfig, error) {
 	}, nil
 }
 
+func loadWorkerReadinessBacklogConfig(command string) (workerReadinessBacklogConfig, error) {
+	prefix := strings.ToUpper(command)
+	maxBacklog, err := intEnvStrict(prefix+"_READY_MAX_BACKLOG", 0, 0)
+	if err != nil {
+		return workerReadinessBacklogConfig{}, err
+	}
+	maxAge, err := durationEnvNonNegative(prefix+"_READY_MAX_AGE", 0)
+	if err != nil {
+		return workerReadinessBacklogConfig{}, err
+	}
+	return workerReadinessBacklogConfig{
+		MaxBacklog: maxBacklog,
+		MaxAge:     maxAge,
+	}, nil
+}
+
+func (config workerReadinessBacklogConfig) enabled() bool {
+	return config.MaxBacklog > 0 || config.MaxAge > 0
+}
+
+func (config workerReadinessBacklogConfig) limits() postgres.WorkerQueueBacklogLimits {
+	return postgres.WorkerQueueBacklogLimits{
+		MaxBacklog:  config.MaxBacklog,
+		MaxReadyAge: config.MaxAge,
+	}
+}
+
 func loadDatabasePoolOptions() (postgres.PoolOptions, error) {
 	maxConns, err := intEnvStrict("DB_MAX_CONNS", int(postgres.DefaultPoolOptions().MaxConns), 1)
 	if err != nil {
@@ -392,6 +424,21 @@ func durationEnvStrict(key string, fallback time.Duration) (time.Duration, error
 	}
 	if parsed <= 0 {
 		return 0, fmt.Errorf("%s must be greater than 0", key)
+	}
+	return parsed, nil
+}
+
+func durationEnvNonNegative(key string, fallback time.Duration) (time.Duration, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid duration", key)
+	}
+	if parsed < 0 {
+		return 0, fmt.Errorf("%s must be greater than or equal to 0", key)
 	}
 	return parsed, nil
 }
