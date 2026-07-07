@@ -80,6 +80,10 @@ func validateOperator(operator data.CreateOperator) error {
 	return data.ValidateOperatorPasswordForUsername(operator.Username, operator.Password)
 }
 
+func validateOperatorRoleUpdate(request data.UpdateOperatorRole) error {
+	return data.ValidateOperatorRole(data.NormalizeOperatorRole(request.Role))
+}
+
 func normalizeCreateBacktest(task *data.CreateBacktestTask) {
 	if task.StrategyParams == nil {
 		task.StrategyParams = map[string]any{}

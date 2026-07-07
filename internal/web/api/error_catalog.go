@@ -19,6 +19,7 @@ const (
 	apiErrorDataSyncCommandInvalidState       apiErrorCode = "data_sync_command_invalid_state"
 	apiErrorTradingTaskCommandInvalidState    apiErrorCode = "trading_task_command_invalid_state"
 	apiErrorOperatorSelfDisableForbidden      apiErrorCode = "operator_self_disable_forbidden"
+	apiErrorOperatorSelfRoleChangeForbidden   apiErrorCode = "operator_self_role_change_forbidden"
 	apiErrorOperatorLastEnabledRequired       apiErrorCode = "operator_last_enabled_required"
 	apiErrorOperatorLastAdminRequired         apiErrorCode = "operator_last_admin_required"
 	apiErrorAuthCurrentSessionRevokeForbidden apiErrorCode = "auth_current_session_revoke_forbidden"
@@ -51,6 +52,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorDataSyncCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The data sync task state does not allow the requested command."},
 	{Code: string(apiErrorTradingTaskCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The trading task state does not allow the requested command."},
 	{Code: string(apiErrorOperatorSelfDisableForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot disable its own account."},
+	{Code: string(apiErrorOperatorSelfRoleChangeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot change its own role."},
 	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
 	{Code: string(apiErrorOperatorLastAdminRequired), HTTPStatus: http.StatusConflict, Description: "At least one admin operator account must remain enabled."},
 	{Code: string(apiErrorAuthCurrentSessionRevokeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator session cannot be revoked from the session list."},

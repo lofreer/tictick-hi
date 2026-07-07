@@ -54,6 +54,7 @@ import type {
   SystemHealth as APISystemHealth,
   TaskStatus as APITaskStatus,
   TradingTask as APITradingTask,
+  UpdateOperatorRole as APIUpdateOperatorRole,
 } from "@/types/api.generated";
 
 export type ThemeMode = "light" | "dark";
@@ -202,6 +203,8 @@ export type MarketInstrumentSyncResult = {
 export type Operator = APIOperator;
 
 export type CreateOperator = APICreateOperator;
+
+export type UpdateOperatorRole = APIUpdateOperatorRole;
 
 export type LoginCredentials = APILoginRequest;
 

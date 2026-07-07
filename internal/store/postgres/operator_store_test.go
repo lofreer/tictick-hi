@@ -103,6 +103,62 @@ func TestOperatorStoreRejectsDisablingLastEnabledAdmin(t *testing.T) {
 	}
 }
 
+func TestOperatorStoreRejectsDemotingLastEnabledAdmin(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	admin, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("demote_last_admin"),
+		Password: "secret123A",
+		Role:     data.OperatorRoleAdmin,
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("demote_plain_operator"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	states := snapshotOtherOperatorStates(t, ctx, store, admin.ID, operator.ID)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		restoreOperatorStates(t, cleanupCtx, store, states)
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = ANY($1::text[])`, []string{admin.ID, operator.ID})
+	})
+
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE operators
+		   SET enabled = false
+		 WHERE id <> ALL($1::text[])`,
+		[]string{admin.ID, operator.ID},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.SetOperatorRole(ctx, admin.ID, data.OperatorRoleOperator)
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("SetOperatorRole error = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorLastAdminRequired {
+		t.Fatalf("SetOperatorRole code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorLastAdminRequired)
+	}
+
+	authenticated, err := store.AuthenticateOperator(ctx, admin.Username, "secret123A")
+	if err != nil {
+		t.Fatalf("last admin could not authenticate: %v", err)
+	}
+	if authenticated.Role != data.OperatorRoleAdmin {
+		t.Fatalf("last admin role = %q, want admin", authenticated.Role)
+	}
+}
+
 func TestIntegrationOperatorTrimmedUsernameConstraint(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

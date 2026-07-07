@@ -11,11 +11,15 @@ const (
 )
 
 func NormalizeCreateOperatorRole(role string) string {
-	role = strings.ToLower(strings.TrimSpace(role))
+	role = NormalizeOperatorRole(role)
 	if role == "" {
 		return OperatorRoleOperator
 	}
 	return role
+}
+
+func NormalizeOperatorRole(role string) string {
+	return strings.ToLower(strings.TrimSpace(role))
 }
 
 func ValidateOperatorRole(role string) error {

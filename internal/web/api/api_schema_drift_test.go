@@ -39,6 +39,7 @@ func TestFrontendAPIRequestTypesMatchContractSchemas(t *testing.T) {
 		{"CreateNotificationChannel", "CreateNotificationChannel"},
 		{"CreateExchangeAccount", "CreateExchangeAccount"},
 		{"CreateOperator", "CreateOperator"},
+		{"UpdateOperatorRole", "UpdateOperatorRole"},
 	} {
 		assertTSFieldsEqualSchema(t, types[item.tsType], item.schemaName, schemas[item.schemaName])
 		assertTSOptionalityMatchesSchema(t, types[item.tsType], item.schemaName, schemas[item.schemaName])

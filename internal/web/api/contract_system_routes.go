@@ -34,6 +34,13 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 	))
 	addSystemActionContractPaths(paths, "/api/system/operators/{id}",
 		"setOperator", "Set operator", "Operator", "Operator id", "enable", "disable")
+	addOperation(paths, "/api/system/operators/{id}/role", http.MethodPost, operation(
+		"system", "setOperatorRole", "Set operator role", http.StatusOK, schemaRef("Operator"),
+		withCSRF(),
+		withParameters(pathParam("id", "Operator id")),
+		withRequest(schemaRef("UpdateOperatorRole")),
+		withErrors(http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusConflict),
+	))
 	addOperation(paths, "/api/system/audit-events", http.MethodGet, operation(
 		"system", "listAuditEvents", "List operation audit events", http.StatusOK, arraySchema(schemaRef("AuditEvent")),
 		withParameters(auditEventLimitQueryParam()),

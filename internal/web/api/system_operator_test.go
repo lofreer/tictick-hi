@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -60,6 +61,26 @@ func TestOperatorManagementRequiresAdminRole(t *testing.T) {
 	event := assertAuditAction(t, repository.auditEvents, "operator.create", "operator", "")
 	if event.Outcome != "failure" || event.Metadata["reason"] != "admin_required" || event.Metadata["actorRole"] != data.OperatorRoleOperator {
 		t.Fatalf("unexpected admin required audit event: %#v", event)
+	}
+
+	roleRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators/op_admin/role",
+		`{"role":"admin"}`,
+	)
+	if roleRecorder.Code != http.StatusForbidden {
+		t.Fatalf("role update status = %d body = %s", roleRecorder.Code, roleRecorder.Body.String())
+	}
+	roleResponse := decodeAPIError(t, roleRecorder)
+	if roleResponse.Code != "forbidden" || roleResponse.Message != "admin operator role is required" {
+		t.Fatalf("unexpected role admin required response: %#v", roleResponse)
+	}
+	roleEvent := assertAuditAction(t, repository.auditEvents, "operator.role", "operator", "op_admin")
+	if roleEvent.Outcome != "failure" || roleEvent.Metadata["reason"] != "admin_required" ||
+		roleEvent.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected role admin required audit event: %#v", roleEvent)
 	}
 }
 
@@ -132,6 +153,91 @@ func TestCreateOperatorRejectsInvalidRole(t *testing.T) {
 	}
 }
 
+func TestOperatorRoleUpdateAuditsPreviousRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.operators = append(repository.operators, data.Operator{
+		ID:        "op_ops",
+		Username:  "ops",
+		Role:      data.OperatorRoleOperator,
+		Enabled:   true,
+		CreatedAt: repository.operators[0].CreatedAt,
+		UpdatedAt: repository.operators[0].UpdatedAt,
+	})
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators/op_ops/role",
+		`{"role":"admin"}`,
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("role update status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var updated data.Operator
+	if err := json.NewDecoder(recorder.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.ID != "op_ops" || updated.Role != data.OperatorRoleAdmin {
+		t.Fatalf("unexpected updated operator: %#v", updated)
+	}
+	event := assertAuditAction(t, repository.auditEvents, "operator.role", "operator", "op_ops")
+	if event.Outcome != "success" ||
+		event.Metadata["previousRole"] != data.OperatorRoleOperator ||
+		event.Metadata["role"] != data.OperatorRoleAdmin ||
+		event.Metadata["username"] != "ops" {
+		t.Fatalf("unexpected role audit metadata: %#v", event)
+	}
+}
+
+func TestOperatorCannotChangeOwnRole(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators/op_admin/role",
+		`{"role":"operator"}`,
+	)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("self role update status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "operator_self_role_change_forbidden" ||
+		response.Message != "current operator role cannot be changed" {
+		t.Fatalf("unexpected self role response: %#v", response)
+	}
+	if repository.operators[0].Role != data.OperatorRoleAdmin {
+		t.Fatalf("current operator role changed: %#v", repository.operators[0])
+	}
+	event := assertAuditAction(t, repository.auditEvents, "operator.role", "operator", "op_admin")
+	if event.Outcome != "failure" ||
+		event.Metadata["reason"] != "self_role_change_forbidden" ||
+		event.Metadata["requestedRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected self role audit metadata: %#v", event)
+	}
+}
+
+func TestUpdateOperatorRoleRejectsInvalidRole(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators/op_admin/role",
+		`{"role":"owner"}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid role update status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Message != "operator role must be admin or operator" {
+		t.Fatalf("unexpected invalid role update response: %#v", response)
+	}
+}
+
 func TestCreateOperatorRejectsBlankUsername(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -183,5 +289,28 @@ func TestRepositoryRejectsDisablingLastEnabledAdmin(t *testing.T) {
 	}
 	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorLastAdminRequired {
 		t.Fatalf("SetOperatorEnabled code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorLastAdminRequired)
+	}
+}
+
+func TestRepositoryRejectsDemotingLastEnabledAdmin(t *testing.T) {
+	repository := newFakeRepository()
+	repository.operators = append(repository.operators, data.Operator{
+		ID:        "op_ops",
+		Username:  "ops",
+		Role:      data.OperatorRoleOperator,
+		Enabled:   true,
+		CreatedAt: repository.operators[0].CreatedAt,
+		UpdatedAt: repository.operators[0].UpdatedAt,
+	})
+
+	_, err := repository.SetOperatorRole(t.Context(), "op_admin", data.OperatorRoleOperator)
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("SetOperatorRole error = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorLastAdminRequired {
+		t.Fatalf("SetOperatorRole code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorLastAdminRequired)
+	}
+	if repository.operators[0].Role != data.OperatorRoleAdmin {
+		t.Fatalf("last admin role changed: %#v", repository.operators[0])
 	}
 }

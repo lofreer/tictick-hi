@@ -58,6 +58,34 @@ func (repository *fakeRepository) SetOperatorEnabled(
 	return data.Operator{}, data.ErrNotFound
 }
 
+func (repository *fakeRepository) SetOperatorRole(
+	_ context.Context,
+	id string,
+	role string,
+) (data.OperatorRoleUpdateResult, error) {
+	role = data.NormalizeOperatorRole(role)
+	if err := data.ValidateOperatorRole(role); err != nil {
+		return data.OperatorRoleUpdateResult{}, err
+	}
+	for index := range repository.operators {
+		if repository.operators[index].ID == id {
+			if role == data.OperatorRoleOperator &&
+				repository.operators[index].Enabled &&
+				repository.operators[index].Role == data.OperatorRoleAdmin &&
+				repository.enabledAdminOperatorCount() <= 1 {
+				return data.OperatorRoleUpdateResult{}, data.OperatorLastAdminError()
+			}
+			previousRole := repository.operators[index].Role
+			repository.operators[index].Role = role
+			return data.OperatorRoleUpdateResult{
+				Operator:     repository.operators[index],
+				PreviousRole: previousRole,
+			}, nil
+		}
+	}
+	return data.OperatorRoleUpdateResult{}, data.ErrNotFound
+}
+
 func (repository *fakeRepository) enabledOperatorCount() int {
 	count := 0
 	for _, operator := range repository.operators {

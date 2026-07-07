@@ -290,6 +290,15 @@ type CreateOperator struct {
 	Enabled  bool   `json:"enabled"`
 }
 
+type UpdateOperatorRole struct {
+	Role string `json:"role"`
+}
+
+type OperatorRoleUpdateResult struct {
+	Operator     Operator
+	PreviousRole string
+}
+
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`

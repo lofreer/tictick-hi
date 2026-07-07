@@ -11,6 +11,7 @@ import { useAuthStore } from "@/stores/auth";
 const apiMocks = vi.hoisted(() => ({
   listOperators: vi.fn(),
   setOperatorEnabled: vi.fn(),
+  setOperatorRole: vi.fn(),
   createOperator: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock("@/services/api/system", () => ({
   systemApi: {
     listOperators: apiMocks.listOperators,
     setOperatorEnabled: apiMocks.setOperatorEnabled,
+    setOperatorRole: apiMocks.setOperatorRole,
     createOperator: apiMocks.createOperator,
   },
 }));
@@ -54,15 +56,24 @@ describe("SystemOperatorsPage", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].text()).toContain("管理员");
     expect(rows[1].text()).toContain("操作员");
-    const selfButton = rows[0].get("button");
-    expect(selfButton.attributes("disabled")).toBeDefined();
-    expect(selfButton.attributes("title")).toBe("不能停用当前操作员。");
-    await selfButton.trigger("click");
+    const selfButtons = rows[0].findAll("button");
+    expect(selfButtons).toHaveLength(2);
+    const selfRoleButton = selfButtons[0];
+    const selfDisableButton = selfButtons[1];
+    expect(selfRoleButton.attributes("disabled")).toBeDefined();
+    expect(selfRoleButton.attributes("title")).toBe("不能变更当前操作员角色。");
+    await selfRoleButton.trigger("click");
+    expect(apiMocks.setOperatorRole).not.toHaveBeenCalled();
+    expect(selfDisableButton.attributes("disabled")).toBeDefined();
+    expect(selfDisableButton.attributes("title")).toBe("不能停用当前操作员。");
+    await selfDisableButton.trigger("click");
     expect(apiMocks.setOperatorEnabled).not.toHaveBeenCalled();
 
-    const otherButton = rows[1].get("button");
-    expect(otherButton.attributes("disabled")).toBeUndefined();
-    await otherButton.trigger("click");
+    const otherButtons = rows[1].findAll("button");
+    expect(otherButtons).toHaveLength(2);
+    expect(otherButtons[0].attributes("disabled")).toBeUndefined();
+    expect(otherButtons[1].attributes("disabled")).toBeUndefined();
+    await otherButtons[1].trigger("click");
     expect(apiMocks.setOperatorEnabled).toHaveBeenCalledWith("op_ops", false);
   });
 });

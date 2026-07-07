@@ -121,6 +121,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodPost, "/api/system/operators"},
 		{http.MethodPost, "/api/system/operators/{id}/enable"},
 		{http.MethodPost, "/api/system/operators/{id}/disable"},
+		{http.MethodPost, "/api/system/operators/{id}/role"},
 		{http.MethodGet, "/api/system/health"},
 		{http.MethodGet, "/api/system/audit-events"},
 		{http.MethodGet, "/api/system/audit-events/page"},

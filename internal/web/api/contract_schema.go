@@ -174,6 +174,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"CreateExchangeAccount", data.CreateExchangeAccount{}},
 		{"Operator", data.Operator{}},
 		{"CreateOperator", data.CreateOperator{}},
+		{"UpdateOperatorRole", data.UpdateOperatorRole{}},
 		{"LoginRequest", data.LoginRequest{}},
 		{"OperatorSession", data.OperatorSession{}},
 		{"SystemHealth", data.SystemHealth{}},

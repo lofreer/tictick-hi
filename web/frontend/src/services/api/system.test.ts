@@ -92,6 +92,34 @@ describe("system api", () => {
 		);
 	});
 
+  it("updates operator roles", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: "op_ops",
+          username: "ops",
+          role: "admin",
+          enabled: true,
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:03:00Z",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.setOperatorRole("op_ops", { role: "admin" })).resolves.toEqual(
+      expect.objectContaining({ id: "op_ops", role: "admin" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/system/operators/op_ops/role",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ role: "admin" }),
+      }),
+    );
+  });
+
 	it("updates and deletes notification channels", async () => {
 		const fetchMock = vi
 			.fn()

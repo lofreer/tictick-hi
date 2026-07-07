@@ -11,6 +11,7 @@ import type {
   NotificationChannel,
   Operator,
   SystemHealth,
+  UpdateOperatorRole,
 } from "@/types/app";
 
 export const systemApi = {
@@ -62,6 +63,10 @@ export const systemApi = {
   setOperatorEnabled(id: string, enabled: boolean) {
     const action = enabled ? "enable" : "disable";
     return apiClient.post<Operator>(`/system/operators/${encodeURIComponent(id)}/${action}`);
+  },
+
+  setOperatorRole(id: string, request: UpdateOperatorRole) {
+    return apiClient.post<Operator>(`/system/operators/${encodeURIComponent(id)}/role`, request);
   },
 
   health() {
