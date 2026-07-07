@@ -77,4 +77,21 @@ func TestIntegrationAuditEventConstraintsRejectInvalidOutcome(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected audit_events_outcome_check violation")
 	}
+	assertDatabaseConstraintError(t, err, "audit_events_outcome_check")
+}
+
+func TestIntegrationAuditEventConstraintsRejectBlankRequiredText(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := store.pool.Exec(ctx, `
+		INSERT INTO audit_events (id, action, resource_type, outcome)
+		VALUES ($1, '   ', 'operator', 'success')`,
+		integrationID("ae_blank_action"),
+	)
+	if err == nil {
+		t.Fatal("expected audit_events_trimmed_required_text_check violation")
+	}
+	assertDatabaseConstraintError(t, err, "audit_events_trimmed_required_text_check")
 }
