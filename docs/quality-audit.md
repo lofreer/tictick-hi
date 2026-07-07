@@ -14399,6 +14399,46 @@ Definition of Done：
 - 该补充只关闭“第一版前端暴露哪些周期”的本地边界，不代表所有交易所都已完整验证这些周期的真实外网行为。
 - 后续新增周期必须同步策略 registry、CandleProvider、adapter 映射、API contract 和前端共享定义，否则会重新产生能力漂移。
 
+### 阶段 8 TradingView 开源图表包边界补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- 第一版 TradingView 开源图表包明确为 `lightweight-charts`。
+- 前端依赖声明继续保留 `lightweight-charts`，本地安装包元数据当前为 `name=lightweight-charts`、`license=Apache-2.0`。
+- `TradingViewChart` 契约测试要求组件从 `lightweight-charts` 导入，并禁止嵌入 `s3.tradingview.com`、`charting_library`、`new TradingView.widget` 或 iframe widget。
+
+范围外：
+
+- 不接入 TradingView proprietary widget、高级图表库、绘图工具、指标编辑器或账号级付费功能。
+- 不改现有图表布局、readout、marker、数据查询或视觉 smoke 阈值。
+- 不做法务审计结论；这里只把当前依赖和组件使用边界固化为工程契约。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.package.test.ts src/components/chart/TradingViewChart.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+
+未执行：
+
+- 本切片只新增契约测试和文档，不改变页面运行态，未执行额外 Browser / Vite HTTP smoke。
+
+剩余风险：
+
+- 该补充不替代完整许可证法务审查或第三方依赖供应链审计。
+- 后续升级 `lightweight-charts` 主版本或新增图表依赖时，仍需复核许可证、包体、API 兼容和真实浏览器视觉回归。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -48,7 +48,7 @@
 当前待确认：
 
 - 第一版前端暴露 `1m`、`5m`、`15m`、`1h`、`4h`、`1d` K 线周期；研究页和策略任务表单共用同一前端周期定义。
-- TradingView 开源图表库的具体接入包和授权边界。
+- TradingView 开源图表第一版采用 `lightweight-charts` 包，当前安装包元数据为 Apache-2.0 license；不接入 proprietary TradingView widget / charting_library。
 - 真实邮件、Telegram、飞书 provider 已采用 env-reference 凭据模型；生产启用边界仍需继续确认。
 
 ## 1. 产品定位
@@ -187,7 +187,7 @@
 UI：Naive UI
 状态管理：Pinia
 i18n：vue-i18n
-图表：TradingView lightweight-charts
+图表：TradingView Lightweight Charts（`lightweight-charts`，Apache-2.0 包）
 请求：原生 fetch + typed API wrapper
 包管理：pnpm
 构建产物：web/frontend/dist
@@ -1998,7 +1998,7 @@ go vet ./...
 
 1. 第一版前端统一暴露 `1m`、`5m`、`15m`、`1h`、`4h`、`1d`，研究页和策略任务表单共用同一前端定义；后续新增周期必须同步后端策略 / CandleProvider / 交易所 adapter 边界。
 2. 数据同步实时方式：WebSocket、轮询，还是交易所差异化。
-3. TradingView 开源图表具体采用哪个包。
+3. TradingView 开源图表第一版采用 `lightweight-charts` 包，当前安装包元数据为 Apache-2.0 license；前端契约测试禁止回退到 proprietary TradingView widget / charting_library。
 4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider，并记录成功投递响应中的 provider message ID；生产启用、模板、限流和外部回执边界仍需确认。
 5. 生产级交易所账号密钥来源、轮换和历史账号迁移策略。
 6. 实盘任务创建二次输入确认已收敛为输入 `LIVE`；风险默认值仍需随 live executor 阶段继续复核。
