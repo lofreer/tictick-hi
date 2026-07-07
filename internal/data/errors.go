@@ -17,6 +17,7 @@ const (
 	ErrorCodeTradingTaskCommandInvalidState    ErrorCode = "trading_task_command_invalid_state"
 	ErrorCodeOperatorLastEnabledRequired       ErrorCode = "operator_last_enabled_required"
 	ErrorCodeOperatorLastAdminRequired         ErrorCode = "operator_last_admin_required"
+	ErrorCodeOperatorPasswordReused            ErrorCode = "operator_password_reused"
 	ErrorCodeAuthCurrentSessionRevokeForbidden ErrorCode = "auth_current_session_revoke_forbidden"
 )
 
@@ -86,6 +87,14 @@ func OperatorLastAdminError() error {
 	return &DomainError{
 		Code:    ErrorCodeOperatorLastAdminRequired,
 		Message: "at least one admin operator must remain enabled",
+		Cause:   ErrInvalidState,
+	}
+}
+
+func OperatorPasswordReusedError() error {
+	return &DomainError{
+		Code:    ErrorCodeOperatorPasswordReused,
+		Message: "new password must not reuse a recent operator password",
 		Cause:   ErrInvalidState,
 	}
 }

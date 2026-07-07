@@ -99,6 +99,46 @@ func TestChangeOperatorPasswordRejectsInvalidCurrentPassword(t *testing.T) {
 	}
 }
 
+func TestChangeOperatorPasswordRejectsRecentPasswordReuse(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	firstRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/auth/password",
+		`{"currentPassword":"`+testPassword+`","newPassword":"secret456B"}`,
+	)
+	if firstRecorder.Code != http.StatusOK {
+		t.Fatalf("first password change status = %d body = %s", firstRecorder.Code, firstRecorder.Body.String())
+	}
+	reuseRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/auth/password",
+		`{"currentPassword":"secret456B","newPassword":"`+testPassword+`"}`,
+	)
+	if reuseRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("reused password status = %d body = %s", reuseRecorder.Code, reuseRecorder.Body.String())
+	}
+	response := decodeAPIError(t, reuseRecorder)
+	if response.Code != "operator_password_reused" ||
+		response.Message != "new password must not reuse a recent operator password" {
+		t.Fatalf("unexpected reused password response: %#v", response)
+	}
+	if _, err := repository.AuthenticateOperator(t.Context(), testUsername, "secret456B"); err != nil {
+		t.Fatalf("current password should remain valid: %v", err)
+	}
+	event := repository.auditEvents[len(repository.auditEvents)-1]
+	if event.Action != "auth.password_change" || event.Outcome != "failure" ||
+		event.Metadata["reason"] != "password_history" {
+		t.Fatalf("unexpected reused password audit event: %#v", event)
+	}
+}
+
 func TestChangeOperatorPasswordRequiresCSRF(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 

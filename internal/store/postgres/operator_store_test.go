@@ -226,6 +226,101 @@ func TestOperatorStoreChangesPasswordAndRevokesOtherSessions(t *testing.T) {
 	}
 }
 
+func TestOperatorStoreRejectsRecentPasswordReuse(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("password_reuse"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := data.OperatorSession{
+		ID:         integrationID("os_reuse"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_reuse"),
+		ExpiresAt:  time.Now().UTC().Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret123A", "secret456B"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret456B", "secret123A")
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("ChangeOperatorPassword reuse error = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorPasswordReused {
+		t.Fatalf("ChangeOperatorPassword reuse code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorPasswordReused)
+	}
+	if _, err := store.AuthenticateOperator(ctx, operator.Username, "secret456B"); err != nil {
+		t.Fatalf("current password should remain valid: %v", err)
+	}
+}
+
+func TestOperatorStorePrunesPasswordHistory(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("password_history"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := data.OperatorSession{
+		ID:         integrationID("os_history"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_history"),
+		ExpiresAt:  time.Now().UTC().Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	currentPassword := "secret123A"
+	for _, nextPassword := range []string{
+		"secret201A", "secret202B", "secret203C", "secret204D", "secret205E", "secret206F", "secret207G",
+	} {
+		if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, currentPassword, nextPassword); err != nil {
+			t.Fatalf("change password to %s: %v", nextPassword, err)
+		}
+		currentPassword = nextPassword
+	}
+
+	var count int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)
+		  FROM operator_password_history
+		 WHERE operator_id = $1`,
+		operator.ID,
+	).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != data.OperatorPasswordHistoryLimit {
+		t.Fatalf("password history count = %d, want %d", count, data.OperatorPasswordHistoryLimit)
+	}
+}
+
 func TestIntegrationOperatorTrimmedUsernameConstraint(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

@@ -22,6 +22,7 @@ const (
 	apiErrorOperatorSelfRoleChangeForbidden   apiErrorCode = "operator_self_role_change_forbidden"
 	apiErrorOperatorLastEnabledRequired       apiErrorCode = "operator_last_enabled_required"
 	apiErrorOperatorLastAdminRequired         apiErrorCode = "operator_last_admin_required"
+	apiErrorOperatorPasswordReused            apiErrorCode = "operator_password_reused"
 	apiErrorAuthCurrentSessionRevokeForbidden apiErrorCode = "auth_current_session_revoke_forbidden"
 	apiErrorMarketInstrumentSyncUnavailable   apiErrorCode = "market_instrument_sync_unavailable"
 	apiErrorMarketInstrumentSyncFailed        apiErrorCode = "market_instrument_sync_failed"
@@ -55,6 +56,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorOperatorSelfRoleChangeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot change its own role."},
 	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
 	{Code: string(apiErrorOperatorLastAdminRequired), HTTPStatus: http.StatusConflict, Description: "At least one admin operator account must remain enabled."},
+	{Code: string(apiErrorOperatorPasswordReused), HTTPStatus: http.StatusBadRequest, Description: "The new operator password must not reuse the current or recent passwords."},
 	{Code: string(apiErrorAuthCurrentSessionRevokeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator session cannot be revoked from the session list."},
 	{Code: string(apiErrorMarketInstrumentSyncUnavailable), HTTPStatus: http.StatusBadRequest, Description: "Market instrument sync is unavailable for the requested exchange."},
 	{Code: string(apiErrorMarketInstrumentSyncFailed), HTTPStatus: http.StatusBadRequest, Description: "Market instrument sync failed while fetching or saving exchange catalog data."},

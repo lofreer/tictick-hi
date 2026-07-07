@@ -59,6 +59,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorOperatorSelfRoleChangeForbidden,
 		apiErrorOperatorLastEnabledRequired,
 		apiErrorOperatorLastAdminRequired,
+		apiErrorOperatorPasswordReused,
 		apiErrorAuthCurrentSessionRevokeForbidden,
 		apiErrorMarketInstrumentSyncUnavailable,
 		apiErrorMarketInstrumentSyncFailed,
@@ -183,6 +184,21 @@ func TestWriteStoreErrorMapsOperatorLastAdminRequired(t *testing.T) {
 	response := decodeAPIError(t, recorder)
 	if response.Code != string(apiErrorOperatorLastAdminRequired) ||
 		response.Message != "at least one admin operator must remain enabled" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+}
+
+func TestWriteStoreErrorMapsOperatorPasswordReused(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	writeStoreError(recorder, data.OperatorPasswordReusedError())
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != string(apiErrorOperatorPasswordReused) ||
+		response.Message != "new password must not reuse a recent operator password" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }

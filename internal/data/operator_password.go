@@ -9,6 +9,8 @@ import (
 
 const MinOperatorPasswordLength = 8
 
+const OperatorPasswordHistoryLimit = 5
+
 var commonOperatorPasswords = map[string]struct{}{
 	"admin123":    {},
 	"admin1234":   {},

@@ -194,6 +194,13 @@ func (server *Server) handleChangeOperatorPassword(w http.ResponseWriter, r *htt
 			writeAuthError(w, err)
 			return
 		}
+		if code, ok := data.DomainErrorCode(err); ok && code == data.ErrorCodeOperatorPasswordReused {
+			if !server.recordPasswordChangeFailure(w, r, operator, "password_history") {
+				return
+			}
+			writeStoreError(w, err)
+			return
+		}
 		if !server.recordPasswordChangeFailure(w, r, operator, "store_failure") {
 			return
 		}

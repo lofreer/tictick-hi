@@ -136,6 +136,19 @@ func (repository *fakeRepository) ChangeOperatorPassword(
 		if err := data.ValidateOperatorPasswordForUsername(operator.Username, newPassword); err != nil {
 			return 0, err
 		}
+		if repository.passwords[operator.ID] == newPassword {
+			return 0, data.OperatorPasswordReusedError()
+		}
+		for _, historicalPassword := range repository.passwordHistory[operator.ID] {
+			if historicalPassword == newPassword {
+				return 0, data.OperatorPasswordReusedError()
+			}
+		}
+		history := append([]string{repository.passwords[operator.ID]}, repository.passwordHistory[operator.ID]...)
+		if len(history) > data.OperatorPasswordHistoryLimit {
+			history = history[:data.OperatorPasswordHistoryLimit]
+		}
+		repository.passwordHistory[operator.ID] = history
 		repository.passwords[operator.ID] = newPassword
 		revoked := 0
 		for tokenHash, session := range repository.sessions {

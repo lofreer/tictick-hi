@@ -25,6 +25,7 @@ type fakeRepository struct {
 	catalogPausedTasks        map[string]fakeCatalogPauseState
 	operators                 []data.Operator
 	passwords                 map[string]string
+	passwordHistory           map[string][]string
 	loginRateLimits           map[string]data.LoginRateLimitState
 	sessions                  map[string]data.OperatorSession
 	tradingTasks              []data.TradingTask
@@ -64,6 +65,7 @@ func newFakeRepository() *fakeRepository {
 		tradingIntents:     map[string][]data.StrategyIntent{},
 		catalogPausedTasks: map[string]fakeCatalogPauseState{},
 		passwords:          map[string]string{},
+		passwordHistory:    map[string][]string{},
 		loginRateLimits:    map[string]data.LoginRateLimitState{},
 		sessions:           map[string]data.OperatorSession{},
 		taskGapDetails:     map[string]data.DataSyncGapList{},
