@@ -77,6 +77,41 @@ func TestFailedLoginWritesAnonymousAuditEvent(t *testing.T) {
 	}
 }
 
+func TestAuditEventClientContextIsTrimmedAndBounded(t *testing.T) {
+	repository := newFakeRepository()
+	server := NewServer(repository, "")
+	userAgent := "  " + strings.Repeat("a", sessionContextMaxLength+10) + "  "
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/login",
+		bytes.NewBufferString(`{"username":"admin","password":"wrong"}`),
+	)
+	request.RemoteAddr = "198.51.100.24:12345"
+	request.Header.Set("X-Forwarded-For", " 203.0.113.24, 198.51.100.24")
+	request.Header.Set("User-Agent", userAgent)
+	recorder := httptest.NewRecorder()
+
+	server.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("login status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(repository.auditEvents) != 1 {
+		t.Fatalf("audit events = %#v", repository.auditEvents)
+	}
+	event := repository.auditEvents[0]
+	if event.RemoteAddr != "203.0.113.24" {
+		t.Fatalf("audit remote addr = %q", event.RemoteAddr)
+	}
+	if len([]rune(event.UserAgent)) != sessionContextMaxLength {
+		t.Fatalf("audit user agent length = %d, want %d", len([]rune(event.UserAgent)), sessionContextMaxLength)
+	}
+	if strings.Contains(event.UserAgent, " ") {
+		t.Fatalf("audit user agent was not trimmed: %q", event.UserAgent)
+	}
+}
+
 func TestParseAuditLimitNormalizesInvalidAndOversizedValues(t *testing.T) {
 	tests := []struct {
 		name  string

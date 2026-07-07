@@ -32,8 +32,8 @@ func (server *Server) recordAuditEvent(
 		Outcome:         outcome,
 		RequestMethod:   r.Method,
 		RequestPath:     r.URL.Path,
-		RemoteAddr:      clientAddress(r),
-		UserAgent:       r.UserAgent(),
+		RemoteAddr:      sessionContextValue(clientAddress(r)),
+		UserAgent:       sessionContextValue(r.UserAgent()),
 		Metadata:        metadata,
 	})
 	return err
@@ -54,8 +54,8 @@ func (server *Server) recordAnonymousAuditEvent(
 		Outcome:       outcome,
 		RequestMethod: r.Method,
 		RequestPath:   r.URL.Path,
-		RemoteAddr:    clientAddress(r),
-		UserAgent:     r.UserAgent(),
+		RemoteAddr:    sessionContextValue(clientAddress(r)),
+		UserAgent:     sessionContextValue(r.UserAgent()),
 		Metadata:      metadata,
 	})
 	return err
