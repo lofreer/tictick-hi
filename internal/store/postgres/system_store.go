@@ -182,7 +182,45 @@ func (store *Store) CreateOperator(ctx context.Context, operator data.CreateOper
 }
 
 func (store *Store) SetOperatorEnabled(ctx context.Context, id string, enabled bool) (data.Operator, error) {
-	row := store.pool.QueryRow(ctx, `
+	if enabled {
+		return setOperatorEnabled(ctx, store.pool, id, enabled)
+	}
+
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		return data.Operator{}, fmt.Errorf("begin set operator enabled: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	enabledIDs, err := lockedEnabledOperatorIDs(ctx, tx)
+	if err != nil {
+		return data.Operator{}, err
+	}
+	if containsString(enabledIDs, id) && len(enabledIDs) <= 1 {
+		return data.Operator{}, data.OperatorLastEnabledError()
+	}
+
+	operator, err := setOperatorEnabled(ctx, tx, id, enabled)
+	if err != nil {
+		return data.Operator{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return data.Operator{}, fmt.Errorf("commit set operator enabled: %w", err)
+	}
+	return operator, nil
+}
+
+type operatorEnabledQueryer interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func setOperatorEnabled(
+	ctx context.Context,
+	queryer operatorEnabledQueryer,
+	id string,
+	enabled bool,
+) (data.Operator, error) {
+	row := queryer.QueryRow(ctx, `
 		UPDATE operators
 		   SET enabled = $2,
 		       updated_at = now()
@@ -199,6 +237,41 @@ func (store *Store) SetOperatorEnabled(ctx context.Context, id string, enabled b
 		return data.Operator{}, fmt.Errorf("set operator enabled: %w", err)
 	}
 	return operator, nil
+}
+
+func lockedEnabledOperatorIDs(ctx context.Context, tx pgx.Tx) ([]string, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT id
+		  FROM operators
+		 WHERE enabled = true
+		 ORDER BY id
+		 FOR UPDATE`)
+	if err != nil {
+		return nil, fmt.Errorf("lock enabled operators: %w", err)
+	}
+	defer rows.Close()
+
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan enabled operator id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("scan enabled operator ids: %w", err)
+	}
+	return ids, nil
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (store *Store) EnsureOperator(

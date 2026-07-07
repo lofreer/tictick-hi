@@ -1,8 +1,11 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func TestOperatorCannotDisableSelf(t *testing.T) {
@@ -47,5 +50,17 @@ func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 	response := decodeAPIError(t, recorder)
 	if response.Message != "password must be at least 8 characters" {
 		t.Fatalf("unexpected weak password response: %#v", response)
+	}
+}
+
+func TestRepositoryRejectsDisablingLastEnabledOperator(t *testing.T) {
+	repository := newFakeRepository()
+
+	_, err := repository.SetOperatorEnabled(t.Context(), "op_admin", false)
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("SetOperatorEnabled error = %v, want invalid state", err)
+	}
+	if _, err := repository.AuthenticateOperator(t.Context(), testUsername, testPassword); err != nil {
+		t.Fatalf("last enabled operator was disabled: %v", err)
 	}
 }

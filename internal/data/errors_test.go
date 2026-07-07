@@ -40,3 +40,13 @@ func TestDataSyncDomainErrorsPreserveInvalidStateCause(t *testing.T) {
 		})
 	}
 }
+
+func TestOperatorLastEnabledErrorPreservesInvalidStateCause(t *testing.T) {
+	err := OperatorLastEnabledError()
+	if !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("error %v does not unwrap ErrInvalidState", err)
+	}
+	if code, ok := DomainErrorCode(err); ok || code != "" {
+		t.Fatalf("DomainErrorCode = %q, %t; want empty, false", code, ok)
+	}
+}

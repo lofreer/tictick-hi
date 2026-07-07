@@ -61,3 +61,10 @@ func DataSyncCommandInvalidStateError() error {
 		Cause:   ErrInvalidState,
 	}
 }
+
+func OperatorLastEnabledError() error {
+	return &DomainError{
+		Message: "at least one operator must remain enabled",
+		Cause:   ErrInvalidState,
+	}
+}

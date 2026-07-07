@@ -437,11 +437,24 @@ func (repository *fakeRepository) SetOperatorEnabled(
 ) (data.Operator, error) {
 	for index := range repository.operators {
 		if repository.operators[index].ID == id {
+			if !enabled && repository.operators[index].Enabled && repository.enabledOperatorCount() <= 1 {
+				return data.Operator{}, data.OperatorLastEnabledError()
+			}
 			repository.operators[index].Enabled = enabled
 			return repository.operators[index], nil
 		}
 	}
 	return data.Operator{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) enabledOperatorCount() int {
+	count := 0
+	for _, operator := range repository.operators {
+		if operator.Enabled {
+			count++
+		}
+	}
+	return count
 }
 
 func (repository *fakeRepository) AuthenticateOperator(
