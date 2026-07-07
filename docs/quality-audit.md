@@ -9786,6 +9786,53 @@ Definition of Done：
 - 该修复只约束当前 lightweight-charts DOM / canvas 污染路径；仍需要更多真实浏览器与真实长时间交互样本。
 - 当前图表工具条和研究交互仍处于阶段 1 打磨中，不代表研究页已达到 usable。
 
+### 阶段 1 数据同步 worker 可观察和 DPR 图表重绘补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `/api/data/tasks` 返回数据同步任务的 `lockedBy`、`lockedUntil`、`heartbeatAt`、`startedAt` 和 `finishedAt`，来源仍是既有 worker lease / task 状态字段。
+- 研究页数据同步任务表新增 worker 列，展示当前持锁 worker、最近心跳、租约截止、启动或结束时间，并纳入中英 i18n。
+- 前端 typed API wrapper 和生成 DTO 同步新增字段，避免前后端 contract 漂移。
+- `TradingViewChart` 在窗口尺寸没有变化但 DPR 变化或内部 canvas 几何比例异常时，按固定 viewport 尺寸强制重绘。
+- canvas 几何异常检测改为相对当前 device pixel ratio 判断，避免正常高 DPR 画布被误判为尺寸污染。
+
+范围外：
+
+- 不改变 data sync worker 的 claim、heartbeat、release、retry、repair 或状态机语义。
+- 不新增 worker 调度、公平队列、分布式 token bucket 或长期压测能力。
+- 不改变 CandleProvider、交易所 adapter、回测 / 交易 runner 或实盘能力。
+- 不把研究页、数据同步 worker 或整体项目升级为 usable。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/components/chart/TradingViewChart.geometry.test.ts src/components/tables/DataSyncTaskTable.test.ts src/services/api/data.test.ts` 通过。
+- `go test ./internal/store/postgres -run 'TestDataSyncTaskScanColumnsPlaceMarketStatusBeforeHealth|TestIntegrationListDataSyncTasksReportsWorkerLease' -count=1` 通过。
+- `scripts/generate-api-types.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- `node scripts/research-chart-height-smoke.mjs` 未执行；本机 Docker daemon 不可用，`http://127.0.0.1:8080/readyz` 返回 502，没有可登录 API 服务。
+- `node scripts/stage8-visual-smoke.mjs` 未执行；原因同上。
+- 内置浏览器人工验证未执行；浏览器控制运行时连接失败，且本地 API 目标不可用。
+
+剩余风险：
+
+- worker 列只增强研究页可观察性，不证明 worker 状态机在长期运行或多实例环境下已经 production-safe。
+- DPR / canvas 重绘只覆盖当前已知的窗口缩放和 canvas 几何异常路径，仍缺真实浏览器长时间交互与跨屏拖拽视觉 smoke。
+- 本轮没有补充 OKX 真实外网恢复证据、长期 soak、多实例共享额度或实盘能力。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
