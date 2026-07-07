@@ -34,6 +34,10 @@ export class ApiClient {
     return this.request<T>(path, { method: "POST", body });
   }
 
+  put<T>(path: string, body?: JsonBody) {
+    return this.request<T>(path, { method: "PUT", body });
+  }
+
   delete<T>(path: string) {
     return this.request<T>(path, { method: "DELETE" });
   }

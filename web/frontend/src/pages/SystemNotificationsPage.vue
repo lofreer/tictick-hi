@@ -91,19 +91,31 @@
               <td><NTag :type="channel.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(channel.enabled) }}</NTag></td>
               <td>{{ formatDate(channel.createdAt) }}</td>
               <td>
-                <NButton
-                  size="small"
-                  :type="channel.enabled ? 'warning' : 'primary'"
-                  secondary
-                  :loading="updatingChannelId === channel.id"
-                  @click="toggleChannel(channel)"
-                >
-                  <template #icon>
-                    <PowerOff v-if="channel.enabled" :size="16" />
-                    <Power v-else :size="16" />
-                  </template>
-                  {{ channel.enabled ? t("system.disableChannel") : t("system.enableChannel") }}
-                </NButton>
+                <NSpace class="system-table__actions" size="small">
+                  <NButton size="small" secondary @click="openEditChannel(channel)">
+                    <template #icon><Pencil :size="16" /></template>
+                    {{ t("system.editChannel") }}
+                  </NButton>
+                  <NButton
+                    size="small"
+                    :type="channel.enabled ? 'warning' : 'primary'"
+                    secondary
+                    :loading="updatingChannelId === channel.id"
+                    @click="toggleChannel(channel)"
+                  >
+                    <template #icon>
+                      <PowerOff v-if="channel.enabled" :size="16" />
+                      <Power v-else :size="16" />
+                    </template>
+                    {{ channel.enabled ? t("system.disableChannel") : t("system.enableChannel") }}
+                  </NButton>
+                  <ConfirmAction :message="t('system.deleteChannelConfirm')" @confirm="deleteChannel(channel)">
+                    <NButton size="small" type="error" secondary :loading="deletingChannelId === channel.id">
+                      <template #icon><Trash2 :size="16" /></template>
+                      {{ t("system.deleteChannel") }}
+                    </NButton>
+                  </ConfirmAction>
+                </NSpace>
               </td>
             </tr>
           </tbody>
@@ -112,12 +124,7 @@
     </section>
 
     <NModal v-model:show="createOpen" preset="card" :title="t('system.createChannel')" class="system-modal">
-      <NForm label-placement="top">
-        <NFormItem :label="t('system.name')"><NInput v-model:value="form.name" /></NFormItem>
-        <NFormItem :label="t('system.provider')"><NSelect v-model:value="form.provider" :options="providerOptions" /></NFormItem>
-        <NFormItem :label="t('system.target')"><NInput v-model:value="form.target" /></NFormItem>
-        <NFormItem :label="t('system.enabled')"><NSwitch v-model:value="form.enabled" /></NFormItem>
-      </NForm>
+      <NotificationChannelForm :form="form" :provider-options="providerOptions" />
       <template #footer>
         <NSpace justify="end">
           <NButton @click="createOpen = false">{{ t("common.cancel") }}</NButton>
@@ -125,22 +132,27 @@
         </NSpace>
       </template>
     </NModal>
+
+    <NModal v-model:show="editOpen" preset="card" :title="t('system.editChannel')" class="system-modal">
+      <NotificationChannelForm :form="editForm" :provider-options="providerOptions" />
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="editOpen = false">{{ t("common.cancel") }}</NButton>
+          <NButton type="primary" :loading="savingChannel" @click="updateChannel">{{ t("system.updateChannel") }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </section>
 </template>
 
 <script setup lang="ts">
-import { Plus, Power, PowerOff } from "@lucide/vue";
+import { Pencil, Plus, Power, PowerOff, Trash2 } from "@lucide/vue";
 import {
   NButton,
-  NForm,
-  NFormItem,
-  NInput,
   NModal,
   NRadioButton,
   NRadioGroup,
-  NSelect,
   NSpace,
-  NSwitch,
   NTag,
   type SelectOption,
   type TagProps,
@@ -153,6 +165,8 @@ import { useRoute, useRouter } from "vue-router";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import ConfirmAction from "@/components/common/ConfirmAction.vue";
+import NotificationChannelForm from "@/components/system/NotificationChannelForm.vue";
 import { systemApi } from "@/services/api/system";
 import type { Notification, NotificationChannel } from "@/types/app";
 import {
@@ -174,10 +188,15 @@ const creating = ref(false);
 const error = ref("");
 const channelsError = ref("");
 const updatingChannelId = ref("");
+const deletingChannelId = ref("");
+const savingChannel = ref(false);
 const createOpen = ref(false);
+const editOpen = ref(false);
+const editingChannelId = ref("");
 const retryingId = ref("");
 const notificationStatusFilter = ref<NotificationStatusFilter>(notificationStatusFilterFromQuery(route.query.status));
 const form = reactive({ name: "", provider: "local", target: "default", enabled: true });
+const editForm = reactive({ name: "", provider: "local", target: "default", enabled: true });
 const providerOptions: SelectOption[] = [
   { label: "local", value: "local" },
   { label: "email", value: "email" },
@@ -262,6 +281,43 @@ async function toggleChannel(channel: NotificationChannel) {
     message.error(errorMessage(loadError, t("system.channelUpdateFailed")));
   } finally {
     updatingChannelId.value = "";
+  }
+}
+
+function openEditChannel(channel: NotificationChannel) {
+  editingChannelId.value = channel.id;
+  editForm.name = channel.name;
+  editForm.provider = channel.provider;
+  editForm.target = channel.target;
+  editForm.enabled = channel.enabled;
+  editOpen.value = true;
+}
+
+async function updateChannel() {
+  if (!editingChannelId.value) return;
+  savingChannel.value = true;
+  try {
+    await systemApi.updateNotificationChannel(editingChannelId.value, { ...editForm });
+    editOpen.value = false;
+    message.success(t("system.channelUpdated"));
+    await loadChannels();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.channelUpdateFailed")));
+  } finally {
+    savingChannel.value = false;
+  }
+}
+
+async function deleteChannel(channel: NotificationChannel) {
+  deletingChannelId.value = channel.id;
+  try {
+    await systemApi.deleteNotificationChannel(channel.id);
+    message.success(t("system.channelDeleted"));
+    await loadChannels();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.channelDeleteFailed")));
+  } finally {
+    deletingChannelId.value = "";
   }
 }
 
@@ -374,6 +430,11 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .system-table__error {
   color: var(--tt-danger);
+}
+
+.system-table__actions {
+  min-width: 260px;
+  flex-wrap: wrap;
 }
 
 .system-table tbody tr:last-child td {

@@ -41,7 +41,7 @@ describe("system api", () => {
     );
   });
 
-  it("updates notification channel enabled state with explicit actions", async () => {
+	it("updates notification channel enabled state with explicit actions", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -89,10 +89,55 @@ describe("system api", () => {
       2,
       "/api/system/notifications/channels/nc_1/enable",
       expect.objectContaining({ method: "POST" }),
-    );
-  });
+		);
+	});
 
-  it("lists and retries notifications", async () => {
+	it("updates and deletes notification channels", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						id: "nc_1",
+						name: "Ops Email",
+						provider: "email",
+						target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com",
+						enabled: true,
+						createdAt: "2026-01-01T00:00:00Z",
+						updatedAt: "2026-01-01T00:02:00Z",
+					}),
+					{ status: 200 },
+				),
+			)
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const request = {
+			name: "Ops Email",
+			provider: "email",
+			target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com",
+			enabled: true,
+		};
+		await expect(systemApi.updateNotificationChannel("nc_1", request)).resolves.toEqual(
+			expect.objectContaining({ id: "nc_1", name: "Ops Email" }),
+		);
+		await expect(systemApi.deleteNotificationChannel("nc_1")).resolves.toBeUndefined();
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			"/api/system/notifications/channels/nc_1",
+			expect.objectContaining({
+				method: "PUT",
+				body: expect.stringContaining("\"provider\":\"email\""),
+			}),
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"/api/system/notifications/channels/nc_1",
+			expect.objectContaining({ method: "DELETE" }),
+		);
+	});
+
+	it("lists and retries notifications", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify([{ id: "nt_1", status: "failed" }]), { status: 200 }))

@@ -28,6 +28,14 @@ export const systemApi = {
     return apiClient.post<NotificationChannel>("/system/notifications/channels", request);
   },
 
+  updateNotificationChannel(id: string, request: CreateNotificationChannel) {
+    return apiClient.put<NotificationChannel>(`/system/notifications/channels/${encodeURIComponent(id)}`, request);
+  },
+
+  async deleteNotificationChannel(id: string) {
+    await apiClient.delete<null>(`/system/notifications/channels/${encodeURIComponent(id)}`);
+  },
+
   setNotificationChannelEnabled(id: string, enabled: boolean) {
     const action = enabled ? "enable" : "disable";
     return apiClient.post<NotificationChannel>(`/system/notifications/channels/${encodeURIComponent(id)}/${action}`);

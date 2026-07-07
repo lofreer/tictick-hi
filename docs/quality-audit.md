@@ -43,7 +43,7 @@ done            用户确认关闭
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点，并采用上方大图表、下方左窄摘要右宽列表的布局；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
-| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；系统页通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
+| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停 / 更新 / 删除操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界、最右侧 canvas 必须贴住 viewport 右边界、主图占比、研究页工具栏高度最大 `72px` 的断言，并把 symbol 输入最大宽度阈值收敛到 `100px`、控件组最大宽度 `500px`、右侧价格轴最大宽度 `72px`、坐标轴文字墨迹高度范围收敛为桌面/窄桌面/移动端 `7px` 到 `13px`、图表高度收敛到桌面 `600px+` / 窄桌面 `620px+` / 移动端 `540px+`，防止右侧额外空白、工具栏过宽、坐标轴过小和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；汇总卡片已有到研究、回测、交易、通知和运维健康的操作入口；已有 7D 运行趋势条展示策略意图、订单、通知和失败信号；已有数据质量、自动化链路、执行面和通知投递深度指标；新增监控上下文展示快照时间、数据源降级、趋势覆盖和告警负载；通知、数据质量、自动化链路和回测/交易执行面入口已带状态筛选上下文跳转；仍缺 SLO、告警规则、实时订阅等生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，且会阻止当前操作员禁用自己或禁用最后一个启用操作员；当前操作员 session 可查看来源地址 / User-Agent 并撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、角色级自保护规则、不可篡改审计和生产监控 |
@@ -3363,7 +3363,7 @@ Definition of Done：
 警告：
 
 - 真实邮件、Telegram、飞书 provider 已在后续阶段 8 阻断项补充中接入基础发送路径；阶段 5 仍只声明 demo。
-- 通知通道已在后续补充中支持创建、读取、更新、删除和启停 API，但系统页仍没有更新 / 删除操作；凭据采用 env-reference 模型但还不是生产级密钥治理。
+- 通知通道已在后续补充中支持创建、读取、更新、删除和启停 API，系统通知页也已补启停 / 更新 / 删除操作；凭据采用 env-reference 模型但还不是生产级密钥治理。
 - `hi notify` 已有 outbox claim/lock，但仍未抽取全系统统一 worker lease 包。
 - 通知 provider 未实现生产级限流、熔断、模板、审计签名或外部回执。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
@@ -3478,7 +3478,7 @@ Definition of Done：
 
 剩余风险：
 
-- 通知通道仍缺更新 / 删除和生产级通知治理；启停动作尚未接入常规浏览器 smoke。
+- 通知通道更新 / 删除已由后续 API 和前端补充覆盖；启停动作尚未接入常规浏览器 smoke，生产级通知治理仍未完成。
 
 ### 阶段 5 通知通道更新删除 API 补充
 
@@ -3510,7 +3510,39 @@ Definition of Done：
 
 剩余风险：
 
-- 本补充只补后端/API 更新删除能力；系统通知页更新 / 删除入口和生产级通知治理仍未完成。
+- 系统通知页更新 / 删除入口已由后续前端补充覆盖；生产级通知治理仍未完成。
+
+### 阶段 5 通知通道前端更新删除补充
+
+执行时间：2026-07-07
+
+目标等级：demo 增量。
+
+范围内：
+
+- `ApiClient` 新增 PUT 方法，`systemApi` 新增通知通道更新 / 删除方法。
+- 系统通知页通道表新增编辑和删除操作；编辑使用 modal 完整替换通道字段，删除使用确认弹层。
+- 前端 API service 测试和页面交互测试覆盖更新 / 删除调用。
+
+范围外：
+
+- 生产级模板、限流 / 熔断、外部回执、密钥轮换、审计签名。
+
+验证：
+
+- `pnpm --dir web/frontend test -- src/services/api/system.test.ts src/pages/SystemNotificationsPage.test.ts`
+- `pnpm --dir web/frontend typecheck`
+- `pnpm --dir web/frontend build`
+- `go test ./...`
+- `go vet ./...`
+- `scripts/check-file-size.sh`
+- `scripts/quality-gate.sh`
+- `git diff --check`
+- 一次性 headless Chrome 检查：mock `/api/*` 后打开 `/system/notifications`，确认通道行显示编辑 / 停用 / 删除，点击后分别发出 `PUT /api/system/notifications/channels/nc_ops`、`POST /api/system/notifications/channels/nc_ops/disable`、`DELETE /api/system/notifications/channels/nc_ops`，且删除后显示空状态。
+
+剩余风险：
+
+- 通知链路仍缺生产级模板、限流 / 熔断、外部回执、密钥轮换和审计签名；通道更新 / 删除动作尚未接入常规浏览器 smoke。
 
 ### 阶段 6 当前验收快照
 
