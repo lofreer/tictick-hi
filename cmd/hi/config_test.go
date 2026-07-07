@@ -276,6 +276,40 @@ func TestLoadWorkerReadinessExchangeBackoffConfigRejectsInvalidValues(t *testing
 	}
 }
 
+func TestLoadWorkerReadinessProviderConfig(t *testing.T) {
+	clearCommandEnv(t)
+
+	config, err := loadWorkerReadinessProviderConfig("sync")
+	if err != nil {
+		t.Fatalf("load non-notify provider config: %v", err)
+	}
+	if config.Enabled {
+		t.Fatalf("non-notify provider config should be disabled: %#v", config)
+	}
+
+	t.Setenv("NOTIFY_READY_VALIDATE_PROVIDER_CONFIG", "true")
+	config, err = loadWorkerReadinessProviderConfig("notify")
+	if err != nil {
+		t.Fatalf("load notify provider config: %v", err)
+	}
+	if !config.Enabled {
+		t.Fatalf("expected notify provider config readiness to be enabled")
+	}
+	if value := config.summaryValue(); value != true {
+		t.Fatalf("summary value = %#v, want true", value)
+	}
+}
+
+func TestLoadWorkerReadinessProviderConfigRejectsInvalidValues(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("NOTIFY_READY_VALIDATE_PROVIDER_CONFIG", "maybe")
+
+	_, err := loadWorkerReadinessProviderConfig("notify")
+	if err == nil || !strings.Contains(err.Error(), "NOTIFY_READY_VALIDATE_PROVIDER_CONFIG") {
+		t.Fatalf("expected provider config readiness error, got %v", err)
+	}
+}
+
 func clearCommandEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
@@ -335,6 +369,7 @@ func clearCommandEnv(t *testing.T) {
 		"NOTIFY_READY_MAX_BACKLOG",
 		"NOTIFY_READY_MAX_AGE",
 		"NOTIFY_READY_MAX_STALE_LEASES",
+		"NOTIFY_READY_VALIDATE_PROVIDER_CONFIG",
 		"BINANCE_BASE_URLS",
 		"BINANCE_REQUEST_WEIGHT_LIMIT",
 		"BINANCE_REQUEST_WEIGHT_WINDOW",

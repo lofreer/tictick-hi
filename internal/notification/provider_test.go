@@ -114,6 +114,39 @@ func TestWebhookProviderRejectsNonHTTPURL(t *testing.T) {
 	}
 }
 
+func TestValidateProviderTarget(t *testing.T) {
+	t.Setenv("TELEGRAM_TEST_TOKEN", "123456:abcdef")
+	t.Setenv("FEISHU_TEST_WEBHOOK", "https://example.test/feishu")
+	t.Setenv("SMTP_TEST_USER", "bot@example.com")
+	t.Setenv("SMTP_TEST_PASSWORD", "smtp-secret")
+
+	tests := []struct {
+		name     string
+		provider string
+		target   string
+	}{
+		{name: "local", provider: "local", target: "ops"},
+		{name: "webhook", provider: "webhook", target: "https://example.test/hook"},
+		{name: "telegram", provider: "telegram", target: "telegram://send?chat_id=1&token_env=TELEGRAM_TEST_TOKEN"},
+		{name: "feishu", provider: "feishu", target: "feishu://webhook?url_env=FEISHU_TEST_WEBHOOK"},
+		{name: "email", provider: "email", target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateProviderTarget(tt.provider, tt.target); err != nil {
+				t.Fatalf("ValidateProviderTarget error = %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateProviderTargetRejectsInvalidTarget(t *testing.T) {
+	err := ValidateProviderTarget("telegram", "telegram://send?chat_id=1&token_env=MISSING_TOKEN")
+	if err == nil {
+		t.Fatal("expected invalid target error")
+	}
+}
+
 func TestWebhookProviderUsesContextCancellation(t *testing.T) {
 	started := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

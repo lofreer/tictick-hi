@@ -116,6 +116,7 @@ TRADING_READY_MAX_STALE_LEASES
 NOTIFY_READY_MAX_BACKLOG
 NOTIFY_READY_MAX_AGE
 NOTIFY_READY_MAX_STALE_LEASES
+NOTIFY_READY_VALIDATE_PROVIDER_CONFIG
 ```
 
 When set to a TCP `host:port`, the corresponding worker serves `GET /livez`,
@@ -147,6 +148,13 @@ Sync exchange-backoff readiness is disabled by default. Set
 the check, and `0` means any active persisted exchange backoff makes readiness
 return HTTP 503. This check reads PostgreSQL backoff state and does not send
 live probes to Binance or OKX.
+
+Notify provider configuration readiness is disabled by default. Set
+`NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=true` to add a `notification_providers`
+check to `hi notify` `/readyz` and `/healthz`. The check validates enabled
+notification channel provider names, targets, and required environment
+references locally; it does not send live Telegram / Feishu / SMTP / webhook
+deliveries.
 
 Public market clients read:
 
@@ -251,6 +259,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, notification provider outbound `X-Request-ID` / `traceparent` propagation, and data sync Binance / OKX market HTTP request metadata propagation exist, but broader external systems and subcommands still do not carry W3C trace context end to end;
-- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, stale-lease readiness, and sync exchange-backoff readiness, but no richer readiness model for claim success rate, live exchange probing, or provider availability;
+- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, stale-lease readiness, sync exchange-backoff readiness, and notify provider config readiness, but no richer readiness model for claim success rate, live exchange probing, or live provider delivery probes;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.

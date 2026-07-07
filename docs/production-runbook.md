@@ -181,6 +181,7 @@ TRADING_READY_MAX_STALE_LEASES=
 NOTIFY_READY_MAX_BACKLOG=
 NOTIFY_READY_MAX_AGE=
 NOTIFY_READY_MAX_STALE_LEASES=
+NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=false
 ```
 
 When these values are set before starting Compose, the corresponding worker
@@ -196,7 +197,11 @@ stale lease. If `SYNC_READY_MAX_EXCHANGE_BACKOFFS` is set to a non-negative
 integer, `hi sync` also runs `exchange_backoff` readiness against persisted
 exchange backoff state; blank disables it, and `0` fails readiness on any active
 exchange backoff. Keep using `/system/health` for general queue depth,
-fetch-lock skips, and instrument catalog status.
+fetch-lock skips, and instrument catalog status. If
+`NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=true`, `hi notify` also runs
+`notification_providers` readiness against enabled channel provider names,
+targets, and required env references. This does not send live Telegram / Feishu /
+SMTP / webhook deliveries.
 
 Operational UI checks:
 
@@ -425,7 +430,7 @@ close these production-safety gaps:
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
 - no broader external system / subcommand W3C trace propagation beyond data sync market requests and notification providers, external log sink, or retention policy;
-- no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, configured claim-ready backlog, configured stale-lease, and sync exchange-backoff worker probes;
+- no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, configured claim-ready backlog, configured stale-lease, sync exchange-backoff, and notify provider config worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
 - no long-running multi-instance exchange quota proof;

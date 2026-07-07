@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lofreer/tictick-hi/internal/notification"
 	"github.com/lofreer/tictick-hi/internal/store/postgres"
 )
 
@@ -26,11 +27,16 @@ type workerReadinessExchangeBackoffConfig struct {
 	MaxActiveBackoffs int
 }
 
+type workerReadinessProviderConfig struct {
+	Enabled bool
+}
+
 type workerProbeRuntimeConfig struct {
 	HealthAddr       string
 	Backlog          workerReadinessBacklogConfig
 	StaleLeases      workerReadinessStaleLeaseConfig
 	ExchangeBackoffs workerReadinessExchangeBackoffConfig
+	ProviderConfig   workerReadinessProviderConfig
 }
 
 func loadWorkerReadinessBacklogConfig(command string) (workerReadinessBacklogConfig, error) {
@@ -75,6 +81,17 @@ func loadWorkerReadinessExchangeBackoffConfig(command string) (workerReadinessEx
 	}, nil
 }
 
+func loadWorkerReadinessProviderConfig(command string) (workerReadinessProviderConfig, error) {
+	if command != "notify" {
+		return workerReadinessProviderConfig{}, nil
+	}
+	enabled, err := boolEnvStrict("NOTIFY_READY_VALIDATE_PROVIDER_CONFIG", false)
+	if err != nil {
+		return workerReadinessProviderConfig{}, err
+	}
+	return workerReadinessProviderConfig{Enabled: enabled}, nil
+}
+
 func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, error) {
 	healthAddr, err := loadWorkerHealthProbeAddr(command)
 	if err != nil {
@@ -92,11 +109,16 @@ func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, err
 	if err != nil {
 		return workerProbeRuntimeConfig{}, err
 	}
+	providerConfigReadiness, err := loadWorkerReadinessProviderConfig(command)
+	if err != nil {
+		return workerProbeRuntimeConfig{}, err
+	}
 	return workerProbeRuntimeConfig{
 		HealthAddr:       healthAddr,
 		Backlog:          backlogReadiness,
 		StaleLeases:      staleLeaseReadiness,
 		ExchangeBackoffs: exchangeBackoffReadiness,
+		ProviderConfig:   providerConfigReadiness,
 	}, nil
 }
 
@@ -131,6 +153,13 @@ func (config workerReadinessExchangeBackoffConfig) summaryValue() any {
 		return ""
 	}
 	return config.MaxActiveBackoffs
+}
+
+func (config workerReadinessProviderConfig) summaryValue() any {
+	if !config.Enabled {
+		return ""
+	}
+	return true
 }
 
 func optionalNonNegativeIntEnv(key string) (int, bool, error) {
@@ -189,5 +218,34 @@ func workerReadinessChecks(
 			},
 		})
 	}
+	if config.ProviderConfig.Enabled {
+		checks = append(checks, workerReadinessCheck{
+			Name: "notification_providers",
+			Check: func(ctx context.Context) error {
+				return checkNotificationProviderConfig(ctx, store)
+			},
+		})
+	}
 	return checks
+}
+
+func checkNotificationProviderConfig(ctx context.Context, store *postgres.Store) error {
+	channels, err := store.ListNotificationChannels(ctx)
+	if err != nil {
+		return fmt.Errorf("read notification provider config: %w", err)
+	}
+	for _, channel := range channels {
+		if !channel.Enabled {
+			continue
+		}
+		if err := notification.ValidateProviderTarget(channel.Provider, channel.Target); err != nil {
+			return fmt.Errorf(
+				"notification channel %q provider %q target invalid: %w",
+				channel.Name,
+				channel.Provider,
+				err,
+			)
+		}
+	}
+	return nil
 }

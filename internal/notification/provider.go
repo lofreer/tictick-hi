@@ -47,6 +47,27 @@ func (registry ProviderRegistry) Provider(name string) (Provider, error) {
 	return provider, nil
 }
 
+func ValidateProviderTarget(provider string, target string) error {
+	switch provider {
+	case "local", "webhook-demo":
+		return DemoProvider{}.Deliver(context.Background(), data.NotificationDelivery{Target: target})
+	case "webhook":
+		return validateWebhookTarget(target)
+	case "email":
+		_, err := parseEmailTarget(target)
+		return err
+	case "feishu":
+		_, err := parseFeishuTarget(target)
+		return err
+	case "telegram":
+		_, err := parseTelegramTarget(target)
+		return err
+	default:
+		_, err := DefaultProviders().Provider(provider)
+		return err
+	}
+}
+
 type DemoProvider struct{}
 
 func (DemoProvider) Deliver(_ context.Context, delivery data.NotificationDelivery) error {

@@ -137,6 +137,11 @@ run_failing_case \
   clean_env DATABASE_URL="$SECRET_DSN" NOTIFY_RETRY_DELAY=-1s "$BIN" notify --once
 
 run_failing_case \
+  "notify invalid provider config readiness" \
+  "NOTIFY_READY_VALIDATE_PROVIDER_CONFIG" \
+  clean_env DATABASE_URL="$SECRET_DSN" NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=maybe "$BIN" notify --once
+
+run_failing_case \
   "notify unknown flag" \
   "flag provided but not defined" \
   clean_env "$BIN" notify --unknown

@@ -127,6 +127,24 @@ func TestWorkerHealthProbeReadinessFailure(t *testing.T) {
 	}
 }
 
+func TestWorkerReadinessChecksIncludeOptionalChecks(t *testing.T) {
+	checks := workerReadinessChecks(nil, "notify", workerProbeRuntimeConfig{
+		Backlog:        workerReadinessBacklogConfig{MaxBacklog: 1},
+		StaleLeases:    workerReadinessStaleLeaseConfig{Enabled: true},
+		ProviderConfig: workerReadinessProviderConfig{Enabled: true},
+	})
+
+	names := map[string]bool{}
+	for _, check := range checks {
+		names[check.Name] = true
+	}
+	for _, want := range []string{"postgres", "queue", "queue_backlog", "stale_leases", "notification_providers"} {
+		if !names[want] {
+			t.Fatalf("readiness checks missing %q: %#v", want, names)
+		}
+	}
+}
+
 func TestWorkerHealthProbeHandlerRejectsWrites(t *testing.T) {
 	handler := newWorkerHealthProbeHandler(workerHealthProbeConfig{Command: "notify"})
 	request := httptest.NewRequest(http.MethodPost, "/livez", nil)
