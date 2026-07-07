@@ -225,6 +225,7 @@ export const enUSMessages: Record<string, string> = {
     "system.outcome": "Outcome",
     "system.outcomeFailure": "Failure",
     "system.outcomeSuccess": "Success",
+    "system.outcomeWarning": "Warning",
     "system.pending": "Pending",
     "system.previousHashShort": "Prev",
     "system.provider": "Provider",

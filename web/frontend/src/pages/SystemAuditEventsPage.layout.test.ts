@@ -22,6 +22,9 @@ describe("SystemAuditEventsPage layout contract", () => {
     expect(source).toContain("systemApi.listAuditEventPage(100, nextCursor.value)");
     expect(source).toContain("systemApi.verifyAuditEventHashChain()");
     expect(source).toContain("hashVerificationType");
+    expect(source).toContain("outcomeTagType(event.outcome)");
+    expect(source).toContain('outcome === "warning"');
+    expect(source).toContain('t("system.outcomeWarning")');
     expect(source).toContain('t("system.verifyAuditHashChain")');
     expect(source).toContain('t("system.auditHashVerification")');
     expect(source).toContain('v-if="nextCursor"');
@@ -41,6 +44,7 @@ describe("SystemAuditEventsPage layout contract", () => {
     expect(zhMessages).toContain("\"system.previousHashShort\"");
     expect(zhMessages).toContain("\"system.loadOlderAuditEvents\"");
     expect(zhMessages).toContain("\"system.auditEventsLoadMoreFailed\"");
+    expect(zhMessages).toContain("\"system.outcomeWarning\"");
     expect(enMessages).toContain("\"system.exportAuditEvents\"");
     expect(enMessages).toContain("\"system.auditHash\"");
     expect(enMessages).toContain("\"system.auditHashVerification\"");
@@ -49,5 +53,6 @@ describe("SystemAuditEventsPage layout contract", () => {
     expect(enMessages).toContain("\"system.previousHashShort\"");
     expect(enMessages).toContain("\"system.loadOlderAuditEvents\"");
     expect(enMessages).toContain("\"system.auditEventsLoadMoreFailed\"");
+    expect(enMessages).toContain("\"system.outcomeWarning\"");
   });
 });

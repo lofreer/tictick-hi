@@ -225,6 +225,7 @@ export const zhCNMessages: Record<string, string> = {
     "system.outcome": "结果",
     "system.outcomeFailure": "失败",
     "system.outcomeSuccess": "成功",
+    "system.outcomeWarning": "警告",
     "system.pending": "待处理",
     "system.previousHashShort": "前序",
     "system.provider": "Provider",

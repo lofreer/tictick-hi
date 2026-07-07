@@ -245,11 +245,17 @@ func (server *Server) handleListOperatorSessions(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	markCurrentSessionContextChanges(sessions, clientAddress(r), r.UserAgent())
+	changedSession, changed := markCurrentSessionContextChanges(sessions, clientAddress(r), r.UserAgent())
+	if changed {
+		_ = server.recordAuditEvent(r, operator, "auth.session_context_change", "operator_session", changedSession.ID, "warning", map[string]string{
+			"remoteAddrChanged": strconv.FormatBool(changedSession.RemoteAddrChanged),
+			"userAgentChanged":  strconv.FormatBool(changedSession.UserAgentChanged),
+		})
+	}
 	writeJSON(w, http.StatusOK, sessions)
 }
 
-func markCurrentSessionContextChanges(sessions []data.OperatorSession, remoteAddr string, userAgent string) {
+func markCurrentSessionContextChanges(sessions []data.OperatorSession, remoteAddr string, userAgent string) (data.OperatorSession, bool) {
 	remoteAddr = sessionContextValue(remoteAddr)
 	userAgent = sessionContextValue(userAgent)
 	for index := range sessions {
@@ -262,7 +268,9 @@ func markCurrentSessionContextChanges(sessions []data.OperatorSession, remoteAdd
 		sessions[index].UserAgentChanged = sessions[index].UserAgent != "" &&
 			userAgent != "" &&
 			sessions[index].UserAgent != userAgent
+		return sessions[index], sessions[index].RemoteAddrChanged || sessions[index].UserAgentChanged
 	}
+	return data.OperatorSession{}, false
 }
 
 func (server *Server) handleDeleteOperatorSession(w http.ResponseWriter, r *http.Request, sessionID string) {

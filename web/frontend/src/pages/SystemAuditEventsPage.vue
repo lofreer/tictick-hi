@@ -57,7 +57,7 @@
                   <span v-if="event.resourceId" class="audit-muted"> / {{ event.resourceId }}</span>
                 </td>
                 <td>
-                  <NTag :type="event.outcome === 'success' ? 'success' : 'error'" size="small">
+                  <NTag :type="outcomeTagType(event.outcome)" size="small">
                     {{ outcomeLabel(event.outcome) }}
                   </NTag>
                 </td>
@@ -176,7 +176,15 @@ function metadataText(metadata: Record<string, string>) {
 }
 
 function outcomeLabel(outcome: string) {
-  return outcome === "success" ? t("system.outcomeSuccess") : t("system.outcomeFailure");
+  if (outcome === "success") return t("system.outcomeSuccess");
+  if (outcome === "warning") return t("system.outcomeWarning");
+  return t("system.outcomeFailure");
+}
+
+function outcomeTagType(outcome: string): "success" | "warning" | "error" {
+  if (outcome === "success") return "success";
+  if (outcome === "warning") return "warning";
+  return "error";
 }
 
 function formatDate(value?: string) {

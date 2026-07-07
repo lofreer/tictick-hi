@@ -180,6 +180,27 @@ func TestIntegrationAuditEventsRoundTrip(t *testing.T) {
 	if secondEvent.EventHash == "" || secondEvent.EventHash == event.EventHash {
 		t.Fatalf("unexpected second event hash: %#v", secondEvent)
 	}
+	warningEvent, err := store.RecordAuditEvent(ctx, data.CreateAuditEvent{
+		ActorOperatorID: operator.ID,
+		ActorUsername:   operator.Username,
+		Action:          "auth.session_context_change",
+		ResourceType:    "operator_session",
+		ResourceID:      "os_warning",
+		Outcome:         "warning",
+		RequestMethod:   "GET",
+		RequestPath:     "/api/auth/sessions",
+		RemoteAddr:      "127.0.0.1",
+		UserAgent:       "integration-test",
+		Metadata: map[string]string{
+			"remoteAddrChanged": "true",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if warningEvent.PreviousHash != secondEvent.EventHash || warningEvent.Outcome != "warning" {
+		t.Fatalf("unexpected warning audit event: %#v", warningEvent)
+	}
 
 	events, err := store.ListAuditEvents(ctx, 10)
 	if err != nil {

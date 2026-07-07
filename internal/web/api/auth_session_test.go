@@ -155,6 +155,7 @@ func TestLoginStoresSessionClientContext(t *testing.T) {
 		t.Fatalf("same context was marked changed: %#v", sameContextSessions)
 	}
 
+	auditEventsBeforeContextChange := len(repository.auditEvents)
 	changedContextSessions := listSessionsWithClientContext(
 		t,
 		server,
@@ -167,6 +168,18 @@ func TestLoginStoresSessionClientContext(t *testing.T) {
 		!changedContextSessions[0].RemoteAddrChanged ||
 		!changedContextSessions[0].UserAgentChanged {
 		t.Fatalf("changed context was not marked changed: %#v", changedContextSessions)
+	}
+	event := assertAuditAction(
+		t,
+		repository.auditEvents[auditEventsBeforeContextChange:],
+		"auth.session_context_change",
+		"operator_session",
+		changedContextSessions[0].ID,
+	)
+	if event.Outcome != "warning" ||
+		event.Metadata["remoteAddrChanged"] != "true" ||
+		event.Metadata["userAgentChanged"] != "true" {
+		t.Fatalf("unexpected session context change audit event: %#v", event)
 	}
 }
 
