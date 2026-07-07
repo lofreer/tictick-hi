@@ -217,7 +217,7 @@ If a command exits immediately:
 
 Known remaining gaps:
 
-- structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` response headers, API access logs with `request_id`, API-created data sync / backtest / trading / data sync repair task and notification `requestId` fields, data sync / backtest / trading / notify worker task logs with `request_id`, and notification provider outbound `X-Request-ID` propagation exist, but W3C trace context is not propagated into exchange / broader external systems or subcommands;
+- structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and notification `requestId` fields, data sync / backtest / trading / notify worker task logs with `request_id`, and notification provider outbound `X-Request-ID` propagation exist, but W3C trace context is not persisted into worker tasks or propagated into exchange / broader external systems or subcommands;
 - worker subcommands have optional health probes with PostgreSQL and queue table readiness, but no richer readiness model for task backlog, exchange/provider availability, or stale worker diagnosis;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.

@@ -40,6 +40,7 @@ func logHTTPRequest(r *http.Request, writer *accessLogResponseWriter, startedAt 
 	slog.Info(
 		"http request",
 		"request_id", RequestIDFromContext(r.Context()),
+		"trace_id", TraceIDFromContext(r.Context()),
 		"method", r.Method,
 		"path", r.URL.Path,
 		"status", writer.StatusCode(),

@@ -145,17 +145,17 @@ When `LOG_CORRELATION_ID` is empty, each command process generates one and
 attaches it to every `slog` record as `correlation_id`. Invalid logging settings
 stop commands before PostgreSQL opens and do not echo the invalid value.
 
-`hi api` accepts a valid `X-Request-ID` header and returns `X-Request-ID` on
-responses. Missing or invalid request IDs are replaced and invalid values are not
-echoed. HTTP access logs include `request_id`, `method`, path without query
-string, status, bytes, and duration. API-created data sync, backtest, trading,
-data sync repair tasks, and trading-task notifications persist this value as
-`requestId`; data sync, backtest, trading, and notify worker task logs include
-`request_id` when the claimed task or delivery has one. Notification provider
-outbound HTTP requests and SMTP message headers carry `X-Request-ID` when the
-delivery has one. This is still partial correlation: request IDs do not yet
-propagate into exchange or broader external systems, and no W3C trace context is
-emitted.
+`hi api` accepts valid `X-Request-ID` and W3C `traceparent` headers and returns
+both headers on responses. Missing or invalid values are replaced and invalid
+input is not echoed. HTTP access logs include `request_id`, `trace_id`, `method`,
+path without query string, status, bytes, and duration. API-created data sync,
+backtest, trading, data sync repair tasks, and trading-task notifications persist
+`X-Request-ID` as `requestId`; data sync, backtest, trading, and notify worker
+task logs include `request_id` when the claimed task or delivery has one.
+Notification provider outbound HTTP requests and SMTP message headers carry
+`X-Request-ID` when the delivery has one. This is still partial correlation:
+W3C trace context is not yet persisted into worker tasks or propagated into
+exchange / broader external systems.
 
 Optional worker process probes:
 
@@ -400,7 +400,7 @@ close these production-safety gaps:
 - backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
-- no broader external system trace propagation, W3C trace context, or external log sink / retention policy;
+- no cross-worker or broader external system W3C trace propagation, external log sink, or retention policy;
 - no richer worker backlog / external dependency readiness beyond PostgreSQL and queue-table-ready worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

@@ -78,6 +78,10 @@ func requestIDResponseHeader() map[string]apiHeader {
 			Description: "HTTP request correlation id",
 			Schema:      map[string]any{"type": "string"},
 		},
+		traceparentHeaderName: {
+			Description: "W3C trace context",
+			Schema:      map[string]any{"type": "string"},
+		},
 	}
 }
 

@@ -82,6 +82,12 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r = request
+	request, err = withTraceContext(w, r)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	r = request
 	response := &accessLogResponseWriter{ResponseWriter: w}
 	startedAt := time.Now()
 	defer logHTTPRequest(r, response, startedAt)
