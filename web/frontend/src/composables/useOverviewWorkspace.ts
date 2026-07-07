@@ -61,6 +61,7 @@ export function useOverviewWorkspace() {
       detail: t("overview.dataSyncDetail", {
         running: countStatus(dataSyncTasks.value, "running"),
         failed: countStatus(dataSyncTasks.value, "failed"),
+        invalid: countDataHealth(dataSyncTasks.value, "invalid"),
         realtime: dataSyncTasks.value.filter((task) => task.realtimeEnabled).length,
       }),
     },
@@ -111,6 +112,7 @@ export function useOverviewWorkspace() {
     }
     addCountAlert(items, "sync-failed", dataSyncTasks.value, "failed", t("overview.dataSync"), { name: "research" });
     addDataHealthAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research" });
+    addDataHealthAlert(items, "sync-invalid", dataSyncTasks.value, "invalid", t("overview.dataSync"), { name: "research" });
     addCountAlert(items, "backtests-failed", backtests.value, "failed", t("overview.backtests"), { name: "backtests" });
     addCountAlert(items, "trading-failed", tradingTasks.value, "failed", t("overview.tradingTasks"), { name: "trading" });
 
@@ -206,9 +208,9 @@ export function useOverviewWorkspace() {
     title: string,
     to: RouteLocationRaw,
   ) {
-    const count = tasks.filter((task) => task.dataHealth === health).length;
+    const count = countDataHealth(tasks, health);
     if (count === 0) return;
-    const type = health === "failed" ? "error" : "warning";
+    const type = health === "failed" || health === "invalid" ? "error" : "warning";
     items.push(alert(key, title, t("overview.failedCount", { count }), t(`research.dataHealth.${health}`), type, to));
   }
 
@@ -258,6 +260,10 @@ export function useOverviewWorkspace() {
 
 function countStatus(tasks: { status: TaskStatus }[], status: TaskStatus) {
   return tasks.filter((task) => task.status === status).length;
+}
+
+function countDataHealth(tasks: DataSyncTask[], health: DataSyncTask["dataHealth"]) {
+  return tasks.filter((task) => task.dataHealth === health).length;
 }
 
 function alert(key: string, title: string, label: string, detail: string, type: TagProps["type"], to: RouteLocationRaw): OverviewAlert {

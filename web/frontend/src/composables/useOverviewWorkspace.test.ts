@@ -65,6 +65,7 @@ describe("useOverviewWorkspace", () => {
     apiMocks.listDataTasks.mockResolvedValue([
       task("sync_1", "running", "2026-06-28T01:01:00Z", { dataHealth: "gap", realtimeEnabled: true }),
       task("sync_2", "failed", "2026-06-28T01:02:00Z"),
+      task("sync_3", "succeeded", "2026-06-28T01:02:30Z", { dataHealth: "invalid" }),
     ]);
     apiMocks.listBacktests.mockResolvedValue([
       task("bt_1", "succeeded", "2026-06-28T01:03:00Z", { name: "Baseline" }),
@@ -93,12 +94,14 @@ describe("useOverviewWorkspace", () => {
     expect(tradingApi.listTasks).toHaveBeenCalledTimes(1);
     expect(systemApi.listNotifications).toHaveBeenCalledTimes(1);
     expect(workspace.hasLoaded.value).toBe(true);
-    expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.value).toBe(2);
+    expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.value).toBe(3);
+    expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.detail).toContain("异常 1");
     expect(workspace.summaryCards.value.find((card) => card.key === "workers")?.detail).toContain("过期锁 1");
     expect(workspace.alerts.value.map((alert) => alert.key)).toEqual([
       "health",
       "sync-failed",
       "sync-gap",
+      "sync-invalid",
       "backtests-failed",
       "trading-failed",
       "notifications-failed",

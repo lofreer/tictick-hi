@@ -66,7 +66,7 @@ export const enUSMessages: Record<string, string> = {
   "overview.backtests": "Backtests",
   "overview.backtestsDetail": "Running {running} / failed {failed} / succeeded {succeeded}",
   "overview.dataSync": "Data Sync",
-  "overview.dataSyncDetail": "Running {running} / failed {failed} / realtime {realtime}",
+  "overview.dataSyncDetail": "Running {running} / failed {failed} / invalid {invalid} / realtime {realtime}",
   "overview.failedCount": "{count} items",
   "overview.healthAlert": "System health is not ok.",
   "overview.loadFailed": "Failed to load overview.",

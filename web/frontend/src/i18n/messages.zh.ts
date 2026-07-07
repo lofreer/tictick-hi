@@ -66,7 +66,7 @@ export const zhCNMessages: Record<string, string> = {
   "overview.backtests": "回测任务",
   "overview.backtestsDetail": "运行 {running} / 失败 {failed} / 完成 {succeeded}",
   "overview.dataSync": "数据同步",
-  "overview.dataSyncDetail": "运行 {running} / 失败 {failed} / 实时 {realtime}",
+  "overview.dataSyncDetail": "运行 {running} / 失败 {failed} / 异常 {invalid} / 实时 {realtime}",
   "overview.failedCount": "{count} 项",
   "overview.healthAlert": "系统健康状态不是 ok。",
   "overview.loadFailed": "加载概览失败。",
