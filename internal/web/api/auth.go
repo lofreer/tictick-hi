@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +42,12 @@ func (server *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		server.handleLogout(w, r)
+	case len(parts) == 3 && parts[2] == "password":
+		if r.Method != http.MethodPost {
+			writeMethodNotAllowed(w, http.MethodPost)
+			return
+		}
+		server.handleChangeOperatorPassword(w, r)
 	case len(parts) == 3 && parts[2] == "sessions":
 		if r.Method != http.MethodGet {
 			writeMethodNotAllowed(w, http.MethodGet)
@@ -140,6 +148,83 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	server.setSessionCookie(w, token, expiresAt)
 	server.setCSRFCookie(w, csrfToken, expiresAt)
 	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) handleChangeOperatorPassword(w http.ResponseWriter, r *http.Request) {
+	if !server.validateCSRF(w, r) {
+		return
+	}
+	operator, tokenHash, err := server.currentOperator(r)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	var request data.ChangeOperatorPasswordRequest
+	if err := readJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(request.CurrentPassword) == "" || strings.TrimSpace(request.NewPassword) == "" {
+		if !server.recordPasswordChangeFailure(w, r, operator, "invalid_request") {
+			return
+		}
+		writeError(w, http.StatusBadRequest, "current password and new password are required")
+		return
+	}
+	if err := data.ValidateOperatorPasswordForUsername(operator.Username, request.NewPassword); err != nil {
+		if !server.recordPasswordChangeFailure(w, r, operator, "password_policy") {
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	revokedSessionCount, err := server.repository.ChangeOperatorPassword(
+		r.Context(),
+		operator.ID,
+		tokenHash,
+		request.CurrentPassword,
+		request.NewPassword,
+	)
+	if err != nil {
+		if errors.Is(err, data.ErrUnauthorized) {
+			if !server.recordPasswordChangeFailure(w, r, operator, "invalid_current_password") {
+				return
+			}
+			writeAuthError(w, err)
+			return
+		}
+		if !server.recordPasswordChangeFailure(w, r, operator, "store_failure") {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := server.recordAuditEvent(r, operator, "auth.password_change", "operator", operator.ID, "success", map[string]string{
+		"revokedSessionCount": strconv.Itoa(revokedSessionCount),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data.ChangeOperatorPasswordResult{
+		Status:              "ok",
+		RevokedSessionCount: revokedSessionCount,
+	})
+}
+
+func (server *Server) recordPasswordChangeFailure(
+	w http.ResponseWriter,
+	r *http.Request,
+	operator data.Operator,
+	reason string,
+) bool {
+	if err := server.recordAuditEvent(r, operator, "auth.password_change", "operator", operator.ID, "failure", map[string]string{
+		"reason": reason,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return false
+	}
+	return true
 }
 
 func (server *Server) handleListOperatorSessions(w http.ResponseWriter, r *http.Request) {

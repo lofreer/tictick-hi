@@ -45,4 +45,22 @@ describe("auth api", () => {
       expect.objectContaining({ method: "DELETE" }),
     );
   });
+
+  it("changes the current operator password", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ status: "ok", revokedSessionCount: 2 }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      authApi.changePassword({ currentPassword: "old123A", newPassword: "new123A" }),
+    ).resolves.toEqual({ status: "ok", revokedSessionCount: 2 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/password",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ currentPassword: "old123A", newPassword: "new123A" }),
+      }),
+    );
+  });
 });

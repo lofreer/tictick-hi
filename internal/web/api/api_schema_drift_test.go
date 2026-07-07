@@ -29,6 +29,7 @@ func TestFrontendAPIRequestTypesMatchContractSchemas(t *testing.T) {
 		schemaName string
 	}{
 		{"LoginRequest", "LoginRequest"},
+		{"ChangeOperatorPasswordRequest", "ChangeOperatorPasswordRequest"},
 		{"CreateDataSyncTask", "CreateDataSyncTask"},
 		{"RepairDataSyncInvalidIssuesRequest", "RepairDataSyncInvalidIssuesRequest"},
 		{"RepairMarketCandleGapRequest", "RepairMarketCandleGapRequest"},
@@ -78,6 +79,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 		{"NotificationChannel", "NotificationChannel"},
 		{"ExchangeAccount", "ExchangeAccount"},
 		{"Operator", "Operator"},
+		{"ChangeOperatorPasswordResult", "ChangeOperatorPasswordResult"},
 		{"OperatorSession", "OperatorSession"},
 		{"AuditEvent", "AuditEvent"},
 		{"ServiceHealth", "ServiceHealth"},
@@ -121,6 +123,8 @@ func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
 		"export type BacktestTask = APIBacktestTask;",
 		"export type TradingTask = Omit<APITradingTask",
 		"export type Notification = APINotification;",
+		"export type ChangeOperatorPasswordRequest = APIChangeOperatorPasswordRequest;",
+		"export type ChangeOperatorPasswordResult = APIChangeOperatorPasswordResult;",
 		"export type SystemHealth = APISystemHealth;",
 	} {
 		if !strings.Contains(text, expected) {

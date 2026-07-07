@@ -9,8 +9,10 @@ import type {
   CandleHealth as APICandleHealth,
   CandleIssue as APICandleIssue,
   CandlePagination as APICandlePagination,
-  CandleWindow as APICandleWindow,
   CandleSource as APICandleSource,
+  CandleWindow as APICandleWindow,
+  ChangeOperatorPasswordRequest as APIChangeOperatorPasswordRequest,
+  ChangeOperatorPasswordResult as APIChangeOperatorPasswordResult,
   CreateBacktestTask as APICreateBacktestTask,
   CreateDataSyncTask as APICreateDataSyncTask,
   CreateExchangeAccount as APICreateExchangeAccount,
@@ -207,6 +209,10 @@ export type CreateOperator = APICreateOperator;
 export type UpdateOperatorRole = APIUpdateOperatorRole;
 
 export type LoginCredentials = APILoginRequest;
+
+export type ChangeOperatorPasswordRequest = APIChangeOperatorPasswordRequest;
+
+export type ChangeOperatorPasswordResult = APIChangeOperatorPasswordResult;
 
 export type OperatorSession = APIOperatorSession;
 

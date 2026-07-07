@@ -11,6 +11,34 @@
       </NButton>
     </header>
 
+    <section class="surface system-panel password-panel">
+      <div class="panel-heading">
+        <div>
+          <h2 class="section-title">{{ t("system.changePassword") }}</h2>
+          <p class="section-subtitle">{{ t("system.changePasswordSubtitle") }}</p>
+        </div>
+      </div>
+      <NForm class="password-form" :show-feedback="false" @submit.prevent="changePassword">
+        <div class="password-grid">
+          <NFormItem :label="t('system.currentPassword')">
+            <NInput v-model:value="passwordForm.currentPassword" type="password" show-password-on="mousedown" />
+          </NFormItem>
+          <NFormItem :label="t('system.newPassword')">
+            <NInput v-model:value="passwordForm.newPassword" type="password" show-password-on="mousedown" />
+          </NFormItem>
+          <NFormItem :label="t('system.confirmNewPassword')">
+            <NInput v-model:value="passwordForm.confirmPassword" type="password" show-password-on="mousedown" />
+          </NFormItem>
+        </div>
+        <div class="password-actions">
+          <NButton type="primary" attr-type="submit" :loading="changingPassword">
+            <template #icon><KeyRound :size="16" /></template>
+            {{ t("system.changePassword") }}
+          </NButton>
+        </div>
+      </NForm>
+    </section>
+
     <section class="surface system-panel">
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :title="error" retryable @retry="loadSessions" />
@@ -67,9 +95,9 @@
 </template>
 
 <script setup lang="ts">
-import { RefreshCw } from "@lucide/vue";
-import { NButton, NTag, useMessage } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { KeyRound, RefreshCw } from "@lucide/vue";
+import { NButton, NForm, NFormItem, NInput, NTag, useMessage } from "naive-ui";
+import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -84,6 +112,8 @@ const sessions = ref<OperatorSession[]>([]);
 const loading = ref(false);
 const error = ref("");
 const revokingSessionId = ref("");
+const changingPassword = ref(false);
+const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
 
 onMounted(() => {
   void loadSessions();
@@ -116,6 +146,41 @@ async function revokeSession(session: OperatorSession) {
   }
 }
 
+async function changePassword() {
+  if (
+    passwordForm.currentPassword.trim() === "" ||
+    passwordForm.newPassword.trim() === "" ||
+    passwordForm.confirmPassword.trim() === ""
+  ) {
+    message.error(t("system.passwordChangeRequired"));
+    return;
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    message.error(t("system.passwordConfirmMismatch"));
+    return;
+  }
+  changingPassword.value = true;
+  try {
+    await authApi.changePassword({
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword,
+    });
+    resetPasswordForm();
+    message.success(t("system.passwordChanged"));
+    await loadSessions();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.passwordChangeFailed")));
+  } finally {
+    changingPassword.value = false;
+  }
+}
+
+function resetPasswordForm() {
+  passwordForm.currentPassword = "";
+  passwordForm.newPassword = "";
+  passwordForm.confirmPassword = "";
+}
+
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -132,6 +197,40 @@ function errorMessage(loadError: unknown, fallback: string) {
 <style scoped>
 .system-panel {
   overflow: hidden;
+}
+
+.password-panel {
+  margin-bottom: 16px;
+}
+
+.panel-heading {
+  margin-bottom: 14px;
+}
+
+.section-title {
+  margin: 0;
+  color: var(--tt-ink);
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.section-subtitle {
+  margin: 4px 0 0;
+  color: var(--tt-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.password-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.password-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
 }
 
 .system-table-wrap {

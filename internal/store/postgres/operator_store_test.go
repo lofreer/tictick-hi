@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -156,6 +157,72 @@ func TestOperatorStoreRejectsDemotingLastEnabledAdmin(t *testing.T) {
 	}
 	if authenticated.Role != data.OperatorRoleAdmin {
 		t.Fatalf("last admin role = %q, want admin", authenticated.Role)
+	}
+}
+
+func TestOperatorStoreChangesPasswordAndRevokesOtherSessions(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("change_password"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	currentSession := data.OperatorSession{
+		ID:         integrationID("os_current"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_current"),
+		ExpiresAt:  now.Add(time.Hour),
+	}
+	otherSession := data.OperatorSession{
+		ID:         integrationID("os_other"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_other"),
+		ExpiresAt:  now.Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, currentSession); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateOperatorSession(ctx, otherSession); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	revokedCount, err := store.ChangeOperatorPassword(
+		ctx,
+		operator.ID,
+		currentSession.TokenHash,
+		"secret123A",
+		"secret456B",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revokedCount != 1 {
+		t.Fatalf("revoked session count = %d, want 1", revokedCount)
+	}
+	if _, err := store.AuthenticateOperator(ctx, operator.Username, "secret123A"); !errors.Is(err, data.ErrUnauthorized) {
+		t.Fatalf("old password authentication error = %v, want unauthorized", err)
+	}
+	if _, err := store.AuthenticateOperator(ctx, operator.Username, "secret456B"); err != nil {
+		t.Fatalf("new password authentication failed: %v", err)
+	}
+	sessions, err := store.ListOperatorSessions(ctx, operator.ID, currentSession.TokenHash, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || !sessions[0].Current || sessions[0].ID != currentSession.ID {
+		t.Fatalf("unexpected sessions after password change: %#v", sessions)
 	}
 }
 

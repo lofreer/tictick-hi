@@ -304,6 +304,16 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type ChangeOperatorPasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+type ChangeOperatorPasswordResult struct {
+	Status              string `json:"status"`
+	RevokedSessionCount int    `json:"revokedSessionCount"`
+}
+
 type OperatorSession struct {
 	ID         string    `json:"id"`
 	OperatorID string    `json:"operatorId,omitempty"`

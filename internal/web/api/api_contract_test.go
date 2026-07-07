@@ -82,6 +82,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodPost, "/api/auth/login"},
 		{http.MethodGet, "/api/auth/me"},
 		{http.MethodPost, "/api/auth/logout"},
+		{http.MethodPost, "/api/auth/password"},
 		{http.MethodGet, "/api/auth/sessions"},
 		{http.MethodDelete, "/api/auth/sessions/{id}"},
 		{http.MethodGet, "/api/data/tasks"},
@@ -153,6 +154,22 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		method := strings.ToLower(route.method)
 		if _, ok := contract.Paths[route.path][method]; !ok {
 			t.Fatalf("contract missing %s %s", route.method, route.path)
+		}
+	}
+}
+
+func TestAPIContractDeclaresChangeOperatorPassword(t *testing.T) {
+	operation := apiContractDocument().Paths["/api/auth/password"]["post"]
+	if ref := operation.RequestBody.Content[jsonMediaType].Schema["$ref"]; ref != "#/components/schemas/ChangeOperatorPasswordRequest" {
+		t.Fatalf("password change request schema = %#v, want ChangeOperatorPasswordRequest", operation.RequestBody.Content[jsonMediaType].Schema)
+	}
+	if ref := operation.Responses["200"].Content[jsonMediaType].Schema["$ref"]; ref != "#/components/schemas/ChangeOperatorPasswordResult" {
+		t.Fatalf("password change response schema = %#v, want ChangeOperatorPasswordResult", operation.Responses["200"].Content[jsonMediaType].Schema)
+	}
+	properties := schemaProperties(t, apiContractDocument().Components.Schemas["ChangeOperatorPasswordRequest"])
+	for _, field := range []string{"currentPassword", "newPassword"} {
+		if _, ok := properties[field]; !ok {
+			t.Fatalf("password change request schema missing %s: %#v", field, properties)
 		}
 	}
 }

@@ -1,5 +1,11 @@
 import { apiClient } from "@/services/api/client";
-import type { LoginCredentials, Operator, OperatorSession } from "@/types/app";
+import type {
+  ChangeOperatorPasswordRequest,
+  ChangeOperatorPasswordResult,
+  LoginCredentials,
+  Operator,
+  OperatorSession,
+} from "@/types/app";
 
 export const authApi = {
   login(credentials: LoginCredentials) {
@@ -12,6 +18,10 @@ export const authApi = {
 
   async logout() {
     await apiClient.post<{ status: string }>("/auth/logout");
+  },
+
+  changePassword(request: ChangeOperatorPasswordRequest) {
+    return apiClient.post<ChangeOperatorPasswordResult>("/auth/password", request);
   },
 
   listSessions() {

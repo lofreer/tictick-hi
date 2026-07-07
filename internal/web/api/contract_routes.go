@@ -52,6 +52,10 @@ func addAuthContractPaths(paths map[string]apiPathItem) {
 		"auth", "logout", "Revoke the current operator session", http.StatusOK, schemaRef("StatusResponse"),
 		withCSRF(),
 	))
+	addOperation(paths, "/api/auth/password", http.MethodPost, operation(
+		"auth", "changeOperatorPassword", "Change the current operator password", http.StatusOK, schemaRef("ChangeOperatorPasswordResult"),
+		withCSRF(), withRequest(schemaRef("ChangeOperatorPasswordRequest")), withErrors(http.StatusBadRequest, http.StatusUnauthorized),
+	))
 	addOperation(paths, "/api/auth/sessions", http.MethodGet, operation(
 		"auth", "listOperatorSessions", "List current operator sessions", http.StatusOK, arraySchema(schemaRef("OperatorSession")),
 	))

@@ -118,3 +118,33 @@ func (repository *fakeRepository) AuthenticateOperator(
 	}
 	return data.Operator{}, data.ErrUnauthorized
 }
+
+func (repository *fakeRepository) ChangeOperatorPassword(
+	_ context.Context,
+	operatorID string,
+	currentTokenHash string,
+	currentPassword string,
+	newPassword string,
+) (int, error) {
+	for _, operator := range repository.operators {
+		if operator.ID != operatorID || !operator.Enabled {
+			continue
+		}
+		if repository.passwords[operator.ID] != currentPassword {
+			return 0, data.ErrUnauthorized
+		}
+		if err := data.ValidateOperatorPasswordForUsername(operator.Username, newPassword); err != nil {
+			return 0, err
+		}
+		repository.passwords[operator.ID] = newPassword
+		revoked := 0
+		for tokenHash, session := range repository.sessions {
+			if session.OperatorID == operator.ID && tokenHash != currentTokenHash {
+				delete(repository.sessions, tokenHash)
+				revoked++
+			}
+		}
+		return revoked, nil
+	}
+	return 0, data.ErrUnauthorized
+}
