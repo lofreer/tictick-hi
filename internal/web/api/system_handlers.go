@@ -332,6 +332,10 @@ func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Requ
 		}
 		account, err := server.repository.CreateExchangeAccount(r.Context(), request)
 		if err != nil {
+			if auditErr := server.recordAuditEvent(r, actor, "exchange_account.create", "exchange_account", "", "failure", exchangeAccountRequestFailureMetadata(err, request)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -347,4 +351,12 @@ func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Requ
 	default:
 		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
+}
+
+func exchangeAccountRequestFailureMetadata(err error, request data.CreateExchangeAccount) map[string]string {
+	return storeFailureMetadata(err, map[string]string{
+		"exchange": request.Exchange,
+		"alias":    request.Alias,
+		"enabled":  boolString(request.Enabled),
+	})
 }
