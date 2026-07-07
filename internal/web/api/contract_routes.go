@@ -68,6 +68,10 @@ func addDataContractPaths(paths map[string]apiPathItem) {
 		"data", "createDataSyncTask", "Create a data sync task", http.StatusCreated, schemaRef("DataSyncTask"),
 		withCSRF(), withRequest(schemaRef("CreateDataSyncTask")), withErrors(http.StatusBadRequest),
 	))
+	addOperation(paths, "/api/data/tasks/{id}", http.MethodGet, operation(
+		"data", "getDataSyncTask", "Get a data sync task", http.StatusOK, schemaRef("DataSyncTask"),
+		withParameters(pathParam("id", "Data sync task id")), withErrors(http.StatusNotFound),
+	))
 	addOperation(paths, "/api/data/tasks/{id}", http.MethodDelete, operation(
 		"data", "deleteDataSyncTask", "Delete a data sync task", http.StatusNoContent, nil,
 		withCSRF(), withParameters(pathParam("id", "Data sync task id")), withErrors(http.StatusNotFound),

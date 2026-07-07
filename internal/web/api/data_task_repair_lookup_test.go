@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,5 +58,45 @@ func TestDataSyncTaskSingleGapRepairUsesDirectTaskLookup(t *testing.T) {
 	}
 	if result.SourceTaskID != "dst_direct_lookup" || len(result.CreatedTasks) != 1 {
 		t.Fatalf("unexpected direct lookup repair result: %#v", result)
+	}
+}
+
+func TestDataSyncTaskDetailUsesDirectTaskLookup(t *testing.T) {
+	baseRepository := newFakeRepository()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	baseRepository.tasks = []data.DataSyncTask{
+		{
+			ID:           "dst_detail_lookup",
+			Exchange:     "binance",
+			Symbol:       "BTCUSDT",
+			Interval:     "1m",
+			Status:       data.TaskStatusFailed,
+			MarketStatus: data.DataSyncMarketStatusActive,
+			DataHealth:   data.DataSyncHealthFailed,
+			LastError:    `binance klines: Get "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&limit=500": EOF`,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		},
+	}
+	repository := &failingListRepository{
+		fakeRepository: baseRepository,
+		err:            errors.New("list data sync tasks should not be used"),
+	}
+	server := NewServer(repository, "")
+	cookie := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, cookie, http.MethodGet, "/api/data/tasks/dst_detail_lookup", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var task data.DataSyncTask
+	if err := json.NewDecoder(recorder.Body).Decode(&task); err != nil {
+		t.Fatal(err)
+	}
+	if task.ID != "dst_detail_lookup" || task.Status != data.TaskStatusFailed {
+		t.Fatalf("unexpected detail task: %#v", task)
+	}
+	if strings.Contains(task.LastError, "symbol=BTCUSDT") || !strings.Contains(task.LastError, "api.binance.com") {
+		t.Fatalf("detail task last error was not sanitized: %q", task.LastError)
 	}
 }

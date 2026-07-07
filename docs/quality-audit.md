@@ -10052,6 +10052,53 @@ Definition of Done：
 - recent facts 仍只是轻量概览聚合，不包含时间窗口筛选、趋势图、完整监控语义或统一游标分页。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 data sync task HTTP 详情接口补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增只读 `GET /api/data/tasks/{id}`，复用既有 `GetDataSyncTask` repository 读取路径返回单个数据同步任务。
+- 单任务详情返回与 `/api/data/tasks` 列表一致的 `DataSyncTask` DTO，并复用 `sanitizeDataSyncTask` 脱敏 `lastError` 和 `exchangeBackoffLastError`。
+- `/api/data/tasks/{id}` 资源路径保留 `DELETE`，错误方法现在返回 `Allow: GET, DELETE`。
+- OpenAPI contract 新增 `getDataSyncTask` operation，并纳入 API contract route 覆盖测试。
+- 前端 `dataApi` 新增 `getTask(id)`，复用列表同一套 `normalizeTask` 字段归一化和外部错误脱敏。
+- 测试覆盖详情读取不依赖 `ListDataSyncTasks` 扫描全量任务、详情错误脱敏、前端 wrapper URL 编码和默认 `marketStatus` 归一化。
+
+范围外：
+
+- 不新增或修改数据同步任务详情页面；本轮只补 HTTP/API 能力和前端 typed wrapper。
+- 不改变 data sync worker 的 claim、heartbeat、release、retry、repair 或状态机语义。
+- 不改变 gap / invalid repair 判定、补同步任务创建、CandleProvider、交易所 adapter、回测 / 交易 runner 或实盘能力。
+- 不把研究页、API server 或整体项目升级为 usable。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestDataSyncTaskRoutes|TestDataSyncTaskDetailUsesDirectTaskLookup|TestDataSyncTaskSingleGapRepairUsesDirectTaskLookup|TestAPIMethodNotAllowedContracts|TestAPIContractCoversCurrentFrontendRoutes' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/data.test.ts` 通过。
+- `scripts/check-api-contract-drift.sh` 通过。
+- `scripts/generate-api-types.sh` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮是只读 API、typed wrapper 和 contract 切片，没有改变页面结构或图表布局。
+
+剩余风险：
+
+- 新接口只提供单任务当前快照，不包含独立详情页、事件流、状态变更订阅或 repair 自动收敛证明。
+- 该能力关闭“已有 repository 单任务读取但无 HTTP 详情路由”的 API 边界，不扩大数据同步 worker 或 repair 能力。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

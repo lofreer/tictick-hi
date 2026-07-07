@@ -19,11 +19,14 @@ func (server *Server) handleDataTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 4 {
-		if r.Method != http.MethodDelete {
-			writeMethodNotAllowed(w, http.MethodDelete)
-			return
+		switch r.Method {
+		case http.MethodGet:
+			server.getDataTask(w, r, parts[3])
+		case http.MethodDelete:
+			server.deleteDataTask(w, r, parts[3])
+		default:
+			writeMethodNotAllowed(w, http.MethodGet, http.MethodDelete)
 		}
-		server.deleteDataTask(w, r, parts[3])
 		return
 	}
 	if len(parts) == 5 && parts[4] == "retry" {
@@ -158,6 +161,15 @@ func (server *Server) deleteDataTask(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (server *Server) getDataTask(w http.ResponseWriter, r *http.Request, id string) {
+	task, err := server.repository.GetDataSyncTask(r.Context(), id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sanitizeDataSyncTask(task))
 }
 
 func (server *Server) retryDataTask(w http.ResponseWriter, r *http.Request, id string) {

@@ -48,6 +48,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodDelete, "/api/auth/sessions/{id}"},
 		{http.MethodGet, "/api/data/tasks"},
 		{http.MethodPost, "/api/data/tasks"},
+		{http.MethodGet, "/api/data/tasks/{id}"},
 		{http.MethodDelete, "/api/data/tasks/{id}"},
 		{http.MethodPost, "/api/data/tasks/{id}/retry"},
 		{http.MethodGet, "/api/data/tasks/{id}/gaps"},

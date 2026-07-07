@@ -300,6 +300,42 @@ describe("data api", () => {
     ]);
   });
 
+  it("reads one data sync task with normalized fields", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: "dst/1",
+          exchange: "binance",
+          symbol: "BTCUSDT",
+          interval: "1m",
+          realtimeEnabled: false,
+          syncEnabled: true,
+          status: "failed",
+          dataHealth: "failed",
+          lastError:
+            'binance klines: Get "https://api.binance.com/api/v3/klines?interval=1m&symbol=BTCUSDT": EOF',
+          attemptCount: 2,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(dataApi.getTask("dst/1")).resolves.toMatchObject({
+      id: "dst/1",
+      status: "failed",
+      dataHealth: "failed",
+      marketStatus: "missing",
+      marketStatusDetail: "missing",
+      lastError: "binance klines: api.binance.com: EOF",
+      attemptCount: 2,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/data/tasks/dst%2F1",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("queues failed data sync task retry", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(

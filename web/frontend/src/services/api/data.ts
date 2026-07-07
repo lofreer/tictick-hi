@@ -48,6 +48,11 @@ export const dataApi = {
     return response.map(normalizeTask);
   },
 
+  async getTask(id: string) {
+    const response = await apiClient.get<DataSyncTaskResponse>(`/data/tasks/${encodeURIComponent(id)}`);
+    return normalizeTask(response);
+  },
+
   async createTask(request: CreateDataSyncTask) {
     const response = await apiClient.post<DataSyncTaskResponse>("/data/tasks", request);
     return normalizeTask(response);
