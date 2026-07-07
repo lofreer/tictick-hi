@@ -11,6 +11,7 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/exchange"
 	"github.com/lofreer/tictick-hi/internal/workerlease"
+	"github.com/lofreer/tictick-hi/internal/workerlog"
 )
 
 type Runner struct {
@@ -144,15 +145,16 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			if recordErr := runner.recordDataSyncExchangeFetchLockSkipped(releaseCtx, task.Exchange); recordErr != nil {
 				slog.Error(
 					"record data sync exchange fetch lock skip failed",
-					"task_id", task.ID,
-					"exchange", task.Exchange,
-					"error", recordErr,
+					workerlog.TaskAttrs(task.ID, task.RequestID, "exchange", task.Exchange, "error", recordErr)...,
 				)
 			}
 			if releaseErr := runner.releaseDataSyncTaskAfterExchangeFetchLockSkip(releaseCtx, task); releaseErr != nil {
 				return releaseErr
 			}
-			slog.Info("data sync task released; exchange fetch lock held", "task_id", task.ID, "exchange", task.Exchange)
+			slog.Info(
+				"data sync task released; exchange fetch lock held",
+				workerlog.TaskAttrs(task.ID, task.RequestID, "exchange", task.Exchange)...,
+			)
 			return nil
 		}
 		var lockErr dataSyncExchangeFetchLockError
@@ -165,23 +167,20 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			return lockErr
 		}
 		if isDataSyncLeaseRace(err) {
-			slog.Info("data sync task no longer owned by worker", "task_id", task.ID, "error", err)
+			slog.Info("data sync task no longer owned by worker", workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...)
 			return nil
 		}
 		if exchange.IsTemporaryError(err) {
 			nextAttemptAt := runner.nextAttemptAt(task, err)
 			slog.Warn(
 				"data sync task will retry after temporary market data error",
-				"task_id", task.ID,
-				"next_attempt_at", nextAttemptAt,
-				"error", err,
+				workerlog.TaskAttrs(task.ID, task.RequestID, "next_attempt_at", nextAttemptAt, "error", err)...,
 			)
 			if retryErr := runner.repository.RecordDataSyncRetry(ctx, task.ID, runner.config.WorkerID, err, &nextAttemptAt); retryErr != nil {
 				if isDataSyncLeaseRace(retryErr) {
 					slog.Info(
 						"data sync task no longer owned before retry was recorded",
-						"task_id", task.ID,
-						"error", retryErr,
+						workerlog.TaskAttrs(task.ID, task.RequestID, "error", retryErr)...,
 					)
 					return nil
 				}
@@ -189,13 +188,12 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			return nil
 		}
-		slog.Error("data sync task failed", "task_id", task.ID, "error", err)
+		slog.Error("data sync task failed", workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...)
 		if markErr := runner.repository.MarkDataSyncFailed(ctx, task.ID, runner.config.WorkerID, err); markErr != nil {
 			if isDataSyncLeaseRace(markErr) {
 				slog.Info(
 					"data sync task no longer owned before failure was recorded",
-					"task_id", task.ID,
-					"error", markErr,
+					workerlog.TaskAttrs(task.ID, task.RequestID, "error", markErr)...,
 				)
 				return nil
 			}
@@ -269,7 +267,7 @@ func (runner *Runner) syncTask(ctx context.Context, task data.DataSyncTask) erro
 		return errDataSyncExchangeFetchLockHeld
 	}
 
-	candles, err := runner.fetchCandles(ctx, client, exchange.CandleRequest{
+	candles, err := runner.fetchCandles(ctx, task, client, exchange.CandleRequest{
 		Exchange: task.Exchange,
 		Symbol:   task.Symbol,
 		Interval: task.Interval,
@@ -307,39 +305,6 @@ func unlockDataSyncExchangeFetch(unlock func(context.Context) error) error {
 	return unlock(releaseCtx)
 }
 
-func (runner *Runner) fetchCandles(
-	ctx context.Context,
-	client exchange.MarketDataClient,
-	request exchange.CandleRequest,
-) ([]data.Candle, error) {
-	attempts := runner.config.FetchRetries + 1
-	var lastErr error
-	for attempt := 1; attempt <= attempts; attempt++ {
-		candles, err := client.FetchCandles(ctx, request)
-		if err == nil {
-			return candles, nil
-		}
-		lastErr = err
-		if !exchange.IsTemporaryError(err) || attempt == attempts || hasRetryAfter(err) {
-			return nil, err
-		}
-
-		slog.Warn(
-			"temporary market data fetch failed; retrying",
-			"exchange", request.Exchange,
-			"symbol", request.Symbol,
-			"interval", request.Interval,
-			"attempt", attempt,
-			"max_attempts", attempts,
-			"error", err,
-		)
-		if err := waitForRetry(ctx, runner.config.RetryDelay*time.Duration(attempt)); err != nil {
-			return nil, err
-		}
-	}
-	return nil, lastErr
-}
-
 func (runner *Runner) nextAttemptAt(task data.DataSyncTask, taskErr error) time.Time {
 	attempt := task.AttemptCount
 	if attempt < 1 {
@@ -350,11 +315,6 @@ func (runner *Runner) nextAttemptAt(task data.DataSyncTask, taskErr error) time.
 		delay = retryAfter
 	}
 	return runner.now().Add(delay)
-}
-
-func hasRetryAfter(err error) bool {
-	retryAfter, ok := exchange.RetryAfter(err)
-	return ok && retryAfter > 0
 }
 
 func boundedExponentialBackoff(base time.Duration, maxDelay time.Duration, attempt int) time.Duration {
@@ -372,17 +332,6 @@ func boundedExponentialBackoff(base time.Duration, maxDelay time.Duration, attem
 		return maxDelay
 	}
 	return delay
-}
-
-func waitForRetry(ctx context.Context, delay time.Duration) error {
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }
 
 type syncWindow struct {

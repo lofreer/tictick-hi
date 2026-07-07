@@ -11,6 +11,7 @@ import (
 	"github.com/lofreer/tictick-hi/internal/decimal"
 	"github.com/lofreer/tictick-hi/internal/strategy"
 	"github.com/lofreer/tictick-hi/internal/workerlease"
+	"github.com/lofreer/tictick-hi/internal/workerlog"
 )
 
 type Runner struct {
@@ -87,7 +88,7 @@ func (runner *Runner) RunOnce(ctx context.Context) error {
 			}
 			return nil
 		}
-		slog.Error("backtest task failed", "task_id", task.ID, "error", err)
+		slog.Error("backtest task failed", workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...)
 		if markErr := runner.repository.MarkBacktestFailed(ctx, task.ID, err); markErr != nil {
 			return fmt.Errorf("mark backtest failed: %w", markErr)
 		}

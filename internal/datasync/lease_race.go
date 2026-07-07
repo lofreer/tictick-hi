@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/lofreer/tictick-hi/internal/data"
+	"github.com/lofreer/tictick-hi/internal/workerlog"
 )
 
 func isDataSyncLeaseRace(err error) bool {
@@ -19,7 +20,10 @@ func (runner *Runner) releaseDataSyncTaskOnShutdown(ctx context.Context, task da
 		return nil
 	}
 	if isDataSyncLeaseRace(err) {
-		slog.Info("data sync task no longer owned before shutdown release", "task_id", task.ID, "error", err)
+		slog.Info(
+			"data sync task no longer owned before shutdown release",
+			workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...,
+		)
 		return nil
 	}
 	return fmt.Errorf("release data sync task on shutdown: %w", err)
@@ -34,7 +38,10 @@ func (runner *Runner) releaseDataSyncTaskAfterExchangeFetchLockSkip(
 		return nil
 	}
 	if isDataSyncLeaseRace(err) {
-		slog.Info("data sync task no longer owned after exchange fetch lock skip", "task_id", task.ID, "error", err)
+		slog.Info(
+			"data sync task no longer owned after exchange fetch lock skip",
+			workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...,
+		)
 		return nil
 	}
 	return fmt.Errorf("release data sync task after exchange fetch lock skip: %w", err)
@@ -49,7 +56,10 @@ func (runner *Runner) releaseDataSyncTaskAfterExchangeFetchLockError(
 		return nil
 	}
 	if isDataSyncLeaseRace(err) {
-		slog.Info("data sync task no longer owned after exchange fetch lock error", "task_id", task.ID, "error", err)
+		slog.Info(
+			"data sync task no longer owned after exchange fetch lock error",
+			workerlog.TaskAttrs(task.ID, task.RequestID, "error", err)...,
+		)
 		return nil
 	}
 	return fmt.Errorf("release data sync task after exchange fetch lock error: %w", err)
