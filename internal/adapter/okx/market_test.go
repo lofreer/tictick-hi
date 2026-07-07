@@ -14,6 +14,8 @@ import (
 )
 
 func TestFetchCandles(t *testing.T) {
+	var requestID string
+	var traceparent string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v5/market/history-candles" {
 			t.Fatalf("path = %s", r.URL.Path)
@@ -22,13 +24,20 @@ func TestFetchCandles(t *testing.T) {
 		if query.Get("instId") != "BTC-USDT" || query.Get("bar") != "1H" {
 			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
 		}
+		requestID = r.Header.Get("X-Request-ID")
+		traceparent = r.Header.Get("traceparent")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"code":"0","msg":"","data":[["1767229200000","101","102","100","101.5","9","0","0","1"],["1767225600000","100","101","99","100.5","8","0","0","1"]]}`))
 	}))
 	defer server.Close()
 
 	client := NewMarketClientForURL(server.URL, server.Client())
-	candles, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+	ctx := exchange.ContextWithRequestMetadata(
+		t.Context(),
+		"request-id-okx",
+		"00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01",
+	)
+	candles, err := client.FetchCandles(ctx, exchange.CandleRequest{
 		Exchange: "okx",
 		Symbol:   "BTCUSDT",
 		Interval: "1h",
@@ -41,6 +50,13 @@ func TestFetchCandles(t *testing.T) {
 	}
 	if len(candles) != 2 || candles[0].Open != "100" || candles[1].Open != "101" {
 		t.Fatalf("unexpected candles: %#v", candles)
+	}
+	if requestID != "request-id-okx" {
+		t.Fatalf("X-Request-ID = %q, want request-id-okx", requestID)
+	}
+	wantTraceparent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	if traceparent != wantTraceparent {
+		t.Fatalf("traceparent = %q, want %s", traceparent, wantTraceparent)
 	}
 }
 

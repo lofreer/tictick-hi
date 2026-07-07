@@ -17,9 +17,10 @@ func (runner *Runner) fetchCandles(
 	request exchange.CandleRequest,
 ) ([]data.Candle, error) {
 	attempts := runner.config.FetchRetries + 1
+	fetchCtx := exchange.ContextWithRequestMetadata(ctx, task.RequestID, task.TraceParent)
 	var lastErr error
 	for attempt := 1; attempt <= attempts; attempt++ {
-		candles, err := client.FetchCandles(ctx, request)
+		candles, err := client.FetchCandles(fetchCtx, request)
 		if err == nil {
 			return candles, nil
 		}

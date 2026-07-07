@@ -3,6 +3,7 @@ package datasync
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -133,16 +134,24 @@ func (repository *fakeSyncRepository) RecordDataSyncExchangeFetchLockSkipped(
 }
 
 type fakeMarketClient struct {
-	candles []data.Candle
-	err     error
-	errs    []error
-	calls   int
+	candles     []data.Candle
+	err         error
+	errs        []error
+	calls       int
+	requestID   string
+	traceparent string
 }
 
 func (client *fakeMarketClient) FetchCandles(
-	context.Context,
-	exchange.CandleRequest,
+	ctx context.Context,
+	_ exchange.CandleRequest,
 ) ([]data.Candle, error) {
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.test", nil)
+	if err == nil {
+		exchange.ApplyRequestMetadataHeaders(httpRequest)
+		client.requestID = httpRequest.Header.Get("X-Request-ID")
+		client.traceparent = httpRequest.Header.Get("traceparent")
+	}
 	client.calls++
 	if len(client.errs) > 0 {
 		err := client.errs[0]

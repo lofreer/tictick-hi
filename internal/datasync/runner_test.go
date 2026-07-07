@@ -60,6 +60,42 @@ func TestRunnerSyncsClaimedTask(t *testing.T) {
 	}
 }
 
+func TestRunnerPropagatesTaskRequestMetadataToMarketClient(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 10, 0, 0, time.UTC)
+	repository := &fakeSyncRepository{
+		task: data.DataSyncTask{
+			ID:          "dst_1",
+			Exchange:    "binance",
+			Symbol:      "BTCUSDT",
+			Interval:    "1m",
+			Status:      data.TaskStatusPending,
+			RequestID:   "request-id-exchange",
+			TraceParent: "00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		},
+		claimed: true,
+	}
+	fetcher := &fakeMarketClient{
+		candles: []data.Candle{syncTestCandle(now.Add(-time.Minute))},
+	}
+	runner := NewRunner(repository, exchange.NewRegistry(map[string]exchange.MarketDataClient{
+		"binance": fetcher,
+	}), Config{WorkerID: "test", BatchLimit: 10})
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fetcher.requestID != "request-id-exchange" {
+		t.Fatalf("X-Request-ID = %q, want request-id-exchange", fetcher.requestID)
+	}
+	wantTraceparent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	if fetcher.traceparent != wantTraceparent {
+		t.Fatalf("traceparent = %q, want %s", fetcher.traceparent, wantTraceparent)
+	}
+}
+
 func TestRunnerCompletesOneShotTaskAlreadySyncedThroughEndWithoutExchangeClient(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC)

@@ -155,9 +155,10 @@ sync repair tasks, and trading-task notifications also persist W3C
 `traceparent`. Data sync, backtest, trading, and notify worker task logs include
 `request_id` / `trace_id` when the claimed task or delivery has them.
 Notification provider outbound HTTP requests and SMTP message headers carry
-`X-Request-ID` and `traceparent` when the delivery has them. This is still
-partial correlation: W3C trace context is not yet propagated to exchange /
-broader external systems or subcommands.
+`X-Request-ID` and `traceparent` when the delivery has them. Data sync Binance /
+OKX market HTTP requests also carry `X-Request-ID` and `traceparent` when the
+claimed task has them. This is still partial correlation: broader external
+systems and subcommands still do not carry W3C trace context end to end.
 
 Optional worker process probes:
 
@@ -413,7 +414,7 @@ close these production-safety gaps:
 - backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
-- no exchange / broader external system W3C trace propagation, external log sink, or retention policy;
+- no broader external system / subcommand W3C trace propagation beyond data sync market requests and notification providers, external log sink, or retention policy;
 - no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, and configured claim-ready backlog worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

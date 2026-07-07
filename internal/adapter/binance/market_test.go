@@ -14,6 +14,8 @@ import (
 )
 
 func TestFetchCandles(t *testing.T) {
+	var requestID string
+	var traceparent string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v3/klines" {
 			t.Fatalf("path = %s", r.URL.Path)
@@ -22,13 +24,20 @@ func TestFetchCandles(t *testing.T) {
 		if query.Get("symbol") != "BTCUSDT" || query.Get("interval") != "1m" {
 			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
 		}
+		requestID = r.Header.Get("X-Request-ID")
+		traceparent = r.Header.Get("traceparent")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`[[1767225600000,"100.1","101.2","99.8","100.7","12.5",1767225659999]]`))
 	}))
 	defer server.Close()
 
 	client := NewMarketClientForURL(server.URL, server.Client())
-	candles, err := client.FetchCandles(t.Context(), exchange.CandleRequest{
+	ctx := exchange.ContextWithRequestMetadata(
+		t.Context(),
+		"request-id-binance",
+		"00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01",
+	)
+	candles, err := client.FetchCandles(ctx, exchange.CandleRequest{
 		Exchange: "binance",
 		Symbol:   "BTCUSDT",
 		Interval: "1m",
@@ -41,6 +50,13 @@ func TestFetchCandles(t *testing.T) {
 	}
 	if len(candles) != 1 || candles[0].Open != "100.1" || candles[0].Volume != "12.5" {
 		t.Fatalf("unexpected candles: %#v", candles)
+	}
+	if requestID != "request-id-binance" {
+		t.Fatalf("X-Request-ID = %q, want request-id-binance", requestID)
+	}
+	wantTraceparent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	if traceparent != wantTraceparent {
+		t.Fatalf("traceparent = %q, want %s", traceparent, wantTraceparent)
 	}
 }
 

@@ -82,6 +82,7 @@ func (client *MarketClient) FetchCandles(
 	if err != nil {
 		return nil, err
 	}
+	exchange.ApplyRequestMetadataHeaders(httpRequest)
 	if err := client.wait(ctx); err != nil {
 		return nil, err
 	}
@@ -144,6 +145,7 @@ func (client *MarketClient) FetchInstruments(ctx context.Context) ([]data.Market
 	if err != nil {
 		return nil, err
 	}
+	exchange.ApplyRequestMetadataHeaders(httpRequest)
 	if err := client.wait(ctx); err != nil {
 		return nil, err
 	}

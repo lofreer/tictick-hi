@@ -148,6 +148,7 @@ func (client *MarketClient) fetchInstrumentsFrom(
 	if err != nil {
 		return nil, err
 	}
+	exchange.ApplyRequestMetadataHeaders(httpRequest)
 	if err := client.wait(ctx, exchangeInfoRequestWeight); err != nil {
 		return nil, err
 	}
@@ -199,6 +200,7 @@ func (client *MarketClient) fetchCandlesFrom(
 	if err != nil {
 		return nil, err
 	}
+	exchange.ApplyRequestMetadataHeaders(httpRequest)
 	if err := client.wait(ctx, klinesRequestWeight); err != nil {
 		return nil, err
 	}
