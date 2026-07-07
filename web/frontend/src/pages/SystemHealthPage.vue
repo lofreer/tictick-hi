@@ -23,9 +23,17 @@
       </section>
 
       <section class="surface health-services">
-        <h2>{{ t("system.services") }}</h2>
-        <div class="health-service-list">
-          <div v-for="service in health.services" :key="service.name" class="health-service">
+        <div class="health-services__header">
+          <h2>{{ t("system.services") }}</h2>
+          <NRadioGroup :value="focusFilter" size="small" :aria-label="t('system.healthFocusFilter')" @update:value="setFocusFilter">
+            <NRadioButton v-for="option in focusOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </NRadioButton>
+          </NRadioGroup>
+        </div>
+        <EmptyState v-if="filteredServices.length === 0" :title="t('system.noServicesForFilter')" />
+        <div v-else class="health-service-list">
+          <div v-for="service in filteredServices" :key="service.name" class="health-service">
             <div class="health-service__main">
               <strong>{{ service.name }}</strong>
               <span v-if="service.detail">{{ service.detail }}</span>
@@ -83,23 +91,43 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NTag, type TagProps } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { NButton, NRadioButton, NRadioGroup, NTag, type TagProps } from "naive-ui";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 
+import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
 import type { ServiceHealth, SystemHealth } from "@/types/app";
+import { serviceMatchesSystemHealthFocus, systemHealthFocusFromQuery, systemHealthFocusQueryValue, type SystemHealthFocusFilter } from "./systemHealthFilters";
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 const health = ref<SystemHealth | null>(null);
 const loading = ref(false);
 const error = ref("");
+const focusFilter = ref<SystemHealthFocusFilter>(systemHealthFocusFromQuery(route.query.focus));
+const focusOptions = computed(() => [
+  { label: t("system.healthFocus.all"), value: "all" },
+  { label: t("system.healthFocus.unhealthy"), value: "unhealthy" },
+  { label: t("system.healthFocus.stale"), value: "stale" },
+  { label: t("system.healthFocus.backoff"), value: "backoff" },
+]);
+const filteredServices = computed(() => (health.value?.services ?? []).filter((service) => serviceMatchesSystemHealthFocus(service, focusFilter.value)));
 
 onMounted(() => {
   void loadHealth();
 });
+
+watch(
+  () => route.query.focus,
+  (value) => {
+    focusFilter.value = systemHealthFocusFromQuery(value);
+  },
+);
 
 async function loadHealth() {
   loading.value = true;
@@ -116,6 +144,15 @@ async function loadHealth() {
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
+}
+
+async function setFocusFilter(value: string) {
+  focusFilter.value = systemHealthFocusFromQuery(value);
+  const nextQuery = { ...route.query };
+  const focus = systemHealthFocusQueryValue(focusFilter.value);
+  if (focus) nextQuery.focus = focus;
+  else delete nextQuery.focus;
+  await router.replace({ query: nextQuery });
 }
 
 function hasWorkerStats(service: ServiceHealth) {
@@ -158,11 +195,30 @@ function errorMessage(loadError: unknown, fallback: string) {
   padding: 16px;
 }
 
-.health-summary h2,
-.health-services h2 {
+.health-summary h2 {
   margin: 0 0 12px;
   font-size: 16px;
   line-height: 1.35;
+}
+
+.health-services h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.health-services__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.health-services__header :deep(.n-radio-button) {
+  min-width: 74px;
+  text-align: center;
 }
 
 .health-summary dl {

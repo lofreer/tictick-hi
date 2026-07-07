@@ -143,14 +143,14 @@ export function useOverviewWorkspace() {
         stale: services.value.reduce((total, service) => total + (service.staleLeaseCount ?? 0), 0),
         locked: services.value.reduce((total, service) => total + (service.lockedCount ?? 0), 0),
       }),
-      to: { name: "system-health" },
+      to: { name: "system-health", query: { focus: services.value.some((service) => (service.staleLeaseCount ?? 0) > 0) ? "stale" : services.value.some((service) => (service.exchangeBackoffCount ?? 0) > 0) ? "backoff" : services.value.some((service) => service.status !== "ok") ? "unhealthy" : "all" } },
     },
   ]);
 
   const alerts = computed<OverviewAlert[]>(() => {
     const items: OverviewAlert[] = [];
     if (health.value && health.value.status !== "ok") {
-      items.push(alert("health", t("overview.systemHealth"), health.value.status, t("overview.healthAlert"), "warning", { name: "system-health" }));
+      items.push(alert("health", t("overview.systemHealth"), health.value.status, t("overview.healthAlert"), "warning", { name: "system-health", query: { focus: "unhealthy" } }));
     }
     if (factsError.value) {
       items.push(alert("recent-facts-degraded", t("overview.recentActivity"), t("overview.degraded"), factsError.value, "warning", { name: "overview" }));

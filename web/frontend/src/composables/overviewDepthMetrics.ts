@@ -63,7 +63,7 @@ function automationMetric(tasks: DataSyncTask[], services: ServiceHealth[], t: T
     detail: t("overview.depth.automationDetail", { backoff, realtime, running, stale }),
     statusLabel: statusLabel(statusType, t),
     statusType,
-    to: { name: "system-health" },
+    to: { name: "system-health", query: { focus: stale > 0 ? "stale" : backoff > 0 ? "backoff" : unhealthyServices > 0 ? "unhealthy" : "all" } },
   };
 }
 

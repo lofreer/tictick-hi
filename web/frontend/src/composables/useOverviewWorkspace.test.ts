@@ -124,11 +124,11 @@ describe("useOverviewWorkspace", () => {
       { key: "backtests", to: { name: "backtests", query: { status: "failed" } } },
       { key: "trading", to: { name: "trading", query: { status: "failed" } } },
       { key: "notifications", to: { name: "system-notifications", query: { status: "failed" } } },
-      { key: "workers", to: { name: "system-health" } },
+      { key: "workers", to: { name: "system-health", query: { focus: "stale" } } },
     ]);
     expect(workspace.depthMetrics.value.map((metric) => ({ key: metric.key, value: metric.value, statusType: metric.statusType, to: metric.to }))).toEqual([
       { key: "data-quality", value: "0/3", statusType: "error", to: { name: "research", query: { dataHealth: "failed" } } },
-      { key: "automation", value: "1/3", statusType: "error", to: { name: "system-health" } },
+      { key: "automation", value: "1/3", statusType: "error", to: { name: "system-health", query: { focus: "stale" } } },
       { key: "execution", value: "1/4", statusType: "error", to: { name: "trading", query: { status: "failed" } } },
       { key: "delivery", value: "0/1", statusType: "error", to: { name: "system-notifications", query: { status: "failed" } } },
     ]);
@@ -145,6 +145,10 @@ describe("useOverviewWorkspace", () => {
       "trading-failed",
       "notifications-failed",
     ]);
+    expect(workspace.alerts.value.find((alert) => alert.key === "health")?.to).toEqual({
+      name: "system-health",
+      query: { focus: "unhealthy" },
+    });
     expect(workspace.alerts.value.find((alert) => alert.key === "sync-failed")?.to).toEqual({
       name: "research",
       query: { dataHealth: "failed" },
