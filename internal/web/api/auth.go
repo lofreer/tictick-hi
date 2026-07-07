@@ -245,7 +245,24 @@ func (server *Server) handleListOperatorSessions(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	markCurrentSessionContextChanges(sessions, clientAddress(r), r.UserAgent())
 	writeJSON(w, http.StatusOK, sessions)
+}
+
+func markCurrentSessionContextChanges(sessions []data.OperatorSession, remoteAddr string, userAgent string) {
+	remoteAddr = sessionContextValue(remoteAddr)
+	userAgent = sessionContextValue(userAgent)
+	for index := range sessions {
+		if !sessions[index].Current {
+			continue
+		}
+		sessions[index].RemoteAddrChanged = sessions[index].RemoteAddr != "" &&
+			remoteAddr != "" &&
+			sessions[index].RemoteAddr != remoteAddr
+		sessions[index].UserAgentChanged = sessions[index].UserAgent != "" &&
+			userAgent != "" &&
+			sessions[index].UserAgent != userAgent
+	}
 }
 
 func (server *Server) handleDeleteOperatorSession(w http.ResponseWriter, r *http.Request, sessionID string) {

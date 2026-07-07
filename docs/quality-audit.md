@@ -34,7 +34,7 @@ done            用户确认关闭
 | Docker Compose | demo | 保留 | 运行形态对，Compose 已透传后台 worker health probe env，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-backup.sh` 已补单次备份与保留清理入口，`scripts/stage8-backup-restore-drill.sh` 已补本地 restore drill 脚本，`deploy/systemd/tictick-hi-backup.{service,timer}` 已补目标主机调度模板，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺目标环境备份调度安装和外部存储监控证据、已记录且通过的目标环境恢复演练、资源容量策略和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE），`0034_task_request_ids.sql` 已补充 task request ID 字段，`0036_task_traceparents.sql` 已补充 task traceparent 字段，`0037_notification_traceparents.sql` 已补充 notification traceparent 字段，`0040_notification_channel_trimmed_required_text.sql` 已补充 notification channel 新写入 name / target 非空白 CHECK（历史行暂不 VALIDATE），`0041_operator_trimmed_username.sql` 已补充 operator 新写入 username 非空白 CHECK（历史行暂不 VALIDATE），`0042_exchange_account_trimmed_required_text.sql` 已补充 exchange account 新写入必填文本非空白 CHECK（历史行暂不 VALIDATE），`0043_task_trimmed_required_text.sql` 已补充 data sync / backtest / trading task 新写入必填文本非空白 CHECK（历史行暂不 VALIDATE），`0044_audit_event_trimmed_required_text.sql` 已补充 audit event 新写入基础必填文本非空白 CHECK（历史行暂不 VALIDATE），`0045_audit_event_hash_chain.sql` 已补充 audit event 新写入 hash chain 字段、格式约束和非空 hash 唯一索引（历史行暂不回填），`0046_notification_delivery_duration.sql` 已补充 notification provider 调用耗时字段和非负约束（历史行暂不回填），`0047_notification_provider_message_ids.sql` 已补充 notification provider message ID 字段和长度约束（历史行默认空值），`0048_audit_event_retention_anchors.sql` 已补充审计 hash chain 保留锚点，`0050_operator_password_history.sql` 已补充 operator password history hash 表和按 operator/created_at 的历史查询索引；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks`、`POST /api/backtests` 和 `POST /api/trading/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active` 且不落库，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary`、窗口内历史异常 OHLCV K 线 `dataHealth=invalid`、`invalidSummary`、`GET /api/data/tasks/{id}/invalid-issues` 异常详情列表和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，`GET /api/market/instruments/status` 返回各交易所 instrument catalog 最近同步状态供研究页和运维上下文使用，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
-| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、可配置登录失败持久化节流、当前操作员 session 列表、基础来源地址 / User-Agent 上下文、非当前 session 撤销、当前操作员修改密码并撤销同账号其它会话、可配置最近密码历史复用保护、基础密码长度 / 复杂度 / 扩展弱密码字典 / 不含用户名策略、当前操作员自禁用保护、最后启用操作员保护、admin/operator 基础角色、最后启用 admin 保护和当前操作员自角色变更保护已进入 API / 系统管理边界；登录成功 / 失败、退出、会话撤销、当前 session 撤销拒绝、密码修改成功 / 失败、当前操作员自禁用拒绝、当前操作员自角色变更拒绝、角色变更、operator 创建 / 启停 / 角色变更 store 冲突失败和非 admin 操作员管理拒绝会进入基础操作审计；operator 列表读取 / 管理动作、系统通知读取 / retry / channel 管理、交易所账号读取 / 创建、审计读取 / 导出 / hash chain 校验和 api-contract 读取要求 admin；仍缺密码定期轮换 / 重置流程、MFA、细粒度 RBAC / 角色策略、多人审批和生产级设备上下文 |
+| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、可配置登录失败持久化节流、当前操作员 session 列表、基础来源地址 / User-Agent 上下文、当前会话 IP / User-Agent 变化提示、非当前 session 撤销、当前操作员修改密码并撤销同账号其它会话、可配置最近密码历史复用保护、基础密码长度 / 复杂度 / 扩展弱密码字典 / 不含用户名策略、当前操作员自禁用保护、最后启用操作员保护、admin/operator 基础角色、最后启用 admin 保护和当前操作员自角色变更保护已进入 API / 系统管理边界；登录成功 / 失败、退出、会话撤销、当前 session 撤销拒绝、密码修改成功 / 失败、当前操作员自禁用拒绝、当前操作员自角色变更拒绝、角色变更、operator 创建 / 启停 / 角色变更 store 冲突失败和非 admin 操作员管理拒绝会进入基础操作审计；operator 列表读取 / 管理动作、系统通知读取 / retry / channel 管理、交易所账号读取 / 创建、审计读取 / 导出 / hash chain 校验和 api-contract 读取要求 admin；仍缺密码定期轮换 / 重置流程、MFA、细粒度 RBAC / 角色策略、多人审批、设备指纹 / 可信设备 / 风险评分和强制下线策略 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按闭合且连续的 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口或未闭合尾部 K 线；一次性有界同步在交易所返回空批次且没有 cursor 时会保存 completed 结果、进入 succeeded、释放 lease、保留任务窗口缺口健康且不伪造 K 线，只有未闭合 K 线的批次不会把有界或无 endTime 的一次性任务误判完成，succeeded 的 active catalog 任务可重新启动为 pending；删除 data sync task 会软删除任务行、置为 cancelled、停用 sync/realtime、释放 lease、从列表/claim/命令入口隐藏，但不删除 `market_candles` 事实数据且删除后不再接受同步结果写入；保存结果只接受 `running`、持有未过期 lease 且 `WorkerID` 匹配 `locked_by` 的任务，保存前会校验 fetched candle series 的任务目标、时间周期、排序、重复、OHLCV decimal / OHLC 正价格 / volume 非负 / 高低价边界，异常 payload 不写库、不推进游标并明确失败；`SaveDataSyncResult` 也会按 `task_id` 读取目标并拒绝 exchange / symbol / interval 不匹配的 candle，并校验 `LastOpenTime` 必须匹配本次 candles 对当前持久化游标可推进的连续链尖端，防止绕过 runner 的错标的写入或虚假游标推进；PostgreSQL + runner 集成测试已覆盖重启遗留过期 running realtime lease 后重新 claim、按持久化游标 overlap 拉取、upsert 去重、推进游标并回到研究页任务列表可观察；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康和数据同步任务 API / 研究页任务表可观察 active exchange backoff 数量、最近重试时间、任务级 `exchangeBackoffUntil` 和脱敏错误；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；Binance / OKX public market 请求已有本地固定窗口限流，`hi sync` 中 K 线同步和 instrument catalog 同一进程共享 client 限流器，K 线拉取前会按交易所获取 PostgreSQL advisory lock，锁被占用时释放当前 data sync task lease、跳过交易所请求且不写入失败/退避状态，避免多实例同时拉取同一交易所 K 线；instrument catalog 临时错误会按 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 短重试后写入 `market_instrument_sync_statuses` 并在运维健康中显示单交易所 warning，最近成功超过 24 小时会被运维健康标记为 stale warning；instrument catalog 同步开始前会按交易所获取 PostgreSQL advisory lock，锁被占用时跳过拉取和写入失败状态，避免多实例重复刷新同一 catalog；instrument catalog 变为 inactive / missing 时会保存原 sync/realtime 期望并暂停对应 data sync task，恢复 active 时只恢复这类自动 catalog pause 任务；已提供基于 `market_candles` 的全历史相邻缺口扫描入口，并可从研究页为单个真实缺口排补同步任务，但不会自动批量补全；本地外部临时失败恢复 smoke 已验证 Binance `Retry-After`、OKX `50011` 和 exchange backoff 隔离后可恢复落库，默认 Binance public exchange smoke 也已有 native/ok 证据；仍缺完整统一状态机、真正的分布式 token bucket / 动态交易所额度、OKX 真实外网恢复证据和长期多实例外部网络压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，CandleProvider/repository 入口会先校验 exchange / symbol / interval 必填和 interval 合法，`from/to` 已在 API 和 CandleProvider/repository 入口校验顺序并按 interval 限制最大闭区间跨度，非法 target 或显式窗口会在读取 store 前失败；显式 `from/to` 窗口会把起点到首根 K 线、末根 K 线到终点和整窗无数据识别为缺口，聚合 fallback 会返回 coverage 并标记基础窗口受限，基础 `1m` 聚合窗口已改为最多 288 页 / 1440000 根的有界流式分页聚合，默认最新聚合窗口会按尾部裁剪保留最新 K 线，`scripts/stage1-candle-provider-perf-smoke.sh` 已用真实 PostgreSQL 验证 240000 根 `1m` 聚合成 1000 根 `4h` 的查询边界，PostgreSQL 集成测试已覆盖 6 个并发 `15m` 聚合查询的一致结果、coverage 和 pagination metadata，`/api/candles` 返回窗口级 pagination metadata、opaque `previousCursor/nextCursor` 和当前实际窗口 `from/to/count`，PostgreSQL 集成测试覆盖基础聚合、缺口、请求窗口边界缺口、默认最新窗口查询、latest-before 查询、上一/下一窗口 metadata、超大 limit clamp、repository 入口超大显式窗口拒绝、repository 入口缺 target 拒绝和 runner 侧闭合信号过滤；仍缺长期 soak / 冷缓存 / 真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；Binance 默认 client 会在成功读取 exchangeInfo 后解析 `REQUEST_WEIGHT` rateLimits 并切换为本地多窗口 fixed-window 限流，K 线请求仍按 weight=2、exchangeInfo 按 weight=20 计重，自定义 limiter 不被覆盖；OKX history-candles 和 public instruments 按 20 次/2s 本地限流；仍缺 OKX 动态额度、多实例共享额度、真实网络韧性和更完整交易所业务码分类 |
@@ -13965,6 +13965,50 @@ Definition of Done：
 
 - 当前弱密码字典仍是本地有限集合，不等同于泄露密码库或生产级密码风险引擎。
 - 当前仍缺密码过期轮换、重置流程、泄露密码库查询、账号恢复、MFA 和生产级设备上下文。
+- 审计事件仍写入主库，不提供外部不可篡改证明、签名、独立归档或告警。
+
+### 阶段 8 当前会话上下文变化提示补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- `OperatorSession` API response 新增 `remoteAddrChanged` / `userAgentChanged`，只对当前 session 比较登录时来源地址 / User-Agent 与当前请求上下文。
+- 变化判断复用现有 `clientAddress` 和 `sessionContextValue` 归一化；历史空上下文不标记为 changed，避免 legacy session 误报。
+- 系统会话页在来源地址和 User-Agent 单元格旁显示紧凑 warning 标签，帮助当前操作员发现当前 session 上下文漂移。
+- OpenAPI contract 和生成 TypeScript 类型同步更新。
+
+范围外：
+
+- 不阻断请求、不自动撤销 session、不写入新审计 outcome，也不新增设备指纹、可信设备、地理位置、风险评分或强制下线策略。
+- 不追踪非当前 session 的后续 IP / UA 变化。
+- 不新增多浏览器视觉基线或长期设备风险策略。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'Test(LoginStoresSessionClientContext|APIContractDeclaresAdminSystemSchemas|FrontendAPIGeneratedTypesAreCurrent|FrontendAPIResponseTypesMatchContractFields)' -count=1` 通过。
+- `pnpm --dir web/frontend exec vitest run src/pages/SystemSessionsPage.test.ts src/services/api/auth.test.ts` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- Vite dev server HTTP smoke `curl -fsS http://127.0.0.1:5173/ >/tmp/tictick-hi-vite-index.html && test -s /tmp/tictick-hi-vite-index.html` 通过。
+
+未执行：
+
+- 未完成 in-app Browser 视觉验证；Browser 工具仍失败于 `sandboxCwd must be an absolute file URI: relative URL without a base`，本轮用组件测试、typecheck、build 和 Vite HTTP smoke 兜底。
+
+剩余风险：
+
+- 这只是当前 session 的基础可观察提示，不是生产级设备信任模型。
+- 当前仍缺 MFA、可信设备、设备指纹、IP / UA 变更告警审计、地理位置识别、session 风险评分和强制下线策略。
 - 审计事件仍写入主库，不提供外部不可篡改证明、签名、独立归档或告警。
 
 ## 6. 保留 / 返工 / 删除 / 延后

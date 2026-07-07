@@ -237,6 +237,7 @@ export const enUSMessages: Record<string, string> = {
     "system.currentPassword": "Current Password",
     "system.newPassword": "New Password",
     "system.confirmNewPassword": "Confirm New Password",
+    "system.contextChanged": "Changed",
     "system.passwordChanged": "Password updated.",
     "system.passwordChangeFailed": "Failed to change password.",
     "system.passwordChangeRequired": "Enter the current password, new password, and confirmation.",

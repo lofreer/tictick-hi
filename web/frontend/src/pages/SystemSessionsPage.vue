@@ -65,12 +65,22 @@
                 </NTag>
               </td>
               <td>
-                <span class="session-remote-addr">{{ emptyText(session.remoteAddr) }}</span>
+                <div class="session-context-cell">
+                  <span class="session-remote-addr">{{ emptyText(session.remoteAddr) }}</span>
+                  <NTag v-if="session.remoteAddrChanged" type="warning" size="small">
+                    {{ t("system.contextChanged") }}
+                  </NTag>
+                </div>
               </td>
               <td>
-                <span class="session-user-agent" :title="session.userAgent || undefined">
-                  {{ emptyText(session.userAgent) }}
-                </span>
+                <div class="session-context-cell">
+                  <span class="session-user-agent" :title="session.userAgent || undefined">
+                    {{ emptyText(session.userAgent) }}
+                  </span>
+                  <NTag v-if="session.userAgentChanged" type="warning" size="small">
+                    {{ t("system.contextChanged") }}
+                  </NTag>
+                </div>
               </td>
               <td>{{ formatDate(session.createdAt) }}</td>
               <td>{{ formatDate(session.expiresAt) }}</td>
@@ -269,6 +279,13 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .session-remote-addr {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
+}
+
+.session-context-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .session-user-agent {

@@ -31,7 +31,9 @@ describe("SystemSessionsPage", () => {
         id: "os_1",
         current: true,
         remoteAddr: "203.0.113.24",
+        remoteAddrChanged: true,
         userAgent: "tictick-hi-test/1.0",
+        userAgentChanged: true,
         createdAt: "2026-01-01T00:00:00Z",
         expiresAt: "2026-01-02T00:00:00Z",
       },
@@ -51,6 +53,7 @@ describe("SystemSessionsPage", () => {
     expect(wrapper.text()).toContain("203.0.113.24");
     expect(wrapper.text()).toContain("User-Agent");
     expect(wrapper.text()).toContain("tictick-hi-test/1.0");
+    expect(wrapper.text()).toContain("已变化");
     expect(wrapper.get(".session-user-agent").attributes("title")).toBe("tictick-hi-test/1.0");
   });
 

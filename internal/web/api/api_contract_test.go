@@ -294,8 +294,14 @@ func TestAPIContractSchemasProtectSecretBoundary(t *testing.T) {
 	if _, ok := sessionProperties["remoteAddr"]; !ok {
 		t.Fatal("OperatorSession response schema missing remoteAddr")
 	}
+	if _, ok := sessionProperties["remoteAddrChanged"]; !ok {
+		t.Fatal("OperatorSession response schema missing remoteAddrChanged")
+	}
 	if _, ok := sessionProperties["userAgent"]; !ok {
 		t.Fatal("OperatorSession response schema missing userAgent")
+	}
+	if _, ok := sessionProperties["userAgentChanged"]; !ok {
+		t.Fatal("OperatorSession response schema missing userAgentChanged")
 	}
 }
 

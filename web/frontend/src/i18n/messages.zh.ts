@@ -237,6 +237,7 @@ export const zhCNMessages: Record<string, string> = {
     "system.currentPassword": "当前密码",
     "system.newPassword": "新密码",
     "system.confirmNewPassword": "确认新密码",
+    "system.contextChanged": "已变化",
     "system.passwordChanged": "密码已更新。",
     "system.passwordChangeFailed": "修改密码失败。",
     "system.passwordChangeRequired": "请填写当前密码、新密码和确认密码。",

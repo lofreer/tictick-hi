@@ -140,4 +140,60 @@ func TestLoginStoresSessionClientContext(t *testing.T) {
 		sessions[0].UserAgent != "tictick-hi-test/1.0" {
 		t.Fatalf("unexpected listed session context: %#v", sessions)
 	}
+
+	sameContextSessions := listSessionsWithClientContext(
+		t,
+		server,
+		&auth,
+		"198.51.100.24:12345",
+		"203.0.113.24, 198.51.100.24",
+		"tictick-hi-test/1.0",
+	)
+	if len(sameContextSessions) != 1 ||
+		sameContextSessions[0].RemoteAddrChanged ||
+		sameContextSessions[0].UserAgentChanged {
+		t.Fatalf("same context was marked changed: %#v", sameContextSessions)
+	}
+
+	changedContextSessions := listSessionsWithClientContext(
+		t,
+		server,
+		&auth,
+		"198.51.100.99:12345",
+		"203.0.113.99, 198.51.100.99",
+		"tictick-hi-test/2.0",
+	)
+	if len(changedContextSessions) != 1 ||
+		!changedContextSessions[0].RemoteAddrChanged ||
+		!changedContextSessions[0].UserAgentChanged {
+		t.Fatalf("changed context was not marked changed: %#v", changedContextSessions)
+	}
+}
+
+func listSessionsWithClientContext(
+	t *testing.T,
+	server http.Handler,
+	auth *authTestSession,
+	remoteAddr string,
+	forwardedFor string,
+	userAgent string,
+) []data.OperatorSession {
+	t.Helper()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/auth/sessions", nil)
+	request.RemoteAddr = remoteAddr
+	request.Header.Set("X-Forwarded-For", forwardedFor)
+	request.Header.Set("User-Agent", userAgent)
+	request.AddCookie(auth.session)
+	request.AddCookie(auth.csrf)
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("list sessions status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var sessions []data.OperatorSession
+	if err := json.NewDecoder(recorder.Body).Decode(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	return sessions
 }
