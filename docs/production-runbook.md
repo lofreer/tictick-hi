@@ -115,8 +115,22 @@ DB_MAX_CONN_IDLE_TIME=30m
 These settings apply to every `hi` process before PostgreSQL opens. Keep
 `DB_MAX_CONNS * number_of_hi_processes` below the PostgreSQL capacity reserved
 for the application. Invalid pool settings stop commands before PostgreSQL opens
-and do not log `DATABASE_URL`. This is a connection-pool guardrail, not a full
-CPU, memory, disk, or retention sizing model.
+and do not log `DATABASE_URL`.
+
+Capacity preflight:
+
+```bash
+scripts/stage8-capacity-check.sh
+```
+
+The check validates declared `hi` process count, PostgreSQL connection budget,
+CPU / memory budget, free disk, estimated daily backup size, and retention days.
+Override `STAGE8_HI_PROCESS_COUNT`, `STAGE8_POSTGRES_MAX_CONNECTIONS`,
+`STAGE8_POSTGRES_RESERVED_CONNECTIONS`, `STAGE8_CAPACITY_CPU_MILLICORES`,
+`STAGE8_CAPACITY_MEMORY_MB`, `STAGE8_CAPACITY_PATH`,
+`STAGE8_BACKUP_DAILY_ESTIMATE_MB`, and `STAGE8_BACKUP_RETENTION_DAYS` for the
+target environment before a release. This is a deterministic budget check, not a
+substitute for load testing or observed production sizing.
 
 Logging:
 
@@ -367,7 +381,7 @@ close these production-safety gaps:
 
 - no automated backup scheduler;
 - no completed restore drill evidence for the target environment;
-- database pool limits exist, but no completed CPU / memory / disk sizing, capacity test, or retention policy;
+- capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
 - no broader external system trace propagation, W3C trace context, or external log sink / retention policy;
 - no richer worker backlog / external dependency readiness beyond PostgreSQL and queue-table-ready worker probes;
 - no external uptime monitor or alert routing;
