@@ -15,93 +15,95 @@ describe("useResearchRepairTaskPolling", () => {
   });
 
   it("refreshes immediately and then stops after the bounded attempt count", async () => {
-    const loadTasks = vi.fn().mockResolvedValue(undefined);
-    const wrapper = mountHost(loadTasks, { intervalMs: 50, maxAttempts: 3 });
+    const loadRepairTasks = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 3 });
 
     wrapper.vm.startRepairTaskPolling();
     await flushPromises();
-    expect(loadTasks).toHaveBeenCalledTimes(1);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(1);
+    expect(loadRepairTasks).toHaveBeenLastCalledWith([]);
 
     await vi.advanceTimersByTimeAsync(50);
-    expect(loadTasks).toHaveBeenCalledTimes(2);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(2);
 
     await vi.advanceTimersByTimeAsync(50);
-    expect(loadTasks).toHaveBeenCalledTimes(3);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(3);
 
     await vi.advanceTimersByTimeAsync(200);
-    expect(loadTasks).toHaveBeenCalledTimes(3);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(3);
   });
 
   it("can start with the first refresh delayed when the caller already refreshed", async () => {
-    const loadTasks = vi.fn().mockResolvedValue(undefined);
-    const wrapper = mountHost(loadTasks, { intervalMs: 50, maxAttempts: 2 });
+    const loadRepairTasks = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 2 });
 
     wrapper.vm.startRepairTaskPolling({ immediate: false });
     await flushPromises();
-    expect(loadTasks).not.toHaveBeenCalled();
+    expect(loadRepairTasks).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(50);
-    expect(loadTasks).toHaveBeenCalledTimes(1);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(50);
-    expect(loadTasks).toHaveBeenCalledTimes(2);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(2);
   });
 
   it("restarts the bounded polling sequence instead of stacking timers", async () => {
-    const loadTasks = vi.fn().mockResolvedValue(undefined);
-    const wrapper = mountHost(loadTasks, { intervalMs: 50, maxAttempts: 2 });
+    const loadRepairTasks = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 2 });
 
     wrapper.vm.startRepairTaskPolling({ immediate: false });
     await vi.advanceTimersByTimeAsync(30);
     wrapper.vm.startRepairTaskPolling({ immediate: false });
     await vi.advanceTimersByTimeAsync(49);
-    expect(loadTasks).not.toHaveBeenCalled();
+    expect(loadRepairTasks).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(loadTasks).toHaveBeenCalledTimes(1);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(50);
-    expect(loadTasks).toHaveBeenCalledTimes(2);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(2);
   });
 
   it("clears pending polling when the host unmounts", async () => {
-    const loadTasks = vi.fn().mockResolvedValue(undefined);
-    const wrapper = mountHost(loadTasks, { intervalMs: 50, maxAttempts: 2 });
+    const loadRepairTasks = vi.fn().mockResolvedValue(undefined);
+    const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 2 });
 
     wrapper.vm.startRepairTaskPolling({ immediate: false });
     wrapper.unmount();
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(loadTasks).not.toHaveBeenCalled();
+    expect(loadRepairTasks).not.toHaveBeenCalled();
   });
 
   it("refreshes the chart and stops when watched repair tasks settle", async () => {
     const refreshChart = vi.fn().mockResolvedValue(undefined);
-    const loadTasks = vi.fn()
+    const loadRepairTasks = vi.fn()
       .mockResolvedValueOnce([dataSyncTask("dst_repair_1", "running")])
       .mockResolvedValueOnce([dataSyncTask("dst_repair_1", "succeeded")]);
-    const wrapper = mountHost(loadTasks, { intervalMs: 50, maxAttempts: 4 });
+    const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 4 });
 
     wrapper.vm.startRepairTaskPolling({
       onSettled: refreshChart,
       repairTaskIds: ["dst_repair_1"],
     });
     await flushPromises();
+    expect(loadRepairTasks).toHaveBeenLastCalledWith(["dst_repair_1"]);
     expect(refreshChart).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(50);
     await flushPromises();
-    expect(loadTasks).toHaveBeenCalledTimes(2);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(2);
     expect(refreshChart).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(200);
-    expect(loadTasks).toHaveBeenCalledTimes(2);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(2);
   });
 
   it("runs the exhausted callback when watched repair tasks never settle", async () => {
     const refreshChart = vi.fn().mockResolvedValue(undefined);
-    const loadTasks = vi.fn().mockResolvedValue([dataSyncTask("dst_repair_1", "running")]);
-    const wrapper = mountHost(loadTasks, { intervalMs: 50, maxAttempts: 2 });
+    const loadRepairTasks = vi.fn().mockResolvedValue([dataSyncTask("dst_repair_1", "running")]);
+    const wrapper = mountHost(loadRepairTasks, { intervalMs: 50, maxAttempts: 2 });
 
     wrapper.vm.startRepairTaskPolling({
       onExhausted: refreshChart,
@@ -112,15 +114,15 @@ describe("useResearchRepairTaskPolling", () => {
 
     await vi.advanceTimersByTimeAsync(50);
     await flushPromises();
-    expect(loadTasks).toHaveBeenCalledTimes(2);
+    expect(loadRepairTasks).toHaveBeenCalledTimes(2);
     expect(refreshChart).toHaveBeenCalledTimes(1);
   });
 });
 
-function mountHost(loadTasks: () => Promise<DataSyncTask[] | void>, options: { intervalMs: number; maxAttempts: number }) {
+function mountHost(loadRepairTasks: (ids: string[]) => Promise<DataSyncTask[] | void>, options: { intervalMs: number; maxAttempts: number }) {
   return mount(defineComponent({
     setup(_, { expose }) {
-      const polling = useResearchRepairTaskPolling(loadTasks, options);
+      const polling = useResearchRepairTaskPolling(loadRepairTasks, options);
       expose(polling);
       return () => null;
     },

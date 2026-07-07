@@ -310,7 +310,7 @@ const {
   loadMarketInstrumentSyncStatuses,
   loadNextCandles,
   loadPreviousCandles,
-  loadTasks,
+  loadRepairTaskSnapshots, loadTasks,
   openCreateTask,
   repairFirstGap,
   repairGapLoading,
@@ -330,7 +330,7 @@ const {
   toggleSync,
   viewTaskGaps,
 } = useResearchWorkspace();
-const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadTasks);
+const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadRepairTaskSnapshots);
 
 const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "Binance", value: "binance" },

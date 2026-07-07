@@ -9,6 +9,7 @@ import type { DataSyncTask } from "@/types/app";
 
 const dataApiMocks = vi.hoisted(() => ({
   getCandles: vi.fn(),
+  getTask: vi.fn(),
   getTaskGaps: vi.fn(),
   listTasks: vi.fn(),
   repairTaskGaps: vi.fn(),
@@ -51,6 +52,7 @@ describe("useResearchWorkspace task gap repair feedback", () => {
     vi.clearAllMocks();
     routerMocks.query = { exchange: "binance", symbol: "BTCUSDT", interval: "1m" };
     dataApiMocks.listTasks.mockResolvedValue([]);
+    dataApiMocks.getTask.mockResolvedValue(dataSyncTask({ id: "dst_repair_1" }));
     dataApiMocks.getCandles.mockResolvedValue(candleResult());
     dataApiMocks.getTaskGaps.mockResolvedValue({
       taskId: "dst_1",
@@ -132,6 +134,38 @@ describe("useResearchWorkspace task gap repair feedback", () => {
 
     expect(workspace.taskGapRepairResult.value).toBeNull();
     expect(workspace.taskGapRepairNotice.value).toBe("");
+  });
+
+  it("refreshes watched repair task snapshots without reloading the whole task list", async () => {
+    const sourceTask = dataSyncTask({ id: "dst_1", status: "running", dataHealth: "gap" });
+    const repairTask = dataSyncTask({ id: "dst_repair_1", status: "running", dataHealth: "syncing" });
+    const refreshedSourceTask = dataSyncTask({ id: "dst_1", status: "succeeded", dataHealth: "ok" });
+    const refreshedRepairTask = dataSyncTask({ id: "dst_repair_1", status: "succeeded", dataHealth: "ok" });
+    dataApiMocks.listTasks.mockResolvedValueOnce([sourceTask, repairTask]);
+    dataApiMocks.getTask.mockResolvedValueOnce(refreshedSourceTask).mockResolvedValueOnce(refreshedRepairTask);
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    await workspace.viewTaskGaps(sourceTask);
+    await workspace.loadRepairTaskSnapshots(["dst_1", "dst_repair_1"]);
+    await flushPromises();
+
+    expect(dataApi.getTask).toHaveBeenCalledWith("dst_1");
+    expect(dataApi.getTask).toHaveBeenCalledWith("dst_repair_1");
+    expect(dataApi.listTasks).toHaveBeenCalledTimes(1);
+    expect(workspace.tasks.value.find((task) => task.id === "dst_1")).toMatchObject({
+      status: "succeeded",
+      dataHealth: "ok",
+    });
+    expect(workspace.tasks.value.find((task) => task.id === "dst_repair_1")).toMatchObject({
+      status: "succeeded",
+      dataHealth: "ok",
+    });
+    expect(workspace.gapDetailsTask.value).toMatchObject({
+      id: "dst_1",
+      status: "succeeded",
+      dataHealth: "ok",
+    });
   });
 
   it("keeps raw exchange failures out of the visible notice", async () => {

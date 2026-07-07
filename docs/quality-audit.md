@@ -10099,6 +10099,50 @@ Definition of Done：
 - 该能力关闭“已有 repository 单任务读取但无 HTTP 详情路由”的 API 边界，不扩大数据同步 worker 或 repair 能力。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 研究页 repair task 单任务轮询补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 研究页 repair task 状态轮询不再每轮调用 `/api/data/tasks` 刷新全量任务列表。
+- 新增 `loadRepairTaskSnapshots(ids)`，按 repair task id 调用 `GET /api/data/tasks/{id}` 读取单任务快照，并合并回当前任务列表。
+- 单任务快照会更新任务表中对应 repair task 的状态和数据健康，也会同步更新当前选中图表任务和已打开缺口详情弹窗中的任务引用。
+- repair task 单次读取失败或 404 时吞掉该次快照，保持有界重试，不覆盖研究页全局任务列表错误状态。
+- `useResearchRepairTaskPolling` 改为把 watched repair task ids 传给 targeted loader，并继续用返回快照判断 created repair tasks 是否进入终态。
+- 前端测试覆盖轮询传递 repair task ids、研究页接线改为 `loadRepairTaskSnapshots`、任务快照合并和缺口弹窗任务引用更新。
+
+范围外：
+
+- 不新增独立数据同步任务详情页、事件流、WebSocket 或实时订阅。
+- 不改变 repair API、data sync worker 调度、补同步任务创建、CandleProvider、交易所 adapter、回测 / 交易 runner 或实盘能力。
+- 不证明 repair task 一定成功，也不证明数据同步长期自动收敛。
+- 不把研究页或整体项目升级为 usable。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useResearchRepairTaskPolling.test.ts src/composables/useResearchWorkspace.taskGapRepair.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮只改变研究页 repair polling 数据读取路径，没有改变页面布局或图表渲染结构。
+
+剩余风险：
+
+- 轮询仍是有界前端轮询，不是后台自动收敛证明或实时订阅。
+- 单任务详情快照只更新 watched repair tasks；非 watched 任务仍依赖用户刷新或其它操作加载。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

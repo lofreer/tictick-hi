@@ -326,7 +326,8 @@ describe("ResearchPage chart layout contract", () => {
 
   it("starts bounded repair task status polling from every repair entrypoint", () => {
     expect(source).toContain('import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";');
-    expect(source).toContain("const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadTasks);");
+    expect(source).toContain("loadRepairTaskSnapshots,");
+    expect(source).toContain("const { startRepairTaskPolling } = useResearchRepairTaskPolling(loadRepairTaskSnapshots);");
     expect(source).toContain("function startRepairPollingForResult(result: DataSyncGapRepairResult");
     expect(source).toContain("repairTaskIds: result.createdTasks.map((task) => task.id)");
     expect(source).toContain("onSettled: () => refreshAfterRepairPolling({ gapDetailsTask, loadCandles, task: options.refreshGapDetailsTask, viewTaskGaps })");

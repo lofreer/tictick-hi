@@ -22,6 +22,7 @@ import {
 } from "@/composables/researchWorkspaceHelpers";
 import { researchChartGapMarkers } from "@/composables/researchChartGapMarkers";
 import { repairChartGap } from "@/composables/researchGapRepairActions";
+import { loadResearchTaskSnapshots } from "@/composables/researchTaskSnapshots";
 import { retryResearchSyncTask, toggleResearchRealtimeTask, toggleResearchSyncTask } from "@/composables/researchTaskCommandActions";
 import { createResearchDataSyncTask } from "@/composables/researchTaskCreateActions";
 import { useMarketInstrumentSyncStatuses } from "@/composables/useMarketInstrumentSyncStatuses";
@@ -85,14 +86,9 @@ export function useResearchWorkspace() {
   const firstRepairableGap = computed(() => candleResult.value?.gaps[0] ?? null);
   const canRepairGap = computed(() => firstRepairableGap.value !== null);
   const chartMarkers = computed(() => researchChartGapMarkers(candles.value, candleResult.value, t));
-  const selectedRepairSourceTask = computed(() => {
-    return repairSourceTask(
-      selectedChartTask.value,
-      exchange.value,
-      normalizeSymbolInput(symbol.value),
-      candleResult.value?.baseInterval || interval.value,
-    );
-  });
+  const selectedRepairSourceTask = computed(() =>
+    repairSourceTask(selectedChartTask.value, exchange.value, normalizeSymbolInput(symbol.value), candleResult.value?.baseInterval || interval.value),
+  );
   const canLoadPreviousCandles = computed(() => canLoadPreviousCandleWindow(candleResult.value));
   const canLoadNextCandles = computed(() => canLoadNextCandleWindow(candleResult.value));
   useMarketSymbolNormalization(exchange, symbol, createForm);
@@ -130,6 +126,8 @@ export function useResearchWorkspace() {
       tasksLoading.value = false;
     }
   }
+
+  async function loadRepairTaskSnapshots(ids: string[]) { return loadResearchTaskSnapshots(ids, { gapDetailsTask, selectedChartTask, tasks }); }
 
   async function loadCandles() {
     candlesLoading.value = true;
@@ -247,17 +245,11 @@ export function useResearchWorkspace() {
     });
   }
 
-  async function toggleRealtime(task: DataSyncTask) {
-    await toggleResearchRealtimeTask({ loadTasks, message, t, task });
-  }
+  async function toggleRealtime(task: DataSyncTask) { await toggleResearchRealtimeTask({ loadTasks, message, t, task }); }
 
-  async function toggleSync(task: DataSyncTask) {
-    await toggleResearchSyncTask({ loadTasks, message, t, task });
-  }
+  async function toggleSync(task: DataSyncTask) { await toggleResearchSyncTask({ loadTasks, message, t, task }); }
 
-  async function retryTask(task: DataSyncTask) {
-    await retryResearchSyncTask({ loadTasks, message, t, task });
-  }
+  async function retryTask(task: DataSyncTask) { await retryResearchSyncTask({ loadTasks, message, t, task }); }
 
   async function viewTaskGaps(task: DataSyncTask, options: { resetRepairResult?: boolean } = {}) {
     if (options.resetRepairResult !== false) {
@@ -377,6 +369,7 @@ export function useResearchWorkspace() {
     loadMarketInstrumentSyncStatuses,
     loadNextCandles,
     loadPreviousCandles,
+    loadRepairTaskSnapshots,
     loadTasks,
     openCreateTask,
     repairFirstGap,

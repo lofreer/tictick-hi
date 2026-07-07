@@ -14,11 +14,11 @@ type StartPollingOptions = {
   repairTaskIds?: string[];
 };
 
-type LoadTasks = () => Promise<DataSyncTask[] | void>;
+type LoadRepairTasks = (ids: string[]) => Promise<DataSyncTask[] | void>;
 
 const terminalStatuses = new Set<TaskStatus>(["succeeded", "failed", "cancelled", "paused"]);
 
-export function useResearchRepairTaskPolling(loadTasks: LoadTasks, options: PollingOptions = {}) {
+export function useResearchRepairTaskPolling(loadRepairTasks: LoadRepairTasks, options: PollingOptions = {}) {
   const intervalMs = options.intervalMs ?? 4_000;
   const maxAttempts = options.maxAttempts ?? 6;
   let timer: number | null = null;
@@ -73,7 +73,7 @@ export function useResearchRepairTaskPolling(loadTasks: LoadTasks, options: Poll
     attempts += 1;
     let latestTasks: DataSyncTask[] | void;
     try {
-      latestTasks = await loadTasks();
+      latestTasks = await loadRepairTasks([...repairTaskIds]);
     } catch {
       latestTasks = undefined;
     }
