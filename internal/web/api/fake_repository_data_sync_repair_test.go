@@ -43,6 +43,7 @@ func (repository *fakeRepository) RepairDataSyncTaskGap(
 			StartTime:          &request.From,
 			EndTime:            &request.To,
 			RepairSourceTaskID: repository.tasks[index].ID,
+			RequestID:          request.RequestID,
 			SyncEnabled:        true,
 			RealtimeEnabled:    false,
 			Status:             data.TaskStatusPending,
@@ -60,6 +61,7 @@ func (repository *fakeRepository) RepairDataSyncTaskGap(
 func (repository *fakeRepository) RepairDataSyncTaskGaps(
 	_ context.Context,
 	id string,
+	request data.RepairDataSyncTaskGapsRequest,
 ) (data.DataSyncGapRepairResult, error) {
 	for index := range repository.tasks {
 		if repository.tasks[index].ID != id {
@@ -92,6 +94,7 @@ func (repository *fakeRepository) RepairDataSyncTaskGaps(
 			StartTime:          &summary.FirstGap.From,
 			EndTime:            &summary.FirstGap.To,
 			RepairSourceTaskID: repository.tasks[index].ID,
+			RequestID:          request.RequestID,
 			SyncEnabled:        true,
 			RealtimeEnabled:    false,
 			Status:             data.TaskStatusPending,

@@ -210,7 +210,10 @@ func TestIntegrationDataSyncTaskRepairsRejectUnsupportedInterval(t *testing.T) {
 		name string
 		run  func() error
 	}{
-		{name: "task gaps", run: func() error { _, err := store.RepairDataSyncTaskGaps(ctx, sourceID); return err }},
+		{name: "task gaps", run: func() error {
+			_, err := store.RepairDataSyncTaskGaps(ctx, sourceID, data.RepairDataSyncTaskGapsRequest{})
+			return err
+		}},
 		{name: "single task gap", run: func() error {
 			_, err := store.RepairDataSyncTaskGap(ctx, sourceID, data.RepairDataSyncTaskGapRequest{From: start, To: start.Add(2 * time.Minute)})
 			return err
@@ -281,7 +284,10 @@ func TestIntegrationDataSyncTaskRepairsRequireActiveMarketInstrument(t *testing.
 		name string
 		run  func() error
 	}{
-		{name: "task gaps", run: func() error { _, err := store.RepairDataSyncTaskGaps(ctx, sourceID); return err }},
+		{name: "task gaps", run: func() error {
+			_, err := store.RepairDataSyncTaskGaps(ctx, sourceID, data.RepairDataSyncTaskGapsRequest{})
+			return err
+		}},
 		{name: "single task gap", run: func() error {
 			_, err := store.RepairDataSyncTaskGap(ctx, sourceID, data.RepairDataSyncTaskGapRequest{From: start, To: start.Add(time.Minute)})
 			return err

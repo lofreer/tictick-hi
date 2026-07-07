@@ -77,7 +77,7 @@ func TestIntegrationDataSyncTaskGapsIgnoreMisalignedOpenTimeCandles(t *testing.T
 		t.Fatalf("bogus misaligned task gap repair err = %v, want alignment error", err)
 	}
 
-	result, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	result, err := store.RepairDataSyncTaskGaps(ctx, taskID, data.RepairDataSyncTaskGapsRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}

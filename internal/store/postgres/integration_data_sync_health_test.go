@@ -331,7 +331,7 @@ func TestIntegrationDataSyncTaskGapsReportRequestedWindowBoundaries(t *testing.T
 	assertTaskGap(t, gaps.Gaps[0], start, start.Add(time.Minute), 1)
 	assertTaskGap(t, gaps.Gaps[1], start.Add(4*time.Minute), start.Add(5*time.Minute), 1)
 
-	result, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	result, err := store.RepairDataSyncTaskGaps(ctx, taskID, data.RepairDataSyncTaskGapsRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +446,7 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 		insertIntegrationCandle(t, ctx, store, integrationDataHealthCandle(symbol, start, minute))
 	}
 
-	result, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	result, err := store.RepairDataSyncTaskGaps(ctx, taskID, data.RepairDataSyncTaskGapsRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +476,7 @@ func TestIntegrationRepairDataSyncTaskGapsCreatesSyncTasks(t *testing.T) {
 		}
 	}
 
-	duplicateResult, err := store.RepairDataSyncTaskGaps(ctx, taskID)
+	duplicateResult, err := store.RepairDataSyncTaskGaps(ctx, taskID, data.RepairDataSyncTaskGapsRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}

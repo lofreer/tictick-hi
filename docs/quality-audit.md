@@ -30,9 +30,9 @@ done            用户确认关闭
 | 模块 | 当前等级 | 处理 | 主要问题 |
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
-| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`LOG_LEVEL` / `LOG_FORMAT` 已提供基础 text/json 结构化日志配置，`LOG_CORRELATION_ID` 已提供运行级日志关联 ID，API HTTP 边界已提供 `X-Request-ID` 响应头和带 `request_id` 的 access log，API 直接创建的 data sync / backtest / trading task 已保存 `requestId`，`DB_MAX_CONNS` / `DB_MIN_CONNS` / DB 连接生命周期配置已提供 PostgreSQL pool 上限，非法日志/资源配置不会回显；`SYNC_HEALTH_ADDR` / `BACKTEST_HEALTH_ADDR` / `TRADING_HEALTH_ADDR` / `NOTIFY_HEALTH_ADDR` 已提供可选进程级 `/livez` / `/readyz` / `/healthz` 探针，`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-backup-restore-drill.sh` 已补可重复 PostgreSQL 备份/恢复演练入口，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺 repair 派生任务 / notification / 外部系统 trace 传播、子命令级业务 readiness 语义、已通过的目标环境备份恢复演练、CPU/内存/磁盘容量策略和更完整优雅停止证据 |
+| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`LOG_LEVEL` / `LOG_FORMAT` 已提供基础 text/json 结构化日志配置，`LOG_CORRELATION_ID` 已提供运行级日志关联 ID，API HTTP 边界已提供 `X-Request-ID` 响应头和带 `request_id` 的 access log，API 创建的 data sync / backtest / trading task 和 data sync repair task 已保存 `requestId`，`DB_MAX_CONNS` / `DB_MIN_CONNS` / DB 连接生命周期配置已提供 PostgreSQL pool 上限，非法日志/资源配置不会回显；`SYNC_HEALTH_ADDR` / `BACKTEST_HEALTH_ADDR` / `TRADING_HEALTH_ADDR` / `NOTIFY_HEALTH_ADDR` 已提供可选进程级 `/livez` / `/readyz` / `/healthz` 探针，`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-backup-restore-drill.sh` 已补可重复 PostgreSQL 备份/恢复演练入口，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺 notification / 外部系统 trace 传播、子命令级业务 readiness 语义、已通过的目标环境备份恢复演练、CPU/内存/磁盘容量策略和更完整优雅停止证据 |
 | Docker Compose | demo | 保留 | 运行形态对，Compose 已透传后台 worker health probe env，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-backup-restore-drill.sh` 已补本地 restore drill 脚本，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺自动化备份、已记录且通过的目标环境恢复演练、资源容量策略和外部依赖韧性验证 |
-| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE），`0034_task_request_ids.sql` 已补充 API-created task request ID 字段；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
+| PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE），`0034_task_request_ids.sql` 已补充 task request ID 字段；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks`、`POST /api/backtests` 和 `POST /api/trading/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active` 且不落库，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary`、窗口内历史异常 OHLCV K 线 `dataHealth=invalid`、`invalidSummary`、`GET /api/data/tasks/{id}/invalid-issues` 异常详情列表和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，`GET /api/market/instruments/status` 返回各交易所 instrument catalog 最近同步状态供研究页和运维上下文使用，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按闭合且连续的 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口或未闭合尾部 K 线；一次性有界同步在交易所返回空批次且没有 cursor 时会保存 completed 结果、进入 succeeded、释放 lease、保留任务窗口缺口健康且不伪造 K 线，只有未闭合 K 线的批次不会把有界或无 endTime 的一次性任务误判完成，succeeded 的 active catalog 任务可重新启动为 pending；删除 data sync task 会软删除任务行、置为 cancelled、停用 sync/realtime、释放 lease、从列表/claim/命令入口隐藏，但不删除 `market_candles` 事实数据且删除后不再接受同步结果写入；保存结果只接受 `running`、持有未过期 lease 且 `WorkerID` 匹配 `locked_by` 的任务，保存前会校验 fetched candle series 的任务目标、时间周期、排序、重复、OHLCV decimal / OHLC 正价格 / volume 非负 / 高低价边界，异常 payload 不写库、不推进游标并明确失败；`SaveDataSyncResult` 也会按 `task_id` 读取目标并拒绝 exchange / symbol / interval 不匹配的 candle，并校验 `LastOpenTime` 必须匹配本次 candles 对当前持久化游标可推进的连续链尖端，防止绕过 runner 的错标的写入或虚假游标推进；PostgreSQL + runner 集成测试已覆盖重启遗留过期 running realtime lease 后重新 claim、按持久化游标 overlap 拉取、upsert 去重、推进游标并回到研究页任务列表可观察；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康和数据同步任务 API / 研究页任务表可观察 active exchange backoff 数量、最近重试时间、任务级 `exchangeBackoffUntil` 和脱敏错误；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；Binance / OKX public market 请求已有本地固定窗口限流，`hi sync` 中 K 线同步和 instrument catalog 同一进程共享 client 限流器，K 线拉取前会按交易所获取 PostgreSQL advisory lock，锁被占用时释放当前 data sync task lease、跳过交易所请求且不写入失败/退避状态，避免多实例同时拉取同一交易所 K 线；instrument catalog 临时错误会按 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 短重试后写入 `market_instrument_sync_statuses` 并在运维健康中显示单交易所 warning，最近成功超过 24 小时会被运维健康标记为 stale warning；instrument catalog 同步开始前会按交易所获取 PostgreSQL advisory lock，锁被占用时跳过拉取和写入失败状态，避免多实例重复刷新同一 catalog；instrument catalog 变为 inactive / missing 时会保存原 sync/realtime 期望并暂停对应 data sync task，恢复 active 时只恢复这类自动 catalog pause 任务；已提供基于 `market_candles` 的全历史相邻缺口扫描入口，并可从研究页为单个真实缺口排补同步任务，但不会自动批量补全；本地外部临时失败恢复 smoke 已验证 Binance `Retry-After`、OKX `50011` 和 exchange backoff 隔离后可恢复落库，默认 Binance public exchange smoke 也已有 native/ok 证据；仍缺完整统一状态机、真正的分布式 token bucket / 动态交易所额度、OKX 真实外网恢复证据和长期多实例外部网络压测 |
@@ -10958,7 +10958,8 @@ Definition of Done：
 
 范围外：
 
-- 不覆盖 repair 派生 data sync task、notification delivery、交易所 / provider 请求、worker 业务日志、W3C `traceparent`、OpenTelemetry 或外部日志 sink。
+- 本小节不覆盖 repair 派生 data sync task；repair 派生任务 request ID 关联见下一小节。
+- 不覆盖 notification delivery、交易所 / provider 请求、worker 业务日志、W3C `traceparent`、OpenTelemetry 或外部日志 sink。
 - 不改变任务状态机、worker lease、任务 claim / retry / stop 语义、认证 / CSRF、前端运行时行为或创建请求 JSON schema。
 - 不把 API 创建任务 request ID 关联等同于完整分布式 trace。
 
@@ -10983,7 +10984,53 @@ Definition of Done：
 
 剩余风险：
 
-- repair 派生任务、notification delivery 和外部系统仍没有 request ID / trace 传播。
+- notification delivery 和外部系统仍没有 request ID / trace 传播。
+- worker 任务处理日志还没有完整 request ID 端到端关联。
+- 仍缺外部日志 sink、日志保留策略、告警规则和生产排障 runbook。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
+### 阶段 8 repair 派生 data sync task request ID 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `POST /api/data/tasks/{id}/repair-gaps`、`/repair-gap`、`/repair-invalid-issues` 从当前请求 context 读取 `RequestIDFromContext`，并传入 repository repair request。
+- `POST /api/market/candle-gaps/repair`、`/repair-batch` 和 `/api/market/candle-invalid-issues/repair` 同步传入当前 request ID。
+- `insertDataSyncRepairTask` 和 `insertMarketCandleRepairTask` 对新建补同步任务写入 nullable `request_id`；重复窗口命中已有任务时仍返回 `skippedExisting`，不回填旧任务。
+- repair request 结构中的 `RequestID` 均保持 `json:"-"`，OpenAPI / 前端 request DTO 不暴露该字段。
+- response 中新创建的 repair task 继续通过 `DataSyncTask.requestId` 暴露只读关联 ID。
+
+范围外：
+
+- 不覆盖 notification delivery、交易所 / provider 请求、worker 业务日志、W3C `traceparent`、OpenTelemetry 或外部日志 sink。
+- 不改变 repair 去重规则、任务状态机、worker lease、claim / retry / stop 语义、认证 / CSRF、前端运行时行为或创建请求 JSON schema。
+- 不为已有历史 repair task 回填 request ID。
+
+当前验证：
+
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/web/api -run 'Test(TaskCreateRoutesPropagateRequestID|RepairRoutesPropagateRequestID|APIContract|FrontendAPIGeneratedTypesAreCurrent)' -count=1 -v` 通过。
+- `go test ./internal/data -count=1` 通过。
+- `go test ./internal/store/postgres -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过，55 个 test file / 240 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 Docker Compose / 真实 8080 repair task request ID smoke；当前本机 Docker daemon 仍不可用。该能力已由 API handler / contract 单元测试覆盖，Compose 运行态证据仍需 Docker 可用后补跑。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- notification delivery 和外部系统仍没有 request ID / trace 传播。
 - worker 任务处理日志还没有完整 request ID 端到端关联。
 - 仍缺外部日志 sink、日志保留策略、告警规则和生产排障 runbook。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。

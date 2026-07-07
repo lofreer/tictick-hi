@@ -39,11 +39,12 @@ type MarketCandleInvalidIssueScan struct {
 }
 
 type RepairMarketCandleGapRequest struct {
-	Exchange string    `json:"exchange"`
-	Symbol   string    `json:"symbol"`
-	Interval string    `json:"interval"`
-	From     time.Time `json:"from"`
-	To       time.Time `json:"to"`
+	Exchange  string    `json:"exchange"`
+	Symbol    string    `json:"symbol"`
+	Interval  string    `json:"interval"`
+	From      time.Time `json:"from"`
+	To        time.Time `json:"to"`
+	RequestID string    `json:"-"`
 }
 
 type RepairMarketCandleGapWindow struct {
@@ -52,10 +53,11 @@ type RepairMarketCandleGapWindow struct {
 }
 
 type RepairMarketCandleGapsRequest struct {
-	Exchange string                        `json:"exchange"`
-	Symbol   string                        `json:"symbol"`
-	Interval string                        `json:"interval"`
-	Gaps     []RepairMarketCandleGapWindow `json:"gaps"`
+	Exchange  string                        `json:"exchange"`
+	Symbol    string                        `json:"symbol"`
+	Interval  string                        `json:"interval"`
+	Gaps      []RepairMarketCandleGapWindow `json:"gaps"`
+	RequestID string                        `json:"-"`
 }
 
 type RepairMarketCandleInvalidIssuesRequest struct {
@@ -63,6 +65,7 @@ type RepairMarketCandleInvalidIssuesRequest struct {
 	Symbol    string      `json:"symbol"`
 	Interval  string      `json:"interval"`
 	OpenTimes []time.Time `json:"openTimes"`
+	RequestID string      `json:"-"`
 }
 
 type QuarantineMarketCandleInvalidIssuesRequest struct {

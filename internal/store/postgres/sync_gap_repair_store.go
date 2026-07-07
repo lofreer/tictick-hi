@@ -48,6 +48,7 @@ func (store *Store) ListDataSyncTaskGaps(ctx context.Context, id string) (data.D
 func (store *Store) RepairDataSyncTaskGaps(
 	ctx context.Context,
 	id string,
+	request data.RepairDataSyncTaskGapsRequest,
 ) (data.DataSyncGapRepairResult, error) {
 	tx, err := store.pool.Begin(ctx)
 	if err != nil {
@@ -88,7 +89,7 @@ func (store *Store) RepairDataSyncTaskGaps(
 			continue
 		}
 
-		task, err := insertDataSyncRepairTask(ctx, tx, source, window)
+		task, err := insertDataSyncRepairTask(ctx, tx, source, window, request.RequestID)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err
 		}
@@ -150,7 +151,7 @@ func (store *Store) RepairDataSyncTaskGap(
 	if exists {
 		result.SkippedExisting = 1
 	} else {
-		task, err := insertDataSyncRepairTask(ctx, tx, source, window)
+		task, err := insertDataSyncRepairTask(ctx, tx, source, window, request.RequestID)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err
 		}
@@ -345,6 +346,7 @@ func insertDataSyncRepairTask(
 	tx pgx.Tx,
 	source data.DataSyncTask,
 	window dataSyncGapRepairWindow,
+	requestID string,
 ) (data.DataSyncTask, error) {
 	from := window.from.UTC()
 	to := window.to.UTC()
@@ -358,9 +360,9 @@ func insertDataSyncRepairTask(
 	row := tx.QueryRow(ctx, `
 		INSERT INTO data_sync_tasks (
 			id, exchange, symbol, interval, start_time, end_time,
-			repair_source_task_id, sync_enabled, realtime_enabled, status
+			repair_source_task_id, sync_enabled, realtime_enabled, status, request_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, true, false, $8)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, false, $8, NULLIF($9, ''))
 		RETURNING `+dataSyncTaskReturningColumns(),
 		id,
 		source.Exchange,
@@ -370,6 +372,7 @@ func insertDataSyncRepairTask(
 		to,
 		source.ID,
 		data.TaskStatusPending,
+		requestID,
 	)
 	task, err := scanDataSyncTaskRow(row)
 	if err != nil {

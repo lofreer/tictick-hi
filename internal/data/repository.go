@@ -14,7 +14,7 @@ type Repository interface {
 	ListDataSyncTaskGaps(ctx context.Context, id string) (DataSyncGapList, error)
 	ListDataSyncTaskInvalidIssues(ctx context.Context, id string, query DataSyncInvalidIssueQuery) (DataSyncInvalidIssueList, error)
 	RepairDataSyncTaskGap(ctx context.Context, id string, request RepairDataSyncTaskGapRequest) (DataSyncGapRepairResult, error)
-	RepairDataSyncTaskGaps(ctx context.Context, id string) (DataSyncGapRepairResult, error)
+	RepairDataSyncTaskGaps(ctx context.Context, id string, request RepairDataSyncTaskGapsRequest) (DataSyncGapRepairResult, error)
 	RepairDataSyncTaskInvalidIssues(ctx context.Context, id string, request RepairDataSyncInvalidIssuesRequest) (DataSyncGapRepairResult, error)
 	SetSyncEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)
 	SetRealtimeEnabled(ctx context.Context, id string, enabled bool) (DataSyncTask, error)

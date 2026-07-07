@@ -83,6 +83,7 @@ func (repository *fakeRepository) RepairDataSyncTaskInvalidIssues(
 				StartTime:          &gap.From,
 				EndTime:            &gap.To,
 				RepairSourceTaskID: repository.tasks[index].ID,
+				RequestID:          request.RequestID,
 				SyncEnabled:        true,
 				RealtimeEnabled:    false,
 				Status:             data.TaskStatusPending,

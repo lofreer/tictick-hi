@@ -194,11 +194,12 @@ func (store *Store) RepairMarketCandleInvalidIssues(
 			continue
 		}
 		exists, err := marketCandleRepairTaskExists(ctx, tx, data.RepairMarketCandleGapRequest{
-			Exchange: request.Exchange,
-			Symbol:   request.Symbol,
-			Interval: request.Interval,
-			From:     window.from,
-			To:       window.to,
+			Exchange:  request.Exchange,
+			Symbol:    request.Symbol,
+			Interval:  request.Interval,
+			From:      window.from,
+			To:        window.to,
+			RequestID: request.RequestID,
 		}, window)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err
@@ -208,11 +209,12 @@ func (store *Store) RepairMarketCandleInvalidIssues(
 			continue
 		}
 		task, err := insertMarketCandleRepairTask(ctx, tx, data.RepairMarketCandleGapRequest{
-			Exchange: request.Exchange,
-			Symbol:   request.Symbol,
-			Interval: request.Interval,
-			From:     window.from,
-			To:       window.to,
+			Exchange:  request.Exchange,
+			Symbol:    request.Symbol,
+			Interval:  request.Interval,
+			From:      window.from,
+			To:        window.to,
+			RequestID: request.RequestID,
 		}, window)
 		if err != nil {
 			return data.DataSyncGapRepairResult{}, err

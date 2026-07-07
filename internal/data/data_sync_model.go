@@ -163,14 +163,20 @@ type DataSyncGapRepairResult struct {
 }
 
 type RepairDataSyncTaskGapRequest struct {
-	From time.Time `json:"from"`
-	To   time.Time `json:"to"`
+	From      time.Time `json:"from"`
+	To        time.Time `json:"to"`
+	RequestID string    `json:"-"`
+}
+
+type RepairDataSyncTaskGapsRequest struct {
+	RequestID string `json:"-"`
 }
 
 type RepairDataSyncInvalidIssuesRequest struct {
-	Code string     `json:"code,omitempty"`
-	From *time.Time `json:"from,omitempty"`
-	To   *time.Time `json:"to,omitempty"`
+	Code      string     `json:"code,omitempty"`
+	From      *time.Time `json:"from,omitempty"`
+	To        *time.Time `json:"to,omitempty"`
+	RequestID string     `json:"-"`
 }
 
 type DataSyncResult struct {

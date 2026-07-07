@@ -102,11 +102,12 @@ func (store *Store) RepairMarketCandleGaps(
 			return data.DataSyncGapRepairResult{}, err
 		}
 		gapRequest := data.RepairMarketCandleGapRequest{
-			Exchange: request.Exchange,
-			Symbol:   request.Symbol,
-			Interval: request.Interval,
-			From:     from,
-			To:       to,
+			Exchange:  request.Exchange,
+			Symbol:    request.Symbol,
+			Interval:  request.Interval,
+			From:      from,
+			To:        to,
+			RequestID: request.RequestID,
 		}
 		window, ok, err := marketCandleRepairWindow(ctx, tx, gapRequest, intervalDuration)
 		if err != nil {
@@ -235,9 +236,9 @@ func insertMarketCandleRepairTask(
 	row := tx.QueryRow(ctx, `
 		INSERT INTO data_sync_tasks (
 			id, exchange, symbol, interval, start_time, end_time,
-			sync_enabled, realtime_enabled, status
+			sync_enabled, realtime_enabled, status, request_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, true, false, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, true, false, $7, NULLIF($8, ''))
 		RETURNING `+dataSyncTaskReturningColumns(),
 		id,
 		request.Exchange,
@@ -246,6 +247,7 @@ func insertMarketCandleRepairTask(
 		from,
 		to,
 		data.TaskStatusPending,
+		request.RequestID,
 	)
 	task, err := scanDataSyncTaskRow(row)
 	if err != nil {
