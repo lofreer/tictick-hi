@@ -223,8 +223,17 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	actor, _, authErr := server.currentOperator(r)
+	if authErr != nil {
+		writeAuthError(w, authErr)
+		return
+	}
 	client := server.instrumentClients[query.Exchange]
 	if client == nil {
+		if auditErr := server.recordMarketInstrumentSyncAudit(r, actor, query.Exchange, "failure", marketInstrumentSyncFailureMetadata(query.Exchange, string(apiErrorMarketInstrumentSyncUnavailable))); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
 		writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentSyncUnavailable, "market instrument sync is unavailable for "+query.Exchange)
 		return
 	}
@@ -237,7 +246,15 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 			err,
 			attemptedAt,
 		); recordErr != nil {
+			if auditErr := server.recordMarketInstrumentSyncAudit(r, actor, query.Exchange, "failure", marketInstrumentSyncStoreFailureMetadata(query.Exchange, recordErr)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeStoreError(w, recordErr)
+			return
+		}
+		if auditErr := server.recordMarketInstrumentSyncAudit(r, actor, query.Exchange, "failure", marketInstrumentSyncFailureMetadata(query.Exchange, string(apiErrorMarketInstrumentSyncFailed))); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
 			return
 		}
 		writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentSyncFailed, "sync market instruments: "+err.Error())
@@ -251,7 +268,15 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 			err,
 			attemptedAt,
 		)
+		if auditErr := server.recordMarketInstrumentSyncAudit(r, actor, query.Exchange, "failure", marketInstrumentSyncStoreFailureMetadata(query.Exchange, err)); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
 		writeStoreError(w, err)
+		return
+	}
+	if auditErr := server.recordMarketInstrumentSyncAudit(r, actor, result.Exchange, "success", marketInstrumentSyncResultAuditMetadata(result)); auditErr != nil {
+		writeError(w, http.StatusInternalServerError, auditErr.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
