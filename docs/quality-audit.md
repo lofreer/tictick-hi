@@ -14358,6 +14358,47 @@ Definition of Done：
 - 回测仍缺订单簿深度、部分成交、撮合排队、资金费率、风险指标和生产级绩效统计。
 - 该补充只影响回测，不改变 paper/live trading executor 或真实交易安全边界。
 
+### 阶段 8 第一版 K 线周期前端边界补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- 第一版前端 K 线周期收敛为 `1m`、`5m`、`15m`、`1h`、`4h`、`1d`。
+- 研究页数据源周期选择和策略任务表单 fallback 周期共用 `FIRST_VERSION_MARKET_INTERVALS`，避免页面各自硬编码漂移。
+- 策略 registry 返回 `supportedIntervals` 时，任务表单继续按具体策略能力收窄；策略未返回周期时才使用第一版共享周期作为 fallback。
+
+范围外：
+
+- 不新增后端周期能力、交易所 adapter 周期映射或 CandleProvider 聚合算法。
+- 不新增更细 tick / 秒级数据，不改变 `1m` 作为第一版基础周期的事实。
+- 不改变图表布局、K 线查询分页、回测 / 交易 runner 的周期数据选择规则。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/utils/marketIntervals.test.ts src/composables/useStrategyTaskForm.test.ts src/pages/ResearchPage.layout.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- Vite HTTP smoke：`/` 和 `/research` 均返回非空 SPA HTML。
+
+未执行：
+
+- in-app Browser 视觉验证仍失败于 `sandboxCwd must be an absolute file URI: relative URL without a base`，本轮先用组件测试、typecheck、build 和 Vite HTTP smoke 兜底。
+
+剩余风险：
+
+- 该补充只关闭“第一版前端暴露哪些周期”的本地边界，不代表所有交易所都已完整验证这些周期的真实外网行为。
+- 后续新增周期必须同步策略 registry、CandleProvider、adapter 映射、API contract 和前端共享定义，否则会重新产生能力漂移。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

@@ -21,6 +21,7 @@ import {
   normalizeSymbolInput,
   symbolOptionsForExchange,
 } from "@/utils/marketSymbols";
+import { FIRST_VERSION_MARKET_INTERVALS, marketIntervalOptions } from "@/utils/marketIntervals";
 
 export type StrategyTaskMode = "backtest" | "trading";
 
@@ -42,8 +43,6 @@ type StrategyTaskForm = {
   liveConfirmation: string;
   riskLimitPct: number;
 };
-
-const defaultIntervals = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 export function useStrategyTaskForm(mode: StrategyTaskMode) {
   const message = useMessage();
@@ -85,9 +84,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
       value: strategy.id,
     })),
   );
-  const intervalOptions = computed<SelectOption[]>(() =>
-    supportedIntervals.value.map((interval) => ({ label: interval, value: interval })),
-  );
+  const intervalOptions = computed<SelectOption[]>(() => marketIntervalOptions(supportedIntervals.value));
   const basicCanSubmit = computed(
     () =>
       form.exchange !== "" &&
@@ -105,7 +102,7 @@ export function useStrategyTaskForm(mode: StrategyTaskMode) {
 
   const supportedIntervals = computed(() => {
     const intervals = selectedStrategy.value?.supportedIntervals ?? [];
-    return intervals.length > 0 ? intervals : defaultIntervals;
+    return intervals.length > 0 ? intervals : [...FIRST_VERSION_MARKET_INTERVALS];
   });
 
   watch(selectedStrategy, (strategy) => {

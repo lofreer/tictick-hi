@@ -274,6 +274,7 @@ import { refreshAfterRepairPolling } from "@/composables/researchRepairPollingRe
 import { useResearchRepairTaskPolling } from "@/composables/useResearchRepairTaskPolling";
 import { useResearchWorkspace } from "@/composables/useResearchWorkspace";
 import type { CandleIssue, DataSyncGapRepairResult, DataSyncTask, MarketInstrumentSyncStatus } from "@/types/app";
+import { marketIntervalOptions } from "@/utils/marketIntervals";
 import { candleCoverageLabel, candleCoverageTagType, shouldShowCandleCoverage } from "./researchCandleCoverage";
 import "./ResearchPage.css";
 import "./klineChartLayout.css";
@@ -336,14 +337,7 @@ const exchangeOptions = computed<SelectOption[]>(() => [
   { label: "OKX", value: "okx" },
 ]);
 
-const intervalOptions = computed<SelectOption[]>(() => [
-  { label: "1m", value: "1m" },
-  { label: "5m", value: "5m" },
-  { label: "15m", value: "15m" },
-  { label: "1h", value: "1h" },
-  { label: "4h", value: "4h" },
-  { label: "1d", value: "1d" },
-]);
+const intervalOptions = computed<SelectOption[]>(() => marketIntervalOptions());
 
 function viewTaskInvalidIssues(task: DataSyncTask) { invalidIssueModal.value?.open(task); }
 

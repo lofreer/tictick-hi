@@ -149,6 +149,15 @@ describe("strategy task form", () => {
     expect(isStrategyParamValueValid(selectParam, "webhook")).toBe(false);
   });
 
+  it("uses the first-version market intervals when a strategy omits supported intervals", async () => {
+    apiMocks.listStrategies.mockResolvedValue([{ ...strategyDefinition(), supportedIntervals: [] }]);
+    const taskForm = mountTaskForm("backtest");
+    await flushPromises();
+
+    expect(taskForm.supportedIntervals.value).toEqual(["1m", "5m", "15m", "1h", "4h", "1d"]);
+    expect(taskForm.intervalOptions.value.map((option) => option.value)).toEqual(["1m", "5m", "15m", "1h", "4h", "1d"]);
+  });
+
   it("normalizes arbitrary valid backtest symbols before submit", async () => {
     const taskForm = mountTaskForm("backtest");
     await flushPromises();
