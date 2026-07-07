@@ -120,6 +120,19 @@ describe("system api", () => {
     );
   });
 
+  it("revokes operator sessions", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ revokedSessionCount: 2 }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.revokeOperatorSessions("op_ops")).resolves.toEqual({ revokedSessionCount: 2 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/system/operators/op_ops/sessions/revoke",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
 	it("updates and deletes notification channels", async () => {
 		const fetchMock = vi
 			.fn()

@@ -218,6 +218,61 @@ func TestOperatorStoreDisablingOperatorRevokesSessions(t *testing.T) {
 	}
 }
 
+func TestOperatorStoreDeletesOperatorSessionsByOperatorID(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("delete_sessions_operator"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	now := time.Now().UTC()
+	firstSession := data.OperatorSession{
+		ID:         integrationID("os_delete_sessions_first"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_delete_sessions_first"),
+		ExpiresAt:  now.Add(time.Hour),
+	}
+	secondSession := data.OperatorSession{
+		ID:         integrationID("os_delete_sessions_second"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_delete_sessions_second"),
+		ExpiresAt:  now.Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, firstSession); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateOperatorSession(ctx, secondSession); err != nil {
+		t.Fatal(err)
+	}
+
+	deletedCount, err := store.DeleteOperatorSessionsByOperatorID(ctx, operator.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deletedCount != 2 {
+		t.Fatalf("deleted session count = %d, want 2", deletedCount)
+	}
+	sessions, err := store.ListOperatorSessions(ctx, operator.ID, firstSession.TokenHash, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("sessions were not deleted: %#v", sessions)
+	}
+}
+
 func TestOperatorStoreChangesPasswordAndRevokesOtherSessions(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

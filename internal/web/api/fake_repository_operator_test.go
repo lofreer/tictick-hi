@@ -69,6 +69,17 @@ func (repository *fakeRepository) deleteOperatorSessions(operatorID string) {
 	}
 }
 
+func (repository *fakeRepository) DeleteOperatorSessionsByOperatorID(_ context.Context, operatorID string) (int, error) {
+	deleted := 0
+	for tokenHash, session := range repository.sessions {
+		if session.OperatorID == operatorID {
+			delete(repository.sessions, tokenHash)
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
 func (repository *fakeRepository) SetOperatorRole(
 	_ context.Context,
 	id string,

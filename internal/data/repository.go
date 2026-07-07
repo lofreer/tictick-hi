@@ -71,6 +71,7 @@ type Repository interface {
 	DeleteOperatorSession(ctx context.Context, tokenHash string) error
 	ListOperatorSessions(ctx context.Context, operatorID string, currentTokenHash string, now time.Time) ([]OperatorSession, error)
 	DeleteOperatorSessionByID(ctx context.Context, operatorID string, sessionID string, currentTokenHash string) error
+	DeleteOperatorSessionsByOperatorID(ctx context.Context, operatorID string) (int, error)
 	RecordAuditEvent(ctx context.Context, event CreateAuditEvent) (AuditEvent, error)
 	ListAuditEvents(ctx context.Context, limit int) ([]AuditEvent, error)
 	ListAuditEventPage(ctx context.Context, query AuditEventListQuery) (AuditEventPage, error)

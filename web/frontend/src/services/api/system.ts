@@ -10,6 +10,7 @@ import type {
   Notification,
   NotificationChannel,
   Operator,
+  OperatorSessionRevokeResult,
   SystemHealth,
   UpdateOperatorRole,
 } from "@/types/app";
@@ -67,6 +68,10 @@ export const systemApi = {
 
   setOperatorRole(id: string, request: UpdateOperatorRole) {
     return apiClient.post<Operator>(`/system/operators/${encodeURIComponent(id)}/role`, request);
+  },
+
+  revokeOperatorSessions(id: string) {
+    return apiClient.post<OperatorSessionRevokeResult>(`/system/operators/${encodeURIComponent(id)}/sessions/revoke`);
   },
 
   health() {

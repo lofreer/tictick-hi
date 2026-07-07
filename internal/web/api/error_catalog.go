@@ -5,30 +5,31 @@ import "net/http"
 type apiErrorCode string
 
 const (
-	apiErrorInvalidRequest                    apiErrorCode = "invalid_request"
-	apiErrorUnauthorized                      apiErrorCode = "unauthorized"
-	apiErrorForbidden                         apiErrorCode = "forbidden"
-	apiErrorCSRFRequired                      apiErrorCode = "csrf_required"
-	apiErrorCSRFInvalid                       apiErrorCode = "csrf_invalid"
-	apiErrorNotFound                          apiErrorCode = "not_found"
-	apiErrorMethodNotAllowed                  apiErrorCode = "method_not_allowed"
-	apiErrorConflict                          apiErrorCode = "conflict"
-	apiErrorInvalidState                      apiErrorCode = "invalid_state"
-	apiErrorMarketInstrumentNotActive         apiErrorCode = "market_instrument_not_active"
-	apiErrorDataSyncRetryRequiresFailed       apiErrorCode = "data_sync_retry_requires_failed"
-	apiErrorDataSyncCommandInvalidState       apiErrorCode = "data_sync_command_invalid_state"
-	apiErrorTradingTaskCommandInvalidState    apiErrorCode = "trading_task_command_invalid_state"
-	apiErrorOperatorSelfDisableForbidden      apiErrorCode = "operator_self_disable_forbidden"
-	apiErrorOperatorSelfRoleChangeForbidden   apiErrorCode = "operator_self_role_change_forbidden"
-	apiErrorOperatorLastEnabledRequired       apiErrorCode = "operator_last_enabled_required"
-	apiErrorOperatorLastAdminRequired         apiErrorCode = "operator_last_admin_required"
-	apiErrorOperatorPasswordReused            apiErrorCode = "operator_password_reused"
-	apiErrorAuthCurrentSessionRevokeForbidden apiErrorCode = "auth_current_session_revoke_forbidden"
-	apiErrorMarketInstrumentSyncUnavailable   apiErrorCode = "market_instrument_sync_unavailable"
-	apiErrorMarketInstrumentSyncFailed        apiErrorCode = "market_instrument_sync_failed"
-	apiErrorTooManyRequests                   apiErrorCode = "too_many_requests"
-	apiErrorInternal                          apiErrorCode = "internal_error"
-	apiErrorRequestFailed                     apiErrorCode = "request_failed"
+	apiErrorInvalidRequest                     apiErrorCode = "invalid_request"
+	apiErrorUnauthorized                       apiErrorCode = "unauthorized"
+	apiErrorForbidden                          apiErrorCode = "forbidden"
+	apiErrorCSRFRequired                       apiErrorCode = "csrf_required"
+	apiErrorCSRFInvalid                        apiErrorCode = "csrf_invalid"
+	apiErrorNotFound                           apiErrorCode = "not_found"
+	apiErrorMethodNotAllowed                   apiErrorCode = "method_not_allowed"
+	apiErrorConflict                           apiErrorCode = "conflict"
+	apiErrorInvalidState                       apiErrorCode = "invalid_state"
+	apiErrorMarketInstrumentNotActive          apiErrorCode = "market_instrument_not_active"
+	apiErrorDataSyncRetryRequiresFailed        apiErrorCode = "data_sync_retry_requires_failed"
+	apiErrorDataSyncCommandInvalidState        apiErrorCode = "data_sync_command_invalid_state"
+	apiErrorTradingTaskCommandInvalidState     apiErrorCode = "trading_task_command_invalid_state"
+	apiErrorOperatorSelfDisableForbidden       apiErrorCode = "operator_self_disable_forbidden"
+	apiErrorOperatorSelfRoleChangeForbidden    apiErrorCode = "operator_self_role_change_forbidden"
+	apiErrorOperatorSelfSessionRevokeForbidden apiErrorCode = "operator_self_session_revoke_forbidden"
+	apiErrorOperatorLastEnabledRequired        apiErrorCode = "operator_last_enabled_required"
+	apiErrorOperatorLastAdminRequired          apiErrorCode = "operator_last_admin_required"
+	apiErrorOperatorPasswordReused             apiErrorCode = "operator_password_reused"
+	apiErrorAuthCurrentSessionRevokeForbidden  apiErrorCode = "auth_current_session_revoke_forbidden"
+	apiErrorMarketInstrumentSyncUnavailable    apiErrorCode = "market_instrument_sync_unavailable"
+	apiErrorMarketInstrumentSyncFailed         apiErrorCode = "market_instrument_sync_failed"
+	apiErrorTooManyRequests                    apiErrorCode = "too_many_requests"
+	apiErrorInternal                           apiErrorCode = "internal_error"
+	apiErrorRequestFailed                      apiErrorCode = "request_failed"
 )
 
 type apiErrorDefinition struct {
@@ -54,6 +55,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorTradingTaskCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The trading task state does not allow the requested command."},
 	{Code: string(apiErrorOperatorSelfDisableForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot disable its own account."},
 	{Code: string(apiErrorOperatorSelfRoleChangeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot change its own role."},
+	{Code: string(apiErrorOperatorSelfSessionRevokeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot revoke all of its own sessions."},
 	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
 	{Code: string(apiErrorOperatorLastAdminRequired), HTTPStatus: http.StatusConflict, Description: "At least one admin operator account must remain enabled."},
 	{Code: string(apiErrorOperatorPasswordReused), HTTPStatus: http.StatusBadRequest, Description: "The new operator password must not reuse the current or recent passwords."},

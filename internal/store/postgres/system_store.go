@@ -175,7 +175,7 @@ func (store *Store) SetOperatorEnabled(ctx context.Context, id string, enabled b
 	if err != nil {
 		return data.Operator{}, err
 	}
-	if err := deleteOperatorSessionsForOperator(ctx, tx, operator.ID); err != nil {
+	if _, err := deleteOperatorSessionsForOperator(ctx, tx, operator.ID); err != nil {
 		return data.Operator{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -213,15 +213,28 @@ func setOperatorEnabled(
 	return operator, nil
 }
 
-func deleteOperatorSessionsForOperator(ctx context.Context, tx pgx.Tx, operatorID string) error {
-	if _, err := tx.Exec(ctx, `
+func (store *Store) DeleteOperatorSessionsByOperatorID(ctx context.Context, operatorID string) (int, error) {
+	tag, err := store.pool.Exec(ctx, `
 		DELETE FROM operator_sessions
 		 WHERE operator_id = $1`,
 		operatorID,
-	); err != nil {
-		return fmt.Errorf("delete disabled operator sessions: %w", err)
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete operator sessions: %w", err)
 	}
-	return nil
+	return int(tag.RowsAffected()), nil
+}
+
+func deleteOperatorSessionsForOperator(ctx context.Context, tx pgx.Tx, operatorID string) (int, error) {
+	tag, err := tx.Exec(ctx, `
+		DELETE FROM operator_sessions
+		 WHERE operator_id = $1`,
+		operatorID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete disabled operator sessions: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 type lockedOperator struct {

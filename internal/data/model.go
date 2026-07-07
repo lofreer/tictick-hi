@@ -299,6 +299,10 @@ type OperatorRoleUpdateResult struct {
 	PreviousRole string
 }
 
+type OperatorSessionRevokeResult struct {
+	RevokedSessionCount int `json:"revokedSessionCount"`
+}
+
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`

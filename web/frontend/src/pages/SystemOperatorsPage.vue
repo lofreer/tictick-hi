@@ -50,6 +50,17 @@
                   </NButton>
                   <NButton
                     size="small"
+                    secondary
+                    :disabled="operatorSelfSessionRevokeBlocked(operator)"
+                    :loading="revokingSessionsOperatorId === operator.id"
+                    :title="operatorSelfSessionRevokeBlocked(operator) ? t('system.currentOperatorSessionsRevokeBlocked') : undefined"
+                    @click="revokeOperatorSessions(operator)"
+                  >
+                    <template #icon><LogOut :size="16" /></template>
+                    {{ t("system.revokeOperatorSessions") }}
+                  </NButton>
+                  <NButton
+                    size="small"
                     :type="operator.enabled ? 'warning' : 'primary'"
                     secondary
                     :disabled="operatorSelfDisableBlocked(operator)"
@@ -98,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus, ShieldCheck } from "@lucide/vue";
+import { LogOut, Plus, ShieldCheck } from "@lucide/vue";
 import { NButton, NForm, NFormItem, NInput, NModal, NSelect, NSpace, NSwitch, NTag, useMessage } from "naive-ui";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -118,6 +129,7 @@ const loading = ref(false);
 const creating = ref(false);
 const error = ref("");
 const updatingOperatorId = ref("");
+const revokingSessionsOperatorId = ref("");
 const createOpen = ref(false);
 const roleOpen = ref(false);
 const roleUpdating = ref(false);
@@ -191,6 +203,22 @@ async function updateOperatorRole() {
   }
 }
 
+async function revokeOperatorSessions(operator: Operator) {
+  if (operatorSelfSessionRevokeBlocked(operator)) {
+    return;
+  }
+  revokingSessionsOperatorId.value = operator.id;
+  try {
+    const result = await systemApi.revokeOperatorSessions(operator.id);
+    message.success(t("system.operatorSessionsRevoked", { count: result.revokedSessionCount }));
+    await loadOperators();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.operatorSessionsRevokeFailed")));
+  } finally {
+    revokingSessionsOperatorId.value = "";
+  }
+}
+
 async function toggleOperator(operator: Operator) {
   if (operatorSelfDisableBlocked(operator)) {
     return;
@@ -212,6 +240,10 @@ function operatorSelfDisableBlocked(operator: Operator) {
 }
 
 function operatorSelfRoleBlocked(operator: Operator) {
+  return authStore.operator?.id === operator.id;
+}
+
+function operatorSelfSessionRevokeBlocked(operator: Operator) {
   return authStore.operator?.id === operator.id;
 }
 

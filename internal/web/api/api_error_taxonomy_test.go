@@ -57,6 +57,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorTradingTaskCommandInvalidState,
 		apiErrorOperatorSelfDisableForbidden,
 		apiErrorOperatorSelfRoleChangeForbidden,
+		apiErrorOperatorSelfSessionRevokeForbidden,
 		apiErrorOperatorLastEnabledRequired,
 		apiErrorOperatorLastAdminRequired,
 		apiErrorOperatorPasswordReused,

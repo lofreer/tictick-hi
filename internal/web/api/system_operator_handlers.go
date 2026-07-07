@@ -147,6 +147,75 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, operator)
 }
 
+func (server *Server) handleOperatorSessionsRevoke(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+	actor, ok := server.currentAdminOperator(w, r, "operator.sessions_revoke", "operator", id, nil)
+	if !ok {
+		return
+	}
+	if id == actor.ID {
+		if err := server.recordAuditEvent(r, actor, "operator.sessions_revoke", "operator", actor.ID, "failure", map[string]string{
+			"username": actor.Username,
+			"role":     actor.Role,
+			"enabled":  boolString(actor.Enabled),
+			"reason":   "self_session_revoke_forbidden",
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeAPIError(w, http.StatusConflict, apiErrorOperatorSelfSessionRevokeForbidden, "current operator sessions cannot be revoked")
+		return
+	}
+	operator, err := server.operatorByID(r, id)
+	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.sessions_revoke", "operator", id, "failure", storeFailureMetadata(err, nil)); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeStoreError(w, err)
+		return
+	}
+	revokedSessionCount, err := server.repository.DeleteOperatorSessionsByOperatorID(r.Context(), operator.ID)
+	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.sessions_revoke", "operator", operator.ID, "failure", storeFailureMetadata(err, map[string]string{
+			"username": operator.Username,
+			"role":     operator.Role,
+			"enabled":  boolString(operator.Enabled),
+		})); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := server.recordAuditEvent(r, actor, "operator.sessions_revoke", "operator", operator.ID, "success", map[string]string{
+		"username":            operator.Username,
+		"role":                operator.Role,
+		"enabled":             boolString(operator.Enabled),
+		"revokedSessionCount": strconv.Itoa(revokedSessionCount),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data.OperatorSessionRevokeResult{RevokedSessionCount: revokedSessionCount})
+}
+
+func (server *Server) operatorByID(r *http.Request, id string) (data.Operator, error) {
+	operators, err := server.repository.ListOperators(r.Context())
+	if err != nil {
+		return data.Operator{}, err
+	}
+	for _, operator := range operators {
+		if operator.ID == id {
+			return operator, nil
+		}
+	}
+	return data.Operator{}, data.ErrNotFound
+}
+
 func (server *Server) operatorSessionCountMetadata(r *http.Request, operatorID string) string {
 	sessions, err := server.repository.ListOperatorSessions(r.Context(), operatorID, "", time.Now().UTC())
 	if err != nil {

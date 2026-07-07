@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -97,6 +98,22 @@ func TestOperatorManagementRequiresAdminRole(t *testing.T) {
 		roleEvent.Metadata["actorRole"] != data.OperatorRoleOperator {
 		t.Fatalf("unexpected role admin required audit event: %#v", roleEvent)
 	}
+
+	revokeRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators/op_admin/sessions/revoke",
+		"",
+	)
+	if revokeRecorder.Code != http.StatusForbidden {
+		t.Fatalf("session revoke status = %d body = %s", revokeRecorder.Code, revokeRecorder.Body.String())
+	}
+	revokeEvent := assertAuditAction(t, repository.auditEvents, "operator.sessions_revoke", "operator", "op_admin")
+	if revokeEvent.Outcome != "failure" || revokeEvent.Metadata["reason"] != "admin_required" ||
+		revokeEvent.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected session revoke admin required audit event: %#v", revokeEvent)
+	}
 }
 
 func TestDisablingOperatorRevokesSessions(t *testing.T) {
@@ -136,6 +153,72 @@ func TestDisablingOperatorRevokesSessions(t *testing.T) {
 	meRecorder := serveAuthenticated(server, targetAuth, http.MethodGet, "/api/auth/me", "")
 	if meRecorder.Code != http.StatusUnauthorized {
 		t.Fatalf("disabled operator session status = %d body = %s", meRecorder.Code, meRecorder.Body.String())
+	}
+}
+
+func TestAdminRevokesOperatorSessions(t *testing.T) {
+	repository, server, adminAuth := newAuthenticatedTestServer(t)
+	createRecorder := serveAuthenticated(
+		server,
+		adminAuth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"ops-force","password":"secret123A","enabled":true}`,
+	)
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create operator status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var operator data.Operator
+	if err := json.NewDecoder(createRecorder.Body).Decode(&operator); err != nil {
+		t.Fatal(err)
+	}
+	firstAuth := loginOperator(t, server, "ops-force", "secret123A")
+	secondAuth := loginOperator(t, server, "ops-force", "secret123A")
+
+	revokeRecorder := serveAuthenticated(server, adminAuth, http.MethodPost, "/api/system/operators/"+operator.ID+"/sessions/revoke", "")
+	if revokeRecorder.Code != http.StatusOK {
+		t.Fatalf("revoke sessions status = %d body = %s", revokeRecorder.Code, revokeRecorder.Body.String())
+	}
+	var result data.OperatorSessionRevokeResult
+	if err := json.NewDecoder(revokeRecorder.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.RevokedSessionCount != 2 {
+		t.Fatalf("revoked session count = %d, want 2", result.RevokedSessionCount)
+	}
+	if _, exists := repository.sessions[sessionTokenHash(firstAuth.session.Value)]; exists {
+		t.Fatalf("first session was not revoked")
+	}
+	if _, exists := repository.sessions[sessionTokenHash(secondAuth.session.Value)]; exists {
+		t.Fatalf("second session was not revoked")
+	}
+	meRecorder := serveAuthenticated(server, firstAuth, http.MethodGet, "/api/auth/me", "")
+	if meRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked operator session status = %d body = %s", meRecorder.Code, meRecorder.Body.String())
+	}
+	event := assertAuditAction(t, repository.auditEvents, "operator.sessions_revoke", "operator", operator.ID)
+	if event.Outcome != "success" || event.Metadata["revokedSessionCount"] != "2" {
+		t.Fatalf("unexpected session revoke audit event: %#v", event)
+	}
+}
+
+func TestOperatorCannotRevokeOwnSessions(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/operators/op_admin/sessions/revoke", "")
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("revoke self sessions status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "operator_self_session_revoke_forbidden" || response.Message != "current operator sessions cannot be revoked" {
+		t.Fatalf("unexpected self session revoke response: %#v", response)
+	}
+	if _, err := repository.GetOperatorBySession(t.Context(), sessionTokenHash(auth.session.Value), time.Now().UTC()); err != nil {
+		t.Fatalf("current operator session was revoked: %v", err)
+	}
+	event := assertAuditAction(t, repository.auditEvents, "operator.sessions_revoke", "operator", "op_admin")
+	if event.Outcome != "failure" || event.Metadata["reason"] != "self_session_revoke_forbidden" {
+		t.Fatalf("unexpected self session revoke audit event: %#v", event)
 	}
 }
 

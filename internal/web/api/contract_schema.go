@@ -179,6 +179,7 @@ func buildContractSchemas() map[string]map[string]any {
 		{"ChangeOperatorPasswordRequest", data.ChangeOperatorPasswordRequest{}},
 		{"ChangeOperatorPasswordResult", data.ChangeOperatorPasswordResult{}},
 		{"OperatorSession", data.OperatorSession{}},
+		{"OperatorSessionRevokeResult", data.OperatorSessionRevokeResult{}},
 		{"SystemHealth", data.SystemHealth{}},
 		{"ServiceHealth", data.ServiceHealth{}},
 		{"AuditEvent", data.AuditEvent{}},

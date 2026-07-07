@@ -35,6 +35,7 @@ import type {
   NotificationChannel as APINotificationChannel,
   Operator as APIOperator,
   OperatorSession as APIOperatorSession,
+  OperatorSessionRevokeResult as APIOperatorSessionRevokeResult,
   Order as APIOrder,
   OverviewOrderFact as APIOverviewOrderFact,
   OverviewRecentFacts as APIOverviewRecentFacts,
@@ -215,6 +216,8 @@ export type ChangeOperatorPasswordRequest = APIChangeOperatorPasswordRequest;
 export type ChangeOperatorPasswordResult = APIChangeOperatorPasswordResult;
 
 export type OperatorSession = APIOperatorSession;
+
+export type OperatorSessionRevokeResult = APIOperatorSessionRevokeResult;
 
 export type AuditEvent = APIAuditEvent;
 

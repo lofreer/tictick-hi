@@ -81,6 +81,7 @@ func TestFrontendAPIResponseTypesMatchContractFields(t *testing.T) {
 		{"Operator", "Operator"},
 		{"ChangeOperatorPasswordResult", "ChangeOperatorPasswordResult"},
 		{"OperatorSession", "OperatorSession"},
+		{"OperatorSessionRevokeResult", "OperatorSessionRevokeResult"},
 		{"AuditEvent", "AuditEvent"},
 		{"ServiceHealth", "ServiceHealth"},
 		{"SystemHealth", "SystemHealth"},
@@ -125,6 +126,7 @@ func TestFrontendAPIAppTypesReferenceGeneratedContract(t *testing.T) {
 		"export type Notification = APINotification;",
 		"export type ChangeOperatorPasswordRequest = APIChangeOperatorPasswordRequest;",
 		"export type ChangeOperatorPasswordResult = APIChangeOperatorPasswordResult;",
+		"export type OperatorSessionRevokeResult = APIOperatorSessionRevokeResult;",
 		"export type SystemHealth = APISystemHealth;",
 	} {
 		if !strings.Contains(text, expected) {
