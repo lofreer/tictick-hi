@@ -107,7 +107,7 @@ func runNotify(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "notify", healthAddr, config.WorkerID, store.Ping); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -152,7 +152,7 @@ func runTrading(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "trading", healthAddr, config.WorkerID, store.Ping); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -197,7 +197,7 @@ func runBacktest(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "backtest", healthAddr, config.WorkerID, store.Ping); err != nil {
 		return err
 	}
 	return runner.Run(ctx)
@@ -272,7 +272,7 @@ func runSync(ctx context.Context, args []string) error {
 	if config.Once {
 		return runner.RunOnce(ctx)
 	}
-	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID); err != nil {
+	if err := startConfiguredWorkerHealthProbe(ctx, "sync", healthAddr, config.WorkerID, store.Ping); err != nil {
 		return err
 	}
 	if config.MarketInstrumentSyncEnabled {

@@ -111,6 +111,10 @@ func (store *Store) Close() {
 	store.pool.Close()
 }
 
+func (store *Store) Ping(ctx context.Context) error {
+	return store.pool.Ping(ctx)
+}
+
 func (store *Store) ListDataSyncTasks(ctx context.Context) ([]data.DataSyncTask, error) {
 	rows, err := store.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s

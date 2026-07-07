@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadWorkerHealthProbeAddrRejectsInvalidAddress(t *testing.T) {
@@ -34,8 +36,12 @@ func TestLoadWorkerHealthProbeAddrAcceptsHostPort(t *testing.T) {
 
 func TestWorkerHealthProbeHandler(t *testing.T) {
 	handler := newWorkerHealthProbeHandler(workerHealthProbeConfig{
-		Command:  "sync",
-		WorkerID: "worker-1",
+		Command:   "sync",
+		WorkerID:  "worker-1",
+		StartedAt: time.Now().Add(-5 * time.Second),
+		ReadinessCheck: func(context.Context) error {
+			return nil
+		},
 	})
 	request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	recorder := httptest.NewRecorder()
@@ -48,12 +54,50 @@ func TestWorkerHealthProbeHandler(t *testing.T) {
 	if recorder.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("Cache-Control = %q, want no-store", recorder.Header().Get("Cache-Control"))
 	}
-	var body map[string]string
+	var body workerHealthProbeResponse
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body["status"] != "ok" || body["command"] != "sync" || body["workerId"] != "worker-1" {
+	if body.Status != "ok" ||
+		body.Command != "sync" ||
+		body.WorkerID != "worker-1" ||
+		body.Checks["postgres"] != "ok" ||
+		body.UptimeSeconds < 0 {
 		t.Fatalf("unexpected body: %#v", body)
+	}
+}
+
+func TestWorkerHealthProbeReadinessFailure(t *testing.T) {
+	checks := 0
+	handler := newWorkerHealthProbeHandler(workerHealthProbeConfig{
+		Command:  "trading",
+		WorkerID: "worker-2",
+		ReadinessCheck: func(context.Context) error {
+			checks++
+			return errors.New("database offline")
+		},
+	})
+
+	liveRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(liveRecorder, httptest.NewRequest(http.MethodGet, "/livez", nil))
+	if liveRecorder.Code != http.StatusOK {
+		t.Fatalf("livez status = %d, want 200", liveRecorder.Code)
+	}
+	if checks != 0 {
+		t.Fatalf("livez invoked readiness check %d times", checks)
+	}
+
+	readyRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(readyRecorder, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if readyRecorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readyz status = %d, want 503", readyRecorder.Code)
+	}
+	var body workerHealthProbeResponse
+	if err := json.Unmarshal(readyRecorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Status != "unavailable" || body.Checks["postgres"] != "unavailable" {
+		t.Fatalf("unexpected readiness body: %#v", body)
 	}
 }
 

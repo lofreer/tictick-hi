@@ -14,9 +14,21 @@ import (
 )
 
 type workerHealthProbeConfig struct {
-	Command  string
-	Addr     string
-	WorkerID string
+	Command        string
+	Addr           string
+	WorkerID       string
+	StartedAt      time.Time
+	ReadinessCheck workerReadinessCheck
+}
+
+type workerReadinessCheck func(context.Context) error
+
+type workerHealthProbeResponse struct {
+	Status        string            `json:"status"`
+	Command       string            `json:"command"`
+	WorkerID      string            `json:"workerId,omitempty"`
+	UptimeSeconds int64             `json:"uptimeSeconds,omitempty"`
+	Checks        map[string]string `json:"checks,omitempty"`
 }
 
 func loadWorkerHealthProbeAddr(command string) (string, error) {
@@ -50,6 +62,9 @@ func startWorkerHealthProbe(ctx context.Context, config workerHealthProbeConfig)
 	if config.Addr == "" {
 		return "", nil
 	}
+	if config.StartedAt.IsZero() {
+		config.StartedAt = time.Now().UTC()
+	}
 	listener, err := net.Listen("tcp", config.Addr)
 	if err != nil {
 		return "", fmt.Errorf("start %s health probe on %s: %w", config.Command, config.Addr, err)
@@ -80,16 +95,26 @@ func startWorkerHealthProbe(ctx context.Context, config workerHealthProbeConfig)
 	return server.Addr, nil
 }
 
-func startConfiguredWorkerHealthProbe(ctx context.Context, command string, addr string, workerID string) error {
+func startConfiguredWorkerHealthProbe(
+	ctx context.Context,
+	command string,
+	addr string,
+	workerID string,
+	readinessCheck workerReadinessCheck,
+) error {
 	_, err := startWorkerHealthProbe(ctx, workerHealthProbeConfig{
-		Command:  command,
-		Addr:     addr,
-		WorkerID: workerID,
+		Command:        command,
+		Addr:           addr,
+		WorkerID:       workerID,
+		ReadinessCheck: readinessCheck,
 	})
 	return err
 }
 
 func newWorkerHealthProbeHandler(config workerHealthProbeConfig) http.Handler {
+	if config.StartedAt.IsZero() {
+		config.StartedAt = time.Now().UTC()
+	}
 	mux := http.NewServeMux()
 	handler := func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet && request.Method != http.MethodHead {
@@ -97,20 +122,35 @@ func newWorkerHealthProbeHandler(config workerHealthProbeConfig) http.Handler {
 			http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		payload := workerHealthProbeResponse{
+			Status:        "ok",
+			Command:       config.Command,
+			WorkerID:      config.WorkerID,
+			UptimeSeconds: int64(time.Since(config.StartedAt).Seconds()),
+		}
+		statusCode := http.StatusOK
+		if isWorkerReadinessPath(request.URL.Path) && config.ReadinessCheck != nil {
+			payload.Checks = map[string]string{"postgres": "ok"}
+			if err := config.ReadinessCheck(request.Context()); err != nil {
+				payload.Status = "unavailable"
+				payload.Checks["postgres"] = "unavailable"
+				statusCode = http.StatusServiceUnavailable
+			}
+		}
 		response.Header().Set("Content-Type", "application/json")
 		response.Header().Set("Cache-Control", "no-store")
-		response.WriteHeader(http.StatusOK)
+		response.WriteHeader(statusCode)
 		if request.Method == http.MethodHead {
 			return
 		}
-		_ = json.NewEncoder(response).Encode(map[string]string{
-			"status":   "ok",
-			"command":  config.Command,
-			"workerId": config.WorkerID,
-		})
+		_ = json.NewEncoder(response).Encode(payload)
 	}
 	mux.HandleFunc("/livez", handler)
 	mux.HandleFunc("/readyz", handler)
 	mux.HandleFunc("/healthz", handler)
 	return mux
+}
+
+func isWorkerReadinessPath(path string) bool {
+	return path == "/readyz" || path == "/healthz"
 }

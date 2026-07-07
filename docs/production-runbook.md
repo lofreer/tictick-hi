@@ -154,9 +154,11 @@ NOTIFY_HEALTH_ADDR=0.0.0.0:8094
 
 When these values are set before starting Compose, the corresponding worker
 serves `/livez`, `/readyz`, and `/healthz` after PostgreSQL is open and before
-the runner loop starts. These are process reachability probes only; keep using
-`/system/health` for task leases, stale workers, exchange backoff, fetch-lock
-skips, and instrument catalog status.
+the runner loop starts. `/livez` only proves process reachability. `/readyz` and
+`/healthz` run a PostgreSQL ping and return HTTP 503 with `status=unavailable`
+if that check fails. Keep using `/system/health` for task leases, queue depth,
+stale workers, exchange backoff, fetch-lock skips, and instrument catalog
+status.
 
 Operational UI checks:
 
@@ -367,7 +369,7 @@ close these production-safety gaps:
 - no completed restore drill evidence for the target environment;
 - database pool limits exist, but no completed CPU / memory / disk sizing, capacity test, or retention policy;
 - no broader external system trace propagation, W3C trace context, or external log sink / retention policy;
-- no richer worker business readiness beyond process-level health probes;
+- no richer worker queue / external dependency readiness beyond PostgreSQL-ready worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
 - no long-running multi-instance exchange quota proof;
