@@ -9873,6 +9873,47 @@ Definition of Done：
 - data sync task 仍没有独立 HTTP 详情接口；当前单任务读取只服务后端内部命令语义。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 概览页 invalid 数据健康可观察性补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 概览页数据同步摘要新增 `invalid` 数据健康计数，继续复用既有 `/api/data/tasks` 返回的 `dataHealth` 字段。
+- 概览页告警列表新增 `sync-invalid` 告警，和 `failed` 一样按错误级别展示，避免只把缺口 `gap` 暴露出来而漏掉异常 K 线状态。
+- 中英文 i18n 同步补充数据同步摘要的 invalid 文案。
+- 组合逻辑测试覆盖 failed / gap / invalid 同时出现时的摘要计数与告警顺序。
+
+范围外：
+
+- 不新增后端 API 字段、任务详情路由或 data sync worker 行为。
+- 不改变 CandleProvider、交易所 adapter、repair、回测 / 交易 runner 或实盘能力。
+- 不把概览页或整体项目升级为 usable；本轮只补缺口和异常数据源的入口可见性。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useOverviewWorkspace.test.ts` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮是概览页组合逻辑与 i18n 小切片，没有启动本地 API 或浏览器环境。
+
+剩余风险：
+
+- 概览页只展示已有任务返回的 `dataHealth=invalid`，不证明异常 K 线已经被隔离或修复。
+- 告警入口只能提示数据源异常，不能替代研究页任务窗口的诊断、隔离和缺口 repair 流程。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
