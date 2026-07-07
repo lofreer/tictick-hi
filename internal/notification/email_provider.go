@@ -47,7 +47,7 @@ func (provider EmailProvider) Deliver(ctx context.Context, delivery data.Notific
 	if err != nil {
 		return err
 	}
-	message.Subject = strings.TrimSpace(delivery.Title)
+	message.Subject = notificationTitle(delivery.Title)
 	if message.Subject == "" {
 		message.Subject = "tictick-hi notification"
 	}

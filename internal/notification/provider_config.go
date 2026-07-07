@@ -125,17 +125,42 @@ func limitedResponseMessage(reader io.Reader) string {
 	return message
 }
 
+const (
+	maxNotificationTitleLength = 200
+	maxNotificationBodyLength  = 4000
+	maxNotificationTextLength  = 4096
+)
+
+func notificationTitle(title string) string {
+	return boundedNotificationText(title, maxNotificationTitleLength)
+}
+
+func notificationBody(body string) string {
+	return boundedNotificationText(body, maxNotificationBodyLength)
+}
+
 func notificationText(title string, body string) string {
-	title = strings.TrimSpace(title)
-	body = strings.TrimSpace(body)
+	title = notificationTitle(title)
+	body = notificationBody(body)
+	var text string
 	switch {
 	case title == "":
-		return body
+		text = body
 	case body == "":
-		return title
+		text = title
 	default:
-		return title + "\n\n" + body
+		text = title + "\n\n" + body
 	}
+	return boundedNotificationText(text, maxNotificationTextLength)
+}
+
+func boundedNotificationText(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) > limit {
+		return string(runes[:limit])
+	}
+	return value
 }
 
 func setRequestIDHeader(request *http.Request, requestID string) {

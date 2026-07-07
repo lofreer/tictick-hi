@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,52 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	}
 	if !payload.CreatedAt.Equal(createdAt) {
 		t.Fatalf("createdAt = %v, want %v", payload.CreatedAt, createdAt)
+	}
+}
+
+func TestWebhookProviderBoundsMessagePayload(t *testing.T) {
+	var payload webhookPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	err := NewWebhookProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
+		Target: server.URL,
+		Title:  "  " + strings.Repeat("t", maxNotificationTitleLength+10) + "  ",
+		Body:   "  " + strings.Repeat("b", maxNotificationBodyLength+10) + "  ",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len([]rune(payload.Title)) != maxNotificationTitleLength ||
+		len([]rune(payload.Body)) != maxNotificationBodyLength {
+		t.Fatalf("payload title/body lengths = %d/%d", len([]rune(payload.Title)), len([]rune(payload.Body)))
+	}
+	if strings.Contains(payload.Title, " ") || strings.Contains(payload.Body, " ") {
+		t.Fatalf("payload text was not trimmed: %#v", payload)
+	}
+}
+
+func TestNotificationTextBoundsOutboundText(t *testing.T) {
+	title := "  " + strings.Repeat("t", maxNotificationTitleLength+10) + "  "
+	body := "  " + strings.Repeat("b", maxNotificationBodyLength+10) + "  "
+
+	if got := notificationTitle(title); len([]rune(got)) != maxNotificationTitleLength || strings.Contains(got, " ") {
+		t.Fatalf("notificationTitle length/text = %d/%q", len([]rune(got)), got)
+	}
+	if got := notificationBody(body); len([]rune(got)) != maxNotificationBodyLength || strings.Contains(got, " ") {
+		t.Fatalf("notificationBody length/text = %d/%q", len([]rune(got)), got)
+	}
+	text := notificationText(title, body)
+	if len([]rune(text)) != maxNotificationTextLength {
+		t.Fatalf("notificationText length = %d, want %d", len([]rune(text)), maxNotificationTextLength)
+	}
+	if !strings.HasPrefix(text, strings.Repeat("t", maxNotificationTitleLength)+"\n\n") {
+		t.Fatalf("notificationText prefix = %q", text[:maxNotificationTitleLength+2])
 	}
 }
 
