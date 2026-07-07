@@ -6,6 +6,10 @@
         <p class="page-subtitle">{{ t("system.auditEventsSubtitle") }}</p>
       </div>
       <NSpace size="small">
+        <NButton secondary :loading="verifyingHashChain" @click="verifyHashChain">
+          <template #icon><ShieldCheck :size="17" /></template>
+          {{ t("system.verifyAuditHashChain") }}
+        </NButton>
         <NButton tag="a" href="/api/system/audit-events/export?limit=100" secondary>
           <template #icon><Download :size="17" /></template>
           {{ t("system.exportAuditEvents") }}
@@ -22,6 +26,13 @@
       <ErrorState v-else-if="error" :title="error" retryable @retry="loadEvents" />
       <EmptyState v-else-if="events.length === 0" :title="t('system.noAuditEvents')" />
       <div v-else>
+        <NAlert v-if="hashVerification" class="audit-verification" :type="hashVerificationType" :bordered="false">
+          {{ t("system.auditHashVerification") }}: {{ hashVerification.message }}
+          <span class="audit-muted">
+            {{ t("system.auditHashChecked") }} {{ hashVerification.checkedCount }} /
+            {{ t("system.auditHashSkipped") }} {{ hashVerification.skippedCount }}
+          </span>
+        </NAlert>
         <div class="system-table-wrap">
           <table class="system-table">
             <thead>
@@ -77,24 +88,33 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronDown, Download, RefreshCw } from "@lucide/vue";
-import { NButton, NSpace, NTag, useMessage } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { ChevronDown, Download, RefreshCw, ShieldCheck } from "@lucide/vue";
+import { NAlert, NButton, NSpace, NTag, useMessage } from "naive-ui";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
-import type { AuditEvent } from "@/types/app";
+import type { AuditEvent, AuditEventHashChainVerification } from "@/types/app";
 
 const { t } = useI18n();
 const message = useMessage();
 const events = ref<AuditEvent[]>([]);
 const loading = ref(false);
 const loadingMore = ref(false);
+const verifyingHashChain = ref(false);
 const error = ref("");
 const nextCursor = ref("");
+const hashVerification = ref<AuditEventHashChainVerification | null>(null);
+
+const hashVerificationType = computed(() => {
+  if (!hashVerification.value) return "info";
+  if (hashVerification.value.status === "failure") return "error";
+  if (hashVerification.value.status === "warning") return "warning";
+  return "success";
+});
 
 onMounted(() => {
   void loadEvents();
@@ -129,6 +149,19 @@ async function loadOlderEvents() {
     message.error(loadMoreError);
   } finally {
     loadingMore.value = false;
+  }
+}
+
+async function verifyHashChain() {
+  if (verifyingHashChain.value) return;
+  verifyingHashChain.value = true;
+  try {
+    hashVerification.value = await systemApi.verifyAuditEventHashChain();
+  } catch (verifyError) {
+    const messageText = errorMessage(verifyError, t("system.auditHashVerificationFailed"));
+    message.error(messageText);
+  } finally {
+    verifyingHashChain.value = false;
   }
 }
 
@@ -195,6 +228,11 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .audit-muted {
   color: var(--tt-muted);
+}
+
+.audit-verification {
+  margin: 0;
+  border-bottom: 1px solid var(--tt-line);
 }
 
 .audit-hash-prev {

@@ -338,4 +338,30 @@ describe("system api", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("verifies the audit hash chain", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          status: "warning",
+          checkedCount: 2,
+          skippedCount: 1,
+          rootCount: 1,
+          tailCount: 1,
+          message: "legacy unhashed events were skipped",
+          checkedAt: "2026-01-01T00:00:00Z",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.verifyAuditEventHashChain()).resolves.toEqual(
+      expect.objectContaining({ status: "warning", checkedCount: 2, skippedCount: 1 }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/system/audit-events/hash-chain/verify",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

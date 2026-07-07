@@ -1,6 +1,7 @@
 import { apiClient } from "@/services/api/client";
 import type {
   AuditEvent,
+  AuditEventHashChainVerification,
   AuditEventPage,
   CreateExchangeAccount,
   CreateNotificationChannel,
@@ -77,5 +78,9 @@ export const systemApi = {
       params.set("cursor", cursor);
     }
     return apiClient.get<AuditEventPage>(`/system/audit-events/page?${params.toString()}`);
+  },
+
+  verifyAuditEventHashChain() {
+    return apiClient.get<AuditEventHashChainVerification>("/system/audit-events/hash-chain/verify");
   },
 };

@@ -1,5 +1,6 @@
 import type {
   AuditEvent as APIAuditEvent,
+  AuditEventHashChainVerification as APIAuditEventHashChainVerification,
   AuditEventPage as APIAuditEventPage,
   BacktestOrder as APIBacktestOrder,
   BacktestTask as APIBacktestTask,
@@ -207,6 +208,8 @@ export type LoginCredentials = APILoginRequest;
 export type OperatorSession = APIOperatorSession;
 
 export type AuditEvent = APIAuditEvent;
+
+export type AuditEventHashChainVerification = APIAuditEventHashChainVerification;
 
 export type AuditEventPage = APIAuditEventPage;
 
