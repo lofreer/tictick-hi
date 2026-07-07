@@ -29,16 +29,37 @@ type auditEventHashRecord struct {
 	CreatedAt       time.Time
 }
 
+type auditEventHashQueryer interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
 func (store *Store) VerifyAuditEventHashChain(ctx context.Context) (data.AuditEventHashChainVerification, error) {
+	return verifyAuditEventHashChain(ctx, store.pool, time.Now().UTC())
+}
+
+func verifyAuditEventHashChain(
+	ctx context.Context,
+	db auditEventHashQueryer,
+	checkedAt time.Time,
+) (data.AuditEventHashChainVerification, error) {
 	var skippedCount int
-	if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE event_hash = ''`).Scan(&skippedCount); err != nil {
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE event_hash = ''`).Scan(&skippedCount); err != nil {
 		return data.AuditEventHashChainVerification{}, fmt.Errorf("count unhashed audit events: %w", err)
 	}
-	anchorHashes, err := store.listAuditEventRetentionAnchorHashes(ctx)
+	anchorHashes, err := listAuditEventRetentionAnchorHashes(ctx, db)
 	if err != nil {
 		return data.AuditEventHashChainVerification{}, err
 	}
-	rows, err := store.pool.Query(ctx, `
+	records, err := listAuditEventHashRecords(ctx, db)
+	if err != nil {
+		return data.AuditEventHashChainVerification{}, err
+	}
+	return verifyAuditEventHashRecords(records, skippedCount, anchorHashes, checkedAt)
+}
+
+func listAuditEventHashRecords(ctx context.Context, db auditEventHashQueryer) ([]auditEventHashRecord, error) {
+	rows, err := db.Query(ctx, `
 			SELECT id, coalesce(actor_operator_id, ''), actor_username, action, resource_type,
 			       resource_id, outcome, request_method, request_path, remote_addr,
 			       user_agent, metadata, previous_hash, event_hash, created_at
@@ -46,19 +67,19 @@ func (store *Store) VerifyAuditEventHashChain(ctx context.Context) (data.AuditEv
 			 WHERE event_hash <> ''
 		 ORDER BY created_at ASC, id ASC`)
 	if err != nil {
-		return data.AuditEventHashChainVerification{}, fmt.Errorf("list hashed audit events: %w", err)
+		return nil, fmt.Errorf("list hashed audit events: %w", err)
 	}
 	defer rows.Close()
 
 	records, err := pgx.CollectRows(rows, scanAuditEventHashRecord)
 	if err != nil {
-		return data.AuditEventHashChainVerification{}, fmt.Errorf("collect hashed audit events: %w", err)
+		return nil, fmt.Errorf("collect hashed audit events: %w", err)
 	}
-	return verifyAuditEventHashRecords(records, skippedCount, anchorHashes, time.Now().UTC())
+	return records, nil
 }
 
-func (store *Store) listAuditEventRetentionAnchorHashes(ctx context.Context) (map[string]struct{}, error) {
-	rows, err := store.pool.Query(ctx, `SELECT anchor_hash FROM audit_event_retention_anchors`)
+func listAuditEventRetentionAnchorHashes(ctx context.Context, db auditEventHashQueryer) (map[string]struct{}, error) {
+	rows, err := db.Query(ctx, `SELECT anchor_hash FROM audit_event_retention_anchors`)
 	if err != nil {
 		return nil, fmt.Errorf("list audit event retention anchors: %w", err)
 	}

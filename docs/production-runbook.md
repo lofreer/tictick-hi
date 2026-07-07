@@ -271,6 +271,27 @@ Current gap: the repository now contains a backup script and a systemd timer
 template, but target hosts still need installation, external storage, monitoring,
 and restore-drill evidence.
 
+## Audit Retention
+
+Audit event retention is manual and must be paired with backup or export
+evidence. Preview first:
+
+```bash
+DATABASE_URL="$DATABASE_URL" hi audit-prune --retention-days 90
+```
+
+After recording the backup/export artifact, apply the prune explicitly:
+
+```bash
+DATABASE_URL="$DATABASE_URL" hi audit-prune --retention-days 90 --execute
+```
+
+The command writes a database-local retention anchor before deleting hashed
+audit events so the retained hash chain can still verify. This is not an
+external immutable archive or signature. Production use still needs an agreed
+external audit export location, scheduler, monitor, and restore/verification
+evidence.
+
 ## Restore Drill
 
 Run restore drills against an isolated target database. Do not restore directly
@@ -447,7 +468,7 @@ close these production-safety gaps:
 - backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
-- no broader external system W3C trace propagation beyond data sync market requests and notification providers, no automatic W3C trace propagation across independently started subcommands beyond injected run-level `LOG_TRACEPARENT`, external log sink, or retention policy;
+- no broader external system W3C trace propagation beyond data sync market requests and notification providers, no automatic W3C trace propagation across independently started subcommands beyond injected run-level `LOG_TRACEPARENT`, external log sink, automated audit-prune scheduling, or external audit archive;
 - no richer worker claim-success / live external dependency readiness beyond PostgreSQL, queue-table-ready, configured claim-ready backlog, configured stale-lease, sync exchange-backoff, sync catalog freshness, and notify provider config worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

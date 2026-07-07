@@ -17,6 +17,7 @@ The Docker image runs the same binary with different commands:
 | `hi trading` | paper/live task worker; live execution remains guarded | yes | trading tasks, orders, executions, positions |
 | `hi notify` | notification outbox worker | yes | notification outbox, notification records |
 | `hi migrate` | schema migration job | no | PostgreSQL migrations |
+| `hi audit-prune` | audit event retention dry-run / prune | no | audit events, retention anchors |
 
 `--once` is supported by `sync`, `backtest`, `trading`, and `notify` for one claim cycle. It is used by smoke tests and manual repair checks.
 
@@ -69,6 +70,10 @@ AUTH_LOGIN_LOCKOUT
 BOOTSTRAP_OPERATOR_USERNAME
 BOOTSTRAP_OPERATOR_PASSWORD
 ```
+
+`hi audit-prune` reads `AUDIT_RETENTION_DAYS` when `--retention-days` is not
+passed. The command is dry-run by default and only deletes rows with
+`--execute`.
 
 Worker commands read their own worker, lease, poll, retry, and limit settings:
 
@@ -228,7 +233,30 @@ DATABASE_URL="$DATABASE_URL" go run ./cmd/hi sync --once
 DATABASE_URL="$DATABASE_URL" go run ./cmd/hi backtest --once
 DATABASE_URL="$DATABASE_URL" go run ./cmd/hi trading --once
 DATABASE_URL="$DATABASE_URL" go run ./cmd/hi notify --once
+DATABASE_URL="$DATABASE_URL" go run ./cmd/hi audit-prune --retention-days 90
 ```
+
+## Audit Retention
+
+`hi audit-prune` is an explicit maintenance command, not a background API side
+effect. Run without `--execute` first:
+
+```bash
+DATABASE_URL="$DATABASE_URL" go run ./cmd/hi audit-prune --retention-days 90
+```
+
+Apply the prune only after exporting or backing up the audit range:
+
+```bash
+DATABASE_URL="$DATABASE_URL" go run ./cmd/hi audit-prune --retention-days 90 --execute
+```
+
+The command locks the audit hash chain, verifies it, writes a retention anchor
+for the last pruned hashed event, deletes only a safe prefix of hashed events
+older than the cutoff plus legacy unhashed rows older than the cutoff, verifies
+the retained chain again, and then commits. It refuses to prune if the cutoff
+would remove every hashed audit event or if the current hash chain is already
+invalid.
 
 ## Stop
 
@@ -261,6 +289,8 @@ The smoke builds a local `hi` binary and verifies:
 - `SYNC_HEARTBEAT_INTERVAL > SYNC_LEASE_TTL` fails before the database opens;
 - worker health probe addresses must be valid `host:port` values;
 - public exchange rate-limit config is validated before runtime;
+- `hi audit-prune` requires a positive retention day value from
+  `AUDIT_RETENTION_DAYS` or `--retention-days`;
 - unknown flags are reported without usage noise;
 - error output does not leak the test DSN, password, or secret marker.
 

@@ -157,6 +157,21 @@ run_failing_case \
   clean_env DATABASE_URL="$SECRET_DSN" NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=maybe "$BIN" notify --once
 
 run_failing_case \
+  "audit prune missing retention days" \
+  "AUDIT_RETENTION_DAYS" \
+  clean_env DATABASE_URL="$SECRET_DSN" "$BIN" audit-prune
+
+run_failing_case \
+  "audit prune invalid retention env" \
+  "AUDIT_RETENTION_DAYS" \
+  clean_env DATABASE_URL="$SECRET_DSN" AUDIT_RETENTION_DAYS=0 "$BIN" audit-prune
+
+run_failing_case \
+  "audit prune invalid retention flag" \
+  "retention-days" \
+  clean_env DATABASE_URL="$SECRET_DSN" "$BIN" audit-prune --retention-days=-1
+
+run_failing_case \
   "notify unknown flag" \
   "flag provided but not defined" \
   clean_env "$BIN" notify --unknown

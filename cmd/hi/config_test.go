@@ -218,6 +218,62 @@ func TestLoadNotifyCommandConfigRejectsNegativeProviderMinInterval(t *testing.T)
 	}
 }
 
+func TestLoadAuditPruneCommandConfigLoadsRetentionFlag(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+
+	config, err := loadAuditPruneCommandConfig([]string{"--retention-days", "30"})
+	if err != nil {
+		t.Fatalf("load audit prune config: %v", err)
+	}
+	if config.RetentionDays != 30 || !config.DryRun || config.Cutoff.IsZero() {
+		t.Fatalf("unexpected audit prune config: %#v", config)
+	}
+}
+
+func TestLoadAuditPruneCommandConfigLoadsEnvAndExecuteFlag(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUDIT_RETENTION_DAYS", "14")
+
+	config, err := loadAuditPruneCommandConfig([]string{"--execute"})
+	if err != nil {
+		t.Fatalf("load audit prune config: %v", err)
+	}
+	if config.RetentionDays != 14 || config.DryRun {
+		t.Fatalf("unexpected audit prune config: %#v", config)
+	}
+}
+
+func TestLoadAuditPruneCommandConfigRequiresRetentionDays(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+
+	_, err := loadAuditPruneCommandConfig(nil)
+	if err == nil || !strings.Contains(err.Error(), "AUDIT_RETENTION_DAYS") {
+		t.Fatalf("expected AUDIT_RETENTION_DAYS error, got %v", err)
+	}
+}
+
+func TestLoadAuditPruneCommandConfigRejectsInvalidRetentionDays(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+
+	_, err := loadAuditPruneCommandConfig([]string{"--retention-days", "-1"})
+	if err == nil || !strings.Contains(err.Error(), "retention-days") {
+		t.Fatalf("expected retention-days error, got %v", err)
+	}
+
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUDIT_RETENTION_DAYS", "0")
+
+	_, err = loadAuditPruneCommandConfig(nil)
+	if err == nil || !strings.Contains(err.Error(), "AUDIT_RETENTION_DAYS") {
+		t.Fatalf("expected AUDIT_RETENTION_DAYS error, got %v", err)
+	}
+}
+
 func TestLoadWorkerReadinessBacklogConfig(t *testing.T) {
 	clearCommandEnv(t)
 	t.Setenv("SYNC_READY_MAX_BACKLOG", "12")

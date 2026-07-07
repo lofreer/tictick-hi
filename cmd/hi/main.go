@@ -56,6 +56,8 @@ func main() {
 		err = runNotify(ctx, os.Args[2:])
 	case "migrate":
 		err = runMigrate(ctx)
+	case "audit-prune":
+		err = runAuditPrune(ctx, os.Args[2:])
 	default:
 		err = fmt.Errorf("unknown subcommand %q", os.Args[1])
 	}
@@ -493,8 +495,4 @@ func defaultWorkerID() string {
 		hostname = "localhost"
 	}
 	return fmt.Sprintf("%s-%d", hostname, os.Getpid())
-}
-
-func printUsage() {
-	fmt.Fprintln(os.Stderr, "usage: hi <api|sync|backtest|trading|notify|migrate>")
 }

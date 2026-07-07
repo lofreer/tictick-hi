@@ -43,6 +43,24 @@ type AuditEventHashChainVerification struct {
 	CheckedAt     time.Time `json:"checkedAt"`
 }
 
+type AuditEventRetentionRequest struct {
+	Before time.Time
+	DryRun bool
+}
+
+type AuditEventRetentionResult struct {
+	DryRun            bool      `json:"dryRun"`
+	Cutoff            time.Time `json:"cutoff"`
+	PrunedCount       int       `json:"prunedCount"`
+	HashedPrunedCount int       `json:"hashedPrunedCount"`
+	LegacyPrunedCount int       `json:"legacyPrunedCount"`
+	AnchorID          string    `json:"anchorId,omitempty"`
+	AnchorHash        string    `json:"anchorHash,omitempty"`
+	AnchorEventID     string    `json:"anchorEventId,omitempty"`
+	RetainedEventID   string    `json:"retainedEventId,omitempty"`
+	Message           string    `json:"message"`
+}
+
 type AuditEventListQuery struct {
 	Limit  int
 	Cursor *AuditEventCursor
