@@ -40,6 +40,19 @@ func TestLoginRateLimit(t *testing.T) {
 	}
 }
 
+func TestLoginRejectsBlankUsername(t *testing.T) {
+	server := NewServer(newFakeRepository(), "")
+
+	recorder := httptestPostJSON(server, "/api/auth/login", `{"username":"   ","password":"secret123A"}`)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("blank username status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Message != "username and password are required" {
+		t.Fatalf("unexpected blank username response: %#v", response)
+	}
+}
+
 func TestLoginRateLimitClearsAfterSuccessfulLogin(t *testing.T) {
 	repository := newFakeRepository()
 	server := NewServerWithConfig(repository, Config{

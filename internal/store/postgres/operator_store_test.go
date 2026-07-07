@@ -52,6 +52,22 @@ func TestOperatorStoreRejectsDisablingLastEnabledOperator(t *testing.T) {
 	}
 }
 
+func TestIntegrationOperatorTrimmedUsernameConstraint(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	_, err := store.pool.Exec(ctx, `
+		INSERT INTO operators (id, username, password_hash)
+		VALUES ($1, '   ', 'hash')`,
+		integrationID("op_blank_username"),
+	)
+	if err == nil {
+		t.Fatal("expected operator trimmed username violation")
+	}
+	assertDatabaseConstraintError(t, err, "operators_trimmed_username_check")
+}
+
 type operatorEnabledState struct {
 	id      string
 	enabled bool

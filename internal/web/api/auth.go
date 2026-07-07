@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/core"
@@ -62,7 +63,7 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if request.Username == "" || request.Password == "" {
+	if strings.TrimSpace(request.Username) == "" || strings.TrimSpace(request.Password) == "" {
 		writeError(w, http.StatusBadRequest, "username and password are required")
 		return
 	}

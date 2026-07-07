@@ -84,6 +84,25 @@ func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 	}
 }
 
+func TestCreateOperatorRejectsBlankUsername(t *testing.T) {
+	_, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"   ","password":"secret123A","enabled":true}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("blank username status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Message != "username and password are required" {
+		t.Fatalf("unexpected blank username response: %#v", response)
+	}
+}
+
 func TestRepositoryRejectsDisablingLastEnabledOperator(t *testing.T) {
 	repository := newFakeRepository()
 

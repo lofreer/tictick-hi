@@ -65,7 +65,7 @@ func validateExchangeAccount(account data.CreateExchangeAccount) error {
 }
 
 func validateOperator(operator data.CreateOperator) error {
-	if operator.Username == "" || operator.Password == "" {
+	if strings.TrimSpace(operator.Username) == "" || strings.TrimSpace(operator.Password) == "" {
 		return errors.New("username and password are required")
 	}
 	return data.ValidateOperatorPasswordForUsername(operator.Username, operator.Password)
