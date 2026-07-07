@@ -259,14 +259,15 @@ func (runner *Runner) notification(
 	key := "notification:" + task.ID + ":" + intent.ID + ":" + channel
 	notificationID := core.StablePrefixedID("nt", key)
 	return data.Notification{
-		ID:        notificationID,
-		IntentID:  intentID,
-		RequestID: task.RequestID,
-		Channel:   channel,
-		Title:     "Strategy intent",
-		Body:      notificationBody(task, intent),
-		Status:    "pending",
-		CreatedAt: now,
+		ID:          notificationID,
+		IntentID:    intentID,
+		RequestID:   task.RequestID,
+		TraceParent: task.TraceParent,
+		Channel:     channel,
+		Title:       "Strategy intent",
+		Body:        notificationBody(task, intent),
+		Status:      "pending",
+		CreatedAt:   now,
 	}, nil
 }
 

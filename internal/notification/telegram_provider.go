@@ -46,6 +46,7 @@ func (provider TelegramProvider) Deliver(ctx context.Context, delivery data.Noti
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 	setRequestIDHeader(request, delivery.RequestID)
+	setTraceParentHeader(request, delivery.TraceParent)
 
 	response, err := provider.client.Do(request)
 	if err != nil {

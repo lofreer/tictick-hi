@@ -187,6 +187,7 @@ type Notification struct {
 	TaskID        string     `json:"taskId,omitempty"`
 	IntentID      string     `json:"intentId,omitempty"`
 	RequestID     string     `json:"requestId,omitempty"`
+	TraceParent   string     `json:"traceparent,omitempty"`
 	Channel       string     `json:"channel"`
 	Provider      string     `json:"provider"`
 	Target        string     `json:"target"`
@@ -216,6 +217,7 @@ type NotificationDelivery struct {
 	TaskID         string
 	IntentID       string
 	RequestID      string
+	TraceParent    string
 	Channel        string
 	Provider       string
 	Target         string

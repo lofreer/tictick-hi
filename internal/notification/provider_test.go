@@ -15,6 +15,7 @@ import (
 func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	var payload webhookPayload
 	var requestID string
+	var traceparent string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", r.Method)
@@ -23,6 +24,7 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 			t.Fatalf("content-type = %q", r.Header.Get("Content-Type"))
 		}
 		requestID = r.Header.Get(outboundRequestIDHeader)
+		traceparent = r.Header.Get(outboundTraceParentHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -38,6 +40,7 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 		TaskID:         "tt_1",
 		IntentID:       "si_1",
 		RequestID:      "request-id-webhook",
+		TraceParent:    "00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01",
 		Channel:        "ops",
 		Target:         server.URL,
 		Title:          "Strategy intent",
@@ -55,6 +58,10 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	if requestID != "request-id-webhook" || payload.RequestID != "request-id-webhook" {
 		t.Fatalf("request id header = %q payload = %q", requestID, payload.RequestID)
 	}
+	if traceparent != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" ||
+		payload.TraceParent != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+		t.Fatalf("traceparent header = %q payload = %q", traceparent, payload.TraceParent)
+	}
 	if payload.Title != "Strategy intent" || payload.Body != "buy signal" {
 		t.Fatalf("unexpected message payload: %#v", payload)
 	}
@@ -68,9 +75,11 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 
 func TestWebhookProviderSkipsUnsafeRequestIDHeader(t *testing.T) {
 	var requestID string
+	var traceparent string
 	var payload webhookPayload
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID = r.Header.Get(outboundRequestIDHeader)
+		traceparent = r.Header.Get(outboundTraceParentHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -80,14 +89,18 @@ func TestWebhookProviderSkipsUnsafeRequestIDHeader(t *testing.T) {
 
 	provider := NewWebhookProvider(server.Client())
 	err := provider.Deliver(t.Context(), data.NotificationDelivery{
-		RequestID: "bad\nrequest",
-		Target:    server.URL,
+		RequestID:   "bad\nrequest",
+		TraceParent: "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+		Target:      server.URL,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if requestID != "" || payload.RequestID != "" {
 		t.Fatalf("unsafe request id header = %q payload = %q", requestID, payload.RequestID)
+	}
+	if traceparent != "" || payload.TraceParent != "" {
+		t.Fatalf("unsafe traceparent header = %q payload = %q", traceparent, payload.TraceParent)
 	}
 }
 

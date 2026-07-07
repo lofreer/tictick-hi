@@ -75,8 +75,8 @@ func (store *Store) listTradingPositions(ctx context.Context, taskID string) ([]
 
 func (store *Store) listTradingNotifications(ctx context.Context, taskID string) ([]data.Notification, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), channel, provider, target,
-		       title, body, status, COALESCE(error, ''), attempt_count,
+		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), COALESCE(traceparent, ''),
+		       channel, provider, target, title, body, status, COALESCE(error, ''), attempt_count,
 		       max_attempts, next_attempt_at, last_attempt_at, created_at, sent_at
 		  FROM notifications
 		 WHERE task_id = $1
@@ -261,17 +261,18 @@ func insertNotification(ctx context.Context, tx pgx.Tx, taskID string, notificat
 	outboxID := core.StablePrefixedID("no", "outbox:"+notification.ID)
 	_, err = tx.Exec(ctx, `
 		INSERT INTO notifications (
-			id, task_id, intent_id, request_id, channel, provider, target, title, body,
+			id, task_id, intent_id, request_id, traceparent, channel, provider, target, title, body,
 			status, error, attempt_count, max_attempts, next_attempt_at,
 			created_at, sent_at, updated_at
 		)
-		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5, $6, $7, $8, $9, $10, NULLIF($11, ''),
-		        0, 3, $12, $13, $14, $13)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, $9, $10,
+		        $11, NULLIF($12, ''), 0, 3, $13, $14, $15, $14)
 		ON CONFLICT (id) DO NOTHING`,
 		notification.ID,
 		taskID,
 		notification.IntentID,
 		notification.RequestID,
+		notification.TraceParent,
 		notification.Channel,
 		route.Provider,
 		route.Target,
@@ -288,12 +289,12 @@ func insertNotification(ctx context.Context, tx pgx.Tx, taskID string, notificat
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO notification_outbox (
-			id, notification_id, task_id, intent_id, request_id, channel, provider, target,
+			id, notification_id, task_id, intent_id, request_id, traceparent, channel, provider, target,
 			title, body, status, attempt_count, max_attempts, next_attempt_at,
 			last_error, created_at, updated_at
 		)
-		SELECT $1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, $9, $10, $11,
-		       0, 3, $12, NULLIF($13, ''), $12, $12
+		SELECT $1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), $7, $8, $9, $10, $11, $12,
+		       0, 3, $13, NULLIF($14, ''), $13, $13
 		 WHERE EXISTS (SELECT 1 FROM notifications WHERE id = $2)
 		ON CONFLICT (notification_id) DO NOTHING`,
 		outboxID,
@@ -301,6 +302,7 @@ func insertNotification(ctx context.Context, tx pgx.Tx, taskID string, notificat
 		taskID,
 		notification.IntentID,
 		notification.RequestID,
+		notification.TraceParent,
 		notification.Channel,
 		route.Provider,
 		route.Target,

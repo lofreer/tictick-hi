@@ -105,7 +105,15 @@ func (runner *Runner) runOne(ctx context.Context) (bool, error) {
 		}
 		slog.Error(
 			"notification delivery failed",
-			workerlog.TaskAttrs(delivery.TaskID, delivery.RequestID, "delivery_id", delivery.ID, "error", err)...,
+			workerlog.TaskTraceAttrs(
+				delivery.TaskID,
+				delivery.RequestID,
+				delivery.TraceParent,
+				"delivery_id",
+				delivery.ID,
+				"error",
+				err,
+			)...,
 		)
 		nextAttemptAt := runner.nextAttemptAt(delivery)
 		if markErr := runner.repository.MarkNotificationFailed(ctx, delivery.ID, err, nextAttemptAt); markErr != nil {

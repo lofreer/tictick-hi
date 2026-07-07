@@ -150,15 +150,14 @@ both headers on responses. Missing or invalid values are replaced and invalid
 input is not echoed. HTTP access logs include `request_id`, `trace_id`, `method`,
 path without query string, status, bytes, and duration. API-created data sync,
 backtest, trading, data sync repair tasks, and trading-task notifications persist
-`X-Request-ID` as `requestId`; API-created data sync, backtest, trading, and
-data sync repair tasks also persist W3C `traceparent`. Data sync, backtest,
-trading, and notify worker task logs include `request_id` when the claimed task
-or delivery has one. Data sync, backtest, and trading worker task logs include
-`trace_id` when the claimed task has a valid persisted `traceparent`.
+`X-Request-ID` as `requestId`; API-created data sync, backtest, trading, data
+sync repair tasks, and trading-task notifications also persist W3C
+`traceparent`. Data sync, backtest, trading, and notify worker task logs include
+`request_id` / `trace_id` when the claimed task or delivery has them.
 Notification provider outbound HTTP requests and SMTP message headers carry
-`X-Request-ID` when the delivery has one. This is still partial correlation:
-W3C trace context is not yet propagated to notification delivery, exchange /
-broader external systems, or subcommands.
+`X-Request-ID` and `traceparent` when the delivery has them. This is still
+partial correlation: W3C trace context is not yet propagated to exchange /
+broader external systems or subcommands.
 
 Optional worker process probes:
 
@@ -403,7 +402,7 @@ close these production-safety gaps:
 - backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
-- no notification-delivery, cross-worker, or broader external system W3C trace propagation, external log sink, or retention policy;
+- no exchange / broader external system W3C trace propagation, external log sink, or retention policy;
 - no richer worker backlog / external dependency readiness beyond PostgreSQL and queue-table-ready worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

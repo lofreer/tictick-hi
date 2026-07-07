@@ -10,7 +10,16 @@ import (
 	"strings"
 )
 
-const outboundRequestIDHeader = "X-Request-ID"
+const (
+	outboundRequestIDHeader    = "X-Request-ID"
+	outboundTraceParentHeader  = "traceparent"
+	traceparentExpectedLength  = 55
+	traceparentTraceIDStart    = 3
+	traceparentTraceIDEnd      = 35
+	traceparentParentIDStart   = 36
+	traceparentParentIDEnd     = 52
+	traceparentTraceFlagsStart = 53
+)
 
 func parseTargetURL(target string, scheme string) (*url.URL, url.Values, error) {
 	if strings.TrimSpace(target) == "" {
@@ -98,12 +107,59 @@ func setRequestIDHeader(request *http.Request, requestID string) {
 	request.Header.Set(outboundRequestIDHeader, value)
 }
 
+func setTraceParentHeader(request *http.Request, traceparent string) {
+	value := safeTraceParentHeaderValue(traceparent)
+	if value == "" {
+		return
+	}
+	request.Header.Set(outboundTraceParentHeader, value)
+}
+
 func safeRequestIDHeaderValue(requestID string) string {
 	value := strings.TrimSpace(requestID)
 	if value == "" || strings.ContainsAny(value, "\r\n") {
 		return ""
 	}
 	return value
+}
+
+func safeTraceParentHeaderValue(traceparent string) string {
+	value := strings.ToLower(strings.TrimSpace(traceparent))
+	if len(value) != traceparentExpectedLength ||
+		value[:2] != "00" ||
+		value[2] != '-' ||
+		value[traceparentTraceIDEnd] != '-' ||
+		value[traceparentParentIDEnd] != '-' {
+		return ""
+	}
+	traceID := value[traceparentTraceIDStart:traceparentTraceIDEnd]
+	parentID := value[traceparentParentIDStart:traceparentParentIDEnd]
+	traceFlags := value[traceparentTraceFlagsStart:]
+	if !isLowerHex(traceID) || !isLowerHex(parentID) || !isLowerHex(traceFlags) {
+		return ""
+	}
+	if isAllZero(traceID) || isAllZero(parentID) {
+		return ""
+	}
+	return value
+}
+
+func isLowerHex(value string) bool {
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func isAllZero(value string) bool {
+	for _, char := range value {
+		if char != '0' {
+			return false
+		}
+	}
+	return true
 }
 
 func splitRecipients(value string) ([]string, error) {

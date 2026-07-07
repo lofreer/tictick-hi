@@ -17,11 +17,13 @@ func TestTelegramProviderPostsSendMessagePayload(t *testing.T) {
 
 	var payload telegramPayload
 	var requestID string
+	var traceparent string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/bot123456:telegram-secret/sendMessage" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		requestID = r.Header.Get(outboundRequestIDHeader)
+		traceparent = r.Header.Get(outboundTraceParentHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -31,16 +33,20 @@ func TestTelegramProviderPostsSendMessagePayload(t *testing.T) {
 
 	provider := NewTelegramProvider(server.Client())
 	err := provider.Deliver(t.Context(), data.NotificationDelivery{
-		RequestID: "request-id-telegram",
-		Target:    "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_TEST_TOKEN&api_base=" + server.URL,
-		Title:     "Signal",
-		Body:      "Buy BTCUSDT",
+		RequestID:   "request-id-telegram",
+		TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		Target:      "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_TEST_TOKEN&api_base=" + server.URL,
+		Title:       "Signal",
+		Body:        "Buy BTCUSDT",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if requestID != "request-id-telegram" {
 		t.Fatalf("request id header = %q", requestID)
+	}
+	if traceparent != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+		t.Fatalf("traceparent header = %q", traceparent)
 	}
 	if payload.ChatID != "ops-chat" || payload.Text != "Signal\n\nBuy BTCUSDT" {
 		t.Fatalf("unexpected telegram payload: %#v", payload)
@@ -69,8 +75,10 @@ func TestTelegramProviderRedactsTokenFromErrors(t *testing.T) {
 func TestFeishuProviderPostsTextMessage(t *testing.T) {
 	var payload feishuPayload
 	var requestID string
+	var traceparent string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID = r.Header.Get(outboundRequestIDHeader)
+		traceparent = r.Header.Get(outboundTraceParentHeader)
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
@@ -80,16 +88,20 @@ func TestFeishuProviderPostsTextMessage(t *testing.T) {
 	t.Setenv("FEISHU_TEST_WEBHOOK", server.URL+"/open-apis/bot/v2/hook/secret")
 
 	err := NewFeishuProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
-		RequestID: "request-id-feishu",
-		Target:    "feishu://webhook?url_env=FEISHU_TEST_WEBHOOK",
-		Title:     "Signal",
-		Body:      "Buy BTCUSDT",
+		RequestID:   "request-id-feishu",
+		TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		Target:      "feishu://webhook?url_env=FEISHU_TEST_WEBHOOK",
+		Title:       "Signal",
+		Body:        "Buy BTCUSDT",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if requestID != "request-id-feishu" {
 		t.Fatalf("request id header = %q", requestID)
+	}
+	if traceparent != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+		t.Fatalf("traceparent header = %q", traceparent)
 	}
 	if payload.MessageType != "text" || payload.Content.Text != "Signal\n\nBuy BTCUSDT" {
 		t.Fatalf("unexpected feishu payload: %#v", payload)
@@ -103,10 +115,11 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 	provider := NewEmailProvider(sender)
 
 	err := provider.Deliver(t.Context(), data.NotificationDelivery{
-		RequestID: "request-id-email",
-		Target:    "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com,dev@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD&starttls=required",
-		Title:     "Signal",
-		Body:      "Buy BTCUSDT",
+		RequestID:   "request-id-email",
+		TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		Target:      "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com,dev@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD&starttls=required",
+		Title:       "Signal",
+		Body:        "Buy BTCUSDT",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +129,7 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 		sender.message.Password != "smtp-secret" ||
 		sender.message.StartTLSMode != "required" ||
 		sender.message.RequestID != "request-id-email" ||
+		sender.message.TraceParent != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" ||
 		sender.message.Subject != "Signal" ||
 		sender.message.Body != "Signal\n\nBuy BTCUSDT" {
 		t.Fatalf("unexpected mail message: %#v", sender.message)
@@ -125,6 +139,9 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 	}
 	if !strings.Contains(formatEmail(sender.message), "X-Request-Id: request-id-email\r\n") {
 		t.Fatalf("email output missing request id header: %s", formatEmail(sender.message))
+	}
+	if !strings.Contains(formatEmail(sender.message), "Traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\r\n") {
+		t.Fatalf("email output missing traceparent header: %s", formatEmail(sender.message))
 	}
 }
 

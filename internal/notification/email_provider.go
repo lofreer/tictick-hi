@@ -30,6 +30,7 @@ type MailMessage struct {
 	Password     string
 	StartTLSMode string
 	RequestID    string
+	TraceParent  string
 	Subject      string
 	Body         string
 }
@@ -51,6 +52,7 @@ func (provider EmailProvider) Deliver(ctx context.Context, delivery data.Notific
 		message.Subject = "tictick-hi notification"
 	}
 	message.RequestID = safeRequestIDHeaderValue(delivery.RequestID)
+	message.TraceParent = safeTraceParentHeaderValue(delivery.TraceParent)
 	message.Body = notificationText(delivery.Title, delivery.Body)
 	if err := provider.sender.Send(ctx, message); err != nil {
 		return fmt.Errorf("deliver email notification: %s", redactedError(err.Error(), message.Password))
@@ -200,6 +202,9 @@ func formatEmail(message MailMessage) string {
 	headers.Set("Content-Type", "text/plain; charset=UTF-8")
 	if message.RequestID != "" {
 		headers.Set(outboundRequestIDHeader, message.RequestID)
+	}
+	if message.TraceParent != "" {
+		headers.Set(outboundTraceParentHeader, message.TraceParent)
 	}
 
 	var builder strings.Builder
