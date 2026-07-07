@@ -145,8 +145,8 @@ func (repository *fakeRepository) ChangeOperatorPassword(
 			}
 		}
 		history := append([]string{repository.passwords[operator.ID]}, repository.passwordHistory[operator.ID]...)
-		if len(history) > data.OperatorPasswordHistoryLimit {
-			history = history[:data.OperatorPasswordHistoryLimit]
+		if len(history) > data.DefaultOperatorPasswordHistoryLimit {
+			history = history[:data.DefaultOperatorPasswordHistoryLimit]
 		}
 		repository.passwordHistory[operator.ID] = history
 		repository.passwords[operator.ID] = newPassword

@@ -52,23 +52,22 @@ func (store *Store) ChangeOperatorPassword(
 	if passwordMatchesHash(newPassword, passwordHash) {
 		return 0, data.OperatorPasswordReusedError()
 	}
-	historyHashes, err := recentOperatorPasswordHashes(ctx, tx, operatorID)
-	if err != nil {
-		return 0, err
-	}
-	for _, historyHash := range historyHashes {
-		if passwordMatchesHash(newPassword, historyHash) {
-			return 0, data.OperatorPasswordReusedError()
+	historyLimit := store.operatorPasswordHistoryLimit
+	if historyLimit > 0 {
+		historyHashes, err := recentOperatorPasswordHashes(ctx, tx, operatorID, historyLimit)
+		if err != nil {
+			return 0, err
+		}
+		for _, historyHash := range historyHashes {
+			if passwordMatchesHash(newPassword, historyHash) {
+				return 0, data.OperatorPasswordReusedError()
+			}
 		}
 	}
 
 	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return 0, fmt.Errorf("hash operator password: %w", err)
-	}
-	historyID, err := core.NewPrefixedID("oph")
-	if err != nil {
-		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE operators
@@ -80,17 +79,23 @@ func (store *Store) ChangeOperatorPassword(
 	); err != nil {
 		return 0, fmt.Errorf("change operator password: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO operator_password_history (id, operator_id, password_hash)
-		VALUES ($1, $2, $3)`,
-		historyID,
-		operatorID,
-		passwordHash,
-	); err != nil {
-		return 0, fmt.Errorf("record operator password history: %w", err)
-	}
-	if err := pruneOperatorPasswordHistory(ctx, tx, operatorID); err != nil {
-		return 0, err
+	if historyLimit > 0 {
+		historyID, err := core.NewPrefixedID("oph")
+		if err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO operator_password_history (id, operator_id, password_hash)
+			VALUES ($1, $2, $3)`,
+			historyID,
+			operatorID,
+			passwordHash,
+		); err != nil {
+			return 0, fmt.Errorf("record operator password history: %w", err)
+		}
+		if err := pruneOperatorPasswordHistory(ctx, tx, operatorID, historyLimit); err != nil {
+			return 0, err
+		}
 	}
 	tag, err := tx.Exec(ctx, `
 		DELETE FROM operator_sessions
@@ -112,7 +117,7 @@ func passwordMatchesHash(password string, passwordHash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) == nil
 }
 
-func recentOperatorPasswordHashes(ctx context.Context, tx pgx.Tx, operatorID string) ([]string, error) {
+func recentOperatorPasswordHashes(ctx context.Context, tx pgx.Tx, operatorID string, limit int) ([]string, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT password_hash
 		  FROM operator_password_history
@@ -120,7 +125,7 @@ func recentOperatorPasswordHashes(ctx context.Context, tx pgx.Tx, operatorID str
 		 ORDER BY created_at DESC, id DESC
 		 LIMIT $2`,
 		operatorID,
-		data.OperatorPasswordHistoryLimit,
+		limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list operator password history: %w", err)
@@ -141,7 +146,7 @@ func recentOperatorPasswordHashes(ctx context.Context, tx pgx.Tx, operatorID str
 	return hashes, nil
 }
 
-func pruneOperatorPasswordHistory(ctx context.Context, tx pgx.Tx, operatorID string) error {
+func pruneOperatorPasswordHistory(ctx context.Context, tx pgx.Tx, operatorID string, limit int) error {
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM operator_password_history
 		 WHERE operator_id = $1
@@ -153,7 +158,7 @@ func pruneOperatorPasswordHistory(ctx context.Context, tx pgx.Tx, operatorID str
 		      LIMIT $2
 		   )`,
 		operatorID,
-		data.OperatorPasswordHistoryLimit,
+		limit,
 	); err != nil {
 		return fmt.Errorf("prune operator password history: %w", err)
 	}

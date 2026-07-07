@@ -102,6 +102,11 @@ run_failing_case \
   clean_env DATABASE_URL="$SECRET_DSN" AUTH_COOKIE_SECURE=stage8_config_secret "$BIN" api
 
 run_failing_case \
+  "api invalid password history limit" \
+  "AUTH_PASSWORD_HISTORY_LIMIT" \
+  clean_env DATABASE_URL="$SECRET_DSN" AUTH_PASSWORD_HISTORY_LIMIT=-1 "$BIN" api
+
+run_failing_case \
   "sync invalid exchange limit" \
   "BINANCE_REQUEST_WEIGHT_LIMIT" \
   clean_env DATABASE_URL="$SECRET_DSN" BINANCE_REQUEST_WEIGHT_LIMIT=0 "$BIN" sync --once

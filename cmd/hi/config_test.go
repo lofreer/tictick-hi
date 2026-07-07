@@ -74,6 +74,7 @@ func TestLoadAPICommandConfigLoadsLoginRateLimitOptions(t *testing.T) {
 	t.Setenv("AUTH_LOGIN_FAILURE_LIMIT", "3")
 	t.Setenv("AUTH_LOGIN_FAILURE_WINDOW", "2m")
 	t.Setenv("AUTH_LOGIN_LOCKOUT", "10m")
+	t.Setenv("AUTH_PASSWORD_HISTORY_LIMIT", "7")
 
 	config, err := loadAPICommandConfig()
 	if err != nil {
@@ -81,8 +82,23 @@ func TestLoadAPICommandConfigLoadsLoginRateLimitOptions(t *testing.T) {
 	}
 	if config.LoginFailureLimit != 3 ||
 		config.LoginFailureWindow != 2*time.Minute ||
-		config.LoginLockout != 10*time.Minute {
+		config.LoginLockout != 10*time.Minute ||
+		config.PasswordHistoryLimit != 7 {
 		t.Fatalf("unexpected login rate limit config: %#v", config)
+	}
+}
+
+func TestLoadAPICommandConfigAllowsDisabledPasswordHistory(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUTH_PASSWORD_HISTORY_LIMIT", "0")
+
+	config, err := loadAPICommandConfig()
+	if err != nil {
+		t.Fatalf("load api config: %v", err)
+	}
+	if config.PasswordHistoryLimit != 0 {
+		t.Fatalf("PasswordHistoryLimit = %d, want 0", config.PasswordHistoryLimit)
 	}
 }
 
@@ -94,6 +110,17 @@ func TestLoadAPICommandConfigRejectsInvalidLoginRateLimit(t *testing.T) {
 	_, err := loadAPICommandConfig()
 	if err == nil || !strings.Contains(err.Error(), "AUTH_LOGIN_FAILURE_LIMIT") {
 		t.Fatalf("expected AUTH_LOGIN_FAILURE_LIMIT error, got %v", err)
+	}
+}
+
+func TestLoadAPICommandConfigRejectsInvalidPasswordHistoryLimit(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("AUTH_PASSWORD_HISTORY_LIMIT", "-1")
+
+	_, err := loadAPICommandConfig()
+	if err == nil || !strings.Contains(err.Error(), "AUTH_PASSWORD_HISTORY_LIMIT") {
+		t.Fatalf("expected AUTH_PASSWORD_HISTORY_LIMIT error, got %v", err)
 	}
 }
 
@@ -492,6 +519,7 @@ func clearCommandEnv(t *testing.T) {
 		"WEB_FRONTEND_DIST",
 		"AUTH_SESSION_TTL",
 		"AUTH_COOKIE_SECURE",
+		"AUTH_PASSWORD_HISTORY_LIMIT",
 		"SYNC_WORKER_ID",
 		"SYNC_LEASE_TTL",
 		"SYNC_HEARTBEAT_INTERVAL",

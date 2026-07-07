@@ -316,8 +316,123 @@ func TestOperatorStorePrunesPasswordHistory(t *testing.T) {
 	).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != data.OperatorPasswordHistoryLimit {
-		t.Fatalf("password history count = %d, want %d", count, data.OperatorPasswordHistoryLimit)
+	if count != data.DefaultOperatorPasswordHistoryLimit {
+		t.Fatalf("password history count = %d, want %d", count, data.DefaultOperatorPasswordHistoryLimit)
+	}
+}
+
+func TestOperatorStoreUsesConfiguredPasswordHistoryLimit(t *testing.T) {
+	store := openIntegrationStore(t)
+	if err := store.SetOperatorPasswordHistoryLimit(1); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("password_history_limit"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := data.OperatorSession{
+		ID:         integrationID("os_history_limit"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_history_limit"),
+		ExpiresAt:  time.Now().UTC().Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret123A", "secret456B"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret456B", "secret789C"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret789C", "secret456B")
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("recent password reuse error = %v, want invalid state", err)
+	}
+	if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret789C", "secret123A"); err != nil {
+		t.Fatalf("old password outside configured history should be allowed: %v", err)
+	}
+
+	var count int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)
+		  FROM operator_password_history
+		 WHERE operator_id = $1`,
+		operator.ID,
+	).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("password history count = %d, want 1", count)
+	}
+}
+
+func TestOperatorStoreCanDisablePasswordHistory(t *testing.T) {
+	store := openIntegrationStore(t)
+	if err := store.SetOperatorPasswordHistoryLimit(0); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("password_history_disabled"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := data.OperatorSession{
+		ID:         integrationID("os_history_disabled"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_history_disabled"),
+		ExpiresAt:  time.Now().UTC().Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = $1`, operator.ID)
+	})
+
+	if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret123A", "secret456B"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret456B", "secret123A"); err != nil {
+		t.Fatalf("previous password should be allowed when history is disabled: %v", err)
+	}
+	_, err = store.ChangeOperatorPassword(ctx, operator.ID, session.TokenHash, "secret123A", "secret123A")
+	if !errors.Is(err, data.ErrInvalidState) {
+		t.Fatalf("current password reuse error = %v, want invalid state", err)
+	}
+
+	var count int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)
+		  FROM operator_password_history
+		 WHERE operator_id = $1`,
+		operator.ID,
+	).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("password history count = %d, want 0", count)
 	}
 }
 

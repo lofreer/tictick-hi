@@ -9,19 +9,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lofreer/tictick-hi/internal/data"
 	"github.com/lofreer/tictick-hi/internal/store/postgres"
 )
 
 type apiCommandConfig struct {
-	DatabaseURL        string
-	DatabasePool       postgres.PoolOptions
-	Addr               string
-	StaticRoot         string
-	SessionTTL         time.Duration
-	CookieSecure       bool
-	LoginFailureLimit  int
-	LoginFailureWindow time.Duration
-	LoginLockout       time.Duration
+	DatabaseURL          string
+	DatabasePool         postgres.PoolOptions
+	Addr                 string
+	StaticRoot           string
+	SessionTTL           time.Duration
+	CookieSecure         bool
+	LoginFailureLimit    int
+	LoginFailureWindow   time.Duration
+	LoginLockout         time.Duration
+	PasswordHistoryLimit int
 }
 
 type syncCommandConfig struct {
@@ -113,16 +115,21 @@ func loadAPICommandConfig() (apiCommandConfig, error) {
 	if err != nil {
 		return apiCommandConfig{}, err
 	}
+	passwordHistoryLimit, err := intEnvStrict("AUTH_PASSWORD_HISTORY_LIMIT", data.DefaultOperatorPasswordHistoryLimit, 0)
+	if err != nil {
+		return apiCommandConfig{}, err
+	}
 	return apiCommandConfig{
-		DatabaseURL:        databaseURL,
-		DatabasePool:       databasePool,
-		Addr:               envOrDefault("HTTP_ADDR", "127.0.0.1:8080"),
-		StaticRoot:         envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist"),
-		SessionTTL:         sessionTTL,
-		CookieSecure:       cookieSecure,
-		LoginFailureLimit:  loginFailureLimit,
-		LoginFailureWindow: loginFailureWindow,
-		LoginLockout:       loginLockout,
+		DatabaseURL:          databaseURL,
+		DatabasePool:         databasePool,
+		Addr:                 envOrDefault("HTTP_ADDR", "127.0.0.1:8080"),
+		StaticRoot:           envOrDefault("WEB_FRONTEND_DIST", "web/frontend/dist"),
+		SessionTTL:           sessionTTL,
+		CookieSecure:         cookieSecure,
+		LoginFailureLimit:    loginFailureLimit,
+		LoginFailureWindow:   loginFailureWindow,
+		LoginLockout:         loginLockout,
+		PasswordHistoryLimit: passwordHistoryLimit,
 	}, nil
 }
 

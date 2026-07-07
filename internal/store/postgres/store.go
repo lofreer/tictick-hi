@@ -14,8 +14,9 @@ import (
 )
 
 type Store struct {
-	pool      *pgxpool.Pool
-	secretBox *secretbox.Box
+	pool                         *pgxpool.Pool
+	secretBox                    *secretbox.Box
+	operatorPasswordHistoryLimit int
 }
 
 type PoolOptions struct {
@@ -55,7 +56,19 @@ func OpenWithOptions(ctx context.Context, databaseURL string, options PoolOption
 		pool.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return &Store{pool: pool, secretBox: box}, nil
+	return &Store{
+		pool:                         pool,
+		secretBox:                    box,
+		operatorPasswordHistoryLimit: data.DefaultOperatorPasswordHistoryLimit,
+	}, nil
+}
+
+func (store *Store) SetOperatorPasswordHistoryLimit(limit int) error {
+	if limit < 0 {
+		return fmt.Errorf("operator password history limit must be greater than or equal to 0")
+	}
+	store.operatorPasswordHistoryLimit = limit
+	return nil
 }
 
 func newPoolConfig(databaseURL string, options PoolOptions) (*pgxpool.Config, error) {

@@ -67,9 +67,14 @@ AUTH_COOKIE_SECURE
 AUTH_LOGIN_FAILURE_LIMIT
 AUTH_LOGIN_FAILURE_WINDOW
 AUTH_LOGIN_LOCKOUT
+AUTH_PASSWORD_HISTORY_LIMIT
 BOOTSTRAP_OPERATOR_USERNAME
 BOOTSTRAP_OPERATOR_PASSWORD
 ```
+
+`AUTH_PASSWORD_HISTORY_LIMIT` defaults to `5` recent previous passwords. Set it
+to `0` only to disable previous-password history checks; changing to the current
+password is still rejected.
 
 `hi audit-prune` reads `AUDIT_RETENTION_DAYS` when `--retention-days` is not
 passed. The command is dry-run by default and only deletes rows with
