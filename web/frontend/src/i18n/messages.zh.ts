@@ -193,6 +193,7 @@ export const zhCNMessages: Record<string, string> = {
     "system.notificationsSubtitle": "管理策略通知意图可使用的通道。",
     "system.operatorsLoadFailed": "加载操作员失败。",
     "system.operatorsSubtitle": "管理操作台登录账号。",
+    "system.currentOperatorDisableBlocked": "不能停用当前操作员。",
     "system.operatorUpdated": "操作员已更新。",
     "system.operatorUpdateFailed": "更新操作员失败。",
     "system.overallStatus": "整体状态",

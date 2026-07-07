@@ -244,6 +244,10 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "operator action not found")
 		return
 	}
+	if !enabled && id == actor.ID {
+		writeAPIError(w, http.StatusConflict, apiErrorInvalidState, "current operator cannot be disabled")
+		return
+	}
 	operator, err := server.repository.SetOperatorEnabled(r.Context(), id, enabled)
 	if err != nil {
 		writeStoreError(w, err)

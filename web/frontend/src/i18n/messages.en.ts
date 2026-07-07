@@ -193,6 +193,7 @@ export const enUSMessages: Record<string, string> = {
     "system.notificationsSubtitle": "Manage channels available to strategy notification intents.",
     "system.operatorsLoadFailed": "Failed to load operators.",
     "system.operatorsSubtitle": "Manage console login accounts.",
+    "system.currentOperatorDisableBlocked": "Current operator cannot be disabled.",
     "system.operatorUpdated": "Operator updated.",
     "system.operatorUpdateFailed": "Failed to update operator.",
     "system.overallStatus": "Overall Status",

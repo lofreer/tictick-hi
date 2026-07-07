@@ -34,7 +34,7 @@ done            用户确认关闭
 | Docker Compose | demo | 保留 | 运行形态对，Compose 已透传后台 worker health probe env，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-backup.sh` 已补单次备份与保留清理入口，`scripts/stage8-backup-restore-drill.sh` 已补本地 restore drill 脚本，`deploy/systemd/tictick-hi-backup.{service,timer}` 已补目标主机调度模板，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺目标环境备份调度安装和外部存储监控证据、已记录且通过的目标环境恢复演练、资源容量策略和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE），`0034_task_request_ids.sql` 已补充 task request ID 字段，`0036_task_traceparents.sql` 已补充 task traceparent 字段，`0037_notification_traceparents.sql` 已补充 notification traceparent 字段；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks`、`POST /api/backtests` 和 `POST /api/trading/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active` 且不落库，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary`、窗口内历史异常 OHLCV K 线 `dataHealth=invalid`、`invalidSummary`、`GET /api/data/tasks/{id}/invalid-issues` 异常详情列表和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，`GET /api/market/instruments/status` 返回各交易所 instrument catalog 最近同步状态供研究页和运维上下文使用，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
-| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败持久化节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺密码策略、RBAC / 自保护规则和生产级设备上下文 |
+| 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败持久化节流、当前操作员 session 列表、非当前 session 撤销和当前操作员自禁用保护已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺密码策略、RBAC / 更完整自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | 保留后加强 | 能 claim、拉取、upsert 1m K 线并恢复游标，运行中会持续刷新 heartbeat / locked_until，heartbeat 丢失后会停止保存结果；批量拉取结果只按闭合且连续的 open_time 链推进 `last_synced_open_time`，不会把同步游标跨过批次内缺口或未闭合尾部 K 线；一次性有界同步在交易所返回空批次且没有 cursor 时会保存 completed 结果、进入 succeeded、释放 lease、保留任务窗口缺口健康且不伪造 K 线，只有未闭合 K 线的批次不会把有界或无 endTime 的一次性任务误判完成，succeeded 的 active catalog 任务可重新启动为 pending；删除 data sync task 会软删除任务行、置为 cancelled、停用 sync/realtime、释放 lease、从列表/claim/命令入口隐藏，但不删除 `market_candles` 事实数据且删除后不再接受同步结果写入；保存结果只接受 `running`、持有未过期 lease 且 `WorkerID` 匹配 `locked_by` 的任务，保存前会校验 fetched candle series 的任务目标、时间周期、排序、重复、OHLCV decimal / OHLC 正价格 / volume 非负 / 高低价边界，异常 payload 不写库、不推进游标并明确失败；`SaveDataSyncResult` 也会按 `task_id` 读取目标并拒绝 exchange / symbol / interval 不匹配的 candle，并校验 `LastOpenTime` 必须匹配本次 candles 对当前持久化游标可推进的连续链尖端，防止绕过 runner 的错标的写入或虚假游标推进；PostgreSQL + runner 集成测试已覆盖重启遗留过期 running realtime lease 后重新 claim、按持久化游标 overlap 拉取、upsert 去重、推进游标并回到研究页任务列表可观察；临时市场数据错误记录为 retry 并释放 lease，按任务持久化 `next_attempt_at` 退避窗口，并按交易所持久化 `data_sync_exchange_backoffs` 冷却，claim 会跳过未到期任务和 active 冷却交易所；运维健康和数据同步任务 API / 研究页任务表可观察 active exchange backoff 数量、最近重试时间、任务级 `exchangeBackoffUntil` 和脱敏错误；永久失败会停用 sync / realtime 期望；用户可从研究页 retry failed 任务，retry 只接受 failed 状态并清理错误、lease 和退避时间；用户 stop sync / realtime、runner 上下文取消和容器 SIGTERM 会释放 active lease；release / fail / pause 清锁语义已收敛到共享 helper；Binance / OKX public market 请求已有本地固定窗口限流，`hi sync` 中 K 线同步和 instrument catalog 同一进程共享 client 限流器，K 线拉取前会按交易所获取 PostgreSQL advisory lock，锁被占用时释放当前 data sync task lease、跳过交易所请求且不写入失败/退避状态，避免多实例同时拉取同一交易所 K 线；instrument catalog 临时错误会按 `SYNC_FETCH_RETRIES` / `SYNC_RETRY_DELAY` 短重试后写入 `market_instrument_sync_statuses` 并在运维健康中显示单交易所 warning，最近成功超过 24 小时会被运维健康标记为 stale warning；instrument catalog 同步开始前会按交易所获取 PostgreSQL advisory lock，锁被占用时跳过拉取和写入失败状态，避免多实例重复刷新同一 catalog；instrument catalog 变为 inactive / missing 时会保存原 sync/realtime 期望并暂停对应 data sync task，恢复 active 时只恢复这类自动 catalog pause 任务；已提供基于 `market_candles` 的全历史相邻缺口扫描入口，并可从研究页为单个真实缺口排补同步任务，但不会自动批量补全；本地外部临时失败恢复 smoke 已验证 Binance `Retry-After`、OKX `50011` 和 exchange backoff 隔离后可恢复落库，默认 Binance public exchange smoke 也已有 native/ok 证据；仍缺完整统一状态机、真正的分布式 token bucket / 动态交易所额度、OKX 真实外网恢复证据和长期多实例外部网络压测 |
 | CandleProvider | demo | 保留后加强 | 已统一 native / 1m 聚合、来源和缺口 metadata，查询 limit 已有显式默认/上限，CandleProvider/repository 入口会先校验 exchange / symbol / interval 必填和 interval 合法，`from/to` 已在 API 和 CandleProvider/repository 入口校验顺序并按 interval 限制最大闭区间跨度，非法 target 或显式窗口会在读取 store 前失败；显式 `from/to` 窗口会把起点到首根 K 线、末根 K 线到终点和整窗无数据识别为缺口，聚合 fallback 会返回 coverage 并标记基础窗口受限，基础 `1m` 聚合窗口已改为最多 288 页 / 1440000 根的有界流式分页聚合，默认最新聚合窗口会按尾部裁剪保留最新 K 线，`scripts/stage1-candle-provider-perf-smoke.sh` 已用真实 PostgreSQL 验证 240000 根 `1m` 聚合成 1000 根 `4h` 的查询边界，PostgreSQL 集成测试已覆盖 6 个并发 `15m` 聚合查询的一致结果、coverage 和 pagination metadata，`/api/candles` 返回窗口级 pagination metadata、opaque `previousCursor/nextCursor` 和当前实际窗口 `from/to/count`，PostgreSQL 集成测试覆盖基础聚合、缺口、请求窗口边界缺口、默认最新窗口查询、latest-before 查询、上一/下一窗口 metadata、超大 limit clamp、repository 入口超大显式窗口拒绝、repository 入口缺 target 拒绝和 runner 侧闭合信号过滤；仍缺长期 soak / 冷缓存 / 真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略和更多异常数据边界 |
 | Binance / OKX K 线 adapter | demo | 保留后加强 | 能拉 K 线，Binance 支持多 base URL fallback，EOF/超时/429/5xx/OKX 50011 已分类为临时错误并由 sync runner 有限重试，临时错误会触发任务级和交易所级退避，错误摘要不泄露完整请求 URL；Binance 默认 client 会在成功读取 exchangeInfo 后解析 `REQUEST_WEIGHT` rateLimits 并切换为本地多窗口 fixed-window 限流，K 线请求仍按 weight=2、exchangeInfo 按 weight=20 计重，自定义 limiter 不被覆盖；OKX history-candles 和 public instruments 按 20 次/2s 本地限流；仍缺 OKX 动态额度、多实例共享额度、真实网络韧性和更完整交易所业务码分类 |
@@ -46,7 +46,7 @@ done            用户确认关闭
 | 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；通道更新/删除、生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界、最右侧 canvas 必须贴住 viewport 右边界、主图占比、研究页工具栏高度最大 `72px` 的断言，并把 symbol 输入最大宽度阈值收敛到 `100px`、控件组最大宽度 `500px`、右侧价格轴最大宽度 `72px`、坐标轴文字墨迹高度范围收敛为桌面/窄桌面/移动端 `7px` 到 `13px`、图表高度收敛到桌面 `600px+` / 窄桌面 `620px+` / 移动端 `540px+`，防止右侧额外空白、工具栏过宽、坐标轴过小和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；汇总卡片已有到研究、回测、交易、通知和运维健康的操作入口；已有 7D 运行趋势条展示策略意图、订单、通知和失败信号；已有数据质量、自动化链路、执行面和通知投递深度指标；新增监控上下文展示快照时间、数据源降级、趋势覆盖和告警负载；通知、数据质量、自动化链路和回测/交易执行面入口已带状态筛选上下文跳转；仍缺 SLO、告警规则、实时订阅等生产级监控语义 |
-| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、自保护规则、不可篡改审计和生产监控 |
+| 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，且会阻止当前操作员禁用自己；当前操作员 session 可查看和撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、更完整自保护规则、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 保留后加强 | 阶段 0 硬门禁、策略边界检查、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator 检查、Go command config smoke、整体 scaffold 声明检查、完整本地质量门禁 `scripts/full-quality-gate.sh`、GitHub Actions 默认 full gate、独立 Stage 8 heavy smoke workflow、Stage 8 smoke gate（默认串联 full-chain 浏览器 visual / state visual smoke）和 data sync / backtest / trading / notify SIGTERM smoke 已通过；live executor/testnet、完整统一 worker lease、真实通知 provider 的生产启用边界和生产级登录安全作为后续风险审计保留 |
 
 注：模块评级表用于保留主要风险摘要。研究页行中关于“退市/停牌后自动停用既有 data sync task”的旧风险，已在后续“instrument catalog 同步后自动停用非 active 数据同步任务补充”和“instrument catalog 自动暂停恢复语义补充”小节推进；原始交易所 instrument status 可观察已在后续“instrument catalog 交易所原始状态可观察补充”小节推进；仍未关闭的是跨模块迁移/删除处置和完整交易所业务状态语义。
@@ -3372,7 +3372,7 @@ Definition of Done：
 
 - 交易所账号密钥 digest 风险已在阶段 6 切片关闭到 `demo`；历史非 AES-GCM 行标记为 `legacy`。
 - live executor 仍禁用，testnet/sandbox、幂等提交、真实交易所提交和生产密钥管理仍未建立。
-- 登录会话基础审计和持久化限流已在后续补充关闭到 demo 边界；密码策略、RBAC / 自保护规则和生产级设备上下文仍未完成。
+- 登录会话基础审计、持久化限流和当前操作员自禁用保护已在后续补充关闭到 demo 边界；密码策略、RBAC / 更完整自保护规则和生产级设备上下文仍未完成。
 
 ### 阶段 8 通知真实 provider 基础发送路径补充
 
@@ -3451,7 +3451,7 @@ Definition of Done：
 - 真实 testnet/sandbox live executor 未实现。
 - 订单先落库再提交交易所、交易所响应回写和幂等 retry 仍未完成。
 - 生产级 KMS / secret manager、密钥轮换和历史 `legacy` 账号迁移策略仍未完成。
-- 全系统 worker lease、登录会话密码策略 / RBAC / 自保护规则 / 生产级设备上下文仍未完成。
+- 全系统 worker lease、登录会话密码策略 / RBAC / 更完整自保护规则 / 生产级设备上下文仍未完成。
 
 阶段 6 结论：
 
@@ -3490,7 +3490,7 @@ Definition of Done：
 
 - CSRF 采用 double-submit cookie，本阶段只到本地 demo 边界，不是完整生产 CSRF/session 防护。
 - 当时登录失败节流为 API 进程内存态，多实例、重启后持久化和全局限流未实现；后续“阶段 7 登录失败持久化限流补充”已关闭该项到 demo 边界。
-- 操作台账号启停没有 RBAC、自保护规则或强密码策略；基础操作审计已在后续阶段 7 补充中覆盖到 `demo` 边界。
+- 当时操作台账号启停没有 RBAC、自保护规则或强密码策略；基础操作审计和当前操作员自禁用保护已在后续阶段 7 补充中覆盖到 `demo` 边界。
 - 运维健康能观察现有 task lease 字段，但全系统统一 worker lease、持续 heartbeat loop 和优雅停止状态机仍未完成。
 - Vite 构建仍提示主 chunk 超过 500 kB，后续需要做路由级 code split。
 
@@ -3515,7 +3515,7 @@ Definition of Done：
 
 范围外：
 
-- RBAC、自保护规则、生产级会话审计、密码策略、设备指纹、IP / UA 变更告警。
+- RBAC、更完整自保护规则、生产级会话审计、密码策略、设备指纹、IP / UA 变更告警。
 
 验证：
 
@@ -3541,7 +3541,7 @@ Definition of Done：
 
 剩余风险：
 
-- 这只是基础 session 管理，不是生产级登录安全；持久化限流已在后续补充关闭到 demo 边界，仍缺密码策略、RBAC / 自保护、设备上下文和生产级审计。
+- 这只是基础 session 管理，不是生产级登录安全；持久化限流和当前操作员自禁用保护已在后续补充关闭到 demo 边界，仍缺密码策略、RBAC / 更完整自保护、设备上下文和生产级审计。
 - 本轮未运行完整 `scripts/stage8-smoke.sh`；session 路由用本地 HTTP / DOM smoke 覆盖。
 
 ### 阶段 7 登录失败持久化限流补充
@@ -3560,7 +3560,7 @@ Definition of Done：
 
 范围外：
 
-- 密码策略、MFA、RBAC、自保护规则、设备指纹、IP / UA 变更告警、边缘层全局限流和生产级审计留存。
+- 密码策略、MFA、RBAC、更完整自保护规则、设备指纹、IP / UA 变更告警、边缘层全局限流和生产级审计留存。
 
 验证：
 
@@ -3578,6 +3578,41 @@ Definition of Done：
 剩余风险：
 
 - 当前补充只把 API 层登录失败节流从进程内存态推进到 PostgreSQL demo 边界；生产还需要更完整的账号安全策略、设备上下文和边缘/网关层防护。
+
+### 阶段 7 操作员自禁用保护补充
+
+执行时间：2026-07-07
+
+目标等级：demo 增量。
+
+范围内：
+
+- `POST /api/system/operators/:id/disable` 在目标 id 等于当前登录操作员 id 时返回 `409 invalid_state`，不调用 repository、不改变账号状态。
+- 系统操作员页面读取当前 auth store，当前操作员的停用按钮置为 disabled，并提供“不能停用当前操作员”提示。
+- API 单测覆盖自禁用请求不会禁用当前账号，也不会写入成功的 `operator.disable` 审计事件。
+- Vue 单测覆盖当前账号停用按钮禁用，其他操作员仍可触发停用 API。
+
+范围外：
+
+- RBAC、角色权限、最后一个启用管理员保护、多人审批、强密码策略、MFA、不可篡改审计。
+
+验证：
+
+- `go test ./internal/web/api -run TestOperatorCannotDisableSelf -count=1`
+- `pnpm --dir web/frontend exec vitest run src/pages/SystemOperatorsPage.test.ts`
+- `go test ./internal/web/api -count=1`
+- `pnpm --dir web/frontend exec vitest run src/pages/SystemOperatorsPage.test.ts src/services/api/system.test.ts`
+- `go test ./...`
+- `go vet ./...`
+- `pnpm --dir web/frontend run typecheck`
+- `pnpm --dir web/frontend run test`
+- `scripts/quality-gate.sh`
+- `scripts/check-file-size.sh`
+- `git diff --check`
+
+剩余风险：
+
+- 本补充只防止当前操作员误禁用自己；仍未实现角色模型、最后管理员保护和完整账号生命周期策略。
 
 ### 阶段 7 系统操作审计日志补充
 
@@ -3818,7 +3853,7 @@ Definition of Done：
 | Docker Compose | demo | `scripts/stage8-smoke.sh` 从 compose build/up 进入并完成全链路 smoke；`scripts/stage8-sigterm-smoke.sh` 从 compose stop 进入并验证 data sync / backtest / trading / notify 收尾 | 缺备份/恢复、资源限制、外部依赖失败策略和共享环境部署说明 |
 | PostgreSQL migrations | scaffold | 当前 smoke 可从 migrations 建库并运行；`0011_domain_constraints.sql` 已补充核心状态、类型、数值和时间范围 CHECK，`0012_referential_constraints.sql` 已补充 orders / executions / positions / notifications / outbox / backtest_orders 的核心 FK 和同 task composite FK，`0016_worker_lease_constraints.sql` 已补充 task/outbox lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充 data sync repair source FK / 非自引用 CHECK；`scripts/stage8-migration-audit.sh` 已校验迁移全量应用、worker lease CHECK validated、状态流转 trigger、repair source、终态 finished_at、lease、intent parent 和核心事实 orphan | 完整统一状态机、全量历史数据验证、数据迁移/回滚策略不足 |
 | API server | scaffold | 核心路由已拆分，CSRF 写保护、策略参数校验、retry API、结构化错误响应和基础操作审计可测；前端 API client 会读取服务端 `message/error` 并保留 `code`；数据同步 retry / command 状态冲突已有领域错误码；`DataSyncTask` 暴露 `repairSourceTaskId` 用于补同步任务来源追踪；已知 API 路径的方法错误返回 405 和 `Allow` header；`GET /api/system/api-contract` 返回基础 OpenAPI 3.1 contract，覆盖当前前端路由、request body、success schema、错误 schema、错误码 catalog、session cookie 和 CSRF header；`web/frontend/src/types/api.generated.ts` 已从该 contract 生成；`TestFrontendAPI*` 和 `scripts/check-api-contract-drift.sh` 会阻止前端 service route、request DTO、核心 response DTO、adapter response 字段、generated DTO staleness、external OpenAPI validator 和 candle query 参数漂移 | 跨领域错误语义细分和生产级审计边界不足 |
-| 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败持久化节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计 | 无密码策略/RBAC、自保护规则和生产级设备上下文 |
+| 登录会话 | demo | HttpOnly session、CSRF double-submit、登录失败持久化节流、session 列表和撤销有 route / smoke 覆盖；登录成功 / 失败、退出、session 撤销已进入基础操作审计；当前操作员自禁用保护已覆盖 | 无密码策略/RBAC、更完整自保护规则和生产级设备上下文 |
 | 数据同步 worker | demo | claim/heartbeat/upsert/retry/release、批次内连续 open_time 游标推进、临时错误任务级 `next_attempt_at` 持久化退避、交易所级 `data_sync_exchange_backoffs` 冷却、失败后 UI retry、公开 market 请求本地固定窗口限流、全历史相邻缺口扫描和单缺口补同步排队、Stage 8 smoke 和容器 SIGTERM smoke 有覆盖 | 未证明真实交易所网络下长期恢复、分布式多实例限流、完整状态机和批量自动修复 |
 | CandleProvider | demo | native/aggregated/gap/coverage/pagination/window metadata、opaque adjacent-window cursor、最多 1440000 根基础 `1m` 的有界流式聚合读取、240000 根 PostgreSQL 性能 smoke、6 并发聚合读取 smoke、runner 健康门禁和集成测试已覆盖 | 长期 soak / 冷缓存 / 真实生产数据分布压测、超过 1440000 根基础 K 线的缓存/分段策略、异常数据修复策略不足 |
 | Binance / OKX adapter | demo | 临时错误分类、Binance fallback、OKX rate-limit 码、URL 脱敏、交易所级冷却和本地固定窗口限流有测试 | 缺动态读取交易所限流元数据、真实网络压测、代理/地域策略和完整业务码审计 |
@@ -3830,7 +3865,7 @@ Definition of Done：
 | 通知 | demo | outbox、local/webhook-demo/webhook/email/Telegram/飞书 provider、失败重试、系统页 retry 和 notify 容器 SIGTERM release 已覆盖 | 真实第三方账号联网验收、模板、限流、审计和通道管理不足 |
 | 前端基础设施 | scaffold | Vue/Naive/Pinia/i18n/主题/API wrapper/图表封装已存在并通过测试；路由级 code split 已让生产入口 chunk 降至 437.44 kB，构建不再出现 Vite 大 chunk 警告；概览页已接入真实 API 聚合；Stage 8 visual smoke 已覆盖核心页面 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵 | 缺像素快照基线、真正全路由覆盖和 CI 硬门禁 |
 | 概览页 | demo | 从现有 API 聚合系统健康、data sync、backtest、trading 和 notification，展示关键计数、异常提醒、worker 状态和最近活动；`useOverviewWorkspace` 单测覆盖聚合契约 | 缺时间窗口筛选、趋势图、关键操作入口和生产级监控语义 |
-| 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员 session 管理、基础操作审计页、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、自保护、不可篡改审计和生产监控 |
+| 系统管理 / 运维健康 | demo | 操作台账号启停、当前操作员自禁用保护、当前操作员 session 管理、基础操作审计页、健康页 worker 统计和通知/账号管理可用 | 无 RBAC、更完整自保护、不可篡改审计和生产监控 |
 | 质量门禁 | demo | 通用门禁、API contract route / field drift / generated TypeScript DTO staleness / external OpenAPI validator gate、Go command config smoke、stage8 smoke、data sync/backtest/trading/notify SIGTERM smoke、scaffold 声明检查可重复运行 | 尚未把真实网络压测、像素视觉回归和安全审计纳入硬门禁 |
 
 重审计结论：

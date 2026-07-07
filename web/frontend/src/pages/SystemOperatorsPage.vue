@@ -35,7 +35,9 @@
                   size="small"
                   :type="operator.enabled ? 'warning' : 'primary'"
                   secondary
+                  :disabled="operatorSelfDisableBlocked(operator)"
                   :loading="updatingOperatorId === operator.id"
+                  :title="operatorSelfDisableBlocked(operator) ? t('system.currentOperatorDisableBlocked') : undefined"
                   @click="toggleOperator(operator)"
                 >
                   {{ operator.enabled ? t("system.disableOperator") : t("system.enableOperator") }}
@@ -73,10 +75,12 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import { systemApi } from "@/services/api/system";
+import { useAuthStore } from "@/stores/auth";
 import type { Operator } from "@/types/app";
 
 const { t } = useI18n();
 const message = useMessage();
+const authStore = useAuthStore();
 const operators = ref<Operator[]>([]);
 const loading = ref(false);
 const creating = ref(false);
@@ -119,6 +123,9 @@ async function createOperator() {
 }
 
 async function toggleOperator(operator: Operator) {
+  if (operatorSelfDisableBlocked(operator)) {
+    return;
+  }
   updatingOperatorId.value = operator.id;
   try {
     await systemApi.setOperatorEnabled(operator.id, !operator.enabled);
@@ -129,6 +136,10 @@ async function toggleOperator(operator: Operator) {
   } finally {
     updatingOperatorId.value = "";
   }
+}
+
+function operatorSelfDisableBlocked(operator: Operator) {
+  return operator.enabled && authStore.operator?.id === operator.id;
 }
 
 function enabledLabel(enabled: boolean) {
