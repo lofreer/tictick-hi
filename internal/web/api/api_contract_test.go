@@ -37,6 +37,23 @@ func TestAPIContractRouteExposesOpenAPIContract(t *testing.T) {
 	}
 }
 
+func TestAPIContractDeclaresRequestIDResponseHeader(t *testing.T) {
+	contract := apiContractDocument()
+	for path, methods := range contract.Paths {
+		for method, operation := range methods {
+			for status, response := range operation.Responses {
+				header, ok := response.Headers[requestIDHeaderName]
+				if !ok {
+					t.Fatalf("%s %s response %s missing %s header", method, path, status, requestIDHeaderName)
+				}
+				if header.Schema["type"] != "string" {
+					t.Fatalf("%s %s response %s %s schema = %#v", method, path, status, requestIDHeaderName, header.Schema)
+				}
+			}
+		}
+	}
+}
+
 func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 	contract := apiContractDocument()
 	expected := []struct {

@@ -10,27 +10,28 @@ import (
 )
 
 type fakeRepository struct {
-	backtestOrders     map[string][]data.BacktestOrder
-	backtestIntents    map[string][]data.StrategyIntent
-	tradingOrders      map[string][]data.Order
-	tradingIntents     map[string][]data.StrategyIntent
-	backtests          []data.BacktestTask
-	channels           []data.NotificationChannel
-	notifications      []data.Notification
-	accounts           []data.ExchangeAccount
-	auditEvents        []data.AuditEvent
-	marketInstruments  []data.MarketInstrument
-	marketSyncStatuses []data.MarketInstrumentSyncStatus
-	marketSyncFailures []marketSyncFailure
-	catalogPausedTasks map[string]fakeCatalogPauseState
-	operators          []data.Operator
-	passwords          map[string]string
-	sessions           map[string]data.OperatorSession
-	tradingTasks       []data.TradingTask
-	tasks              []data.DataSyncTask
-	taskGapDetails     map[string]data.DataSyncGapList
-	taskInvalidDetails map[string]data.DataSyncInvalidIssueList
-	candles            []data.Candle
+	backtestOrders            map[string][]data.BacktestOrder
+	backtestIntents           map[string][]data.StrategyIntent
+	tradingOrders             map[string][]data.Order
+	tradingIntents            map[string][]data.StrategyIntent
+	backtests                 []data.BacktestTask
+	channels                  []data.NotificationChannel
+	notifications             []data.Notification
+	accounts                  []data.ExchangeAccount
+	auditEvents               []data.AuditEvent
+	marketInstruments         []data.MarketInstrument
+	marketSyncStatuses        []data.MarketInstrumentSyncStatus
+	marketSyncFailures        []marketSyncFailure
+	catalogPausedTasks        map[string]fakeCatalogPauseState
+	operators                 []data.Operator
+	passwords                 map[string]string
+	sessions                  map[string]data.OperatorSession
+	tradingTasks              []data.TradingTask
+	tasks                     []data.DataSyncTask
+	taskGapDetails            map[string]data.DataSyncGapList
+	taskInvalidDetails        map[string]data.DataSyncInvalidIssueList
+	candles                   []data.Candle
+	lastSystemHealthRequestID string
 }
 
 type marketSyncFailure struct {
@@ -558,7 +559,8 @@ func (repository *fakeRepository) ListAuditEvents(_ context.Context, limit int) 
 	return events[:limit], nil
 }
 
-func (repository *fakeRepository) SystemHealth(context.Context) (data.SystemHealth, error) {
+func (repository *fakeRepository) SystemHealth(ctx context.Context) (data.SystemHealth, error) {
+	repository.lastSystemHealthRequestID = RequestIDFromContext(ctx)
 	pendingCount := 1
 	runningCount := 1
 	lockedCount := 1

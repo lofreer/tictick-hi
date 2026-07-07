@@ -76,6 +76,13 @@ func cloneInstrumentClients(clients map[string]exchange.InstrumentClient) map[st
 }
 
 func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	request, err := withRequestID(w, r)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	r = request
+
 	switch {
 	case r.URL.Path == "/readyz":
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

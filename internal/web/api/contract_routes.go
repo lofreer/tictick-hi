@@ -368,7 +368,10 @@ func operationResponses(status int, responseSchema map[string]any, config operat
 
 func successResponse(status int, schema map[string]any) apiResponse {
 	if status == http.StatusNoContent {
-		return apiResponse{Description: "No content"}
+		return apiResponse{
+			Description: "No content",
+			Headers:     requestIDResponseHeader(),
+		}
 	}
 	return jsonResponse(http.StatusText(status), schema)
 }
@@ -376,6 +379,7 @@ func successResponse(status int, schema map[string]any) apiResponse {
 func jsonResponse(description string, schema map[string]any) apiResponse {
 	return apiResponse{
 		Description: description,
+		Headers:     requestIDResponseHeader(),
 		Content:     map[string]apiMediaType{jsonMediaType: {Schema: schema}},
 	}
 }

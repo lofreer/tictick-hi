@@ -128,6 +128,64 @@ func TestAPIRequiresAuthentication(t *testing.T) {
 	}
 }
 
+func TestServerAssignsRequestID(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/health", "")
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	requestID := recorder.Header().Get(requestIDHeaderName)
+	if !isValidRequestID(requestID) {
+		t.Fatalf("invalid response request id: %q", requestID)
+	}
+	if repository.lastSystemHealthRequestID != requestID {
+		t.Fatalf("context request id = %q, want %q", repository.lastSystemHealthRequestID, requestID)
+	}
+}
+
+func TestServerReusesValidRequestID(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	request := httptest.NewRequest(http.MethodGet, "/api/system/health", nil)
+	request.Header.Set(requestIDHeaderName, "request-id-123")
+	request.AddCookie(auth.session)
+	request.AddCookie(auth.csrf)
+	recorder := httptest.NewRecorder()
+
+	server.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get(requestIDHeaderName); got != "request-id-123" {
+		t.Fatalf("response request id = %q", got)
+	}
+	if repository.lastSystemHealthRequestID != "request-id-123" {
+		t.Fatalf("context request id = %q", repository.lastSystemHealthRequestID)
+	}
+}
+
+func TestServerReplacesInvalidRequestIDWithoutEchoingValue(t *testing.T) {
+	server := NewServer(newFakeRepository(), "")
+	request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	request.Header.Set(requestIDHeaderName, "stage8_config_secret!")
+	recorder := httptest.NewRecorder()
+
+	server.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	requestID := recorder.Header().Get(requestIDHeaderName)
+	if !isValidRequestID(requestID) {
+		t.Fatalf("invalid generated request id: %q", requestID)
+	}
+	if strings.Contains(requestID, "stage8_config_secret") {
+		t.Fatalf("response leaked invalid request id: %q", requestID)
+	}
+}
+
 func TestAPIStructuredErrorResponses(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 

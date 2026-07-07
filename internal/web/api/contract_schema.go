@@ -62,8 +62,23 @@ type apiRequestBody struct {
 
 type apiResponse struct {
 	Description string                  `json:"description"`
+	Headers     map[string]apiHeader    `json:"headers,omitempty"`
 	Content     map[string]apiMediaType `json:"content,omitempty"`
 	XErrorCodes []string                `json:"x-errorCodes,omitempty"`
+}
+
+type apiHeader struct {
+	Description string         `json:"description,omitempty"`
+	Schema      map[string]any `json:"schema"`
+}
+
+func requestIDResponseHeader() map[string]apiHeader {
+	return map[string]apiHeader{
+		requestIDHeaderName: {
+			Description: "HTTP request correlation id",
+			Schema:      map[string]any{"type": "string"},
+		},
+	}
 }
 
 type apiMediaType struct {
