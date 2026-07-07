@@ -263,14 +263,21 @@ func (store *Store) CreateOperatorSession(ctx context.Context, session data.Oper
 	}
 
 	if _, err := store.pool.Exec(ctx, `
-		INSERT INTO operator_sessions (id, token_hash, operator_id, expires_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO operator_sessions (id, token_hash, operator_id, expires_at, remote_addr, user_agent)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (token_hash)
-		DO UPDATE SET id = EXCLUDED.id, operator_id = EXCLUDED.operator_id, expires_at = EXCLUDED.expires_at`,
+		DO UPDATE SET
+			id = EXCLUDED.id,
+			operator_id = EXCLUDED.operator_id,
+			expires_at = EXCLUDED.expires_at,
+			remote_addr = EXCLUDED.remote_addr,
+			user_agent = EXCLUDED.user_agent`,
 		session.ID,
 		session.TokenHash,
 		session.OperatorID,
 		session.ExpiresAt,
+		session.RemoteAddr,
+		session.UserAgent,
 	); err != nil {
 		return fmt.Errorf("create operator session: %w", err)
 	}

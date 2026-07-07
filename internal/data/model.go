@@ -291,6 +291,8 @@ type OperatorSession struct {
 	ID         string    `json:"id"`
 	OperatorID string    `json:"operatorId,omitempty"`
 	TokenHash  string    `json:"-"`
+	RemoteAddr string    `json:"remoteAddr,omitempty"`
+	UserAgent  string    `json:"userAgent,omitempty"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 	CreatedAt  time.Time `json:"createdAt"`
 	Current    bool      `json:"current"`

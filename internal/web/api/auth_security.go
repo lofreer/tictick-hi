@@ -21,6 +21,8 @@ type loginLimiter struct {
 	now     func() time.Time
 }
 
+const sessionContextMaxLength = 255
+
 func newLoginLimiter(limit int, window time.Duration, lockout time.Duration) *loginLimiter {
 	return &loginLimiter{
 		limit:   limit,
@@ -60,6 +62,15 @@ func (server *Server) loginLimitKey(r *http.Request, username string) string {
 func loginLimitKeyHash(key string) string {
 	sum := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(sum[:])
+}
+
+func sessionContextValue(value string) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) > sessionContextMaxLength {
+		return string(runes[:sessionContextMaxLength])
+	}
+	return value
 }
 
 func (server *Server) validateCSRF(w http.ResponseWriter, r *http.Request) bool {

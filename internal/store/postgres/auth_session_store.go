@@ -23,7 +23,8 @@ func (store *Store) ListOperatorSessions(
 	}
 
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, operator_id, token_hash, expires_at, created_at, token_hash = $2 AS current
+		SELECT id, operator_id, token_hash, coalesce(remote_addr, ''), coalesce(user_agent, ''),
+		       expires_at, created_at, token_hash = $2 AS current
 		  FROM operator_sessions
 		 WHERE operator_id = $1
 		   AND expires_at > $3
@@ -91,6 +92,8 @@ func scanOperatorSession(row pgx.CollectableRow) (data.OperatorSession, error) {
 		&session.ID,
 		&session.OperatorID,
 		&session.TokenHash,
+		&session.RemoteAddr,
+		&session.UserAgent,
 		&session.ExpiresAt,
 		&session.CreatedAt,
 		&session.Current,

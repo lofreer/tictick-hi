@@ -198,6 +198,12 @@ func TestAPIContractSchemasProtectSecretBoundary(t *testing.T) {
 	if _, ok := sessionProperties["tokenHash"]; ok {
 		t.Fatal("OperatorSession response schema exposes tokenHash")
 	}
+	if _, ok := sessionProperties["remoteAddr"]; !ok {
+		t.Fatal("OperatorSession response schema missing remoteAddr")
+	}
+	if _, ok := sessionProperties["userAgent"]; !ok {
+		t.Fatal("OperatorSession response schema missing userAgent")
+	}
 }
 
 func TestFrontendAPIRoutesAreCoveredByContract(t *testing.T) {

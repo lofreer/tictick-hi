@@ -21,6 +21,8 @@
             <tr>
               <th>{{ t("system.sessionId") }}</th>
               <th>{{ t("system.status") }}</th>
+              <th>{{ t("system.remoteAddr") }}</th>
+              <th>{{ t("system.userAgent") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
               <th>{{ t("system.expiresAt") }}</th>
               <th>{{ t("research.actions") }}</th>
@@ -33,6 +35,14 @@
                 <NTag :type="session.current ? 'success' : 'default'" size="small">
                   {{ session.current ? t("system.currentSession") : t("system.activeSession") }}
                 </NTag>
+              </td>
+              <td>
+                <span class="session-remote-addr">{{ emptyText(session.remoteAddr) }}</span>
+              </td>
+              <td>
+                <span class="session-user-agent" :title="session.userAgent || undefined">
+                  {{ emptyText(session.userAgent) }}
+                </span>
               </td>
               <td>{{ formatDate(session.createdAt) }}</td>
               <td>{{ formatDate(session.expiresAt) }}</td>
@@ -110,6 +120,10 @@ function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
+function emptyText(value?: string) {
+  return value || "-";
+}
+
 function errorMessage(loadError: unknown, fallback: string) {
   return loadError instanceof Error && loadError.message ? loadError.message : fallback;
 }
@@ -126,7 +140,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .system-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 960px;
   border-collapse: collapse;
 }
 
@@ -152,5 +166,18 @@ function errorMessage(loadError: unknown, fallback: string) {
 .session-id {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
   color: var(--tt-muted);
+}
+
+.session-remote-addr {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
+}
+
+.session-user-agent {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
 }
 </style>

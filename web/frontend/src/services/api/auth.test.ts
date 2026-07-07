@@ -14,6 +14,8 @@ describe("auth api", () => {
           {
             id: "os_1",
             operatorId: "op_1",
+            remoteAddr: "203.0.113.24",
+            userAgent: "tictick-hi-test/1.0",
             createdAt: "2026-01-01T00:00:00Z",
             expiresAt: "2026-01-02T00:00:00Z",
             current: true,
@@ -25,7 +27,7 @@ describe("auth api", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(authApi.listSessions()).resolves.toEqual([
-      expect.objectContaining({ id: "os_1", current: true }),
+      expect.objectContaining({ id: "os_1", current: true, remoteAddr: "203.0.113.24" }),
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/auth/sessions",

@@ -121,6 +121,8 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		ID:         sessionID,
 		OperatorID: operator.ID,
 		TokenHash:  tokenHash,
+		RemoteAddr: sessionContextValue(clientAddress(r)),
+		UserAgent:  sessionContextValue(r.UserAgent()),
 		ExpiresAt:  expiresAt,
 	})
 	if err != nil {
