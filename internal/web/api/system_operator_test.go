@@ -16,7 +16,7 @@ func TestOperatorCannotDisableSelf(t *testing.T) {
 		t.Fatalf("disable self status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	response := decodeAPIError(t, recorder)
-	if response.Code != "invalid_state" || response.Message != "current operator cannot be disabled" {
+	if response.Code != "operator_self_disable_forbidden" || response.Message != "current operator cannot be disabled" {
 		t.Fatalf("unexpected self disable response: %#v", response)
 	}
 
@@ -109,6 +109,9 @@ func TestRepositoryRejectsDisablingLastEnabledOperator(t *testing.T) {
 	_, err := repository.SetOperatorEnabled(t.Context(), "op_admin", false)
 	if !errors.Is(err, data.ErrInvalidState) {
 		t.Fatalf("SetOperatorEnabled error = %v, want invalid state", err)
+	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorLastEnabledRequired {
+		t.Fatalf("SetOperatorEnabled code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorLastEnabledRequired)
 	}
 	if _, err := repository.AuthenticateOperator(t.Context(), testUsername, testPassword); err != nil {
 		t.Fatalf("last enabled operator was disabled: %v", err)

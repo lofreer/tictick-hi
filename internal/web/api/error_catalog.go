@@ -18,6 +18,8 @@ const (
 	apiErrorDataSyncRetryRequiresFailed    apiErrorCode = "data_sync_retry_requires_failed"
 	apiErrorDataSyncCommandInvalidState    apiErrorCode = "data_sync_command_invalid_state"
 	apiErrorTradingTaskCommandInvalidState apiErrorCode = "trading_task_command_invalid_state"
+	apiErrorOperatorSelfDisableForbidden   apiErrorCode = "operator_self_disable_forbidden"
+	apiErrorOperatorLastEnabledRequired    apiErrorCode = "operator_last_enabled_required"
 	apiErrorTooManyRequests                apiErrorCode = "too_many_requests"
 	apiErrorInternal                       apiErrorCode = "internal_error"
 	apiErrorRequestFailed                  apiErrorCode = "request_failed"
@@ -44,6 +46,8 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorDataSyncRetryRequiresFailed), HTTPStatus: http.StatusConflict, Description: "The data sync task must be failed before it can be retried."},
 	{Code: string(apiErrorDataSyncCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The data sync task state does not allow the requested command."},
 	{Code: string(apiErrorTradingTaskCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The trading task state does not allow the requested command."},
+	{Code: string(apiErrorOperatorSelfDisableForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator cannot disable its own account."},
+	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
 	{Code: string(apiErrorTooManyRequests), HTTPStatus: http.StatusTooManyRequests, Description: "The caller has exceeded the accepted request rate.", Retryable: true},
 	{Code: string(apiErrorInternal), HTTPStatus: http.StatusInternalServerError, Description: "The server failed while processing the request.", Retryable: true},
 	{Code: string(apiErrorRequestFailed), HTTPStatus: http.StatusBadRequest, Description: "The request failed but does not map to a more specific API error code."},

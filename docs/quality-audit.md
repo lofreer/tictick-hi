@@ -12367,6 +12367,48 @@ Definition of Done：
 - API server 仍缺更多领域的错误语义细分和生产级审计边界。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 operator disable error code 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `internal/data` 为“至少保留一个启用操作员”新增 `operator_last_enabled_required` 领域错误码，仍以 `ErrInvalidState` 作为 cause。
+- API error catalog 新增 HTTP 409 `operator_self_disable_forbidden` 和 `operator_last_enabled_required`。
+- 当前登录操作员禁用自己时返回 `operator_self_disable_forbidden`，不再使用泛化 `invalid_state`。
+- repository / store 返回最后启用操作员保护错误时，`writeStoreError` 映射为 `operator_last_enabled_required`。
+- 重新生成 `web/frontend/src/types/api.generated.ts`，使前端 `APIErrorCode` union 包含新增错误码。
+- 测试覆盖自禁用 API 响应 code、最后启用操作员错误保留 `ErrInvalidState` cause 和领域 code、API helper 映射、API error catalog / schema enum。
+
+范围外：
+
+- 不改变操作员启停规则、当前操作员自保护规则、最后启用操作员保护规则、RBAC、角色级自保护、前端提示文案或审计事件行为。
+- 不补 auth/session、notification、backtest 等其它领域的细分错误码。
+
+当前验证：
+
+- `go test ./internal/data ./internal/web/api ./internal/store/postgres -run 'TestOperatorLastEnabledErrorPreservesInvalidStateCause|TestOperatorCannotDisableSelf|TestRepositoryRejectsDisablingLastEnabledOperator|TestOperatorStoreRejectsDisablingLastEnabledOperator|TestWriteStoreErrorMapsOperatorLastEnabledRequired|TestAPIErrorCatalogHasUniqueKnownCodes|TestAPIErrorResponseSchemaUsesCatalogEnum' -count=1 -v` 通过；PostgreSQL 集成用例因未设置 `TICTICK_TEST_DATABASE_URL` 按约定跳过。
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/data ./internal/web/api ./internal/store/postgres -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 PostgreSQL 真实数据库最后启用操作员保护测试；当前本机未设置 `TICTICK_TEST_DATABASE_URL`。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- API server 仍缺更多领域的错误语义细分和生产级审计边界。
+- 操作员管理仍缺 RBAC、角色级自保护、多人审批和生产级账号恢复流程。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

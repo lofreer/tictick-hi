@@ -42,6 +42,9 @@ func TestOperatorStoreRejectsDisablingLastEnabledOperator(t *testing.T) {
 	if !errors.Is(err, data.ErrInvalidState) {
 		t.Fatalf("SetOperatorEnabled error = %v, want invalid state", err)
 	}
+	if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeOperatorLastEnabledRequired {
+		t.Fatalf("SetOperatorEnabled code = %q, %t; want %q, true", code, ok, data.ErrorCodeOperatorLastEnabledRequired)
+	}
 
 	authenticated, err := store.AuthenticateOperator(ctx, operator.Username, "secret123A")
 	if err != nil {

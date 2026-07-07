@@ -124,6 +124,9 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		case data.ErrorCodeTradingTaskCommandInvalidState:
 			writeAPIError(w, http.StatusConflict, apiErrorTradingTaskCommandInvalidState, err.Error())
 			return
+		case data.ErrorCodeOperatorLastEnabledRequired:
+			writeAPIError(w, http.StatusConflict, apiErrorOperatorLastEnabledRequired, err.Error())
+			return
 		}
 	}
 	if errors.Is(err, data.ErrInvalidState) {

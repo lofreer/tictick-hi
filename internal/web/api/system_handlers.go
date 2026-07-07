@@ -337,7 +337,7 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !enabled && id == actor.ID {
-		writeAPIError(w, http.StatusConflict, apiErrorInvalidState, "current operator cannot be disabled")
+		writeAPIError(w, http.StatusConflict, apiErrorOperatorSelfDisableForbidden, "current operator cannot be disabled")
 		return
 	}
 	operator, err := server.repository.SetOperatorEnabled(r.Context(), id, enabled)

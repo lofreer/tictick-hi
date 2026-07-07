@@ -15,6 +15,7 @@ const (
 	ErrorCodeDataSyncRetryRequiresFailed    ErrorCode = "data_sync_retry_requires_failed"
 	ErrorCodeDataSyncCommandInvalidState    ErrorCode = "data_sync_command_invalid_state"
 	ErrorCodeTradingTaskCommandInvalidState ErrorCode = "trading_task_command_invalid_state"
+	ErrorCodeOperatorLastEnabledRequired    ErrorCode = "operator_last_enabled_required"
 )
 
 type DomainError struct {
@@ -73,6 +74,7 @@ func TradingTaskCommandInvalidStateError() error {
 
 func OperatorLastEnabledError() error {
 	return &DomainError{
+		Code:    ErrorCodeOperatorLastEnabledRequired,
 		Message: "at least one operator must remain enabled",
 		Cause:   ErrInvalidState,
 	}

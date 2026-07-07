@@ -55,6 +55,8 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorDataSyncRetryRequiresFailed,
 		apiErrorDataSyncCommandInvalidState,
 		apiErrorTradingTaskCommandInvalidState,
+		apiErrorOperatorSelfDisableForbidden,
+		apiErrorOperatorLastEnabledRequired,
 		apiErrorTooManyRequests,
 		apiErrorInternal,
 		apiErrorRequestFailed,
@@ -146,6 +148,21 @@ func TestWriteStoreErrorMapsTradingTaskCommandInvalidState(t *testing.T) {
 	response := decodeAPIError(t, recorder)
 	if response.Code != string(apiErrorTradingTaskCommandInvalidState) ||
 		response.Message != "trading task status cannot be changed by this command" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+}
+
+func TestWriteStoreErrorMapsOperatorLastEnabledRequired(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	writeStoreError(recorder, data.OperatorLastEnabledError())
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusConflict)
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != string(apiErrorOperatorLastEnabledRequired) ||
+		response.Message != "at least one operator must remain enabled" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }
