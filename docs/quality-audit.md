@@ -12148,6 +12148,42 @@ Definition of Done：
 - 旧数据如果已经存在纯空白 name / target，本轮不会自动修复，后续需要独立清洗和 VALIDATE 证据。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 notification channel 审计 metadata 脱敏回归补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 补充 API 单元测试，锁定 notification channel create 审计 metadata 只包含 `name`、`provider`、`enabled`。
+- 测试使用带 query token 的 webhook target，确认审计 metadata 不包含 `target` 字段且不泄露 target token。
+- `assertAuditAction` 测试 helper 改为返回匹配事件，旧调用保持兼容。
+
+范围外：
+
+- 不改变审计事件 schema、审计列表 UI、notification channel 运行逻辑或 provider target 存储语义。
+- 不新增审计签名、审计保留策略或外部审计 sink。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestSystemNotificationChannelAuditMetadataExcludesTarget|TestSystemAuditEventsRouteRecordsSecurityActions' -count=1 -v` 通过。
+- `go test ./internal/web/api -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- 本轮只锁定 notification channel target 不进审计 metadata，不代表完整审计签名、防篡改、保留、导出和生产合规边界已完成。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

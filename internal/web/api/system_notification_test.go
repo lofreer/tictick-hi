@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,6 +104,36 @@ func TestSystemNotificationChannelUpdateDelete(t *testing.T) {
 
 	assertAuditAction(t, repository.auditEvents, "notification_channel.update", "notification_channel", "nc_ops")
 	assertAuditAction(t, repository.auditEvents, "notification_channel.delete", "notification_channel", "nc_ops")
+}
+
+func TestSystemNotificationChannelAuditMetadataExcludesTarget(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/notifications/channels",
+		`{"name":"Ops Webhook","provider":"webhook","target":"https://hooks.example.invalid/ops?token=notification-secret","enabled":true}`,
+	)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+
+	event := assertAuditAction(t, repository.auditEvents, "notification_channel.create", "notification_channel", "nc_1")
+	if event.Metadata["name"] != "Ops Webhook" ||
+		event.Metadata["provider"] != "webhook" ||
+		event.Metadata["enabled"] != "true" {
+		t.Fatalf("unexpected notification channel audit metadata: %#v", event.Metadata)
+	}
+	if _, exists := event.Metadata["target"]; exists {
+		t.Fatalf("notification channel audit metadata includes target: %#v", event.Metadata)
+	}
+	for key, value := range event.Metadata {
+		if strings.Contains(value, "notification-secret") {
+			t.Fatalf("notification channel audit metadata leaked target token in %s=%q", key, value)
+		}
+	}
 }
 
 func TestSystemNotificationChannelUpdateValidatesRequest(t *testing.T) {

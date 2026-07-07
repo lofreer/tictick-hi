@@ -77,14 +77,15 @@ func TestFailedLoginWritesAnonymousAuditEvent(t *testing.T) {
 	}
 }
 
-func assertAuditAction(t *testing.T, events []data.AuditEvent, action string, resourceType string, resourceID string) {
+func assertAuditAction(t *testing.T, events []data.AuditEvent, action string, resourceType string, resourceID string) data.AuditEvent {
 	t.Helper()
 	for _, event := range events {
 		if event.Action == action && event.ResourceType == resourceType && event.ResourceID == resourceID {
-			return
+			return event
 		}
 	}
 	t.Fatalf("missing audit action %s %s %s in %#v", action, resourceType, resourceID, events)
+	return data.AuditEvent{}
 }
 
 func httptestPostJSON(server http.Handler, path string, body string) *httptest.ResponseRecorder {
