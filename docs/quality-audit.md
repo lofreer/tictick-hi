@@ -12326,6 +12326,47 @@ Definition of Done：
 - 审计日志仍可被数据库管理员直接修改，没有不可篡改链、签名、外部集中日志或留存策略。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 trading task command error code 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- `internal/data` 新增 `trading_task_command_invalid_state` 领域错误码，仍以 `ErrInvalidState` 作为 cause。
+- PostgreSQL `SetTradingTaskStatus` 在目标 trading task 存在但状态不允许 start / pause / stop 命令时，返回 `TradingTaskCommandInvalidStateError()`。
+- API error catalog 新增 HTTP 409 `trading_task_command_invalid_state`，`writeStoreError` 优先映射该领域错误码。
+- 重新生成 `web/frontend/src/types/api.generated.ts`，使前端 `APIErrorCode` union 包含新增错误码。
+- 测试覆盖领域错误保留 `ErrInvalidState` cause、API helper 映射为 409 + 新 code、API error catalog / schema enum 包含新 code；PostgreSQL 集成测试补充断言但当前无真实测试库时跳过。
+
+范围外：
+
+- 不改变 trading task 状态机、命令允许矩阵、前端提示文案、OpenAPI 路由集合或其它领域错误码。
+- 不补 auth/session、notification、operator、backtest 等其它领域的细分错误码。
+
+当前验证：
+
+- `go test ./internal/data ./internal/web/api -run 'TestDataSyncDomainErrorsPreserveInvalidStateCause|TestWriteStoreErrorMapsTradingTaskCommandInvalidState|TestAPIErrorCatalogHasUniqueKnownCodes|TestAPIErrorResponseSchemaUsesCatalogEnum' -count=1 -v` 通过。
+- `go test ./internal/store/postgres -run 'TestIntegrationTaskCommandsRejectInvalidStatusTransitions' -count=1 -v` 通过；PostgreSQL 集成用例因未设置 `TICTICK_TEST_DATABASE_URL` 按约定跳过。
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/data ./internal/web/api ./internal/store/postgres -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 PostgreSQL 真实数据库 trading 状态冲突测试；当前本机未设置 `TICTICK_TEST_DATABASE_URL`。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- API server 仍缺更多领域的错误语义细分和生产级审计边界。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

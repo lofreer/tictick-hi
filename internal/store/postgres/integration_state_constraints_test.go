@@ -351,6 +351,8 @@ func TestIntegrationTaskCommandsRejectInvalidStatusTransitions(t *testing.T) {
 	}
 	if _, err := store.SetTradingTaskStatus(ctx, tradingFailedID, data.TaskStatusRunning); !errors.Is(err, data.ErrInvalidState) {
 		t.Fatalf("start failed trading task error = %v, want invalid state", err)
+	} else if code, ok := data.DomainErrorCode(err); !ok || code != data.ErrorCodeTradingTaskCommandInvalidState {
+		t.Fatalf("start failed trading task domain code = %q, %t; want %q, true", code, ok, data.ErrorCodeTradingTaskCommandInvalidState)
 	}
 	var tradingStatus data.TaskStatus
 	if err := store.pool.QueryRow(ctx, `SELECT status FROM trading_tasks WHERE id = $1`, tradingFailedID).Scan(&tradingStatus); err != nil {

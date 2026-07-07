@@ -11,9 +11,10 @@ var ErrInvalidState = errors.New("invalid state")
 type ErrorCode string
 
 const (
-	ErrorCodeMarketInstrumentNotActive   ErrorCode = "market_instrument_not_active"
-	ErrorCodeDataSyncRetryRequiresFailed ErrorCode = "data_sync_retry_requires_failed"
-	ErrorCodeDataSyncCommandInvalidState ErrorCode = "data_sync_command_invalid_state"
+	ErrorCodeMarketInstrumentNotActive      ErrorCode = "market_instrument_not_active"
+	ErrorCodeDataSyncRetryRequiresFailed    ErrorCode = "data_sync_retry_requires_failed"
+	ErrorCodeDataSyncCommandInvalidState    ErrorCode = "data_sync_command_invalid_state"
+	ErrorCodeTradingTaskCommandInvalidState ErrorCode = "trading_task_command_invalid_state"
 )
 
 type DomainError struct {
@@ -58,6 +59,14 @@ func DataSyncCommandInvalidStateError() error {
 	return &DomainError{
 		Code:    ErrorCodeDataSyncCommandInvalidState,
 		Message: "data sync task status cannot be changed by this command",
+		Cause:   ErrInvalidState,
+	}
+}
+
+func TradingTaskCommandInvalidStateError() error {
+	return &DomainError{
+		Code:    ErrorCodeTradingTaskCommandInvalidState,
+		Message: "trading task status cannot be changed by this command",
 		Cause:   ErrInvalidState,
 	}
 }

@@ -5,21 +5,22 @@ import "net/http"
 type apiErrorCode string
 
 const (
-	apiErrorInvalidRequest              apiErrorCode = "invalid_request"
-	apiErrorUnauthorized                apiErrorCode = "unauthorized"
-	apiErrorForbidden                   apiErrorCode = "forbidden"
-	apiErrorCSRFRequired                apiErrorCode = "csrf_required"
-	apiErrorCSRFInvalid                 apiErrorCode = "csrf_invalid"
-	apiErrorNotFound                    apiErrorCode = "not_found"
-	apiErrorMethodNotAllowed            apiErrorCode = "method_not_allowed"
-	apiErrorConflict                    apiErrorCode = "conflict"
-	apiErrorInvalidState                apiErrorCode = "invalid_state"
-	apiErrorMarketInstrumentNotActive   apiErrorCode = "market_instrument_not_active"
-	apiErrorDataSyncRetryRequiresFailed apiErrorCode = "data_sync_retry_requires_failed"
-	apiErrorDataSyncCommandInvalidState apiErrorCode = "data_sync_command_invalid_state"
-	apiErrorTooManyRequests             apiErrorCode = "too_many_requests"
-	apiErrorInternal                    apiErrorCode = "internal_error"
-	apiErrorRequestFailed               apiErrorCode = "request_failed"
+	apiErrorInvalidRequest                 apiErrorCode = "invalid_request"
+	apiErrorUnauthorized                   apiErrorCode = "unauthorized"
+	apiErrorForbidden                      apiErrorCode = "forbidden"
+	apiErrorCSRFRequired                   apiErrorCode = "csrf_required"
+	apiErrorCSRFInvalid                    apiErrorCode = "csrf_invalid"
+	apiErrorNotFound                       apiErrorCode = "not_found"
+	apiErrorMethodNotAllowed               apiErrorCode = "method_not_allowed"
+	apiErrorConflict                       apiErrorCode = "conflict"
+	apiErrorInvalidState                   apiErrorCode = "invalid_state"
+	apiErrorMarketInstrumentNotActive      apiErrorCode = "market_instrument_not_active"
+	apiErrorDataSyncRetryRequiresFailed    apiErrorCode = "data_sync_retry_requires_failed"
+	apiErrorDataSyncCommandInvalidState    apiErrorCode = "data_sync_command_invalid_state"
+	apiErrorTradingTaskCommandInvalidState apiErrorCode = "trading_task_command_invalid_state"
+	apiErrorTooManyRequests                apiErrorCode = "too_many_requests"
+	apiErrorInternal                       apiErrorCode = "internal_error"
+	apiErrorRequestFailed                  apiErrorCode = "request_failed"
 )
 
 type apiErrorDefinition struct {
@@ -42,6 +43,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorMarketInstrumentNotActive), HTTPStatus: http.StatusBadRequest, Description: "The requested market instrument is missing or not active in the local catalog."},
 	{Code: string(apiErrorDataSyncRetryRequiresFailed), HTTPStatus: http.StatusConflict, Description: "The data sync task must be failed before it can be retried."},
 	{Code: string(apiErrorDataSyncCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The data sync task state does not allow the requested command."},
+	{Code: string(apiErrorTradingTaskCommandInvalidState), HTTPStatus: http.StatusConflict, Description: "The trading task state does not allow the requested command."},
 	{Code: string(apiErrorTooManyRequests), HTTPStatus: http.StatusTooManyRequests, Description: "The caller has exceeded the accepted request rate.", Retryable: true},
 	{Code: string(apiErrorInternal), HTTPStatus: http.StatusInternalServerError, Description: "The server failed while processing the request.", Retryable: true},
 	{Code: string(apiErrorRequestFailed), HTTPStatus: http.StatusBadRequest, Description: "The request failed but does not map to a more specific API error code."},

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
@@ -52,6 +54,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorMarketInstrumentNotActive,
 		apiErrorDataSyncRetryRequiresFailed,
 		apiErrorDataSyncCommandInvalidState,
+		apiErrorTradingTaskCommandInvalidState,
 		apiErrorTooManyRequests,
 		apiErrorInternal,
 		apiErrorRequestFailed,
@@ -129,6 +132,21 @@ func TestWriteAPIErrorRejectsUnknownCode(t *testing.T) {
 	response := decodeAPIError(t, recorder)
 	if response.Code != string(apiErrorInternal) || response.Message != "internal server error" {
 		t.Fatalf("response = %#v, want safe internal error", response)
+	}
+}
+
+func TestWriteStoreErrorMapsTradingTaskCommandInvalidState(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	writeStoreError(recorder, data.TradingTaskCommandInvalidStateError())
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusConflict)
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != string(apiErrorTradingTaskCommandInvalidState) ||
+		response.Message != "trading task status cannot be changed by this command" {
+		t.Fatalf("unexpected response: %#v", response)
 	}
 }
 

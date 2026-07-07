@@ -125,7 +125,7 @@ func (store *Store) SetTradingTaskStatus(
 			if exists, existsErr := store.tradingTaskExists(ctx, id); existsErr != nil {
 				return data.TradingTask{}, existsErr
 			} else if exists {
-				return data.TradingTask{}, fmt.Errorf("%w: trading task status cannot be changed by this command", data.ErrInvalidState)
+				return data.TradingTask{}, data.TradingTaskCommandInvalidStateError()
 			}
 			return data.TradingTask{}, data.ErrNotFound
 		}

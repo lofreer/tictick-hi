@@ -26,6 +26,11 @@ func TestDataSyncDomainErrorsPreserveInvalidStateCause(t *testing.T) {
 			err:  DataSyncCommandInvalidStateError(),
 			code: ErrorCodeDataSyncCommandInvalidState,
 		},
+		{
+			name: "trading command invalid state",
+			err:  TradingTaskCommandInvalidStateError(),
+			code: ErrorCodeTradingTaskCommandInvalidState,
+		},
 	}
 
 	for _, test := range tests {
