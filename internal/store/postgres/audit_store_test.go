@@ -3,11 +3,60 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
+
+func TestNormalizeAuditMetadataBoundsText(t *testing.T) {
+	longKey := strings.Repeat("k", maxAuditMetadataKeyLength+10)
+	longValue := "  " + strings.Repeat("v", maxAuditMetadataValueLength+10) + "  "
+
+	metadata := normalizeAuditMetadata(map[string]string{
+		" enabled ": " false ",
+		"   ":       "ignored",
+		longKey:     longValue,
+	})
+
+	if len(metadata) != 2 {
+		t.Fatalf("metadata length = %d, metadata = %#v", len(metadata), metadata)
+	}
+	if metadata["enabled"] != "false" {
+		t.Fatalf("enabled metadata = %q", metadata["enabled"])
+	}
+	boundedKey := boundedAuditMetadataText(longKey, maxAuditMetadataKeyLength)
+	if len([]rune(boundedKey)) != maxAuditMetadataKeyLength ||
+		len([]rune(metadata[boundedKey])) != maxAuditMetadataValueLength {
+		t.Fatalf("bounded metadata key/value lengths = %d/%d", len([]rune(boundedKey)), len([]rune(metadata[boundedKey])))
+	}
+	if strings.Contains(metadata[boundedKey], " ") {
+		t.Fatalf("bounded metadata value was not trimmed: %q", metadata[boundedKey])
+	}
+}
+
+func TestNormalizeAuditMetadataLimitsEntriesDeterministically(t *testing.T) {
+	metadata := make(map[string]string, maxAuditMetadataEntries+5)
+	for index := range maxAuditMetadataEntries + 5 {
+		metadata[fmt.Sprintf("key_%02d", index)] = "value"
+	}
+
+	normalized := normalizeAuditMetadata(metadata)
+
+	if len(normalized) != maxAuditMetadataEntries {
+		t.Fatalf("metadata length = %d, want %d", len(normalized), maxAuditMetadataEntries)
+	}
+	if _, exists := normalized["key_00"]; !exists {
+		t.Fatalf("metadata missing first sorted key: %#v", normalized)
+	}
+	if _, exists := normalized["key_19"]; !exists {
+		t.Fatalf("metadata missing last retained key: %#v", normalized)
+	}
+	if _, exists := normalized["key_20"]; exists {
+		t.Fatalf("metadata retained key past limit: %#v", normalized)
+	}
+}
 
 func TestIntegrationAuditEventsRoundTrip(t *testing.T) {
 	store := openIntegrationStore(t)

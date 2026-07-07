@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -12,8 +14,11 @@ import (
 )
 
 const (
-	defaultAuditEventLimit = 100
-	maxAuditEventLimit     = 500
+	defaultAuditEventLimit      = 100
+	maxAuditEventLimit          = 500
+	maxAuditMetadataEntries     = 20
+	maxAuditMetadataKeyLength   = 64
+	maxAuditMetadataValueLength = 255
 )
 
 func (store *Store) RecordAuditEvent(ctx context.Context, event data.CreateAuditEvent) (data.AuditEvent, error) {
@@ -124,8 +129,34 @@ func normalizeAuditEventLimit(limit int) int {
 }
 
 func normalizeAuditMetadata(metadata map[string]string) map[string]string {
-	if metadata == nil {
+	if len(metadata) == 0 {
 		return map[string]string{}
 	}
-	return metadata
+	keys := make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	normalized := make(map[string]string, min(len(metadata), maxAuditMetadataEntries))
+	for _, key := range keys {
+		normalizedKey := boundedAuditMetadataText(key, maxAuditMetadataKeyLength)
+		if normalizedKey == "" {
+			continue
+		}
+		if _, exists := normalized[normalizedKey]; !exists && len(normalized) >= maxAuditMetadataEntries {
+			continue
+		}
+		normalized[normalizedKey] = boundedAuditMetadataText(metadata[key], maxAuditMetadataValueLength)
+	}
+	return normalized
+}
+
+func boundedAuditMetadataText(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) > limit {
+		return string(runes[:limit])
+	}
+	return value
 }
