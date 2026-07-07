@@ -105,6 +105,9 @@
                     {{ notification.status }} / {{ notification.provider }} /
                     {{ notification.attemptCount }} / {{ notification.maxAttempts }}
                   </span>
+                  <span v-if="notification.providerMessageId">
+                    {{ t("trading.providerMessageId") }} {{ notification.providerMessageId }}
+                  </span>
                   <span>{{ notification.error || (notification.nextAttemptAt ? formatDate(notification.nextAttemptAt) : formatDate(notification.createdAt)) }}</span>
                 </div>
               </div>

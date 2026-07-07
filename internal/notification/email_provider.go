@@ -42,10 +42,10 @@ func NewEmailProvider(sender MailSender) EmailProvider {
 	return EmailProvider{sender: sender}
 }
 
-func (provider EmailProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) error {
+func (provider EmailProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	message, err := parseEmailTarget(delivery.Target)
 	if err != nil {
-		return err
+		return data.NotificationDeliveryResult{}, err
 	}
 	message.Subject = notificationTitle(delivery.Title)
 	if message.Subject == "" {
@@ -55,9 +55,9 @@ func (provider EmailProvider) Deliver(ctx context.Context, delivery data.Notific
 	message.TraceParent = safeTraceParentHeaderValue(delivery.TraceParent)
 	message.Body = notificationText(delivery.Title, delivery.Body)
 	if err := provider.sender.Send(ctx, message); err != nil {
-		return fmt.Errorf("deliver email notification: %s", redactedError(err.Error(), message.Password))
+		return data.NotificationDeliveryResult{}, fmt.Errorf("deliver email notification: %s", redactedError(err.Error(), message.Password))
 	}
-	return nil
+	return data.NotificationDeliveryResult{}, nil
 }
 
 func parseEmailTarget(target string) (MailMessage, error) {

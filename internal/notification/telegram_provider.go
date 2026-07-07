@@ -25,23 +25,23 @@ func NewTelegramProvider(client *http.Client) TelegramProvider {
 	return TelegramProvider{client: client}
 }
 
-func (provider TelegramProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) error {
+func (provider TelegramProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	config, err := parseTelegramTarget(delivery.Target)
 	if err != nil {
-		return err
+		return data.NotificationDeliveryResult{}, err
 	}
 	payload, err := json.Marshal(telegramPayload{
 		ChatID: config.ChatID,
 		Text:   notificationText(delivery.Title, delivery.Body),
 	})
 	if err != nil {
-		return fmt.Errorf("encode telegram notification: %w", err)
+		return data.NotificationDeliveryResult{}, fmt.Errorf("encode telegram notification: %w", err)
 	}
 
 	requestURL := strings.TrimRight(config.APIBase, "/") + "/bot" + config.Token + "/sendMessage"
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create telegram request: %s", redactedError(err.Error(), config.Token))
+		return data.NotificationDeliveryResult{}, fmt.Errorf("create telegram request: %s", redactedError(err.Error(), config.Token))
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
@@ -50,14 +50,14 @@ func (provider TelegramProvider) Deliver(ctx context.Context, delivery data.Noti
 
 	response, err := provider.client.Do(request)
 	if err != nil {
-		return fmt.Errorf("deliver telegram notification: %s", redactedError(err.Error(), config.Token))
+		return data.NotificationDeliveryResult{}, fmt.Errorf("deliver telegram notification: %s", redactedError(err.Error(), config.Token))
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusBadRequest {
-		return nil
+		return deliveryResultFromResponseBody(response.Body), nil
 	}
 	message := redactedError(limitedResponseMessage(response.Body), config.Token)
-	return fmt.Errorf("telegram notification returned HTTP %d: %s", response.StatusCode, message)
+	return data.NotificationDeliveryResult{}, fmt.Errorf("telegram notification returned HTTP %d: %s", response.StatusCode, message)
 }
 
 type telegramTarget struct {

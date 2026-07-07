@@ -23,10 +23,10 @@ func NewFeishuProvider(client *http.Client) FeishuProvider {
 	return FeishuProvider{client: client}
 }
 
-func (provider FeishuProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) error {
+func (provider FeishuProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	webhookURL, err := parseFeishuTarget(delivery.Target)
 	if err != nil {
-		return err
+		return data.NotificationDeliveryResult{}, err
 	}
 	payload, err := json.Marshal(feishuPayload{
 		MessageType: "text",
@@ -35,12 +35,12 @@ func (provider FeishuProvider) Deliver(ctx context.Context, delivery data.Notifi
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("encode feishu notification: %w", err)
+		return data.NotificationDeliveryResult{}, fmt.Errorf("encode feishu notification: %w", err)
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create feishu request: %s", redactedError(err.Error(), webhookURL))
+		return data.NotificationDeliveryResult{}, fmt.Errorf("create feishu request: %s", redactedError(err.Error(), webhookURL))
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
@@ -49,14 +49,14 @@ func (provider FeishuProvider) Deliver(ctx context.Context, delivery data.Notifi
 
 	response, err := provider.client.Do(request)
 	if err != nil {
-		return fmt.Errorf("deliver feishu notification: %s", redactedError(err.Error(), webhookURL))
+		return data.NotificationDeliveryResult{}, fmt.Errorf("deliver feishu notification: %s", redactedError(err.Error(), webhookURL))
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusBadRequest {
-		return nil
+		return deliveryResultFromResponseBody(response.Body), nil
 	}
 	message := redactedError(limitedResponseMessage(response.Body), webhookURL)
-	return fmt.Errorf("feishu notification returned HTTP %d: %s", response.StatusCode, message)
+	return data.NotificationDeliveryResult{}, fmt.Errorf("feishu notification returned HTTP %d: %s", response.StatusCode, message)
 }
 
 type feishuPayload struct {

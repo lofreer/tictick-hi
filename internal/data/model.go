@@ -190,6 +190,7 @@ type Notification struct {
 	TraceParent            string     `json:"traceparent,omitempty"`
 	Channel                string     `json:"channel"`
 	Provider               string     `json:"provider"`
+	ProviderMessageID      string     `json:"providerMessageId,omitempty"`
 	Target                 string     `json:"target"`
 	Title                  string     `json:"title"`
 	Body                   string     `json:"body"`
@@ -232,6 +233,10 @@ type NotificationDelivery struct {
 	LastError      string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type NotificationDeliveryResult struct {
+	ProviderMessageID string
 }
 
 type NotificationChannel struct {
@@ -447,7 +452,7 @@ type TradingRepository interface {
 
 type NotificationRepository interface {
 	ClaimNotificationDelivery(ctx context.Context, workerID string, leaseTTL time.Duration) (NotificationDelivery, bool, error)
-	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time, deliveryDuration time.Duration) error
+	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time, result NotificationDeliveryResult, deliveryDuration time.Duration) error
 	MarkNotificationFailed(ctx context.Context, deliveryID string, err error, nextAttemptAt *time.Time, deliveryDuration time.Duration) error
 	ReleaseNotificationDelivery(ctx context.Context, deliveryID string) error
 }

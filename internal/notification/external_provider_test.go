@@ -28,11 +28,12 @@ func TestTelegramProviderPostsSendMessagePayload(t *testing.T) {
 			t.Fatalf("decode payload: %v", err)
 		}
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":654321}}`))
 	}))
 	defer server.Close()
 
 	provider := NewTelegramProvider(server.Client())
-	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+	result, err := provider.Deliver(t.Context(), data.NotificationDelivery{
 		RequestID:   "request-id-telegram",
 		TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		Target:      "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_TEST_TOKEN&api_base=" + server.URL,
@@ -41,6 +42,9 @@ func TestTelegramProviderPostsSendMessagePayload(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if result.ProviderMessageID != "654321" {
+		t.Fatalf("provider message id = %q", result.ProviderMessageID)
 	}
 	if requestID != "request-id-telegram" {
 		t.Fatalf("request id header = %q", requestID)
@@ -60,7 +64,7 @@ func TestTelegramProviderRedactsTokenFromErrors(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NewTelegramProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
+	_, err := NewTelegramProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
 		Target: "telegram://send?chat_id=ops-chat&token_env=TELEGRAM_TEST_TOKEN&api_base=" + server.URL,
 		Title:  "Signal",
 	})
@@ -82,12 +86,13 @@ func TestFeishuProviderPostsTextMessage(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode payload: %v", err)
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":0,"data":{"message_id":"om_feishu_message_1"}}`))
 	}))
 	defer server.Close()
 	t.Setenv("FEISHU_TEST_WEBHOOK", server.URL+"/open-apis/bot/v2/hook/secret")
 
-	err := NewFeishuProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
+	result, err := NewFeishuProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
 		RequestID:   "request-id-feishu",
 		TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		Target:      "feishu://webhook?url_env=FEISHU_TEST_WEBHOOK",
@@ -96,6 +101,9 @@ func TestFeishuProviderPostsTextMessage(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if result.ProviderMessageID != "om_feishu_message_1" {
+		t.Fatalf("provider message id = %q", result.ProviderMessageID)
 	}
 	if requestID != "request-id-feishu" {
 		t.Fatalf("request id header = %q", requestID)
@@ -114,7 +122,7 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 	sender := &captureMailSender{}
 	provider := NewEmailProvider(sender)
 
-	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+	result, err := provider.Deliver(t.Context(), data.NotificationDelivery{
 		RequestID:   "request-id-email",
 		TraceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		Target:      "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com,dev@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD&starttls=required",
@@ -123,6 +131,9 @@ func TestEmailProviderBuildsSMTPMessageFromEnvironment(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if result.ProviderMessageID != "" {
+		t.Fatalf("email provider message id = %q", result.ProviderMessageID)
 	}
 	if sender.message.Address != "smtp.example.com:587" ||
 		sender.message.Username != "bot@example.com" ||
@@ -150,7 +161,7 @@ func TestEmailProviderRedactsPasswordFromSenderErrors(t *testing.T) {
 	t.Setenv("SMTP_TEST_PASSWORD", "smtp-secret")
 	provider := NewEmailProvider(&captureMailSender{err: errors.New("auth failed with smtp-secret")})
 
-	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+	_, err := provider.Deliver(t.Context(), data.NotificationDelivery{
 		Target: "smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=SMTP_TEST_USER&password_env=SMTP_TEST_PASSWORD",
 		Title:  "Signal",
 	})

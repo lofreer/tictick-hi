@@ -30,12 +30,13 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 			t.Fatalf("decode payload: %v", err)
 		}
 		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"messageId":"webhook-message-1"}`))
 	}))
 	defer server.Close()
 
 	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	provider := NewWebhookProvider(server.Client())
-	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+	result, err := provider.Deliver(t.Context(), data.NotificationDelivery{
 		ID:             "no_1",
 		NotificationID: "nt_1",
 		TaskID:         "tt_1",
@@ -52,6 +53,9 @@ func TestWebhookProviderPostsJSONPayload(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if result.ProviderMessageID != "webhook-message-1" {
+		t.Fatalf("provider message id = %q", result.ProviderMessageID)
 	}
 	if payload.NotificationID != "nt_1" || payload.DeliveryID != "no_1" {
 		t.Fatalf("unexpected ids: %#v", payload)
@@ -84,7 +88,7 @@ func TestWebhookProviderBoundsMessagePayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	err := NewWebhookProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
+	_, err := NewWebhookProvider(server.Client()).Deliver(t.Context(), data.NotificationDelivery{
 		Target: server.URL,
 		Title:  "  " + strings.Repeat("t", maxNotificationTitleLength+10) + "  ",
 		Body:   "  " + strings.Repeat("b", maxNotificationBodyLength+10) + "  ",
@@ -135,7 +139,7 @@ func TestWebhookProviderSkipsUnsafeRequestIDHeader(t *testing.T) {
 	defer server.Close()
 
 	provider := NewWebhookProvider(server.Client())
-	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+	_, err := provider.Deliver(t.Context(), data.NotificationDelivery{
 		RequestID:   "bad\nrequest",
 		TraceParent: "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
 		Target:      server.URL,
@@ -153,7 +157,7 @@ func TestWebhookProviderSkipsUnsafeRequestIDHeader(t *testing.T) {
 
 func TestWebhookProviderRejectsNonHTTPURL(t *testing.T) {
 	provider := NewWebhookProvider(nil)
-	err := provider.Deliver(t.Context(), data.NotificationDelivery{
+	_, err := provider.Deliver(t.Context(), data.NotificationDelivery{
 		Target: "demo://ops",
 	})
 	if err == nil {
@@ -250,7 +254,8 @@ func TestWebhookProviderUsesContextCancellation(t *testing.T) {
 	errCh := make(chan error, 1)
 	go func() {
 		provider := NewWebhookProvider(server.Client())
-		errCh <- provider.Deliver(ctx, data.NotificationDelivery{Target: server.URL})
+		_, err := provider.Deliver(ctx, data.NotificationDelivery{Target: server.URL})
+		errCh <- err
 	}()
 
 	select {

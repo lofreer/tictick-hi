@@ -28,6 +28,8 @@ describe("strategy detail page layout contract", () => {
     expect(summaryIndex).toBeGreaterThan(gridIndex);
     expect(tabsIndex).toBeGreaterThan(summaryIndex);
     expect(tradingSource).toContain("<NTabs type=\"segment\" animated>");
+    expect(tradingSource).toContain("notification.providerMessageId");
+    expect(tradingSource).toContain("trading.providerMessageId");
     expect(tradingSource).not.toContain('v-else-if="task" class="workspace-grid"');
     expect(tradingSource).not.toContain('class="side-panel"');
     expect(tradingSource).not.toContain('class="surface chart-panel trading-detail-chart"');

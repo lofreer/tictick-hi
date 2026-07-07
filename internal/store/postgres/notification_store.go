@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,7 +14,7 @@ import (
 func (store *Store) ListNotifications(ctx context.Context) ([]data.Notification, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), COALESCE(traceparent, ''),
-		       channel, provider, target, title, body, status, COALESCE(error, ''), attempt_count,
+		       channel, provider, COALESCE(provider_message_id, ''), target, title, body, status, COALESCE(error, ''), attempt_count,
 		       max_attempts, next_attempt_at, last_attempt_at, last_delivery_duration_ms, created_at, sent_at
 		  FROM notifications
 		 ORDER BY created_at DESC
@@ -64,6 +65,7 @@ func (store *Store) RetryNotification(ctx context.Context, id string) (data.Noti
 		       next_attempt_at = now(),
 		       %s,
 		       last_error = NULL,
+		       provider_message_id = '',
 		       last_delivery_duration_ms = NULL,
 		       updated_at = now()
 		 WHERE notification_id = $1`, clearLeaseAssignments(notificationOutboxLease)),
@@ -86,6 +88,7 @@ func (store *Store) RetryNotification(ctx context.Context, id string) (data.Noti
 		       error = NULL,
 		       next_attempt_at = now(),
 		       sent_at = NULL,
+		       provider_message_id = '',
 		       last_delivery_duration_ms = NULL,
 		       updated_at = now()
 		 WHERE id = $1`,
@@ -121,6 +124,7 @@ func markRetriedNotificationDisabled(
 		       next_attempt_at = NULL,
 		       %s,
 		       last_error = $4,
+		       provider_message_id = '',
 		       last_delivery_duration_ms = NULL,
 		       updated_at = now()
 		 WHERE notification_id = $1`, clearLeaseAssignments(notificationOutboxLease)),
@@ -142,6 +146,7 @@ func markRetriedNotificationDisabled(
 		       target = $3,
 		       error = $4,
 		       next_attempt_at = NULL,
+		       provider_message_id = '',
 		       last_delivery_duration_ms = NULL,
 		       updated_at = now()
 		 WHERE id = $1`,
@@ -229,6 +234,7 @@ func (store *Store) MarkNotificationDelivered(
 	ctx context.Context,
 	deliveryID string,
 	deliveredAt time.Time,
+	result data.NotificationDeliveryResult,
 	deliveryDuration time.Duration,
 ) error {
 	tx, err := store.pool.Begin(ctx)
@@ -237,6 +243,7 @@ func (store *Store) MarkNotificationDelivered(
 	}
 	defer tx.Rollback(ctx)
 	durationMillis := notificationDeliveryDurationMillis(deliveryDuration)
+	providerMessageID := notificationProviderMessageID(result)
 
 	var notificationID string
 	var attemptCount int
@@ -245,7 +252,8 @@ func (store *Store) MarkNotificationDelivered(
 		assignments: []string{
 			"status = 'delivered'",
 			"delivered_at = $2",
-			"last_delivery_duration_ms = $3",
+			"provider_message_id = $3",
+			"last_delivery_duration_ms = $4",
 			"last_error = NULL",
 		},
 		where:            "id = $1",
@@ -253,6 +261,7 @@ func (store *Store) MarkNotificationDelivered(
 	}),
 		deliveryID,
 		deliveredAt,
+		providerMessageID,
 		durationMillis,
 	).Scan(&notificationID, &attemptCount)
 	if err == pgx.ErrNoRows {
@@ -268,12 +277,14 @@ func (store *Store) MarkNotificationDelivered(
 		       error = NULL,
 		       attempt_count = $2,
 		       sent_at = $3,
-		       last_delivery_duration_ms = $4,
+		       provider_message_id = $4,
+		       last_delivery_duration_ms = $5,
 		       updated_at = now()
 		 WHERE id = $1`,
 		notificationID,
 		attemptCount,
 		deliveredAt,
+		providerMessageID,
 		durationMillis,
 	); err != nil {
 		return fmt.Errorf("mark notification delivered: %w", err)
@@ -313,6 +324,7 @@ func (store *Store) MarkNotificationFailed(
 			"status = $2",
 			"next_attempt_at = $3",
 			"last_error = $4",
+			"provider_message_id = ''",
 			"last_delivery_duration_ms = $5",
 		},
 		where:            "id = $1",
@@ -337,6 +349,7 @@ func (store *Store) MarkNotificationFailed(
 		       error = $3,
 		       attempt_count = $4,
 		       next_attempt_at = $5,
+		       provider_message_id = '',
 		       last_delivery_duration_ms = $6,
 		       updated_at = now()
 		 WHERE id = $1`,
@@ -365,7 +378,7 @@ func (store *Store) ReleaseNotificationDelivery(ctx context.Context, deliveryID 
 func notificationByID(ctx context.Context, tx pgx.Tx, id string) (data.Notification, error) {
 	row := tx.QueryRow(ctx, `
 		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), COALESCE(traceparent, ''),
-		       channel, provider, target, title, body, status, COALESCE(error, ''), attempt_count,
+		       channel, provider, COALESCE(provider_message_id, ''), target, title, body, status, COALESCE(error, ''), attempt_count,
 		       max_attempts, next_attempt_at, last_attempt_at, last_delivery_duration_ms, created_at, sent_at
 		  FROM notifications
 		 WHERE id = $1`, id)
@@ -410,4 +423,17 @@ func notificationDeliveryDurationMillis(duration time.Duration) int64 {
 		return 0
 	}
 	return duration.Milliseconds()
+}
+
+func notificationProviderMessageID(result data.NotificationDeliveryResult) string {
+	const maxProviderMessageIDLength = 256
+	messageID := strings.TrimSpace(result.ProviderMessageID)
+	if messageID == "" {
+		return ""
+	}
+	runes := []rune(messageID)
+	if len(runes) > maxProviderMessageIDLength {
+		runes = runes[:maxProviderMessageIDLength]
+	}
+	return string(runes)
 }

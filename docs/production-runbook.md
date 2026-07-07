@@ -390,7 +390,8 @@ When the UI reports degraded health:
 4. Check PostgreSQL readiness with `pg_isready`.
 5. For data-sync issues, inspect active exchange backoff, stale locks, fetch-lock
    skip counters, task `dataHealth`, and market catalog status.
-6. For notification issues, check the outbox status and provider env references.
+6. For notification issues, check the outbox status, provider env references,
+   and any `providerMessageId` recorded on successfully delivered notifications.
 7. Avoid rerunning tasks manually until the current lease, retry, or backoff
    state is understood.
 

@@ -78,7 +78,13 @@ func TestRunnerRecordsProviderDeliveryDurationOnSuccess(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	runner := NewRunner(
 		repository,
-		ProviderRegistry{providers: map[string]Provider{"timing": timingProvider{now: &now, duration: 375 * time.Millisecond}}},
+		ProviderRegistry{providers: map[string]Provider{
+			"timing": timingProvider{
+				now:      &now,
+				duration: 375 * time.Millisecond,
+				result:   data.NotificationDeliveryResult{ProviderMessageID: "provider-message-1"},
+			},
+		}},
 		Config{WorkerID: "test"},
 	)
 	runner.now = func() time.Time { return now }
@@ -91,6 +97,9 @@ func TestRunnerRecordsProviderDeliveryDurationOnSuccess(t *testing.T) {
 	}
 	if repository.deliveredAt == nil || !repository.deliveredAt.Equal(now) {
 		t.Fatalf("deliveredAt = %v, now = %v", repository.deliveredAt, now)
+	}
+	if repository.deliveredResult.ProviderMessageID != "provider-message-1" {
+		t.Fatalf("delivered result = %#v", repository.deliveredResult)
 	}
 }
 
@@ -246,6 +255,7 @@ type fakeNotificationRepository struct {
 	claimed           bool
 	cancelOnEmpty     func()
 	deliveredAt       *time.Time
+	deliveredResult   data.NotificationDeliveryResult
 	deliveredDuration time.Duration
 	deliveredCount    int
 	failedErr         error
@@ -278,9 +288,11 @@ func (repository *fakeNotificationRepository) MarkNotificationDelivered(
 	_ context.Context,
 	_ string,
 	deliveredAt time.Time,
+	result data.NotificationDeliveryResult,
 	deliveryDuration time.Duration,
 ) error {
 	repository.deliveredAt = &deliveredAt
+	repository.deliveredResult = result
 	repository.deliveredDuration = deliveryDuration
 	repository.deliveredCount++
 	return nil
@@ -311,28 +323,29 @@ type cancelingProvider struct {
 	cancel func()
 }
 
-func (provider cancelingProvider) Deliver(ctx context.Context, _ data.NotificationDelivery) error {
+func (provider cancelingProvider) Deliver(ctx context.Context, _ data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	provider.cancel()
 	<-ctx.Done()
-	return ctx.Err()
+	return data.NotificationDeliveryResult{}, ctx.Err()
 }
 
 type countingProvider struct {
 	count *int
 }
 
-func (provider countingProvider) Deliver(context.Context, data.NotificationDelivery) error {
+func (provider countingProvider) Deliver(context.Context, data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	(*provider.count)++
-	return nil
+	return data.NotificationDeliveryResult{}, nil
 }
 
 type timingProvider struct {
 	now      *time.Time
 	duration time.Duration
+	result   data.NotificationDeliveryResult
 	err      error
 }
 
-func (provider timingProvider) Deliver(context.Context, data.NotificationDelivery) error {
+func (provider timingProvider) Deliver(context.Context, data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	*provider.now = (*provider.now).Add(provider.duration)
-	return provider.err
+	return provider.result, provider.err
 }

@@ -31,6 +31,7 @@
               <th>{{ t("system.status") }}</th>
               <th>{{ t("system.channel") }}</th>
               <th>{{ t("system.provider") }}</th>
+              <th>{{ t("system.providerMessageId") }}</th>
               <th>{{ t("system.title") }}</th>
               <th>{{ t("system.attempts") }}</th>
               <th>{{ t("system.nextAttempt") }}</th>
@@ -43,6 +44,7 @@
               <td><NTag :type="statusType(notification.status)" size="small">{{ notification.status }}</NTag></td>
               <td>{{ notification.channel }}</td>
               <td>{{ notification.provider }}</td>
+              <td><span class="system-table__muted">{{ notification.providerMessageId || "-" }}</span></td>
               <td>
                 <strong>{{ notification.title }}</strong>
                 <span class="system-table__muted">{{ notification.body }}</span>

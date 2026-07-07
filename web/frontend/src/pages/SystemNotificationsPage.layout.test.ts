@@ -19,6 +19,7 @@ describe("SystemNotificationsPage layout contract", () => {
     expect(source).toContain("filteredNotifications");
     expect(source).toContain("notificationMatchesStatusFilter");
     expect(source).toContain("notificationStatusQueryValue");
+    expect(source).toContain("notification.providerMessageId || \"-\"");
     for (const messages of [zhMessages, enMessages]) {
       expect(messages).toContain("\"system.notificationStatusFilter\"");
       expect(messages).toContain("\"system.notificationStatus.all\"");
@@ -26,6 +27,7 @@ describe("SystemNotificationsPage layout contract", () => {
       expect(messages).toContain("\"system.notificationStatus.pending\"");
       expect(messages).toContain("\"system.notificationStatus.sent\"");
       expect(messages).toContain("\"system.noNotificationsForFilter\"");
+      expect(messages).toContain("\"system.providerMessageId\"");
     }
   });
 });

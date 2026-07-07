@@ -16,7 +16,7 @@ import (
 )
 
 type Provider interface {
-	Deliver(ctx context.Context, delivery data.NotificationDelivery) error
+	Deliver(ctx context.Context, delivery data.NotificationDelivery) (data.NotificationDeliveryResult, error)
 }
 
 type ProviderRegistry struct {
@@ -50,7 +50,8 @@ func (registry ProviderRegistry) Provider(name string) (Provider, error) {
 func ValidateProviderTarget(provider string, target string) error {
 	switch provider {
 	case "local", "webhook-demo":
-		return DemoProvider{}.Deliver(context.Background(), data.NotificationDelivery{Target: target})
+		_, err := DemoProvider{}.Deliver(context.Background(), data.NotificationDelivery{Target: target})
+		return err
 	case "webhook":
 		return validateWebhookTarget(target)
 	case "email":
@@ -88,14 +89,14 @@ func ValidateProviderTargetSyntax(provider string, target string) error {
 
 type DemoProvider struct{}
 
-func (DemoProvider) Deliver(_ context.Context, delivery data.NotificationDelivery) error {
+func (DemoProvider) Deliver(_ context.Context, delivery data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	if delivery.Target == "" {
-		return errors.New("notification target is required")
+		return data.NotificationDeliveryResult{}, errors.New("notification target is required")
 	}
 	if strings.Contains(strings.ToLower(delivery.Target), "fail") {
-		return fmt.Errorf("demo provider rejected target %q", delivery.Target)
+		return data.NotificationDeliveryResult{}, fmt.Errorf("demo provider rejected target %q", delivery.Target)
 	}
-	return nil
+	return data.NotificationDeliveryResult{}, nil
 }
 
 func validateDemoTargetSyntax(target string) error {
@@ -116,9 +117,9 @@ func NewWebhookProvider(client *http.Client) WebhookProvider {
 	return WebhookProvider{client: client}
 }
 
-func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) error {
+func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.NotificationDelivery) (data.NotificationDeliveryResult, error) {
 	if err := validateWebhookTarget(delivery.Target); err != nil {
-		return err
+		return data.NotificationDeliveryResult{}, err
 	}
 
 	payload, err := json.Marshal(webhookPayload{
@@ -136,12 +137,12 @@ func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.Notif
 		CreatedAt:      delivery.CreatedAt,
 	})
 	if err != nil {
-		return fmt.Errorf("encode webhook notification: %w", err)
+		return data.NotificationDeliveryResult{}, fmt.Errorf("encode webhook notification: %w", err)
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, delivery.Target, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create webhook request: %w", err)
+		return data.NotificationDeliveryResult{}, fmt.Errorf("create webhook request: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
@@ -150,12 +151,12 @@ func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.Notif
 
 	response, err := provider.client.Do(request)
 	if err != nil {
-		return fmt.Errorf("deliver webhook notification: %w", err)
+		return data.NotificationDeliveryResult{}, fmt.Errorf("deliver webhook notification: %w", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode < http.StatusBadRequest {
-		return nil
+		return deliveryResultFromResponseBody(response.Body), nil
 	}
 
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
@@ -163,7 +164,7 @@ func (provider WebhookProvider) Deliver(ctx context.Context, delivery data.Notif
 	if message == "" {
 		message = response.Status
 	}
-	return fmt.Errorf("webhook notification returned HTTP %d: %s", response.StatusCode, message)
+	return data.NotificationDeliveryResult{}, fmt.Errorf("webhook notification returned HTTP %d: %s", response.StatusCode, message)
 }
 
 type webhookPayload struct {

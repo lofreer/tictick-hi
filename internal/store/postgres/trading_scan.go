@@ -174,6 +174,7 @@ func scanNotificationRow(row rowScanner) (data.Notification, error) {
 		&notification.TraceParent,
 		&notification.Channel,
 		&notification.Provider,
+		&notification.ProviderMessageID,
 		&notification.Target,
 		&notification.Title,
 		&notification.Body,

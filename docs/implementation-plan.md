@@ -710,7 +710,7 @@ i18n：vue-i18n
 - `feishu`：`feishu://webhook?url_env=FEISHU_WEBHOOK_URL`。
 - `email`：`smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com&username_env=SMTP_USERNAME&password_env=SMTP_PASSWORD`。
 
-真实邮件、Telegram、飞书 provider 已接入基础发送路径，通知通道创建 / 读取 / 更新 / 删除 / 启停 API 和系统通知页启停 / 更新 / 删除操作已补；生产级模板、限流、回执、密钥轮换和审计签名仍未完成。
+真实邮件、Telegram、飞书 provider 已接入基础发送路径，成功响应里的 provider message ID 已持久化并在系统通知 / 交易详情通知列表可见，通知通道创建 / 读取 / 更新 / 删除 / 启停 API 和系统通知页启停 / 更新 / 删除操作已补；生产级模板、限流、回执解析、密钥轮换和审计签名仍未完成。
 
 ### 12.2 交易所账号管理
 
@@ -1979,7 +1979,7 @@ go vet ./...
 1. 第一版前端暴露哪些 K 线周期选项。
 2. 数据同步实时方式：WebSocket、轮询，还是交易所差异化。
 3. TradingView 开源图表具体采用哪个包。
-4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider；生产启用、模板、限流和外部回执边界仍需确认。
+4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider，并记录成功投递响应中的 provider message ID；生产启用、模板、限流和外部回执边界仍需确认。
 5. 生产级交易所账号密钥来源、轮换和历史账号迁移策略。
 6. 实盘任务创建确认文案、风险默认值和是否需要二次输入确认。
 7. 回测第一版是否需要手续费和滑点配置。
