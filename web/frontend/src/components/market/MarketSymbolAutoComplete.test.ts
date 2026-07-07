@@ -1,8 +1,10 @@
 import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia, type Pinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MarketSymbolAutoComplete from "@/components/market/MarketSymbolAutoComplete.vue";
 import { marketApi } from "@/services/api/market";
+import { useAuthStore } from "@/stores/auth";
 
 const marketApiMocks = vi.hoisted(() => ({
   listInstruments: vi.fn(),
@@ -32,9 +34,14 @@ vi.mock("naive-ui", () => ({
   },
 }));
 
+let pinia: Pinia;
+
 describe("MarketSymbolAutoComplete", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pinia = createPinia();
+    setActivePinia(pinia);
+    useAuthStore().operator = operator("op_admin", "admin", "admin");
     marketApiMocks.listInstruments.mockResolvedValue([
       {
         exchange: "binance",
@@ -99,13 +106,36 @@ describe("MarketSymbolAutoComplete", () => {
     expect(marketApi.syncInstruments).toHaveBeenCalledWith("binance");
     expect(marketApi.listInstruments).toHaveBeenCalledWith({ exchange: "binance", limit: 20, q: "" });
   });
+
+  it("hides instrument sync from non-admin operators", async () => {
+    useAuthStore().operator = operator("op_ops", "ops", "operator");
+    const wrapper = mountAutoComplete();
+    await flushPromises();
+
+    expect(wrapper.findComponent({ name: "NButton" }).exists()).toBe(false);
+    expect(marketApi.syncInstruments).not.toHaveBeenCalled();
+  });
 });
 
 function mountAutoComplete() {
   return mount(MarketSymbolAutoComplete, {
+    global: {
+      plugins: [pinia],
+    },
     props: {
       exchange: "binance",
       value: "",
     },
   });
+}
+
+function operator(id: string, username: string, role: string) {
+  return {
+    id,
+    username,
+    role,
+    enabled: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
 }

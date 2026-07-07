@@ -228,6 +228,10 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 		writeAuthError(w, authErr)
 		return
 	}
+	if !actor.IsAdmin() {
+		server.writeAdminRequiredAudit(w, r, actor, marketInstrumentSyncAuditAction, marketInstrumentSyncAuditResourceType, query.Exchange, nil)
+		return
+	}
 	client := server.instrumentClients[query.Exchange]
 	if client == nil {
 		if auditErr := server.recordMarketInstrumentSyncAudit(r, actor, query.Exchange, "failure", marketInstrumentSyncFailureMetadata(query.Exchange, string(apiErrorMarketInstrumentSyncUnavailable))); auditErr != nil {

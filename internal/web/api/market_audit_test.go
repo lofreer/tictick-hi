@@ -53,6 +53,37 @@ func TestMarketInstrumentSyncRouteAuditsUnavailableClient(t *testing.T) {
 	}
 }
 
+func TestMarketInstrumentSyncRouteRequiresAdmin(t *testing.T) {
+	repository := newFakeRepository()
+	repository.operators[0].Role = data.OperatorRoleOperator
+	server := NewServerWithConfig(repository, Config{
+		InstrumentClients: map[string]exchange.InstrumentClient{
+			"binance": fakeInstrumentClient{instruments: []data.MarketInstrument{
+				{Symbol: "SOLUSDT", BaseAsset: "SOL", QuoteAsset: "USDT", InstrumentType: "spot", Status: "active"},
+			}},
+		},
+	})
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/market/instruments/sync?exchange=binance", "")
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("sync status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "forbidden" || response.Message != "admin operator role is required" {
+		t.Fatalf("unexpected admin required response: %#v", response)
+	}
+	if len(repository.marketInstruments) != 1 || repository.marketInstruments[0].Symbol != "BTCUSDT" {
+		t.Fatalf("non-admin changed market instruments: %#v", repository.marketInstruments)
+	}
+	event := assertAuditAction(t, repository.auditEvents, "market_instrument.sync", "market_instrument_catalog", "binance")
+	if event.Outcome != "failure" ||
+		event.Metadata["reason"] != "admin_required" ||
+		event.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected market sync admin audit metadata: %#v", event.Metadata)
+	}
+}
+
 func TestMarketInstrumentSyncRouteAuditsFetchFailure(t *testing.T) {
 	repository := newFakeRepository()
 	server := NewServerWithConfig(repository, Config{

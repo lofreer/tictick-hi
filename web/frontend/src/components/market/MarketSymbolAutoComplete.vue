@@ -10,7 +10,7 @@
       @update:value="handleUpdateValue"
     />
     <NButton
-      v-if="showSyncButton"
+      v-if="canSyncInstruments"
       circle
       quaternary
       :size="size"
@@ -28,10 +28,11 @@
 <script setup lang="ts">
 import { RefreshCw } from "@lucide/vue";
 import { NAutoComplete, NButton } from "naive-ui";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { marketApi } from "@/services/api/market";
+import { useAuthStore } from "@/stores/auth";
 import type { MarketInstrument } from "@/types/app";
 import { normalizeSymbolInput, symbolOptionsForExchange, type MarketSymbolOption } from "@/utils/marketSymbols";
 
@@ -51,8 +52,10 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 const loading = ref(false);
 const syncing = ref(false);
+const canSyncInstruments = computed(() => props.showSyncButton && authStore.operator?.role === "admin");
 const options = ref<MarketSymbolOption[]>(symbolOptionsForExchange(props.exchange));
 let requestSequence = 0;
 
@@ -93,6 +96,9 @@ function handleUpdateValue(nextValue: string) {
 }
 
 async function syncInstruments() {
+  if (!canSyncInstruments.value) {
+    return;
+  }
   syncing.value = true;
   try {
     await marketApi.syncInstruments(props.exchange);
