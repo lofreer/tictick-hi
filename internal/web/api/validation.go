@@ -66,7 +66,7 @@ func validateOperator(operator data.CreateOperator) error {
 	if operator.Username == "" || operator.Password == "" {
 		return errors.New("username and password are required")
 	}
-	return data.ValidateOperatorPassword(operator.Password)
+	return data.ValidateOperatorPasswordForUsername(operator.Username, operator.Password)
 }
 
 func normalizeCreateBacktest(task *data.CreateBacktestTask) {

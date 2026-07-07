@@ -46,3 +46,15 @@ func ValidateOperatorPassword(password string) error {
 	}
 	return nil
 }
+
+func ValidateOperatorPasswordForUsername(username string, password string) error {
+	if err := ValidateOperatorPassword(password); err != nil {
+		return err
+	}
+	normalizedUsername := strings.ToLower(strings.TrimSpace(username))
+	if len([]rune(normalizedUsername)) >= 3 &&
+		strings.Contains(strings.ToLower(password), normalizedUsername) {
+		return errors.New("password must not include the username")
+	}
+	return nil
+}
