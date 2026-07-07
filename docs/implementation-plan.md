@@ -1088,6 +1088,7 @@ APP_SECRET
 ENCRYPTION_KEY
 HTTP_ADDR
 LOG_LEVEL
+LOG_FORMAT
 ```
 
 交易所密钥、通知通道密钥等敏感配置不能写入 Dockerfile。

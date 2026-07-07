@@ -103,6 +103,17 @@ Database readiness:
 docker compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 
+Logging:
+
+```bash
+LOG_LEVEL=info
+LOG_FORMAT=text
+```
+
+Use `LOG_FORMAT=json` when logs are collected by a structured log pipeline.
+Invalid logging settings stop commands before PostgreSQL opens and do not echo
+the invalid value. Current logs still do not include propagated trace IDs.
+
 Optional worker process probes:
 
 ```bash
@@ -326,7 +337,7 @@ close these production-safety gaps:
 - no automated backup scheduler;
 - no completed restore drill evidence for the target environment;
 - no resource sizing, disk capacity, or retention policy;
-- no structured logs, trace IDs, or external log sink;
+- no propagated trace IDs or external log sink;
 - no richer worker business readiness beyond process-level health probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

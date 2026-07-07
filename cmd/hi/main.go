@@ -30,6 +30,14 @@ func main() {
 		printUsage()
 		os.Exit(2)
 	}
+	if os.Args[1] == "help" || os.Args[1] == "-h" || os.Args[1] == "--help" {
+		printUsage()
+		return
+	}
+	if err := configureLoggerFromEnv(); err != nil {
+		fmt.Fprintf(os.Stderr, "command failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -48,8 +56,6 @@ func main() {
 		err = runNotify(ctx, os.Args[2:])
 	case "migrate":
 		err = runMigrate(ctx)
-	case "help", "-h", "--help":
-		printUsage()
 	default:
 		err = fmt.Errorf("unknown subcommand %q", os.Args[1])
 	}

@@ -62,6 +62,11 @@ run_failing_case \
   clean_env "$BIN" sync --once
 
 run_failing_case \
+  "invalid log level" \
+  "LOG_LEVEL" \
+  clean_env LOG_LEVEL=stage8_config_secret "$BIN" sync --once
+
+run_failing_case \
   "sync invalid duration" \
   "SYNC_POLL_INTERVAL" \
   clean_env DATABASE_URL="$SECRET_DSN" SYNC_POLL_INTERVAL=not-a-duration "$BIN" sync --once

@@ -125,6 +125,8 @@ func clearCommandEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"DATABASE_URL",
+		"LOG_LEVEL",
+		"LOG_FORMAT",
 		"HTTP_ADDR",
 		"WEB_FRONTEND_DIST",
 		"AUTH_SESSION_TTL",
