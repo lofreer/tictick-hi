@@ -718,7 +718,7 @@ i18n：vue-i18n
 - 配置交易所账号凭据。
 - 作为模拟盘 / 实盘任务选择账号的数据来源。
 
-本地开发版交易所账号密钥使用 `ENCRYPTION_KEY` + AES-GCM 加密保存；生产级 KMS / secret manager、密钥轮换和历史账号迁移策略后续阶段确认。
+交易所账号创建会校验 exchange / alias / apiKey / apiSecret 非空白；本地开发版交易所账号密钥使用 `ENCRYPTION_KEY` + AES-GCM 加密保存；生产级 KMS / secret manager、密钥轮换和历史账号迁移策略后续阶段确认。
 
 ### 12.3 操作台账号管理
 

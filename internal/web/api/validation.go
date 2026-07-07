@@ -58,7 +58,10 @@ func validateNotificationChannel(channel data.CreateNotificationChannel) error {
 }
 
 func validateExchangeAccount(account data.CreateExchangeAccount) error {
-	if account.Exchange == "" || account.Alias == "" || account.APIKey == "" || account.APISecret == "" {
+	if strings.TrimSpace(account.Exchange) == "" ||
+		strings.TrimSpace(account.Alias) == "" ||
+		strings.TrimSpace(account.APIKey) == "" ||
+		strings.TrimSpace(account.APISecret) == "" {
 		return errors.New("exchange, alias, apiKey and apiSecret are required")
 	}
 	return nil
