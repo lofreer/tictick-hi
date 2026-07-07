@@ -101,7 +101,8 @@ func (runner *Runner) runOne(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	if err := runner.deliver(ctx, delivery); err != nil {
+	deliveredAt, providerDuration, err := runner.deliver(ctx, delivery)
+	if err != nil {
 		if workerlease.IsShutdown(ctx, err) {
 			releaseCtx, cancel := workerlease.ReleaseContext(ctx)
 			defer cancel()
@@ -112,39 +113,34 @@ func (runner *Runner) runOne(ctx context.Context) (bool, error) {
 		}
 		slog.Error(
 			"notification delivery failed",
-			workerlog.TaskTraceAttrs(
-				delivery.TaskID,
-				delivery.RequestID,
-				delivery.TraceParent,
-				"delivery_id",
-				delivery.ID,
-				"error",
-				err,
-			)...,
+			runner.deliveryLogAttrs(delivery, providerDuration, "error", err)...,
 		)
 		nextAttemptAt := runner.nextAttemptAt(delivery)
-		if markErr := runner.repository.MarkNotificationFailed(ctx, delivery.ID, err, nextAttemptAt); markErr != nil {
+		if markErr := runner.repository.MarkNotificationFailed(ctx, delivery.ID, err, nextAttemptAt, providerDuration); markErr != nil {
 			return true, fmt.Errorf("mark notification failed: %w", markErr)
 		}
 		return true, nil
 	}
-	if err := runner.repository.MarkNotificationDelivered(ctx, delivery.ID, runner.now()); err != nil {
+	if err := runner.repository.MarkNotificationDelivered(ctx, delivery.ID, deliveredAt, providerDuration); err != nil {
 		return true, fmt.Errorf("mark notification delivered: %w", err)
 	}
+	slog.Info("notification delivery delivered", runner.deliveryLogAttrs(delivery, providerDuration)...)
 	return true, nil
 }
 
-func (runner *Runner) deliver(ctx context.Context, delivery data.NotificationDelivery) error {
+func (runner *Runner) deliver(ctx context.Context, delivery data.NotificationDelivery) (time.Time, time.Duration, error) {
 	provider, err := runner.providers.Provider(delivery.Provider)
 	if err != nil {
-		return err
+		return time.Time{}, 0, err
 	}
 	if err := runner.throttleProvider(ctx); err != nil {
-		return err
+		return time.Time{}, 0, err
 	}
+	startedAt := runner.now()
 	err = provider.Deliver(ctx, delivery)
-	runner.lastProviderDeliveryTime = runner.now()
-	return err
+	finishedAt := runner.now()
+	runner.lastProviderDeliveryTime = finishedAt
+	return finishedAt, providerDeliveryDuration(startedAt, finishedAt), err
 }
 
 func (runner *Runner) throttleProvider(ctx context.Context) error {
@@ -185,4 +181,37 @@ func sleepContext(ctx context.Context, duration time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func providerDeliveryDuration(startedAt time.Time, finishedAt time.Time) time.Duration {
+	duration := finishedAt.Sub(startedAt)
+	if duration <= 0 {
+		return 0
+	}
+	return duration
+}
+
+func (runner *Runner) deliveryLogAttrs(
+	delivery data.NotificationDelivery,
+	providerDuration time.Duration,
+	attrs ...any,
+) []any {
+	base := workerlog.TaskTraceAttrs(
+		delivery.TaskID,
+		delivery.RequestID,
+		delivery.TraceParent,
+		"delivery_id",
+		delivery.ID,
+		"provider",
+		delivery.Provider,
+		"channel",
+		delivery.Channel,
+		"attempt_count",
+		delivery.AttemptCount,
+		"max_attempts",
+		delivery.MaxAttempts,
+		"delivery_duration_ms",
+		providerDuration.Milliseconds(),
+	)
+	return append(base, attrs...)
 }

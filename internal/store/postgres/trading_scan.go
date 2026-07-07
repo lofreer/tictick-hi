@@ -183,6 +183,7 @@ func scanNotificationRow(row rowScanner) (data.Notification, error) {
 		&notification.MaxAttempts,
 		&notification.NextAttemptAt,
 		&notification.LastAttemptAt,
+		&notification.LastDeliveryDurationMS,
 		&notification.CreatedAt,
 		&notification.SentAt,
 	)

@@ -75,9 +75,9 @@ func (store *Store) listTradingPositions(ctx context.Context, taskID string) ([]
 
 func (store *Store) listTradingNotifications(ctx context.Context, taskID string) ([]data.Notification, error) {
 	rows, err := store.pool.Query(ctx, `
-		SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), COALESCE(traceparent, ''),
-		       channel, provider, target, title, body, status, COALESCE(error, ''), attempt_count,
-		       max_attempts, next_attempt_at, last_attempt_at, created_at, sent_at
+			SELECT id, task_id, COALESCE(intent_id, ''), COALESCE(request_id, ''), COALESCE(traceparent, ''),
+			       channel, provider, target, title, body, status, COALESCE(error, ''), attempt_count,
+			       max_attempts, next_attempt_at, last_attempt_at, last_delivery_duration_ms, created_at, sent_at
 		  FROM notifications
 		 WHERE task_id = $1
 		 ORDER BY created_at DESC`, taskID)

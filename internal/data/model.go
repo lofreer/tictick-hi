@@ -183,24 +183,25 @@ type Position struct {
 }
 
 type Notification struct {
-	ID            string     `json:"id"`
-	TaskID        string     `json:"taskId,omitempty"`
-	IntentID      string     `json:"intentId,omitempty"`
-	RequestID     string     `json:"requestId,omitempty"`
-	TraceParent   string     `json:"traceparent,omitempty"`
-	Channel       string     `json:"channel"`
-	Provider      string     `json:"provider"`
-	Target        string     `json:"target"`
-	Title         string     `json:"title"`
-	Body          string     `json:"body"`
-	Status        string     `json:"status"`
-	Error         string     `json:"error,omitempty"`
-	AttemptCount  int        `json:"attemptCount"`
-	MaxAttempts   int        `json:"maxAttempts"`
-	NextAttemptAt *time.Time `json:"nextAttemptAt,omitempty"`
-	LastAttemptAt *time.Time `json:"lastAttemptAt,omitempty"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	SentAt        *time.Time `json:"sentAt,omitempty"`
+	ID                     string     `json:"id"`
+	TaskID                 string     `json:"taskId,omitempty"`
+	IntentID               string     `json:"intentId,omitempty"`
+	RequestID              string     `json:"requestId,omitempty"`
+	TraceParent            string     `json:"traceparent,omitempty"`
+	Channel                string     `json:"channel"`
+	Provider               string     `json:"provider"`
+	Target                 string     `json:"target"`
+	Title                  string     `json:"title"`
+	Body                   string     `json:"body"`
+	Status                 string     `json:"status"`
+	Error                  string     `json:"error,omitempty"`
+	AttemptCount           int        `json:"attemptCount"`
+	MaxAttempts            int        `json:"maxAttempts"`
+	NextAttemptAt          *time.Time `json:"nextAttemptAt,omitempty"`
+	LastAttemptAt          *time.Time `json:"lastAttemptAt,omitempty"`
+	LastDeliveryDurationMS *int64     `json:"lastDeliveryDurationMs,omitempty"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	SentAt                 *time.Time `json:"sentAt,omitempty"`
 }
 
 type TradingRunResult struct {
@@ -446,7 +447,7 @@ type TradingRepository interface {
 
 type NotificationRepository interface {
 	ClaimNotificationDelivery(ctx context.Context, workerID string, leaseTTL time.Duration) (NotificationDelivery, bool, error)
-	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time) error
-	MarkNotificationFailed(ctx context.Context, deliveryID string, err error, nextAttemptAt *time.Time) error
+	MarkNotificationDelivered(ctx context.Context, deliveryID string, deliveredAt time.Time, deliveryDuration time.Duration) error
+	MarkNotificationFailed(ctx context.Context, deliveryID string, err error, nextAttemptAt *time.Time, deliveryDuration time.Duration) error
 	ReleaseNotificationDelivery(ctx context.Context, deliveryID string) error
 }

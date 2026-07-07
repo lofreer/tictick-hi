@@ -63,6 +63,70 @@ func TestRunnerSchedulesRetry(t *testing.T) {
 	}
 }
 
+func TestRunnerRecordsProviderDeliveryDurationOnSuccess(t *testing.T) {
+	repository := &fakeNotificationRepository{
+		delivery: data.NotificationDelivery{
+			ID:             "no_1",
+			NotificationID: "nt_1",
+			Provider:       "timing",
+			Target:         "default",
+			AttemptCount:   1,
+			MaxAttempts:    3,
+		},
+		claimed: true,
+	}
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	runner := NewRunner(
+		repository,
+		ProviderRegistry{providers: map[string]Provider{"timing": timingProvider{now: &now, duration: 375 * time.Millisecond}}},
+		Config{WorkerID: "test"},
+	)
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.deliveredDuration != 375*time.Millisecond {
+		t.Fatalf("delivered duration = %s", repository.deliveredDuration)
+	}
+	if repository.deliveredAt == nil || !repository.deliveredAt.Equal(now) {
+		t.Fatalf("deliveredAt = %v, now = %v", repository.deliveredAt, now)
+	}
+}
+
+func TestRunnerRecordsProviderDeliveryDurationOnFailure(t *testing.T) {
+	repository := &fakeNotificationRepository{
+		delivery: data.NotificationDelivery{
+			ID:             "no_1",
+			NotificationID: "nt_1",
+			Provider:       "timing",
+			Target:         "default",
+			AttemptCount:   1,
+			MaxAttempts:    3,
+		},
+		claimed: true,
+	}
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	runner := NewRunner(
+		repository,
+		ProviderRegistry{providers: map[string]Provider{
+			"timing": timingProvider{now: &now, duration: 125 * time.Millisecond, err: errors.New("provider failed")},
+		}},
+		Config{WorkerID: "test", RetryDelay: time.Minute},
+	)
+	runner.now = func() time.Time { return now }
+
+	if err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if repository.failedDuration != 125*time.Millisecond {
+		t.Fatalf("failed duration = %s", repository.failedDuration)
+	}
+	if repository.nextAttemptAt == nil || !repository.nextAttemptAt.Equal(now.Add(time.Minute)) {
+		t.Fatalf("nextAttemptAt = %v, now = %v", repository.nextAttemptAt, now)
+	}
+}
+
 func TestRunnerStopsRetryAtMaxAttempts(t *testing.T) {
 	repository := &fakeNotificationRepository{
 		delivery: data.NotificationDelivery{
@@ -177,15 +241,17 @@ func TestRunnerReleasesDeliveryOnShutdown(t *testing.T) {
 }
 
 type fakeNotificationRepository struct {
-	delivery       data.NotificationDelivery
-	deliveries     []data.NotificationDelivery
-	claimed        bool
-	cancelOnEmpty  func()
-	deliveredAt    *time.Time
-	deliveredCount int
-	failedErr      error
-	nextAttemptAt  *time.Time
-	released       bool
+	delivery          data.NotificationDelivery
+	deliveries        []data.NotificationDelivery
+	claimed           bool
+	cancelOnEmpty     func()
+	deliveredAt       *time.Time
+	deliveredDuration time.Duration
+	deliveredCount    int
+	failedErr         error
+	failedDuration    time.Duration
+	nextAttemptAt     *time.Time
+	released          bool
 }
 
 func (repository *fakeNotificationRepository) ClaimNotificationDelivery(
@@ -212,8 +278,10 @@ func (repository *fakeNotificationRepository) MarkNotificationDelivered(
 	_ context.Context,
 	_ string,
 	deliveredAt time.Time,
+	deliveryDuration time.Duration,
 ) error {
 	repository.deliveredAt = &deliveredAt
+	repository.deliveredDuration = deliveryDuration
 	repository.deliveredCount++
 	return nil
 }
@@ -223,11 +291,13 @@ func (repository *fakeNotificationRepository) MarkNotificationFailed(
 	_ string,
 	err error,
 	nextAttemptAt *time.Time,
+	deliveryDuration time.Duration,
 ) error {
 	if err == nil {
 		return errors.New("expected error")
 	}
 	repository.failedErr = err
+	repository.failedDuration = deliveryDuration
 	repository.nextAttemptAt = nextAttemptAt
 	return nil
 }
@@ -254,4 +324,15 @@ type countingProvider struct {
 func (provider countingProvider) Deliver(context.Context, data.NotificationDelivery) error {
 	(*provider.count)++
 	return nil
+}
+
+type timingProvider struct {
+	now      *time.Time
+	duration time.Duration
+	err      error
+}
+
+func (provider timingProvider) Deliver(context.Context, data.NotificationDelivery) error {
+	*provider.now = (*provider.now).Add(provider.duration)
+	return provider.err
 }
