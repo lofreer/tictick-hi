@@ -2,6 +2,9 @@
 
 This runbook documents the current `hi` single-binary subcommands. The project is still `scaffold`; this document is an operating checklist, not a production readiness claim.
 
+For Docker Compose operating procedures, backup/restore commands, and release
+checklists, see [Production runbook](production-runbook.md).
+
 ## Scope
 
 The Docker image runs the same binary with different commands:
@@ -169,5 +172,5 @@ Known remaining gaps:
 
 - no structured trace IDs across subcommands;
 - no subcommand-specific health endpoint outside `hi api`;
-- no production deployment runbook for backup/restore, resource limits, or shared environment secret management;
+- backup/restore, resource limits, and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation;
 - no claim that these commands are production-safe.

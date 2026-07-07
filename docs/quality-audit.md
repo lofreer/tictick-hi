@@ -30,8 +30,8 @@ done            用户确认关闭
 | 模块 | 当前等级 | 处理 | 主要问题 |
 | --- | --- | --- | --- |
 | 架构文档 | usable | 保留 | 还需要随实现持续校准 |
-| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`docs/go-command-runbook.md` 已补基础子命令运行手册，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺生产部署运行手册、结构化日志/trace、子命令级健康探针和更完整优雅停止证据 |
-| Docker Compose | demo | 保留 | 运行形态对，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺生产运行手册、备份/恢复和外部依赖韧性验证 |
+| Go 子命令 | scaffold | 保留后收敛 | 入口可用；API / sync / backtest / trading / notify 的关键 env 配置已收敛到严格解析函数，非法 duration / int / bool 和交易所限流配置会在启动前返回明确 env 错误，启动摘要会脱敏输出非敏感配置；`docs/go-command-runbook.md` 已补基础子命令运行手册，`docs/production-runbook.md` 已补 Docker Compose 生产运行入口和备份/恢复操作边界，`scripts/stage8-command-config-smoke.sh` 已进入质量门禁并验证配置错误不泄露 DSN/密码/secret；仍缺结构化日志/trace、子命令级健康探针、真实备份恢复演练、资源容量策略和更完整优雅停止证据 |
+| Docker Compose | demo | 保留 | 运行形态对，`docs/production-runbook.md` 已补启动、健康检查、备份、恢复演练、升级/回滚和事故处理清单，`scripts/stage8-smoke.sh` 已覆盖一键构建启动和全链路 smoke，`scripts/stage8-sigterm-smoke.sh` 已覆盖 data sync / backtest / trading / notify 容器 SIGTERM 收尾；仍缺自动化备份、已记录恢复演练、资源容量策略和外部依赖韧性验证 |
 | PostgreSQL migrations | scaffold | 保留后加强 | `0011_domain_constraints.sql` 已补充核心 domain CHECK，`0012_referential_constraints.sql` 已补充核心事实表 FK / composite unique，`0016_worker_lease_constraints.sql` 已补充 worker lease 字段一致性 CHECK，`0017_strategy_intent_parent_constraints.sql` 已补充 `strategy_intents` 新增/更新时的多态父任务归属约束，`0018_strategy_intent_parent_delete_guards.sql` 已补充父任务删除防 orphan 保护，`0019_task_terminal_timestamp_constraints.sql` 已补充任务终态 `finished_at` 一致性约束，`0020_validate_worker_lease_constraints.sql` 已修补历史半截 lease 并 VALIDATE worker lease CHECK，`0021_task_status_transition_guards.sql` 已补充 data sync / backtest / trading 核心状态流转 trigger，`0024_data_sync_repair_source.sql` 已补充补同步任务源任务 FK / 非自引用约束，`0028_data_sync_restart_succeeded.sql` 已补充 data sync succeeded 任务重新启动为 pending/running 的状态约束，`0029_data_sync_soft_delete.sql` 已补充 data sync 任务软删除字段和 cancelled 状态流转，`0030_market_candle_positive_prices.sql` 已补充 `market_candles` 新写入 OHLC 正价格 CHECK（历史行暂不 VALIDATE）；`scripts/stage8-migration-audit.sh` 已进入 Stage 8 smoke 并校验状态流转 trigger 和 repair source 约束/孤儿行；仍缺完整统一状态机、数据迁移/回滚策略和全量历史数据验证 |
 | API server | scaffold | 保留后加强 | 已按领域拆分，`/api/candles` 已返回 metadata，数据同步创建和 K 线查询已校验 Binance / OKX 交易对格式，`POST /api/data/tasks`、`POST /api/backtests` 和 `POST /api/trading/tasks` 已强制 exact active `market_instruments` catalog 命中，不命中返回 `market_instrument_not_active` 且不落库，`/api/data/tasks` 返回后端派生 `dataHealth`、任务窗口内（含 start/end 边界和整窗无数据）K 线 `gapSummary`、窗口内历史异常 OHLCV K 线 `dataHealth=invalid`、`invalidSummary`、`GET /api/data/tasks/{id}/invalid-issues` 异常详情列表和补同步来源 `repairSourceTaskId`，`GET /api/data/tasks/{id}/gaps` 可查看任务窗口内前 20 个缺口详情并返回总数/返回数量/修复上限 metadata，`POST /api/data/tasks/{id}/repair-gaps` 可为任务窗口内前 20 个缺口创建并启动带源任务 ID 的补同步任务、跳过同窗口重复任务且返回总数/上限 metadata，`POST /api/data/tasks/{id}/repair-gap` 可为图表单个缺口创建带源任务 ID 的补同步任务，`GET /api/market/candle-gaps` 可按 exchange/symbol/interval 扫描已落库 `market_candles` 全历史相邻缺口并返回扫描窗口、K 线数量、总缺口数、返回数量和 limited metadata，`POST /api/market/candle-gaps/repair` 会验证请求窗口是真实已落库相邻缺口后创建无源补同步任务并对同窗口重复请求返回 `skippedExisting`，`GET /api/market/instruments/status` 返回各交易所 instrument catalog 最近同步状态供研究页和运维上下文使用，回测 / 交易创建已复用策略 schema 校验，系统写请求已有 CSRF 检查，错误响应已统一为 `code/message/error` 且 500 响应不再泄露内部错误；数据同步 retry / command 状态冲突已映射为 `data_sync_retry_requires_failed` / `data_sync_command_invalid_state` 领域错误码；已知 API 资源路径的方法错误会返回 `405 method_not_allowed` 和 `Allow` header；`GET /api/system/api-contract` 已暴露基础 OpenAPI 3.1 request / response schema contract 和 `x-errorCodes` 错误码 catalog；`web/frontend/src/types/api.generated.ts` 已由后端 OpenAPI contract 生成，`scripts/quality-gate.sh` 已纳入前端 API route、核心 TypeScript DTO 字段、生成 DTO staleness、外部 OpenAPI validator 与后端 contract 漂移硬检查；登录和系统管理写操作已有基础操作审计日志；仍缺跨领域错误语义细分和生产级审计边界 |
 | 登录会话 | demo | 保留后加强 | HttpOnly session cookie、CSRF double-submit 写保护、登录失败节流、当前操作员 session 列表和非当前 session 撤销已进入 API / 系统管理边界；登录成功 / 失败、退出和会话撤销会进入基础操作审计；仍缺持久化限流、密码策略、RBAC / 自保护规则和生产级设备上下文 |
@@ -10636,6 +10636,47 @@ Definition of Done：
 - 运维健康筛选是前端列表筛选，不是后端查询、分页、worker 事件流或生产级监控。
 - 自动化链路深链只覆盖服务级 focus，不直接定位具体 lease、具体冷却交易所、fetch lock 竞争历史或任务级排队原因。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
+
+### 阶段 8 Docker Compose 生产运行手册补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增 `docs/production-runbook.md`，作为当前 Docker Compose 运行形态的生产操作入口。
+- 手册覆盖服务拓扑、共享环境启用前决策、首次启动、健康检查、备份命令、恢复演练流程、升级/回滚边界、停止/重启、事故检查清单和验证矩阵。
+- README 增加生产运行手册入口；`docs/go-command-runbook.md` 链接到生产运行手册，避免子命令手册继续承担 Compose 级运维细节。
+- 质量审计表中 Go 子命令和 Docker Compose 的缺口从“缺生产运行手册”校准为“已补手册入口，但缺自动化备份、已记录恢复演练、资源容量策略、结构化日志/trace、子命令级健康探针和外部依赖韧性证据”。
+
+范围外：
+
+- 不修改 Docker Compose、Dockerfile、Go 子命令、migration、worker、API 或前端运行时代码。
+- 不新增自动备份任务、restore automation、secret manager / KMS 集成、资源限制配置、外部监控或告警规则。
+- 不执行真实备份恢复演练，不声明 Docker Compose、Go 子命令或项目整体 production-safe。
+
+当前验证：
+
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过，55 个 test file / 240 个测试。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 `scripts/stage8-smoke.sh` 或 `scripts/stage8-sigterm-smoke.sh`；本轮是文档切片，没有改 Compose 运行时、容器 SIGTERM 或前端页面。
+- 未执行 PostgreSQL 备份 / 恢复 drill；本轮只记录操作流程，恢复证据仍需后续独立切片在隔离数据库上完成。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- 生产运行手册只提供可执行操作边界，不等于自动化备份、恢复演练、容量规划、外部监控或告警已完成。
+- `hi api` 之外仍缺子命令级健康探针，后台 worker 长期运行仍依赖现有 system health 快照和日志排查。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后
 

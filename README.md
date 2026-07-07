@@ -105,6 +105,12 @@ Go subcommand runbook:
 docs/go-command-runbook.md
 ```
 
+Production operations runbook:
+
+```text
+docs/production-runbook.md
+```
+
 Run the command config smoke before changing `hi api/sync/backtest/trading/notify` startup behavior:
 
 ```bash
