@@ -41,6 +41,17 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 		withRequest(schemaRef("UpdateOperatorRole")),
 		withErrors(http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusConflict),
 	))
+	addOperation(paths, "/api/system/operators/{id}/sessions", http.MethodGet, operation(
+		"system", "listManagedOperatorSessions", "List managed operator sessions", http.StatusOK, arraySchema(schemaRef("OperatorSession")),
+		withParameters(pathParam("id", "Operator id")),
+		withErrors(http.StatusForbidden, http.StatusNotFound),
+	))
+	addOperation(paths, "/api/system/operators/{id}/sessions/{sessionId}", http.MethodDelete, operation(
+		"system", "revokeManagedOperatorSession", "Revoke a managed operator session", http.StatusOK, schemaRef("StatusResponse"),
+		withCSRF(),
+		withParameters(pathParam("id", "Operator id"), pathParam("sessionId", "Operator session id")),
+		withErrors(http.StatusForbidden, http.StatusNotFound, http.StatusConflict),
+	))
 	addOperation(paths, "/api/system/operators/{id}/sessions/revoke", http.MethodPost, operation(
 		"system", "revokeOperatorSessions", "Revoke operator sessions", http.StatusOK, schemaRef("OperatorSessionRevokeResult"),
 		withCSRF(),

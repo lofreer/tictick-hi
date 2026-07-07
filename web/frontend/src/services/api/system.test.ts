@@ -133,6 +133,44 @@ describe("system api", () => {
     );
   });
 
+  it("lists and revokes a single operator session", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "sess_1",
+              operatorId: "op_ops",
+              current: false,
+              remoteAddrChanged: false,
+              userAgentChanged: false,
+              expiresAt: "2026-01-02T00:00:00Z",
+              createdAt: "2026-01-01T00:00:00Z",
+            },
+          ]),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.listOperatorSessions("op_ops")).resolves.toEqual([
+      expect.objectContaining({ id: "sess_1", operatorId: "op_ops" }),
+    ]);
+    await expect(systemApi.revokeOperatorSession("op_ops", "sess_1")).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/system/operators/op_ops/sessions",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/system/operators/op_ops/sessions/sess_1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
 	it("updates and deletes notification channels", async () => {
 		const fetchMock = vi
 			.fn()

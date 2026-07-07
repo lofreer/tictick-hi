@@ -10,6 +10,7 @@ import type {
   Notification,
   NotificationChannel,
   Operator,
+  OperatorSession,
   OperatorSessionRevokeResult,
   SystemHealth,
   UpdateOperatorRole,
@@ -72,6 +73,16 @@ export const systemApi = {
 
   revokeOperatorSessions(id: string) {
     return apiClient.post<OperatorSessionRevokeResult>(`/system/operators/${encodeURIComponent(id)}/sessions/revoke`);
+  },
+
+  listOperatorSessions(id: string) {
+    return apiClient.get<OperatorSession[]>(`/system/operators/${encodeURIComponent(id)}/sessions`);
+  },
+
+  async revokeOperatorSession(id: string, sessionId: string) {
+    await apiClient.delete<{ status: string }>(
+      `/system/operators/${encodeURIComponent(id)}/sessions/${encodeURIComponent(sessionId)}`,
+    );
   },
 
   health() {

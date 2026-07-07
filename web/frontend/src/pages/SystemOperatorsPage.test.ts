@@ -13,6 +13,8 @@ const apiMocks = vi.hoisted(() => ({
   setOperatorEnabled: vi.fn(),
   setOperatorRole: vi.fn(),
   revokeOperatorSessions: vi.fn(),
+  listOperatorSessions: vi.fn(),
+  revokeOperatorSession: vi.fn(),
   createOperator: vi.fn(),
 }));
 
@@ -22,6 +24,8 @@ vi.mock("@/services/api/system", () => ({
     setOperatorEnabled: apiMocks.setOperatorEnabled,
     setOperatorRole: apiMocks.setOperatorRole,
     revokeOperatorSessions: apiMocks.revokeOperatorSessions,
+    listOperatorSessions: apiMocks.listOperatorSessions,
+    revokeOperatorSession: apiMocks.revokeOperatorSession,
     createOperator: apiMocks.createOperator,
   },
 }));
@@ -59,14 +63,16 @@ describe("SystemOperatorsPage", () => {
     expect(rows[0].text()).toContain("管理员");
     expect(rows[1].text()).toContain("操作员");
     const selfButtons = rows[0].findAll("button");
-    expect(selfButtons).toHaveLength(3);
+    expect(selfButtons).toHaveLength(4);
     const selfRoleButton = selfButtons[0];
-    const selfRevokeSessionsButton = selfButtons[1];
-    const selfDisableButton = selfButtons[2];
+    const selfSessionsButton = selfButtons[1];
+    const selfRevokeSessionsButton = selfButtons[2];
+    const selfDisableButton = selfButtons[3];
     expect(selfRoleButton.attributes("disabled")).toBeDefined();
     expect(selfRoleButton.attributes("title")).toBe("不能变更当前操作员角色。");
     await selfRoleButton.trigger("click");
     expect(apiMocks.setOperatorRole).not.toHaveBeenCalled();
+    expect(selfSessionsButton.attributes("disabled")).toBeUndefined();
     expect(selfRevokeSessionsButton.attributes("disabled")).toBeDefined();
     expect(selfRevokeSessionsButton.attributes("title")).toBe("不能在这里撤销当前操作员会话。");
     await selfRevokeSessionsButton.trigger("click");
@@ -77,12 +83,51 @@ describe("SystemOperatorsPage", () => {
     expect(apiMocks.setOperatorEnabled).not.toHaveBeenCalled();
 
     const otherButtons = rows[1].findAll("button");
-    expect(otherButtons).toHaveLength(3);
+    expect(otherButtons).toHaveLength(4);
     expect(otherButtons[0].attributes("disabled")).toBeUndefined();
     expect(otherButtons[1].attributes("disabled")).toBeUndefined();
     expect(otherButtons[2].attributes("disabled")).toBeUndefined();
-    await otherButtons[2].trigger("click");
+    expect(otherButtons[3].attributes("disabled")).toBeUndefined();
+    await otherButtons[3].trigger("click");
     expect(apiMocks.setOperatorEnabled).toHaveBeenCalledWith("op_ops", false);
+  });
+
+  it("loads another operator's sessions from the admin UI", async () => {
+    apiMocks.listOperators.mockResolvedValue([
+      operator("op_admin", "admin", true),
+      operator("op_ops", "ops", true, "operator"),
+    ]);
+    apiMocks.listOperatorSessions.mockResolvedValue([
+      {
+        id: "sess_1",
+        operatorId: "op_ops",
+        current: false,
+        remoteAddrChanged: false,
+        userAgentChanged: false,
+        expiresAt: "2026-01-02T00:00:00Z",
+        createdAt: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useAuthStore().operator = operator("op_admin", "admin", true);
+
+    const Host = defineComponent({
+      render: () => h(NMessageProvider, null, { default: () => h(SystemOperatorsPage) }),
+    });
+
+    const wrapper = mount(Host, {
+      global: {
+        plugins: [i18n, pinia],
+      },
+    });
+    await flushPromises();
+
+    const rows = wrapper.findAll("tbody tr");
+    const otherButtons = rows[1].findAll("button");
+    await otherButtons[1].trigger("click");
+
+    expect(apiMocks.listOperatorSessions).toHaveBeenCalledWith("op_ops");
   });
 
   it("revokes another operator's sessions from the admin UI", async () => {
@@ -108,7 +153,7 @@ describe("SystemOperatorsPage", () => {
 
     const rows = wrapper.findAll("tbody tr");
     const otherButtons = rows[1].findAll("button");
-    await otherButtons[1].trigger("click");
+    await otherButtons[2].trigger("click");
 
     expect(apiMocks.revokeOperatorSessions).toHaveBeenCalledWith("op_ops");
   });

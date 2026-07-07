@@ -114,6 +114,39 @@ func TestOperatorManagementRequiresAdminRole(t *testing.T) {
 		revokeEvent.Metadata["actorRole"] != data.OperatorRoleOperator {
 		t.Fatalf("unexpected session revoke admin required audit event: %#v", revokeEvent)
 	}
+
+	listSessionsRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodGet,
+		"/api/system/operators/op_admin/sessions",
+		"",
+	)
+	if listSessionsRecorder.Code != http.StatusForbidden {
+		t.Fatalf("session list status = %d body = %s", listSessionsRecorder.Code, listSessionsRecorder.Body.String())
+	}
+	listSessionsEvent := assertAuditAction(t, repository.auditEvents, "operator.sessions_list", "operator", "op_admin")
+	if listSessionsEvent.Outcome != "failure" || listSessionsEvent.Metadata["reason"] != "admin_required" ||
+		listSessionsEvent.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected session list admin required audit event: %#v", listSessionsEvent)
+	}
+
+	revokeSessionRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodDelete,
+		"/api/system/operators/op_admin/sessions/session_1",
+		"",
+	)
+	if revokeSessionRecorder.Code != http.StatusForbidden {
+		t.Fatalf("single session revoke status = %d body = %s", revokeSessionRecorder.Code, revokeSessionRecorder.Body.String())
+	}
+	revokeSessionEvent := assertAuditAction(t, repository.auditEvents, "operator.session_revoke", "operator_session", "session_1")
+	if revokeSessionEvent.Outcome != "failure" || revokeSessionEvent.Metadata["reason"] != "admin_required" ||
+		revokeSessionEvent.Metadata["actorRole"] != data.OperatorRoleOperator ||
+		revokeSessionEvent.Metadata["operatorId"] != "op_admin" {
+		t.Fatalf("unexpected single session revoke admin required audit event: %#v", revokeSessionEvent)
+	}
 }
 
 func TestDisablingOperatorRevokesSessions(t *testing.T) {

@@ -167,8 +167,16 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleOperators(w, r)
 		return
 	}
+	if len(parts) == 5 && parts[2] == "operators" && parts[4] == "sessions" {
+		server.handleOperatorSessions(w, r, parts[3])
+		return
+	}
 	if len(parts) == 6 && parts[2] == "operators" && parts[4] == "sessions" && parts[5] == "revoke" {
 		server.handleOperatorSessionsRevoke(w, r, parts[3])
+		return
+	}
+	if len(parts) == 6 && parts[2] == "operators" && parts[4] == "sessions" {
+		server.handleOperatorSessionRevoke(w, r, parts[3], parts[5])
 		return
 	}
 	if len(parts) == 5 && parts[2] == "operators" {
@@ -402,14 +410,26 @@ func (server *Server) currentAdminOperator(
 	resourceID string,
 	metadata map[string]string,
 ) (data.Operator, bool) {
-	actor, _, authErr := server.currentOperator(r)
+	actor, _, ok := server.currentAdminOperatorWithToken(w, r, action, resourceType, resourceID, metadata)
+	return actor, ok
+}
+
+func (server *Server) currentAdminOperatorWithToken(
+	w http.ResponseWriter,
+	r *http.Request,
+	action string,
+	resourceType string,
+	resourceID string,
+	metadata map[string]string,
+) (data.Operator, string, bool) {
+	actor, tokenHash, authErr := server.currentOperator(r)
 	if authErr != nil {
 		writeAuthError(w, authErr)
-		return data.Operator{}, false
+		return data.Operator{}, "", false
 	}
 	if !actor.IsAdmin() {
 		server.writeAdminRequiredAudit(w, r, actor, action, resourceType, resourceID, metadata)
-		return data.Operator{}, false
+		return data.Operator{}, "", false
 	}
-	return actor, true
+	return actor, tokenHash, true
 }

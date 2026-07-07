@@ -203,6 +203,78 @@ func (server *Server) handleOperatorSessionsRevoke(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, data.OperatorSessionRevokeResult{RevokedSessionCount: revokedSessionCount})
 }
 
+func (server *Server) handleOperatorSessions(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, http.MethodGet)
+		return
+	}
+	actor, tokenHash, ok := server.currentAdminOperatorWithToken(w, r, "operator.sessions_list", "operator", id, nil)
+	if !ok {
+		return
+	}
+	operator, err := server.operatorByID(r, id)
+	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.sessions_list", "operator", id, "failure", storeFailureMetadata(err, nil)); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeStoreError(w, err)
+		return
+	}
+	sessions, err := server.repository.ListOperatorSessions(r.Context(), operator.ID, tokenHash, time.Now().UTC())
+	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.sessions_list", "operator", operator.ID, "failure", storeFailureMetadata(err, operatorMetadata(operator))); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (server *Server) handleOperatorSessionRevoke(w http.ResponseWriter, r *http.Request, operatorID string, sessionID string) {
+	if r.Method != http.MethodDelete {
+		writeMethodNotAllowed(w, http.MethodDelete)
+		return
+	}
+	if !server.validateCSRF(w, r) {
+		return
+	}
+	actor, tokenHash, ok := server.currentAdminOperatorWithToken(w, r, "operator.session_revoke", "operator_session", sessionID, map[string]string{
+		"operatorId": operatorID,
+	})
+	if !ok {
+		return
+	}
+	operator, err := server.operatorByID(r, operatorID)
+	if err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.session_revoke", "operator_session", sessionID, "failure", storeFailureMetadata(err, map[string]string{
+			"operatorId": operatorID,
+		})); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeStoreError(w, err)
+		return
+	}
+	metadata := operatorMetadata(operator)
+	metadata["operatorId"] = operator.ID
+	if err := server.repository.DeleteOperatorSessionByID(r.Context(), operator.ID, sessionID, tokenHash); err != nil {
+		if auditErr := server.recordAuditEvent(r, actor, "operator.session_revoke", "operator_session", sessionID, "failure", storeFailureMetadata(err, metadata)); auditErr != nil {
+			writeError(w, http.StatusInternalServerError, auditErr.Error())
+			return
+		}
+		writeStoreError(w, err)
+		return
+	}
+	if err := server.recordAuditEvent(r, actor, "operator.session_revoke", "operator_session", sessionID, "success", metadata); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (server *Server) operatorByID(r *http.Request, id string) (data.Operator, error) {
 	operators, err := server.repository.ListOperators(r.Context())
 	if err != nil {
@@ -214,6 +286,14 @@ func (server *Server) operatorByID(r *http.Request, id string) (data.Operator, e
 		}
 	}
 	return data.Operator{}, data.ErrNotFound
+}
+
+func operatorMetadata(operator data.Operator) map[string]string {
+	return map[string]string{
+		"username": operator.Username,
+		"role":     operator.Role,
+		"enabled":  boolString(operator.Enabled),
+	}
 }
 
 func (server *Server) operatorSessionCountMetadata(r *http.Request, operatorID string) string {
