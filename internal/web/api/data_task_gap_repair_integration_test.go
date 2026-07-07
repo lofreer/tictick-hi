@@ -19,7 +19,7 @@ func TestIntegrationDataSyncTaskGapRepairRouteConvergesSourceHealth(t *testing.T
 
 	symbol := apiIntegrationSymbol("APIDG")
 	username := fmt.Sprintf("api-data-gap-%d", time.Now().UTC().UnixNano())
-	password := "secret123"
+	password := "secret123A"
 	start := time.Date(2026, 6, 27, 12, 0, 0, 0, time.UTC)
 	end := start.Add(5 * time.Minute)
 	t.Cleanup(func() {

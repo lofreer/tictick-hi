@@ -8,10 +8,11 @@ func TestValidateOperatorPassword(t *testing.T) {
 		password  string
 		wantError bool
 	}{
-		{name: "valid", password: "secret123"},
+		{name: "valid", password: "secret123A"},
 		{name: "too short", password: "short", wantError: true},
 		{name: "missing digit", password: "password", wantError: true},
 		{name: "missing letter", password: "12345678", wantError: true},
+		{name: "common", password: "secret123", wantError: true},
 	}
 
 	for _, test := range tests {

@@ -25,7 +25,7 @@ func TestIntegrationMarketCandleInvalidIssueRepairRouteConvergesPostgresScan(t *
 
 	symbol := apiIntegrationSymbol("APIIC")
 	username := fmt.Sprintf("api-invalid-%d", time.Now().UTC().UnixNano())
-	password := "secret123"
+	password := "secret123A"
 	start := time.Date(2026, 6, 27, 10, 15, 0, 0, time.UTC)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)

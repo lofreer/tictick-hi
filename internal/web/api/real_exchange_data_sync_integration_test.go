@@ -61,7 +61,7 @@ func TestIntegrationDataSyncRouteRecoversAfterTemporaryPublicMarketError(t *test
 
 	symbol := apiIntegrationSymbol("APIRR")
 	username := fmt.Sprintf("api-retry-sync-%d", time.Now().UTC().UnixNano())
-	password := "secret123"
+	password := "secret123A"
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(2 * time.Minute)
 	market := newAPITransientBinanceKlineServer(symbol, start)
@@ -200,7 +200,7 @@ func runRealDataSyncRouteServesNativeCandles(t *testing.T, smoke realExchangeSmo
 		baseURL = smoke.defaultBaseURL
 	}
 	username := fmt.Sprintf("api-real-%s-sync-%d", smoke.exchange, time.Now().UTC().UnixNano())
-	password := "secret123"
+	password := "secret123A"
 	end := time.Now().UTC().Truncate(time.Minute).Add(-30 * time.Minute)
 	start := end.Add(-2 * time.Minute)
 

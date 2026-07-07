@@ -14,7 +14,7 @@ func TestOperatorSessionStorePersistsClientContext(t *testing.T) {
 
 	operator, err := store.CreateOperator(ctx, data.CreateOperator{
 		Username: integrationID("session_context"),
-		Password: "secret123",
+		Password: "secret123A",
 		Enabled:  true,
 	})
 	if err != nil {

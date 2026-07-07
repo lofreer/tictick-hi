@@ -15,7 +15,7 @@ func TestOperatorStoreRejectsDisablingLastEnabledOperator(t *testing.T) {
 
 	operator, err := store.CreateOperator(ctx, data.CreateOperator{
 		Username: integrationID("last_operator"),
-		Password: "secret123",
+		Password: "secret123A",
 		Enabled:  true,
 	})
 	if err != nil {
@@ -43,7 +43,7 @@ func TestOperatorStoreRejectsDisablingLastEnabledOperator(t *testing.T) {
 		t.Fatalf("SetOperatorEnabled error = %v, want invalid state", err)
 	}
 
-	authenticated, err := store.AuthenticateOperator(ctx, operator.Username, "secret123")
+	authenticated, err := store.AuthenticateOperator(ctx, operator.Username, "secret123A")
 	if err != nil {
 		t.Fatalf("operator was disabled: %v", err)
 	}

@@ -18,7 +18,7 @@ import (
 
 const (
 	testUsername = "admin"
-	testPassword = "secret123"
+	testPassword = "secret123A"
 )
 
 type authTestSession struct {
@@ -598,7 +598,7 @@ func TestSystemRoutes(t *testing.T) {
 	}{
 		{path: "/api/system/notifications/channels", body: `{"name":"Ops","provider":"webhook","target":"https://example.invalid/ops","enabled":true}`},
 		{path: "/api/system/exchange-accounts", body: `{"exchange":"binance","alias":"main","apiKey":"key","apiSecret":"secret","enabled":true}`},
-		{path: "/api/system/operators", body: `{"username":"ops","password":"secret123","enabled":true}`},
+		{path: "/api/system/operators", body: `{"username":"ops","password":"secret123A","enabled":true}`},
 	}
 	for _, item := range cases {
 		createRecorder := serveAuthenticated(server, cookie, http.MethodPost, item.path, item.body)

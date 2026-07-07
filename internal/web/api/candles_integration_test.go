@@ -18,7 +18,7 @@ func TestIntegrationCandlesRouteReportsAggregationGapAcrossBasePageBoundary(t *t
 
 	symbol := apiIntegrationSymbol("APICPB")
 	username := fmt.Sprintf("api-candles-gap-%d", time.Now().UTC().UnixNano())
-	password := "secret123"
+	password := "secret123A"
 	start := time.Date(2026, 6, 27, 6, 0, 0, 0, time.UTC)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)

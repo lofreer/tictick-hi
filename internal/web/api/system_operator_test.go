@@ -52,6 +52,11 @@ func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 			password: "password",
 			message:  "password must include at least one letter and one number",
 		},
+		{
+			name:     "common",
+			password: "secret123",
+			message:  "password is too common",
+		},
 	}
 
 	for _, test := range tests {

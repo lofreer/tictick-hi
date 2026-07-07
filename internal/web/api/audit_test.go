@@ -19,7 +19,7 @@ func TestSystemAuditEventsRouteRecordsSecurityActions(t *testing.T) {
 		auth,
 		http.MethodPost,
 		"/api/system/operators",
-		`{"username":"ops-audit","password":"secret123","enabled":true}`,
+		`{"username":"ops-audit","password":"secret123A","enabled":true}`,
 	)
 	if createRecorder.Code != http.StatusCreated {
 		t.Fatalf("create operator status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
@@ -35,7 +35,7 @@ func TestSystemAuditEventsRouteRecordsSecurityActions(t *testing.T) {
 		t.Fatalf("list audit events status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
 	}
 	body := listRecorder.Body.String()
-	if strings.Contains(body, "secret123") {
+	if strings.Contains(body, "secret123A") {
 		t.Fatalf("audit response leaked operator password: %s", body)
 	}
 

@@ -17,7 +17,7 @@ func TestIntegrationAuditEventsRoundTrip(t *testing.T) {
 	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
 	operator, err := store.CreateOperator(ctx, data.CreateOperator{
 		Username: "audit_" + suffix,
-		Password: "secret123",
+		Password: "secret123A",
 		Enabled:  true,
 	})
 	if err != nil {

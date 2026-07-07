@@ -17,7 +17,7 @@ func TestIntegrationDataSyncTaskInvalidRepairRouteConvergesSourceHealth(t *testi
 
 	symbol := apiIntegrationSymbol("APIDI")
 	username := fmt.Sprintf("api-data-invalid-%d", time.Now().UTC().UnixNano())
-	password := "secret123"
+	password := "secret123A"
 	start := time.Date(2026, 6, 27, 13, 0, 0, 0, time.UTC)
 	end := start.Add(3 * time.Minute)
 	invalidOpenTime := start.Add(2 * time.Minute)
