@@ -1992,15 +1992,22 @@ go vet ./...
 
 禁止把门禁做成 `tictick-pro` 那种重证据系统。
 
-## 22. 关键开放问题
+## 22. 本地边界和生产保留项
 
-需要继续确认：
+当前本地 demo 边界已收敛：
 
-1. 第一版前端统一暴露 `1m`、`5m`、`15m`、`1h`、`4h`、`1d`，研究页和策略任务表单共用同一前端定义；后续新增周期必须同步后端策略 / CandleProvider / 交易所 adapter 边界。
+1. 前端统一暴露 `1m`、`5m`、`15m`、`1h`、`4h`、`1d` K 线周期，研究页和策略任务表单共用同一前端定义；后续新增周期必须同步后端策略 / CandleProvider / 交易所 adapter 边界。
 2. 数据同步实时方式第一版明确为 `hi sync` REST 轮询，受 `SYNC_POLL_INTERVAL` 控制；WebSocket / 交易所差异化订阅后续再评估。
 3. TradingView 开源图表第一版采用 `lightweight-charts` 包，当前安装包元数据为 Apache-2.0 license；前端契约测试禁止回退到 proprietary TradingView widget / charting_library。
-4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider，并记录成功投递响应中的 provider message ID；生产启用、模板、限流和外部回执边界仍需确认。
-5. 生产级交易所账号密钥来源、轮换和历史账号迁移策略。
-6. 实盘任务创建二次输入确认已收敛为输入 `LIVE`；API 会将缺省 `intentPolicy.riskLimitPct` 归一为 10 并限制为 `0..100` 数字。live executor 启用前仍需复核真实风控默认值。
-7. 回测第一版保留 `feeBps` / `slippageBps`，runner 已按 bps 应用到成交价、手续费和结果摘要；生产级撮合曲线仍后续复核。
-8. 保留现有 `tictick-hi` Go + Vue 结构：后端集中在 `cmd/hi` 和 `internal/*`，前端集中在 `web/frontend/src/*`；`scripts/check-repo-structure.sh` 已进入质量门禁防止重复 backend/frontend 根目录和跨栈源码漂移。
+4. 第一版通知通道已接入邮件、Telegram、飞书基础 provider，并记录成功投递响应中的 provider message ID；真实 token / secret 继续使用 env-reference 凭据模型。
+5. 实盘任务创建二次输入确认已收敛为输入 `LIVE`；API 会将缺省 `intentPolicy.riskLimitPct` 归一为 10 并限制为 `0..100` 数字。
+6. 回测第一版保留 `feeBps` / `slippageBps`，runner 已按 bps 应用到成交价、手续费和结果摘要。
+7. 保留现有 `tictick-hi` Go + Vue 结构：后端集中在 `cmd/hi` 和 `internal/*`，前端集中在 `web/frontend/src/*`；`scripts/check-repo-structure.sh` 已进入质量门禁防止重复 backend/frontend 根目录和跨栈源码漂移。
+8. `scripts/check-plan-boundaries.sh` 已进入质量门禁，防止旧开放问题文案回流。
+
+目标环境 / 生产阶段保留项：
+
+- 生产通知启用：生产级通知模板、多实例 / provider 级限流、外部回执解析、真实第三方账号联网验收、密钥轮换和审计签名仍需目标环境确认。
+- 生产密钥治理：交易所账号生产级 KMS / secret manager、`ENCRYPTION_KEY` 轮换、历史 `legacy` 账号迁移和目标环境密钥托管流程仍需独立设计与演练。
+- live executor：真实 testnet / sandbox executor、订单先落库再提交、幂等 retry、撤单 / 查单、执行前风控和审批 / 告警仍未启用。
+- 生产级回测撮合：订单簿、盘口深度、部分成交、动态费率、maker/taker、资金费率、借贷成本和风险指标仍不属于当前 demo 边界。

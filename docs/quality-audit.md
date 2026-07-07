@@ -14564,6 +14564,46 @@ Definition of Done：
 - 当前 `riskLimitPct` 仍只是 intentPolicy 中的 demo 参数，live executor 禁用期间不会形成真实交易风控闭环。
 - 生产级风控默认值、执行前校验、账户级限制、告警和审批流仍需随 live executor 阶段设计和验证。
 
+### 阶段 8 plan boundary 门禁补充
+
+执行日期：2026-07-08
+
+目标等级：demo。
+
+范围内：
+
+- `docs/implementation-plan.md` 的最后一节从“关键开放问题”改为“本地边界和生产保留项”。
+- 已本地收敛的事项集中记录为 demo 边界：K 线周期、REST polling、`lightweight-charts`、通知基础 provider、live 创建确认 / riskLimitPct、回测 bps 成本模型和 repo structure。
+- 生产通知启用、生产密钥治理、live executor 和生产级回测撮合明确归入目标环境 / 生产阶段保留项，不再冒充本地 demo 已完成。
+- 新增 `scripts/check-plan-boundaries.sh` 并接入 `scripts/quality-gate.sh`，要求计划文档保留生产保留项标题，并拒绝旧开放问题文案回流。
+
+范围外：
+
+- 不实现通知生产模板 / 回执、KMS / secret manager、live executor 或生产级撮合曲线。
+- 不把当前项目等级从 scaffold/demo 风险边界提升为 usable 或 production-safe。
+- 不替代目标环境验收、法务 / 安全审计、真实交易所或真实第三方 provider 联网测试。
+
+当前验证：
+
+- `scripts/check-plan-boundaries.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `git diff --check` 通过。
+- `scripts/check-scaffold-markers.sh && scripts/check-future-risk-markers.sh` 通过。
+
+未执行：
+
+- 本切片未改前端页面运行态，未执行额外 Browser / Vite HTTP smoke。
+
+剩余风险：
+
+- 生产保留项仍是实际工程风险，不能通过文档重分类关闭；后续需要目标环境凭据、外部系统、交易所 testnet / sandbox 和生产安全策略才能推进。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
