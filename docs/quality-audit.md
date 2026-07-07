@@ -12450,6 +12450,46 @@ Definition of Done：
 - 登录会话仍缺更完整弱密码字典、历史 / 轮换、MFA、RBAC、角色级自保护和生产级设备上下文。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
+### 阶段 8 market instrument sync unavailable error code 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- API error catalog 新增 HTTP 400 `market_instrument_sync_unavailable`。
+- `POST /api/market/instruments/sync` 在请求 exchange 没有已注册 instrument sync client 时返回 `market_instrument_sync_unavailable`，不再使用泛化 `request_failed`。
+- 重新生成 `web/frontend/src/types/api.generated.ts`，使前端 `APIErrorCode` union 包含新增错误码。
+- 测试覆盖 unavailable client 路由响应 code、API error catalog / schema enum。
+
+范围外：
+
+- 不改变 Binance / OKX instrument sync 成功路径、外部抓取失败路径、sync status 记录、catalog pause / restore 行为或前端提示文案。
+- 不新增真实交易所可达性探测、重试队列或分布式同步调度。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestMarketInstrumentSyncRouteRejectsUnavailableClient|TestAPIErrorCatalogHasUniqueKnownCodes|TestAPIErrorResponseSchemaUsesCatalogEnum' -count=1 -v` 通过。
+- `scripts/generate-api-types.sh` 通过。
+- `go test ./internal/web/api -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行真实 Binance / OKX instrument sync 外网 smoke；本轮不改变外部调用路径。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- API server 仍缺更多领域的错误语义细分和生产级审计边界。
+- Instrument catalog 仍缺目标环境长期同步、外部交易所恢复压测、完整业务状态语义和分布式调度证据。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

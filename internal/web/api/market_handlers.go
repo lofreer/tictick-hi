@@ -225,7 +225,7 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 	}
 	client := server.instrumentClients[query.Exchange]
 	if client == nil {
-		writeAPIError(w, http.StatusBadRequest, apiErrorRequestFailed, "market instrument sync is unavailable for "+query.Exchange)
+		writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentSyncUnavailable, "market instrument sync is unavailable for "+query.Exchange)
 		return
 	}
 	attemptedAt := time.Now().UTC()

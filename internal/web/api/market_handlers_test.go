@@ -577,7 +577,7 @@ func TestMarketInstrumentSyncRouteRejectsUnavailableClient(t *testing.T) {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	response := decodeAPIError(t, recorder)
-	if response.Code != "request_failed" {
+	if response.Code != "market_instrument_sync_unavailable" {
 		t.Fatalf("unexpected error response: %#v", response)
 	}
 }
