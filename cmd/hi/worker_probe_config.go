@@ -31,11 +31,16 @@ type workerReadinessProviderConfig struct {
 	Enabled bool
 }
 
+type workerReadinessCatalogFreshnessConfig struct {
+	MaxStaleness time.Duration
+}
+
 type workerProbeRuntimeConfig struct {
 	HealthAddr       string
 	Backlog          workerReadinessBacklogConfig
 	StaleLeases      workerReadinessStaleLeaseConfig
 	ExchangeBackoffs workerReadinessExchangeBackoffConfig
+	CatalogFreshness workerReadinessCatalogFreshnessConfig
 	ProviderConfig   workerReadinessProviderConfig
 }
 
@@ -92,6 +97,17 @@ func loadWorkerReadinessProviderConfig(command string) (workerReadinessProviderC
 	return workerReadinessProviderConfig{Enabled: enabled}, nil
 }
 
+func loadWorkerReadinessCatalogFreshnessConfig(command string) (workerReadinessCatalogFreshnessConfig, error) {
+	if command != "sync" {
+		return workerReadinessCatalogFreshnessConfig{}, nil
+	}
+	maxStaleness, err := durationEnvStrict("SYNC_READY_MAX_CATALOG_STALENESS", 0)
+	if err != nil {
+		return workerReadinessCatalogFreshnessConfig{}, err
+	}
+	return workerReadinessCatalogFreshnessConfig{MaxStaleness: maxStaleness}, nil
+}
+
 func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, error) {
 	healthAddr, err := loadWorkerHealthProbeAddr(command)
 	if err != nil {
@@ -109,6 +125,10 @@ func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, err
 	if err != nil {
 		return workerProbeRuntimeConfig{}, err
 	}
+	catalogFreshnessReadiness, err := loadWorkerReadinessCatalogFreshnessConfig(command)
+	if err != nil {
+		return workerProbeRuntimeConfig{}, err
+	}
 	providerConfigReadiness, err := loadWorkerReadinessProviderConfig(command)
 	if err != nil {
 		return workerProbeRuntimeConfig{}, err
@@ -118,6 +138,7 @@ func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, err
 		Backlog:          backlogReadiness,
 		StaleLeases:      staleLeaseReadiness,
 		ExchangeBackoffs: exchangeBackoffReadiness,
+		CatalogFreshness: catalogFreshnessReadiness,
 		ProviderConfig:   providerConfigReadiness,
 	}, nil
 }
@@ -153,6 +174,21 @@ func (config workerReadinessExchangeBackoffConfig) summaryValue() any {
 		return ""
 	}
 	return config.MaxActiveBackoffs
+}
+
+func (config workerReadinessCatalogFreshnessConfig) enabled() bool {
+	return config.MaxStaleness > 0
+}
+
+func (config workerReadinessCatalogFreshnessConfig) limits() postgres.SyncCatalogFreshnessLimits {
+	return postgres.SyncCatalogFreshnessLimits{MaxStaleness: config.MaxStaleness}
+}
+
+func (config workerReadinessCatalogFreshnessConfig) summaryValue() any {
+	if !config.enabled() {
+		return ""
+	}
+	return config.MaxStaleness
 }
 
 func (config workerReadinessProviderConfig) summaryValue() any {
@@ -215,6 +251,14 @@ func workerReadinessChecks(
 			Name: "exchange_backoff",
 			Check: func(ctx context.Context) error {
 				return store.CheckSyncExchangeBackoffs(ctx, config.ExchangeBackoffs.limits())
+			},
+		})
+	}
+	if config.CatalogFreshness.enabled() {
+		checks = append(checks, workerReadinessCheck{
+			Name: "catalog_freshness",
+			Check: func(ctx context.Context) error {
+				return store.CheckSyncCatalogFreshness(ctx, config.CatalogFreshness.limits())
 			},
 		})
 	}

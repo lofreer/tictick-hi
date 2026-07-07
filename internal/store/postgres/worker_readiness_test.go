@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 func TestCheckWorkerQueueBacklogLimits(t *testing.T) {
@@ -53,6 +55,50 @@ func TestCheckSyncExchangeBackoffLimits(t *testing.T) {
 	err := checkSyncExchangeBackoffLimits(2, SyncExchangeBackoffLimits{MaxActiveBackoffs: 1})
 	if err == nil || !strings.Contains(err.Error(), "active exchange backoffs 2 exceeds limit 1") {
 		t.Fatalf("expected exchange backoff limit error, got %v", err)
+	}
+}
+
+func TestCheckSyncCatalogFreshnessStatus(t *testing.T) {
+	now := time.Date(2026, 7, 7, 10, 0, 0, 0, time.UTC)
+	recentSuccess := now.Add(-23 * time.Hour)
+	oldSuccess := now.Add(-25 * time.Hour)
+
+	if err := checkSyncCatalogFreshnessStatus(data.MarketInstrumentSyncStatus{
+		Exchange:      "binance",
+		LastAttemptAt: recentSuccess,
+		LastSuccessAt: &recentSuccess,
+	}, SyncCatalogFreshnessLimits{MaxStaleness: 24 * time.Hour}, now); err != nil {
+		t.Fatalf("fresh catalog should pass: %v", err)
+	}
+
+	err := checkSyncCatalogFreshnessStatus(data.MarketInstrumentSyncStatus{
+		Exchange:      "okx",
+		LastAttemptAt: oldSuccess,
+		LastSuccessAt: &oldSuccess,
+	}, SyncCatalogFreshnessLimits{MaxStaleness: 24 * time.Hour}, now)
+	if err == nil || !strings.Contains(err.Error(), "okx last success age 25h0m0s exceeds limit 24h0m0s") {
+		t.Fatalf("expected stale catalog error, got %v", err)
+	}
+
+	err = checkSyncCatalogFreshnessStatus(data.MarketInstrumentSyncStatus{
+		Exchange:      "binance",
+		LastAttemptAt: now,
+	}, SyncCatalogFreshnessLimits{MaxStaleness: 24 * time.Hour}, now)
+	if err == nil || !strings.Contains(err.Error(), "binance has never synced") {
+		t.Fatalf("expected never synced error, got %v", err)
+	}
+
+	err = checkSyncCatalogFreshnessStatus(data.MarketInstrumentSyncStatus{
+		Exchange:      "okx",
+		LastAttemptAt: now,
+		LastSuccessAt: &recentSuccess,
+		LastError:     "temporary failure with secret",
+	}, SyncCatalogFreshnessLimits{MaxStaleness: 24 * time.Hour}, now)
+	if err == nil || !strings.Contains(err.Error(), "okx latest attempt failed without newer success") {
+		t.Fatalf("expected failed after success error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("catalog freshness error leaked raw last error: %v", err)
 	}
 }
 

@@ -110,6 +110,7 @@ SYNC_READY_MAX_BACKLOG
 SYNC_READY_MAX_AGE
 SYNC_READY_MAX_STALE_LEASES
 SYNC_READY_MAX_EXCHANGE_BACKOFFS
+SYNC_READY_MAX_CATALOG_STALENESS
 BACKTEST_READY_MAX_BACKLOG
 BACKTEST_READY_MAX_AGE
 BACKTEST_READY_MAX_STALE_LEASES
@@ -137,7 +138,7 @@ counts claim-ready work only: sync pending tasks that are enabled, due, active i
 the instrument catalog, and not exchange-backoff blocked; backtest pending tasks;
 trading running tasks that are ready for another claim cycle; and notify
 pending/retry deliveries whose `next_attempt_at` is due. Task lease state,
-general queue depth, exchange backoff, fetch-lock skips, and catalog health
+general queue depth, exchange backoff, fetch-lock skips, and full catalog health
 remain visible through `hi api` system health.
 
 Stale lease readiness is disabled by default. Set
@@ -151,6 +152,14 @@ Sync exchange-backoff readiness is disabled by default. Set
 the check, and `0` means any active persisted exchange backoff makes readiness
 return HTTP 503. This check reads PostgreSQL backoff state and does not send
 live probes to Binance or OKX.
+
+Sync catalog freshness readiness is disabled by default. Set
+`SYNC_READY_MAX_CATALOG_STALENESS` to a positive duration to add a
+`catalog_freshness` check to `hi sync` `/readyz` and `/healthz`. The check reads
+persisted `market_instrument_sync_statuses` only and fails if there is no catalog
+sync status, an exchange has never synced, the latest catalog attempt failed
+without a newer success, or the last success is older than the configured
+duration. It does not send live probes to Binance or OKX.
 
 Notify provider configuration readiness is disabled by default. Set
 `NOTIFY_READY_VALIDATE_PROVIDER_CONFIG=true` to add a `notification_providers`
@@ -262,6 +271,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, command run-level `LOG_TRACEPARENT` / `run_trace_id` log fields, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, notification provider outbound `X-Request-ID` / `traceparent` propagation, and data sync Binance / OKX market HTTP request metadata propagation exist, but broader external systems and independently started subcommands still do not carry W3C trace context end to end unless deployment injects the same traceparent;
-- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, stale-lease readiness, sync exchange-backoff readiness, and notify provider config readiness, but no richer readiness model for claim success rate, live exchange probing, or live provider delivery probes;
+- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, stale-lease readiness, sync exchange-backoff readiness, sync catalog freshness readiness, and notify provider config readiness, but no richer readiness model for claim success rate, live exchange probing, or live provider delivery probes;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.

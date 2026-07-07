@@ -106,6 +106,7 @@ func runNotify(ctx context.Context, args []string) error {
 		"ready_max_age", probeConfig.Backlog.MaxAge,
 		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 		"ready_max_exchange_backoffs", probeConfig.ExchangeBackoffs.summaryValue(),
+		"ready_max_catalog_staleness", probeConfig.CatalogFreshness.summaryValue(),
 		"ready_validate_provider_config", probeConfig.ProviderConfig.summaryValue(),
 	)...)
 
@@ -156,6 +157,7 @@ func runTrading(ctx context.Context, args []string) error {
 		"ready_max_age", probeConfig.Backlog.MaxAge,
 		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 		"ready_max_exchange_backoffs", probeConfig.ExchangeBackoffs.summaryValue(),
+		"ready_max_catalog_staleness", probeConfig.CatalogFreshness.summaryValue(),
 		"ready_validate_provider_config", probeConfig.ProviderConfig.summaryValue(),
 	)...)
 
@@ -206,6 +208,7 @@ func runBacktest(ctx context.Context, args []string) error {
 		"ready_max_age", probeConfig.Backlog.MaxAge,
 		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 		"ready_max_exchange_backoffs", probeConfig.ExchangeBackoffs.summaryValue(),
+		"ready_max_catalog_staleness", probeConfig.CatalogFreshness.summaryValue(),
 		"ready_validate_provider_config", probeConfig.ProviderConfig.summaryValue(),
 	)...)
 
@@ -286,6 +289,7 @@ func runSync(ctx context.Context, args []string) error {
 		"ready_max_age", probeConfig.Backlog.MaxAge,
 		"ready_max_stale_leases", probeConfig.StaleLeases.summaryValue(),
 		"ready_max_exchange_backoffs", probeConfig.ExchangeBackoffs.summaryValue(),
+		"ready_max_catalog_staleness", probeConfig.CatalogFreshness.summaryValue(),
 		"ready_validate_provider_config", probeConfig.ProviderConfig.summaryValue(),
 	)...)
 

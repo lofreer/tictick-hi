@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
@@ -20,6 +21,10 @@ type WorkerStaleLeaseLimits struct {
 
 type SyncExchangeBackoffLimits struct {
 	MaxActiveBackoffs int
+}
+
+type SyncCatalogFreshnessLimits struct {
+	MaxStaleness time.Duration
 }
 
 func (store *Store) CheckWorkerQueue(ctx context.Context, command string) error {
@@ -93,6 +98,51 @@ func (store *Store) CheckSyncExchangeBackoffs(
 		return fmt.Errorf("read sync exchange backoffs: %w", err)
 	}
 	return checkSyncExchangeBackoffLimits(count, limits)
+}
+
+func (store *Store) CheckSyncCatalogFreshness(ctx context.Context, limits SyncCatalogFreshnessLimits) error {
+	if limits.MaxStaleness <= 0 {
+		return nil
+	}
+	rows, err := store.pool.Query(ctx, `
+		SELECT exchange, last_attempt_at, last_success_at, last_error, updated_at
+		  FROM market_instrument_sync_statuses
+		 ORDER BY exchange`)
+	if err != nil {
+		return fmt.Errorf("read sync catalog freshness: %w", err)
+	}
+	defer rows.Close()
+
+	now := time.Now().UTC()
+	checked := 0
+	for rows.Next() {
+		checked++
+		var status data.MarketInstrumentSyncStatus
+		var lastSuccess sql.NullTime
+		if err := rows.Scan(
+			&status.Exchange,
+			&status.LastAttemptAt,
+			&lastSuccess,
+			&status.LastError,
+			&status.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("scan sync catalog freshness: %w", err)
+		}
+		if lastSuccess.Valid {
+			lastSuccessAt := lastSuccess.Time
+			status.LastSuccessAt = &lastSuccessAt
+		}
+		if err := checkSyncCatalogFreshnessStatus(status, limits, now); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("collect sync catalog freshness: %w", err)
+	}
+	if checked == 0 {
+		return fmt.Errorf("sync catalog freshness has no sync status")
+	}
+	return nil
 }
 
 func workerQueueReadinessQuery(command string) (string, error) {
@@ -174,6 +224,32 @@ func checkSyncExchangeBackoffLimits(activeBackoffCount int, limits SyncExchangeB
 			"sync worker active exchange backoffs %d exceeds limit %d",
 			activeBackoffCount,
 			limits.MaxActiveBackoffs,
+		)
+	}
+	return nil
+}
+
+func checkSyncCatalogFreshnessStatus(
+	status data.MarketInstrumentSyncStatus,
+	limits SyncCatalogFreshnessLimits,
+	now time.Time,
+) error {
+	lastError := strings.TrimSpace(status.LastError)
+	failedWithoutNewerSuccess := lastError != "" &&
+		(status.LastSuccessAt == nil || status.LastAttemptAt.After(status.LastSuccessAt.UTC()))
+	switch {
+	case failedWithoutNewerSuccess:
+		return fmt.Errorf("sync catalog %s latest attempt failed without newer success", status.Exchange)
+	case status.LastSuccessAt == nil:
+		return fmt.Errorf("sync catalog %s has never synced", status.Exchange)
+	}
+	staleness := now.Sub(status.LastSuccessAt.UTC())
+	if staleness > limits.MaxStaleness {
+		return fmt.Errorf(
+			"sync catalog %s last success age %s exceeds limit %s",
+			status.Exchange,
+			staleness.Round(time.Second),
+			limits.MaxStaleness,
 		)
 	}
 	return nil

@@ -276,6 +276,51 @@ func TestLoadWorkerReadinessExchangeBackoffConfigRejectsInvalidValues(t *testing
 	}
 }
 
+func TestLoadWorkerReadinessCatalogFreshnessConfig(t *testing.T) {
+	clearCommandEnv(t)
+
+	config, err := loadWorkerReadinessCatalogFreshnessConfig("backtest")
+	if err != nil {
+		t.Fatalf("load non-sync catalog freshness config: %v", err)
+	}
+	if config.enabled() {
+		t.Fatalf("non-sync catalog freshness config should be disabled: %#v", config)
+	}
+
+	t.Setenv("SYNC_READY_MAX_CATALOG_STALENESS", "25h")
+	config, err = loadWorkerReadinessCatalogFreshnessConfig("sync")
+	if err != nil {
+		t.Fatalf("load catalog freshness config: %v", err)
+	}
+	if !config.enabled() || config.MaxStaleness != 25*time.Hour {
+		t.Fatalf("unexpected catalog freshness config: %#v", config)
+	}
+	if limits := config.limits(); limits.MaxStaleness != 25*time.Hour {
+		t.Fatalf("unexpected catalog freshness limits: %#v", limits)
+	}
+	if value := config.summaryValue(); value != 25*time.Hour {
+		t.Fatalf("summary value = %#v, want 25h", value)
+	}
+}
+
+func TestLoadWorkerReadinessCatalogFreshnessConfigRejectsInvalidValues(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("SYNC_READY_MAX_CATALOG_STALENESS", "0s")
+
+	_, err := loadWorkerReadinessCatalogFreshnessConfig("sync")
+	if err == nil || !strings.Contains(err.Error(), "SYNC_READY_MAX_CATALOG_STALENESS") {
+		t.Fatalf("expected catalog staleness error, got %v", err)
+	}
+
+	clearCommandEnv(t)
+	t.Setenv("SYNC_READY_MAX_CATALOG_STALENESS", "stage8_config_secret")
+
+	_, err = loadWorkerReadinessCatalogFreshnessConfig("sync")
+	if err == nil || !strings.Contains(err.Error(), "SYNC_READY_MAX_CATALOG_STALENESS") {
+		t.Fatalf("expected catalog staleness duration error, got %v", err)
+	}
+}
+
 func TestLoadWorkerReadinessProviderConfig(t *testing.T) {
 	clearCommandEnv(t)
 
@@ -342,6 +387,7 @@ func clearCommandEnv(t *testing.T) {
 		"SYNC_READY_MAX_AGE",
 		"SYNC_READY_MAX_STALE_LEASES",
 		"SYNC_READY_MAX_EXCHANGE_BACKOFFS",
+		"SYNC_READY_MAX_CATALOG_STALENESS",
 		"MARKET_INSTRUMENT_SYNC_ENABLED",
 		"MARKET_INSTRUMENT_SYNC_ON_START",
 		"MARKET_INSTRUMENT_SYNC_INTERVAL",

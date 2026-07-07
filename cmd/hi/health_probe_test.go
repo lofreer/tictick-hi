@@ -128,19 +128,33 @@ func TestWorkerHealthProbeReadinessFailure(t *testing.T) {
 }
 
 func TestWorkerReadinessChecksIncludeOptionalChecks(t *testing.T) {
-	checks := workerReadinessChecks(nil, "notify", workerProbeRuntimeConfig{
+	notifyChecks := workerReadinessChecks(nil, "notify", workerProbeRuntimeConfig{
 		Backlog:        workerReadinessBacklogConfig{MaxBacklog: 1},
 		StaleLeases:    workerReadinessStaleLeaseConfig{Enabled: true},
 		ProviderConfig: workerReadinessProviderConfig{Enabled: true},
 	})
 
 	names := map[string]bool{}
-	for _, check := range checks {
+	for _, check := range notifyChecks {
 		names[check.Name] = true
 	}
 	for _, want := range []string{"postgres", "queue", "queue_backlog", "stale_leases", "notification_providers"} {
 		if !names[want] {
 			t.Fatalf("readiness checks missing %q: %#v", want, names)
+		}
+	}
+
+	syncChecks := workerReadinessChecks(nil, "sync", workerProbeRuntimeConfig{
+		ExchangeBackoffs: workerReadinessExchangeBackoffConfig{Enabled: true},
+		CatalogFreshness: workerReadinessCatalogFreshnessConfig{MaxStaleness: time.Hour},
+	})
+	names = map[string]bool{}
+	for _, check := range syncChecks {
+		names[check.Name] = true
+	}
+	for _, want := range []string{"postgres", "queue", "exchange_backoff", "catalog_freshness"} {
+		if !names[want] {
+			t.Fatalf("sync readiness checks missing %q: %#v", want, names)
 		}
 	}
 }
