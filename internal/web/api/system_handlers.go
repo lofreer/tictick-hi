@@ -128,6 +128,10 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		}
 		notification, err := server.repository.RetryNotification(r.Context(), parts[3])
 		if err != nil {
+			if auditErr := server.recordAuditEvent(r, actor, "notification.retry", "notification", parts[3], "failure", storeFailureMetadata(err, nil)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeStoreError(w, err)
 			return
 		}

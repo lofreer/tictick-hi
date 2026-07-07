@@ -47,6 +47,29 @@ func TestSystemNotificationChannelsAcceptExternalProviders(t *testing.T) {
 	}
 }
 
+func TestSystemNotificationRetryStoreFailureAudited(t *testing.T) {
+	base := newFakeRepository()
+	repository := &notificationRetryFailureRepository{
+		fakeRepository: base,
+		retryErr:       data.ErrNotFound,
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(server, auth, http.MethodPost, "/api/system/notifications/nt_missing/retry", "")
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("retry failure status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "not_found" || response.Message != "not found" {
+		t.Fatalf("unexpected retry failure response: %#v", response)
+	}
+	event := assertAuditAction(t, base.auditEvents, "notification.retry", "notification", "nt_missing")
+	if event.Outcome != "failure" || event.Metadata["reason"] != "not_found" {
+		t.Fatalf("unexpected retry failure audit metadata: %#v", event.Metadata)
+	}
+}
+
 func TestSystemNotificationChannelEnableDisable(t *testing.T) {
 	repository, server, auth := newAuthenticatedTestServer(t)
 	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
@@ -342,4 +365,19 @@ func (repository *notificationChannelFailureRepository) SetNotificationChannelEn
 		return data.NotificationChannel{}, repository.enabledErr
 	}
 	return repository.fakeRepository.SetNotificationChannelEnabled(ctx, id, enabled)
+}
+
+type notificationRetryFailureRepository struct {
+	*fakeRepository
+	retryErr error
+}
+
+func (repository *notificationRetryFailureRepository) RetryNotification(
+	ctx context.Context,
+	id string,
+) (data.Notification, error) {
+	if repository.retryErr != nil {
+		return data.Notification{}, repository.retryErr
+	}
+	return repository.fakeRepository.RetryNotification(ctx, id)
 }
