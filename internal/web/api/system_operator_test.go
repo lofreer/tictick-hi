@@ -295,6 +295,46 @@ func TestOperatorRoleStoreFailureAudited(t *testing.T) {
 	}
 }
 
+func TestCreateOperatorStoreFailureAudited(t *testing.T) {
+	base := newFakeRepository()
+	repository := &operatorActionFailureRepository{
+		fakeRepository: base,
+		createErr:      errors.New("stage8 create operator store failure"),
+	}
+	server := NewServer(repository, "")
+	auth := loginTestOperator(t, server)
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"ops-store","password":"secret123A","enabled":true}`,
+	)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("create status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(base.operators) != 1 {
+		t.Fatalf("operator was created despite store failure: %#v", base.operators)
+	}
+	event := assertAuditAction(t, base.auditEvents, "operator.create", "operator", "")
+	if event.Outcome != "failure" ||
+		event.Metadata["reason"] != "store_error" ||
+		event.Metadata["username"] != "ops-store" ||
+		event.Metadata["role"] != data.OperatorRoleOperator ||
+		event.Metadata["enabled"] != "true" {
+		t.Fatalf("unexpected create failure audit metadata: %#v", event.Metadata)
+	}
+	if _, ok := event.Metadata["password"]; ok {
+		t.Fatalf("operator create failure audit metadata includes password: %#v", event.Metadata)
+	}
+	for key, value := range event.Metadata {
+		if value == "secret123A" {
+			t.Fatalf("operator create failure audit metadata leaked password in %s=%q", key, value)
+		}
+	}
+}
+
 func TestCreateOperatorRejectsBlankUsername(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -374,8 +414,19 @@ func TestRepositoryRejectsDemotingLastEnabledAdmin(t *testing.T) {
 
 type operatorActionFailureRepository struct {
 	*fakeRepository
+	createErr  error
 	enabledErr error
 	roleErr    error
+}
+
+func (repository *operatorActionFailureRepository) CreateOperator(
+	ctx context.Context,
+	request data.CreateOperator,
+) (data.Operator, error) {
+	if repository.createErr == nil {
+		return repository.fakeRepository.CreateOperator(ctx, request)
+	}
+	return data.Operator{}, repository.createErr
 }
 
 func (repository *operatorActionFailureRepository) SetOperatorEnabled(

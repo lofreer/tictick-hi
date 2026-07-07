@@ -37,6 +37,10 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 		}
 		operator, err := server.repository.CreateOperator(r.Context(), request)
 		if err != nil {
+			if auditErr := server.recordAuditEvent(r, actor, "operator.create", "operator", "", "failure", operatorCreateFailureMetadata(err, request)); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -52,6 +56,14 @@ func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
+}
+
+func operatorCreateFailureMetadata(err error, request data.CreateOperator) map[string]string {
+	return storeFailureMetadata(err, map[string]string{
+		"username": request.Username,
+		"role":     data.NormalizeCreateOperatorRole(request.Role),
+		"enabled":  boolString(request.Enabled),
+	})
 }
 
 func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Request, id string, action string) {
