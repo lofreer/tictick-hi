@@ -17,7 +17,9 @@ var (
 )
 
 func validateCreateTask(task data.CreateDataSyncTask) error {
-	if task.Exchange == "" || task.Symbol == "" || task.Interval == "" {
+	if strings.TrimSpace(task.Exchange) == "" ||
+		strings.TrimSpace(task.Symbol) == "" ||
+		strings.TrimSpace(task.Interval) == "" {
 		return errors.New("exchange, symbol and interval are required")
 	}
 	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
@@ -93,7 +95,11 @@ func normalizeCreateBacktest(task *data.CreateBacktestTask) {
 }
 
 func validateCreateBacktest(task data.CreateBacktestTask, definition strategy.Definition) error {
-	if task.Name == "" || task.Exchange == "" || task.Symbol == "" || task.Interval == "" || task.StrategyID == "" {
+	if strings.TrimSpace(task.Name) == "" ||
+		strings.TrimSpace(task.Exchange) == "" ||
+		strings.TrimSpace(task.Symbol) == "" ||
+		strings.TrimSpace(task.Interval) == "" ||
+		strings.TrimSpace(task.StrategyID) == "" {
 		return errors.New("name, exchange, symbol, interval and strategyId are required")
 	}
 	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
@@ -143,7 +149,12 @@ func normalizeCreateTradingTask(task *data.CreateTradingTask) {
 }
 
 func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.Definition) error {
-	if task.Name == "" || task.Type == "" || task.Exchange == "" || task.Symbol == "" || task.Interval == "" || task.StrategyID == "" {
+	if strings.TrimSpace(task.Name) == "" ||
+		strings.TrimSpace(task.Type) == "" ||
+		strings.TrimSpace(task.Exchange) == "" ||
+		strings.TrimSpace(task.Symbol) == "" ||
+		strings.TrimSpace(task.Interval) == "" ||
+		strings.TrimSpace(task.StrategyID) == "" {
 		return errors.New("name, type, exchange, symbol, interval and strategyId are required")
 	}
 	if err := validateExchangeSymbol(task.Exchange, task.Symbol); err != nil {
@@ -155,7 +166,7 @@ func validateCreateTradingTask(task data.CreateTradingTask, definition strategy.
 	if !contains(definition.SupportedIntervals, task.Interval) {
 		return errors.New("strategy does not support interval")
 	}
-	if task.AccountID == "" {
+	if strings.TrimSpace(task.AccountID) == "" {
 		return errors.New("accountId is required")
 	}
 	orderIntent, ok := task.IntentPolicy["orderIntent"].(string)

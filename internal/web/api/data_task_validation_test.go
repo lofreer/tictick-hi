@@ -51,6 +51,28 @@ func TestDataSyncTaskRoutesRejectExchangeSymbolMismatch(t *testing.T) {
 	}
 }
 
+func TestDataSyncTaskRoutesRejectBlankRequiredText(t *testing.T) {
+	repository, server, cookie := newAuthenticatedTestServer(t)
+
+	recorder := serveAuthenticated(
+		server,
+		cookie,
+		http.MethodPost,
+		"/api/data/tasks",
+		`{"exchange":"   ","symbol":"BTCUSDT","interval":"1m"}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "invalid_request" || response.Message != "exchange, symbol and interval are required" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+	if len(repository.tasks) != 0 {
+		t.Fatalf("blank task was persisted: %#v", repository.tasks)
+	}
+}
+
 func TestDataSyncTaskRoutesRejectInvalidIntervalAndWindow(t *testing.T) {
 	cases := []struct {
 		name    string
