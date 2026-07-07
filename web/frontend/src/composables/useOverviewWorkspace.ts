@@ -7,7 +7,13 @@ import { backtestsApi } from "@/services/api/backtests";
 import { dataApi } from "@/services/api/data";
 import { systemApi } from "@/services/api/system";
 import { tradingApi } from "@/services/api/trading";
-import { loadOverviewFacts, overviewFactTagType, type OverviewFactSource, type OverviewIntentFact, type OverviewOrderFact } from "@/composables/overviewFacts";
+import {
+  loadOverviewFacts,
+  overviewFactTagType,
+  type OverviewFactSource,
+  type OverviewIntentFact,
+  type OverviewOrderFact,
+} from "@/composables/overviewFacts";
 import type { BacktestTask, DataSyncTask, Notification, ServiceHealth, SystemHealth, TaskStatus, TradingTask } from "@/types/app";
 
 type SummaryCard = {
@@ -48,6 +54,7 @@ export function useOverviewWorkspace() {
   const loading = ref(false);
   const hasLoaded = ref(false);
   const error = ref("");
+  const factsError = ref("");
 
   onMounted(() => {
     void loadOverview();
@@ -112,6 +119,9 @@ export function useOverviewWorkspace() {
     const items: OverviewAlert[] = [];
     if (health.value && health.value.status !== "ok") {
       items.push(alert("health", t("overview.systemHealth"), health.value.status, t("overview.healthAlert"), "warning", { name: "system-health" }));
+    }
+    if (factsError.value) {
+      items.push(alert("recent-facts-degraded", t("overview.recentActivity"), t("overview.degraded"), factsError.value, "warning", { name: "overview" }));
     }
     addCountAlert(items, "sync-failed", dataSyncTasks.value, "failed", t("overview.dataSync"), { name: "research" });
     addDataHealthAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research" });
@@ -186,6 +196,7 @@ export function useOverviewWorkspace() {
   async function loadOverview() {
     loading.value = true;
     error.value = "";
+    factsError.value = "";
     try {
       const [nextHealth, nextSyncTasks, nextBacktests, nextTradingTasks, nextNotifications] = await Promise.all([
         systemApi.health(),
@@ -194,19 +205,29 @@ export function useOverviewWorkspace() {
         tradingApi.listTasks(),
         systemApi.listNotifications(),
       ]);
-      const nextFacts = await loadOverviewFacts();
       health.value = nextHealth;
       dataSyncTasks.value = nextSyncTasks;
       backtests.value = nextBacktests;
       tradingTasks.value = nextTradingTasks;
-      strategyIntents.value = nextFacts.strategyIntents;
-      orders.value = nextFacts.orders;
       notifications.value = nextNotifications;
+      await loadRecentFactsSafely();
       hasLoaded.value = true;
     } catch (loadError) {
       error.value = errorMessage(loadError, t("overview.loadFailed"));
     } finally {
       loading.value = false;
+    }
+  }
+
+  async function loadRecentFactsSafely() {
+    try {
+      const nextFacts = await loadOverviewFacts();
+      strategyIntents.value = nextFacts.strategyIntents;
+      orders.value = nextFacts.orders;
+    } catch (loadError) {
+      strategyIntents.value = [];
+      orders.value = [];
+      factsError.value = errorMessage(loadError, t("overview.recentFactsLoadFailed"));
     }
   }
 
@@ -272,6 +293,7 @@ export function useOverviewWorkspace() {
   return {
     alerts,
     error,
+    factsError,
     formatDate,
     hasLoaded,
     health,

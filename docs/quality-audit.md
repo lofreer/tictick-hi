@@ -10007,6 +10007,51 @@ Definition of Done：
 - API 当前分别返回最近 intents 和最近 orders，不提供跨类型统一游标分页。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 概览页 recent facts 局部降级补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 概览页基础加载仍然并行读取系统健康、数据同步任务、回测任务、交易任务和通知。
+- `/api/overview/recent-facts` 失败时不再把整个概览页置为全局错误；页面会保留已成功读取的基础数据并把 `hasLoaded` 置为 true。
+- recent facts 失败时清空当前策略意图和订单事实，避免把上一轮 stale facts 混作最新活动。
+- 概览页异常提醒新增 `recent-facts-degraded`，最近活动标题显示“局部降级 / Degraded”标签并用 title 保留错误信息。
+- 中英文 i18n 补充局部降级和最近事实加载失败文案。
+- 前端组合逻辑测试覆盖 recent facts 失败时基础概览照常加载、错误不进入全局 `error`、策略意图和订单活动不展示。
+
+范围外：
+
+- 不改变 `GET /api/overview/recent-facts` 后端 contract、PostgreSQL 查询或 OpenAPI schema。
+- 不新增重试队列、自动恢复通知、趋势图、时间窗口筛选或统一游标分页。
+- 不改变 backtest / trading runner、worker、CandleProvider、订单执行、通知投递或实盘安全边界。
+- 不把概览页或整体项目升级为 usable。
+
+当前验证：
+
+- `pnpm --dir web/frontend exec vitest run src/composables/useOverviewWorkspace.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮只改变概览页非阻断错误处理和标题标签，没有启动本地 API 或浏览器环境。
+
+剩余风险：
+
+- 局部降级只覆盖概览页 recent facts；系统健康、任务列表和通知等基础端点失败时仍按既有全局错误模型处理。
+- 降级后没有自动重试 recent facts，只能通过概览页刷新重新加载。
+- recent facts 仍只是轻量概览聚合，不包含时间窗口筛选、趋势图、完整监控语义或统一游标分页。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：

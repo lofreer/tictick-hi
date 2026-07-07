@@ -163,6 +163,57 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.hasLoaded.value).toBe(false);
     expect(workspace.error.value).toBe("health unavailable");
   });
+
+  it("keeps the overview loaded when recent facts are degraded", async () => {
+    apiMocks.systemHealth.mockResolvedValue({
+      status: "ok",
+      database: "ok",
+      checkedAt: "2026-06-28T01:00:00Z",
+      services: [],
+    });
+    apiMocks.listDataTasks.mockResolvedValue([
+      task("sync_1", "running", "2026-06-28T01:01:00Z"),
+    ]);
+    apiMocks.listBacktests.mockResolvedValue([
+      task("bt_1", "succeeded", "2026-06-28T01:02:00Z", { name: "Baseline" }),
+    ]);
+    apiMocks.listTradingTasks.mockResolvedValue([
+      task("tt_1", "running", "2026-06-28T01:03:00Z", { name: "Paper", type: "paper" }),
+    ]);
+    apiMocks.listNotifications.mockResolvedValue([
+      {
+        id: "nt_1",
+        channel: "ops",
+        title: "filled alert",
+        status: "sent",
+        createdAt: "2026-06-28T01:04:00Z",
+      },
+    ]);
+    apiMocks.overviewRecentFacts.mockRejectedValue(new Error("recent facts unavailable"));
+
+    const workspace = mountWorkspace();
+    await flushPromises();
+
+    expect(overviewApi.recentFacts).toHaveBeenCalledTimes(1);
+    expect(workspace.hasLoaded.value).toBe(true);
+    expect(workspace.error.value).toBe("");
+    expect(workspace.factsError.value).toBe("recent facts unavailable");
+    expect(workspace.alerts.value).toEqual([
+      expect.objectContaining({
+        key: "recent-facts-degraded",
+        label: "局部降级",
+        detail: "recent facts unavailable",
+      }),
+    ]);
+    expect(workspace.recentActivities.value.map((activity) => activity.key)).toEqual([
+      "notification-nt_1",
+      "交易任务-tt_1",
+      "回测任务-bt_1",
+      "数据同步-sync_1",
+    ]);
+    expect(workspace.recentActivities.value.some((activity) => activity.key.startsWith("intent-"))).toBe(false);
+    expect(workspace.recentActivities.value.some((activity) => activity.key.startsWith("order-"))).toBe(false);
+  });
 });
 
 function mountWorkspace() {

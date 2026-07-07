@@ -80,7 +80,10 @@
         <section class="surface overview-panel overview-panel--wide">
           <div class="overview-panel__header">
             <h2>{{ t("overview.recentActivity") }}</h2>
-            <NTag size="small">{{ recentActivities.length }}</NTag>
+            <div class="overview-panel__actions">
+              <NTag v-if="factsError" type="warning" size="small" :title="factsError">{{ t("overview.degraded") }}</NTag>
+              <NTag size="small">{{ recentActivities.length }}</NTag>
+            </div>
           </div>
           <EmptyState v-if="recentActivities.length === 0" :title="t('common.noData')" />
           <div v-else class="overview-activity-list">
@@ -118,6 +121,7 @@ import { useOverviewWorkspace } from "@/composables/useOverviewWorkspace";
 const {
   alerts,
   error,
+  factsError,
   formatDate,
   hasLoaded,
   health,
@@ -215,6 +219,13 @@ const {
 
 .overview-panel--wide {
   grid-column: 1 / -1;
+}
+
+.overview-panel__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .overview-health-summary {
