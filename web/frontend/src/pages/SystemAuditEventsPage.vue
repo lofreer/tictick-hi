@@ -32,6 +32,7 @@
                 <th>{{ t("system.resource") }}</th>
                 <th>{{ t("system.outcome") }}</th>
                 <th>{{ t("system.request") }}</th>
+                <th>{{ t("system.auditHash") }}</th>
                 <th>{{ t("system.metadata") }}</th>
               </tr>
             </thead>
@@ -52,6 +53,12 @@
                 <td>
                   <span class="audit-code">{{ event.requestMethod || "-" }}</span>
                   <span class="audit-muted"> {{ event.requestPath || "" }}</span>
+                </td>
+                <td>
+                  <span class="audit-code">{{ shortHash(event.eventHash) }}</span>
+                  <span v-if="event.previousHash" class="audit-muted audit-hash-prev">
+                    {{ t("system.previousHashShort") }} {{ shortHash(event.previousHash) }}
+                  </span>
                 </td>
                 <td><span class="audit-muted">{{ metadataText(event.metadata) }}</span></td>
               </tr>
@@ -139,6 +146,10 @@ function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
+function shortHash(value?: string) {
+  return value ? value.slice(0, 12) : "-";
+}
+
 function errorMessage(loadError: unknown, fallback: string) {
   return loadError instanceof Error && loadError.message ? loadError.message : fallback;
 }
@@ -155,7 +166,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .system-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1240px;
   border-collapse: collapse;
 }
 
@@ -184,6 +195,11 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .audit-muted {
   color: var(--tt-muted);
+}
+
+.audit-hash-prev {
+  display: block;
+  margin-top: 2px;
 }
 
 .audit-pagination {
