@@ -414,6 +414,9 @@ func (repository *fakeRepository) CreateOperator(
 	_ context.Context,
 	request data.CreateOperator,
 ) (data.Operator, error) {
+	if err := data.ValidateOperatorPassword(request.Password); err != nil {
+		return data.Operator{}, err
+	}
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	operator := data.Operator{
 		ID:        "op_" + request.Username,

@@ -410,8 +410,8 @@ func bootstrapOperator(ctx context.Context, store *postgres.Store) error {
 	if username == "" || password == "" {
 		return fmt.Errorf("BOOTSTRAP_OPERATOR_USERNAME and BOOTSTRAP_OPERATOR_PASSWORD must be set together")
 	}
-	if len(password) < 8 {
-		return fmt.Errorf("BOOTSTRAP_OPERATOR_PASSWORD must be at least 8 characters")
+	if err := data.ValidateOperatorPassword(password); err != nil {
+		return fmt.Errorf("BOOTSTRAP_OPERATOR_PASSWORD does not satisfy operator password policy: %w", err)
 	}
 
 	operator, created, err := store.EnsureOperator(ctx, data.CreateOperator{

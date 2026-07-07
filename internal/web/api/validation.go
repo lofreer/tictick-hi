@@ -66,10 +66,7 @@ func validateOperator(operator data.CreateOperator) error {
 	if operator.Username == "" || operator.Password == "" {
 		return errors.New("username and password are required")
 	}
-	if len(operator.Password) < 8 {
-		return errors.New("password must be at least 8 characters")
-	}
-	return nil
+	return data.ValidateOperatorPassword(operator.Password)
 }
 
 func normalizeCreateBacktest(task *data.CreateBacktestTask) {

@@ -152,6 +152,9 @@ func (store *Store) ListOperators(ctx context.Context) ([]data.Operator, error) 
 }
 
 func (store *Store) CreateOperator(ctx context.Context, operator data.CreateOperator) (data.Operator, error) {
+	if err := data.ValidateOperatorPassword(operator.Password); err != nil {
+		return data.Operator{}, err
+	}
 	id, err := core.NewPrefixedID("op")
 	if err != nil {
 		return data.Operator{}, err
