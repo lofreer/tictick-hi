@@ -7,7 +7,7 @@
     :bordered="false"
     :single-line="false"
     :max-height="260"
-    :scroll-x="2282"
+    :scroll-x="2472"
     size="small"
   />
 </template>
@@ -30,6 +30,7 @@ import { useI18n } from "vue-i18n";
 
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import DataSyncQualitySummary from "@/components/tables/DataSyncQualitySummary.vue";
+import DataSyncWorkerCell from "@/components/tables/DataSyncWorkerCell.vue";
 import type { DataSyncTask } from "@/types/app";
 import { formatCompactDateTime, summarizeText } from "@/utils/displayText";
 import { sanitizeExternalError } from "@/utils/errorText";
@@ -100,6 +101,12 @@ const columns = computed<DataTableColumns<DataSyncTask>>(() => [
     key: "status",
     width: 92,
     render: (row) => h(StatusBadge, { status: row.status }),
+  },
+  {
+    title: t("research.worker"),
+    key: "worker",
+    width: 190,
+    render: (row) => h(DataSyncWorkerCell, { task: row }),
   },
   {
     title: t("research.lastError"),

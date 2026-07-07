@@ -28,12 +28,14 @@ describe("DataSyncTaskTable", () => {
 
     const table = wrapper.findComponent(NDataTable);
     expect(table.props("maxHeight")).toBe(260);
-    expect(table.props("scrollX")).toBe(2282);
+    expect(table.props("scrollX")).toBe(2472);
     expect(wrapper.find(".data-sync-task-table").exists()).toBe(true);
     const columns = table.props("columns") as Array<{ fixed?: string; key?: string; width?: number }>;
     const actionsColumn = columns.find((column) => column.key === "actions");
+    const workerColumn = columns.find((column) => column.key === "worker");
     expect(actionsColumn?.fixed).toBeUndefined();
     expect(actionsColumn).toMatchObject({ width: 324 });
+    expect(workerColumn).toMatchObject({ width: 190 });
 
     const errorText = wrapper.get(".task-error-text");
     expect(errorText.attributes("title")).not.toContain("/api/v3/klines");
@@ -111,6 +113,33 @@ describe("DataSyncTaskTable", () => {
     const syncedTime = wrapper.get(".task-time-text");
     expect(syncedTime.attributes("title")).toBe("2026-06-28T01:20:00Z");
     expect(syncedTime.text()).not.toBe("2026-06-28T01:20:00Z");
+  });
+
+  it("shows worker lease and heartbeat details", () => {
+    const wrapper = mount(DataSyncTaskTable, {
+      global: { plugins: [i18n] },
+      props: {
+        tasks: [
+          dataSyncTask({
+            id: "sync_1",
+            status: "running",
+            dataHealth: "syncing",
+            lockedBy: "sync-worker-1",
+            lockedUntil: "2026-06-28T01:32:00Z",
+            heartbeatAt: "2026-06-28T01:29:45Z",
+            startedAt: "2026-06-28T01:28:00Z",
+          }),
+        ],
+      },
+    });
+
+    const worker = wrapper.get(".task-worker-cell");
+    expect(wrapper.text()).toContain("Worker");
+    expect(worker.text()).toContain("sync-worker-1");
+    expect(worker.text()).toContain("心跳");
+    expect(worker.attributes("title")).toContain("Worker sync-worker-1");
+    expect(worker.attributes("title")).toContain("2026-06-28T01:29:45Z");
+    expect(worker.attributes("title")).toContain("2026-06-28T01:32:00Z");
   });
 
   it("shows backend-derived data health", () => {
