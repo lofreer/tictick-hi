@@ -45,6 +45,17 @@
 
       <OverviewDepthMetricsPanel :items="depthMetrics" />
 
+      <OverviewMonitoringContextPanel
+        :alert-count="alerts.length"
+        :facts-error="factsError"
+        :format-date="formatDate"
+        :has-trend-data="hasTrendData"
+        :health="health"
+        :service-count="services.length"
+        :trend-point-count="trendPoints.length"
+        :trends-error="trendsError"
+      />
+
       <div class="overview-grid">
         <section class="surface overview-panel">
           <div class="overview-panel__header">
@@ -134,6 +145,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
 import OverviewDepthMetricsPanel from "@/components/overview/OverviewDepthMetricsPanel.vue";
+import OverviewMonitoringContextPanel from "@/components/overview/OverviewMonitoringContextPanel.vue";
 import OverviewTrendPanel from "@/components/overview/OverviewTrendPanel.vue";
 import { useOverviewTrends } from "@/composables/useOverviewTrends";
 import { useOverviewWorkspace } from "@/composables/useOverviewWorkspace";

@@ -35,6 +35,22 @@ describe("OverviewPage layout contract", () => {
     }
   });
 
+  it("renders overview monitoring context from existing overview state", () => {
+    expect(source).toContain("OverviewMonitoringContextPanel");
+    expect(source).toContain(":alert-count=\"alerts.length\"");
+    expect(source).toContain(":facts-error=\"factsError\"");
+    expect(source).toContain(":has-trend-data=\"hasTrendData\"");
+    expect(source).toContain(":trend-point-count=\"trendPoints.length\"");
+    expect(source).toContain(":trends-error=\"trendsError\"");
+    for (const messages of [zhMessages, enMessages]) {
+      expect(messages).toContain("\"overview.monitoringContext\"");
+      expect(messages).toContain("\"overview.monitoring.snapshot\"");
+      expect(messages).toContain("\"overview.monitoring.sources\"");
+      expect(messages).toContain("\"overview.monitoring.trendCoverage\"");
+      expect(messages).toContain("\"overview.monitoring.alertLoad\"");
+    }
+  });
+
   it("renders overview summary cards as navigation entries", () => {
     expect(source).toContain("<RouterLink v-for=\"card in summaryCards\"");
     expect(source).toContain(":to=\"card.to\"");
