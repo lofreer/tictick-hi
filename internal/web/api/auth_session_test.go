@@ -11,7 +11,8 @@ import (
 )
 
 func TestAuthSessionManagementRoutes(t *testing.T) {
-	server := NewServer(newFakeRepository(), "")
+	repository := newFakeRepository()
+	server := NewServer(repository, "")
 	currentAuth := loginTestOperator(t, server)
 	otherAuth := loginTestOperator(t, server)
 
@@ -64,6 +65,11 @@ func TestAuthSessionManagementRoutes(t *testing.T) {
 	if currentDeleteResponse.Code != "auth_current_session_revoke_forbidden" ||
 		currentDeleteResponse.Message != "current session cannot be revoked" {
 		t.Fatalf("unexpected delete current response: %#v", currentDeleteResponse)
+	}
+	failedRevokeEvent := assertAuditAction(t, repository.auditEvents, "auth.session_revoke", "operator_session", currentID)
+	if failedRevokeEvent.Outcome != "failure" ||
+		failedRevokeEvent.Metadata["reason"] != "current_session_revoke_forbidden" {
+		t.Fatalf("unexpected current session revoke audit event: %#v", failedRevokeEvent)
 	}
 
 	deleteRecorder := serveAuthenticated(server, currentAuth, http.MethodDelete, "/api/auth/sessions/"+otherID, "")

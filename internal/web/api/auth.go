@@ -166,6 +166,14 @@ func (server *Server) handleDeleteOperatorSession(w http.ResponseWriter, r *http
 		return
 	}
 	if err := server.repository.DeleteOperatorSessionByID(r.Context(), operator.ID, sessionID, tokenHash); err != nil {
+		if code, ok := data.DomainErrorCode(err); ok && code == data.ErrorCodeAuthCurrentSessionRevokeForbidden {
+			if auditErr := server.recordAuditEvent(r, operator, "auth.session_revoke", "operator_session", sessionID, "failure", map[string]string{
+				"reason": "current_session_revoke_forbidden",
+			}); auditErr != nil {
+				writeError(w, http.StatusInternalServerError, auditErr.Error())
+				return
+			}
+		}
 		writeStoreError(w, err)
 		return
 	}
