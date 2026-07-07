@@ -3,10 +3,26 @@ package data
 import "testing"
 
 func TestValidateOperatorPassword(t *testing.T) {
-	if err := ValidateOperatorPassword("secret123"); err != nil {
-		t.Fatalf("valid password rejected: %v", err)
+	tests := []struct {
+		name      string
+		password  string
+		wantError bool
+	}{
+		{name: "valid", password: "secret123"},
+		{name: "too short", password: "short", wantError: true},
+		{name: "missing digit", password: "password", wantError: true},
+		{name: "missing letter", password: "12345678", wantError: true},
 	}
-	if err := ValidateOperatorPassword("short"); err == nil {
-		t.Fatal("short password was accepted")
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateOperatorPassword(test.password)
+			if test.wantError && err == nil {
+				t.Fatal("password was accepted")
+			}
+			if !test.wantError && err != nil {
+				t.Fatalf("password was rejected: %v", err)
+			}
+		})
 	}
 }

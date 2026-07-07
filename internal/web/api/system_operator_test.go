@@ -37,19 +37,40 @@ func TestOperatorCannotDisableSelf(t *testing.T) {
 func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
-	recorder := serveAuthenticated(
-		server,
-		auth,
-		http.MethodPost,
-		"/api/system/operators",
-		`{"username":"weak","password":"short","enabled":true}`,
-	)
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("weak password status = %d body = %s", recorder.Code, recorder.Body.String())
+	tests := []struct {
+		name     string
+		password string
+		message  string
+	}{
+		{
+			name:     "too short",
+			password: "short",
+			message:  "password must be at least 8 characters",
+		},
+		{
+			name:     "missing digit",
+			password: "password",
+			message:  "password must include at least one letter and one number",
+		},
 	}
-	response := decodeAPIError(t, recorder)
-	if response.Message != "password must be at least 8 characters" {
-		t.Fatalf("unexpected weak password response: %#v", response)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := serveAuthenticated(
+				server,
+				auth,
+				http.MethodPost,
+				"/api/system/operators",
+				`{"username":"weak","password":"`+test.password+`","enabled":true}`,
+			)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("weak password status = %d body = %s", recorder.Code, recorder.Body.String())
+			}
+			response := decodeAPIError(t, recorder)
+			if response.Message != test.message {
+				t.Fatalf("unexpected weak password response: %#v", response)
+			}
+		})
 	}
 }
 
