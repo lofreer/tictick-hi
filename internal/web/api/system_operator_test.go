@@ -99,6 +99,42 @@ func TestOperatorManagementRequiresAdminRole(t *testing.T) {
 	}
 }
 
+func TestDisablingOperatorRevokesSessions(t *testing.T) {
+	repository, server, adminAuth := newAuthenticatedTestServer(t)
+	createRecorder := serveAuthenticated(
+		server,
+		adminAuth,
+		http.MethodPost,
+		"/api/system/operators",
+		`{"username":"ops-revoke","password":"secret123A","enabled":true}`,
+	)
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create operator status = %d body = %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	var operator data.Operator
+	if err := json.NewDecoder(createRecorder.Body).Decode(&operator); err != nil {
+		t.Fatal(err)
+	}
+
+	targetAuth := loginOperator(t, server, "ops-revoke", "secret123A")
+	targetTokenHash := sessionTokenHash(targetAuth.session.Value)
+	if _, exists := repository.sessions[targetTokenHash]; !exists {
+		t.Fatalf("target session was not created: %#v", repository.sessions)
+	}
+
+	disableRecorder := serveAuthenticated(server, adminAuth, http.MethodPost, "/api/system/operators/"+operator.ID+"/disable", "")
+	if disableRecorder.Code != http.StatusOK {
+		t.Fatalf("disable operator status = %d body = %s", disableRecorder.Code, disableRecorder.Body.String())
+	}
+	if _, exists := repository.sessions[targetTokenHash]; exists {
+		t.Fatalf("disabled operator session was not revoked: %#v", repository.sessions[targetTokenHash])
+	}
+	meRecorder := serveAuthenticated(server, targetAuth, http.MethodGet, "/api/auth/me", "")
+	if meRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("disabled operator session status = %d body = %s", meRecorder.Code, meRecorder.Body.String())
+	}
+}
+
 func TestCreateOperatorRejectsWeakPassword(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 

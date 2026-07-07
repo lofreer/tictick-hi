@@ -52,10 +52,21 @@ func (repository *fakeRepository) SetOperatorEnabled(
 				}
 			}
 			repository.operators[index].Enabled = enabled
+			if !enabled {
+				repository.deleteOperatorSessions(repository.operators[index].ID)
+			}
 			return repository.operators[index], nil
 		}
 	}
 	return data.Operator{}, data.ErrNotFound
+}
+
+func (repository *fakeRepository) deleteOperatorSessions(operatorID string) {
+	for tokenHash, session := range repository.sessions {
+		if session.OperatorID == operatorID {
+			delete(repository.sessions, tokenHash)
+		}
+	}
 }
 
 func (repository *fakeRepository) SetOperatorRole(

@@ -160,6 +160,64 @@ func TestOperatorStoreRejectsDemotingLastEnabledAdmin(t *testing.T) {
 	}
 }
 
+func TestOperatorStoreDisablingOperatorRevokesSessions(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	admin, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("disable_session_admin"),
+		Password: "secret123A",
+		Role:     data.OperatorRoleAdmin,
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operator, err := store.CreateOperator(ctx, data.CreateOperator{
+		Username: integrationID("disable_session_operator"),
+		Password: "secret123A",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM operators WHERE id = ANY($1::text[])`, []string{admin.ID, operator.ID})
+	})
+
+	now := time.Now().UTC()
+	session := data.OperatorSession{
+		ID:         integrationID("os_disable_session"),
+		OperatorID: operator.ID,
+		TokenHash:  integrationID("token_disable_session"),
+		ExpiresAt:  now.Add(time.Hour),
+	}
+	if err := store.CreateOperatorSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+
+	disabled, err := store.SetOperatorEnabled(ctx, operator.ID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disabled.Enabled {
+		t.Fatalf("operator remained enabled: %#v", disabled)
+	}
+	sessions, err := store.ListOperatorSessions(ctx, operator.ID, session.TokenHash, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("disabled operator sessions were not revoked: %#v", sessions)
+	}
+	if _, err := store.GetOperatorBySession(ctx, session.TokenHash, now); !errors.Is(err, data.ErrUnauthorized) {
+		t.Fatalf("disabled operator session auth error = %v, want unauthorized", err)
+	}
+}
+
 func TestOperatorStoreChangesPasswordAndRevokesOtherSessions(t *testing.T) {
 	store := openIntegrationStore(t)
 	ctx, cancel := testContext(t)

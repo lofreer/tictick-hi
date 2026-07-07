@@ -175,6 +175,9 @@ func (store *Store) SetOperatorEnabled(ctx context.Context, id string, enabled b
 	if err != nil {
 		return data.Operator{}, err
 	}
+	if err := deleteOperatorSessionsForOperator(ctx, tx, operator.ID); err != nil {
+		return data.Operator{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return data.Operator{}, fmt.Errorf("commit set operator enabled: %w", err)
 	}
@@ -208,6 +211,17 @@ func setOperatorEnabled(
 		return data.Operator{}, fmt.Errorf("set operator enabled: %w", err)
 	}
 	return operator, nil
+}
+
+func deleteOperatorSessionsForOperator(ctx context.Context, tx pgx.Tx, operatorID string) error {
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM operator_sessions
+		 WHERE operator_id = $1`,
+		operatorID,
+	); err != nil {
+		return fmt.Errorf("delete disabled operator sessions: %w", err)
+	}
+	return nil
 }
 
 type lockedOperator struct {

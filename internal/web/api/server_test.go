@@ -43,8 +43,13 @@ func newAuthenticatedTestServer(t *testing.T) (*fakeRepository, http.Handler, *a
 
 func loginTestOperator(t *testing.T, server http.Handler) *authTestSession {
 	t.Helper()
+	return loginOperator(t, server, testUsername, testPassword)
+}
 
-	body := bytes.NewBufferString(`{"username":"` + testUsername + `","password":"` + testPassword + `"}`)
+func loginOperator(t *testing.T, server http.Handler, username string, password string) *authTestSession {
+	t.Helper()
+
+	body := bytes.NewBufferString(`{"username":"` + username + `","password":"` + password + `"}`)
 	recorder := httptest.NewRecorder()
 	server.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/auth/login", body))
 	if recorder.Code != http.StatusOK {
