@@ -3,6 +3,8 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -115,6 +117,10 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		writeAPIError(w, http.StatusConflict, apiErrorOperatorSelfDisableForbidden, "current operator cannot be disabled")
 		return
 	}
+	revokedSessionCount := ""
+	if !enabled {
+		revokedSessionCount = server.operatorSessionCountMetadata(r, id)
+	}
 	operator, err := server.repository.SetOperatorEnabled(r.Context(), id, enabled)
 	if err != nil {
 		if auditErr := server.recordAuditEvent(r, actor, "operator."+action, "operator", id, "failure", storeFailureMetadata(err, map[string]string{
@@ -126,15 +132,27 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		writeStoreError(w, err)
 		return
 	}
-	if err := server.recordAuditEvent(r, actor, "operator."+action, "operator", operator.ID, "success", map[string]string{
+	metadata := map[string]string{
 		"username": operator.Username,
 		"role":     operator.Role,
 		"enabled":  boolString(operator.Enabled),
-	}); err != nil {
+	}
+	if !enabled && revokedSessionCount != "" {
+		metadata["revokedSessionCount"] = revokedSessionCount
+	}
+	if err := server.recordAuditEvent(r, actor, "operator."+action, "operator", operator.ID, "success", metadata); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, operator)
+}
+
+func (server *Server) operatorSessionCountMetadata(r *http.Request, operatorID string) string {
+	sessions, err := server.repository.ListOperatorSessions(r.Context(), operatorID, "", time.Now().UTC())
+	if err != nil {
+		return ""
+	}
+	return strconv.Itoa(len(sessions))
 }
 
 func (server *Server) handleOperatorRoleAction(

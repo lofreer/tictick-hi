@@ -126,6 +126,10 @@ func TestDisablingOperatorRevokesSessions(t *testing.T) {
 	if disableRecorder.Code != http.StatusOK {
 		t.Fatalf("disable operator status = %d body = %s", disableRecorder.Code, disableRecorder.Body.String())
 	}
+	event := assertAuditAction(t, repository.auditEvents, "operator.disable", "operator", operator.ID)
+	if event.Outcome != "success" || event.Metadata["revokedSessionCount"] != "1" {
+		t.Fatalf("unexpected disable audit event: %#v", event)
+	}
 	if _, exists := repository.sessions[targetTokenHash]; exists {
 		t.Fatalf("disabled operator session was not revoked: %#v", repository.sessions[targetTokenHash])
 	}
