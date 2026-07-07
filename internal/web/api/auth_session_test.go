@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -180,6 +181,24 @@ func TestLoginStoresSessionClientContext(t *testing.T) {
 		event.Metadata["remoteAddrChanged"] != "true" ||
 		event.Metadata["userAgentChanged"] != "true" {
 		t.Fatalf("unexpected session context change audit event: %#v", event)
+	}
+	repository.auditEvents[len(repository.auditEvents)-1].CreatedAt = time.Now().UTC()
+	auditEventsBeforeRepeatedContextChange := len(repository.auditEvents)
+	repeatedContextSessions := listSessionsWithClientContext(
+		t,
+		server,
+		&auth,
+		"198.51.100.99:12345",
+		"203.0.113.99, 198.51.100.99",
+		"tictick-hi-test/2.0",
+	)
+	if len(repeatedContextSessions) != 1 ||
+		!repeatedContextSessions[0].RemoteAddrChanged ||
+		!repeatedContextSessions[0].UserAgentChanged {
+		t.Fatalf("repeated changed context was not marked changed: %#v", repeatedContextSessions)
+	}
+	if len(repository.auditEvents) != auditEventsBeforeRepeatedContextChange {
+		t.Fatalf("repeated session context change recorded duplicate audit events: %#v", repository.auditEvents[auditEventsBeforeRepeatedContextChange:])
 	}
 }
 

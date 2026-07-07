@@ -16,6 +16,12 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
+const (
+	sessionContextChangeAuditAction      = "auth.session_context_change"
+	sessionContextChangeAuditRecentLimit = 100
+	sessionContextChangeAuditCooldown    = 24 * time.Hour
+)
+
 func (server *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 	parts := pathParts(r.URL.Path)
 	if len(parts) < 3 || parts[0] != "api" || parts[1] != "auth" {
@@ -240,19 +246,56 @@ func (server *Server) handleListOperatorSessions(w http.ResponseWriter, r *http.
 		writeAuthError(w, err)
 		return
 	}
-	sessions, err := server.repository.ListOperatorSessions(r.Context(), operator.ID, tokenHash, time.Now().UTC())
+	now := time.Now().UTC()
+	sessions, err := server.repository.ListOperatorSessions(r.Context(), operator.ID, tokenHash, now)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	changedSession, changed := markCurrentSessionContextChanges(sessions, clientAddress(r), r.UserAgent())
 	if changed {
-		_ = server.recordAuditEvent(r, operator, "auth.session_context_change", "operator_session", changedSession.ID, "warning", map[string]string{
-			"remoteAddrChanged": strconv.FormatBool(changedSession.RemoteAddrChanged),
-			"userAgentChanged":  strconv.FormatBool(changedSession.UserAgentChanged),
-		})
+		metadata := sessionContextChangeAuditMetadata(changedSession)
+		if server.shouldRecordSessionContextChangeAudit(r, changedSession.ID, metadata, now) {
+			_ = server.recordAuditEvent(r, operator, sessionContextChangeAuditAction, "operator_session", changedSession.ID, "warning", metadata)
+		}
 	}
 	writeJSON(w, http.StatusOK, sessions)
+}
+
+func sessionContextChangeAuditMetadata(session data.OperatorSession) map[string]string {
+	return map[string]string{
+		"remoteAddrChanged": strconv.FormatBool(session.RemoteAddrChanged),
+		"userAgentChanged":  strconv.FormatBool(session.UserAgentChanged),
+	}
+}
+
+func (server *Server) shouldRecordSessionContextChangeAudit(
+	r *http.Request,
+	sessionID string,
+	metadata map[string]string,
+	now time.Time,
+) bool {
+	page, err := server.repository.ListAuditEventPage(r.Context(), data.AuditEventListQuery{
+		Limit: sessionContextChangeAuditRecentLimit,
+	})
+	if err != nil {
+		return true
+	}
+	cutoff := now.UTC().Add(-sessionContextChangeAuditCooldown)
+	for _, event := range page.Events {
+		if event.CreatedAt.Before(cutoff) ||
+			event.Action != sessionContextChangeAuditAction ||
+			event.ResourceType != "operator_session" ||
+			event.ResourceID != sessionID ||
+			event.Outcome != "warning" {
+			continue
+		}
+		if event.Metadata["remoteAddrChanged"] == metadata["remoteAddrChanged"] &&
+			event.Metadata["userAgentChanged"] == metadata["userAgentChanged"] {
+			return false
+		}
+	}
+	return true
 }
 
 func markCurrentSessionContextChanges(sessions []data.OperatorSession, remoteAddr string, userAgent string) (data.OperatorSession, bool) {
