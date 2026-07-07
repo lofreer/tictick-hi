@@ -10,6 +10,15 @@ import (
 func (server *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
+		if !actor.IsAdmin() {
+			server.writeAdminRequiredAudit(w, r, actor, "operator.list", "operator", "", nil)
+			return
+		}
 		operators, err := server.repository.ListOperators(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

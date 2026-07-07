@@ -76,6 +76,33 @@ describe("SystemOperatorsPage", () => {
     await otherButtons[1].trigger("click");
     expect(apiMocks.setOperatorEnabled).toHaveBeenCalledWith("op_ops", false);
   });
+
+  it("hides operator management actions from non-admin operators", async () => {
+    apiMocks.listOperators.mockResolvedValue([
+      operator("op_admin", "admin", true),
+      operator("op_ops", "ops", true, "operator"),
+    ]);
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    useAuthStore().operator = operator("op_ops", "ops", true, "operator");
+
+    const Host = defineComponent({
+      render: () => h(NMessageProvider, null, { default: () => h(SystemOperatorsPage) }),
+    });
+
+    const wrapper = mount(Host, {
+      global: {
+        plugins: [i18n, pinia],
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("创建操作员");
+    const rows = wrapper.findAll("tbody tr");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].findAll("button")).toHaveLength(0);
+    expect(rows[1].findAll("button")).toHaveLength(0);
+  });
 });
 
 function operator(id: string, username: string, enabled: boolean, role = "admin") {

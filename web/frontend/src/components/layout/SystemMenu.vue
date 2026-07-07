@@ -17,17 +17,27 @@ import { h, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
+import { useAuthStore } from "@/stores/auth";
+
 const router = useRouter();
 const { t } = useI18n();
+const authStore = useAuthStore();
 
-const options = computed<DropdownOption[]>(() => [
-  option("notifications", "system.notifications", Bell),
-  option("exchange-accounts", "system.exchangeAccounts", KeyRound),
-  option("operators", "system.operators", UsersRound),
-  option("sessions", "system.sessions", ShieldCheck),
-  option("audit-events", "system.auditEvents", FileText),
-  option("health", "system.health", Activity),
-]);
+const options = computed<DropdownOption[]>(() => {
+  const entries = [
+    option("notifications", "system.notifications", Bell),
+    option("exchange-accounts", "system.exchangeAccounts", KeyRound),
+  ];
+  if (authStore.operator?.role === "admin") {
+    entries.push(option("operators", "system.operators", UsersRound));
+  }
+  entries.push(
+    option("sessions", "system.sessions", ShieldCheck),
+    option("audit-events", "system.auditEvents", FileText),
+    option("health", "system.health", Activity),
+  );
+  return entries;
+});
 
 function option(key: string, labelKey: string, icon: typeof Bell): DropdownOption {
   return {

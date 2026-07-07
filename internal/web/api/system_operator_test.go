@@ -42,6 +42,20 @@ func TestOperatorManagementRequiresAdminRole(t *testing.T) {
 	repository, server, auth := newAuthenticatedTestServer(t)
 	repository.operators[0].Role = data.OperatorRoleOperator
 
+	listRecorder := serveAuthenticated(server, auth, http.MethodGet, "/api/system/operators", "")
+	if listRecorder.Code != http.StatusForbidden {
+		t.Fatalf("list operators status = %d body = %s", listRecorder.Code, listRecorder.Body.String())
+	}
+	listResponse := decodeAPIError(t, listRecorder)
+	if listResponse.Code != "forbidden" || listResponse.Message != "admin operator role is required" {
+		t.Fatalf("unexpected list admin required response: %#v", listResponse)
+	}
+	listEvent := assertAuditAction(t, repository.auditEvents, "operator.list", "operator", "")
+	if listEvent.Outcome != "failure" || listEvent.Metadata["reason"] != "admin_required" ||
+		listEvent.Metadata["actorRole"] != data.OperatorRoleOperator {
+		t.Fatalf("unexpected list admin required audit event: %#v", listEvent)
+	}
+
 	recorder := serveAuthenticated(
 		server,
 		auth,

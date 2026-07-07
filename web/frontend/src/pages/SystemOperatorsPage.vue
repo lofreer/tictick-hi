@@ -5,7 +5,7 @@
         <h1 class="page-title">{{ t("page.operators.title") }}</h1>
         <p class="page-subtitle">{{ t("system.operatorsSubtitle") }}</p>
       </div>
-      <NButton type="primary" @click="createOpen = true">
+      <NButton v-if="canManageOperators" type="primary" @click="createOpen = true">
         <template #icon><Plus :size="17" /></template>
         {{ t("system.createOperator") }}
       </NButton>
@@ -23,7 +23,7 @@
               <th>{{ t("system.operatorRole") }}</th>
               <th>{{ t("system.enabled") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
-              <th>{{ t("research.actions") }}</th>
+              <th v-if="canManageOperators">{{ t("research.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -36,7 +36,7 @@
               </td>
               <td><NTag :type="operator.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(operator.enabled) }}</NTag></td>
               <td>{{ formatDate(operator.createdAt) }}</td>
-              <td>
+              <td v-if="canManageOperators">
                 <NSpace size="small" :wrap="false">
                   <NButton
                     size="small"
@@ -128,6 +128,7 @@ const roleOptions = computed(() => [
   { label: t("system.operatorRoleOperator"), value: "operator" },
   { label: t("system.operatorRoleAdmin"), value: "admin" },
 ]);
+const canManageOperators = computed(() => authStore.operator?.role === "admin");
 
 onMounted(() => {
   void loadOperators();
