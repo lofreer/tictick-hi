@@ -14,6 +14,7 @@ import {
   type OverviewIntentFact,
   type OverviewOrderFact,
 } from "@/composables/overviewFacts";
+import { buildOverviewDepthMetrics } from "@/composables/overviewDepthMetrics";
 import type { BacktestTask, DataSyncTask, Notification, ServiceHealth, SystemHealth, TaskStatus, TradingTask } from "@/types/app";
 
 type SummaryCard = {
@@ -76,6 +77,18 @@ export function useOverviewWorkspace() {
   const services = computed(() => health.value?.services ?? []);
   const healthTagType = computed<TagProps["type"]>(() => (health.value?.status === "ok" ? "success" : "warning"));
   const recentActivityWindowOptions = computed(() => recentActivityWindowValues.map((value) => ({ label: t(`overview.recentWindow.${value}`), value })));
+  const depthMetrics = computed(() =>
+    buildOverviewDepthMetrics(
+      {
+        backtests: backtests.value,
+        dataSyncTasks: dataSyncTasks.value,
+        notifications: notifications.value,
+        services: services.value,
+        tradingTasks: tradingTasks.value,
+      },
+      t,
+    ),
+  );
 
   const summaryCards = computed<SummaryCard[]>(() => [
     {
@@ -320,6 +333,7 @@ export function useOverviewWorkspace() {
 
   return {
     alerts,
+    depthMetrics,
     error,
     factsError,
     formatDate,

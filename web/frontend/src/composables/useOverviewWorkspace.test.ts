@@ -126,6 +126,16 @@ describe("useOverviewWorkspace", () => {
       { key: "notifications", to: { name: "system-notifications" } },
       { key: "workers", to: { name: "system-health" } },
     ]);
+    expect(workspace.depthMetrics.value.map((metric) => ({ key: metric.key, value: metric.value, statusType: metric.statusType, to: metric.to }))).toEqual([
+      { key: "data-quality", value: "0/3", statusType: "error", to: { name: "research" } },
+      { key: "automation", value: "1/3", statusType: "error", to: { name: "system-health" } },
+      { key: "execution", value: "1/4", statusType: "error", to: { name: "trading" } },
+      { key: "delivery", value: "0/1", statusType: "error", to: { name: "system-notifications" } },
+    ]);
+    expect(workspace.depthMetrics.value.find((metric) => metric.key === "data-quality")?.detail).toContain("缺口 1");
+    expect(workspace.depthMetrics.value.find((metric) => metric.key === "automation")?.detail).toContain("过期锁 1");
+    expect(workspace.depthMetrics.value.find((metric) => metric.key === "execution")?.detail).toContain("交易失败 1");
+    expect(workspace.depthMetrics.value.find((metric) => metric.key === "delivery")?.statusLabel).toBe("风险");
     expect(workspace.alerts.value.map((alert) => alert.key)).toEqual([
       "health",
       "sync-failed",

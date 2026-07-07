@@ -21,6 +21,20 @@ describe("OverviewPage layout contract", () => {
     }
   });
 
+  it("renders overview depth metrics from loaded workspace data", () => {
+    expect(source).toContain("OverviewDepthMetricsPanel");
+    expect(source).toContain(":items=\"depthMetrics\"");
+    expect(source).toContain("depthMetrics,");
+    for (const messages of [zhMessages, enMessages]) {
+      expect(messages).toContain("\"overview.depthMetrics\"");
+      expect(messages).toContain("\"overview.depth.dataQuality\"");
+      expect(messages).toContain("\"overview.depth.automation\"");
+      expect(messages).toContain("\"overview.depth.execution\"");
+      expect(messages).toContain("\"overview.depth.delivery\"");
+      expect(messages).toContain("\"overview.depth.status.error\"");
+    }
+  });
+
   it("renders overview summary cards as navigation entries", () => {
     expect(source).toContain("<RouterLink v-for=\"card in summaryCards\"");
     expect(source).toContain(":to=\"card.to\"");

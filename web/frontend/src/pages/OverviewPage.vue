@@ -43,6 +43,8 @@
         @retry="loadOverviewTrends"
       />
 
+      <OverviewDepthMetricsPanel :items="depthMetrics" />
+
       <div class="overview-grid">
         <section class="surface overview-panel">
           <div class="overview-panel__header">
@@ -131,12 +133,14 @@ import { NButton, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import LoadingState from "@/components/common/LoadingState.vue";
+import OverviewDepthMetricsPanel from "@/components/overview/OverviewDepthMetricsPanel.vue";
 import OverviewTrendPanel from "@/components/overview/OverviewTrendPanel.vue";
 import { useOverviewTrends } from "@/composables/useOverviewTrends";
 import { useOverviewWorkspace } from "@/composables/useOverviewWorkspace";
 
 const {
   alerts,
+  depthMetrics,
   error,
   factsError,
   formatDate,
