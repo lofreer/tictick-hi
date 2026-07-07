@@ -14576,6 +14576,7 @@ Definition of Done：
 - 已本地收敛的事项集中记录为 demo 边界：K 线周期、REST polling、`lightweight-charts`、通知基础 provider、live 创建确认 / riskLimitPct、回测 bps 成本模型和 repo structure。
 - 生产通知启用、生产密钥治理、live executor 和生产级回测撮合明确归入目标环境 / 生产阶段保留项，不再冒充本地 demo 已完成。
 - 新增 `scripts/check-plan-boundaries.sh` 并接入 `scripts/quality-gate.sh`，要求计划文档保留生产保留项标题，并拒绝旧开放问题文案回流。
+- `docs/implementation-plan.md` 的质量门禁章节从“建议”改为“已落地质量门禁”，记录 `scripts/quality-gate.sh` / `scripts/full-quality-gate.sh` 两层门禁现状，并由 plan boundary 脚本拒绝旧建议语气回流。
 
 范围外：
 

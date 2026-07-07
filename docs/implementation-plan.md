@@ -1972,21 +1972,18 @@ web/frontend/src
 - 登录和安全边界变化。
 - UI 库选择变化。
 
-### 21.10 质量门禁建议
+### 21.10 已落地质量门禁
 
-后续实现时应建立轻量门禁：
+当前门禁分两层：
 
 ```text
-go test ./...
-go vet ./...
-前端 typecheck
-前端 lint
-前端 test
-前端 build
-文件行数检查
-函数长度 / 参数数量检查
-命名长度检查
+scripts/quality-gate.sh
+scripts/full-quality-gate.sh
 ```
+
+`scripts/quality-gate.sh` 保持轻量快速，覆盖文件行数、stage 0 foundation、trading float64、strategy boundary、plan boundaries、repo structure、API contract drift、research chart layout、command config smoke、capacity check、backup dry run、scaffold markers 和 future risk markers audit。
+
+`scripts/full-quality-gate.sh` 覆盖 `go test ./...`、`go vet ./...`、前端 typecheck、前端 test、前端 build，并串联轻量门禁；可通过环境变量启用 stage1 / stage8 扩展 smoke。
 
 门禁要轻量、快速、服务质量。
 
