@@ -9957,6 +9957,56 @@ Definition of Done：
 - detail facts 任一端点失败时概览页仍按现有 all-or-nothing 加载模型进入错误状态，后续可以补局部降级。
 - 项目整体仍为 `scaffold`，不能升级为 usable。
 
+### 阶段 1 概览页全局 recent facts API 补充
+
+执行日期：2026-07-07
+
+目标等级：scaffold。
+
+范围内：
+
+- 新增只读 `GET /api/overview/recent-facts`，返回全局最近 strategy intents 和 orders，而不是由前端按最近任务 fan-out 调 detail API。
+- PostgreSQL 查询直接从 `strategy_intents`、`backtest_orders` 和 `orders` 读取事实，并 join `backtest_tasks` / `trading_tasks` 补齐任务名、交易所、交易对和周期。
+- `limit` 默认有界，最大 50，超限返回 400；每类 facts 分别限制数量。
+- OpenAPI contract 和生成的 TypeScript DTO 同步新增 `OverviewRecentFacts`、`OverviewStrategyIntentFact`、`OverviewOrderFact`。
+- 概览页 `overviewFacts` 适配层改为调用新 endpoint，并继续映射市场标签、来源和详情页路由。
+- 测试覆盖 HTTP route 全局排序 / 超限拒绝、真实 PostgreSQL 查询、前端 API wrapper 和概览组合逻辑。
+
+范围外：
+
+- 不新增写操作、迁移或新的事实表。
+- 不改变 backtest / trading runner、worker、CandleProvider、订单执行、通知投递或实盘安全边界。
+- 不新增趋势图、时间窗口筛选、生产级监控语义或局部降级加载。
+- 不把概览页或整体项目升级为 usable。
+
+当前验证：
+
+- `go test ./internal/web/api -run 'TestOverviewRecentFactsRoute|TestAPIContractCoversCurrentFrontendRoutes' -count=1` 通过。
+- `go test ./internal/store/postgres -run TestIntegrationListOverviewRecentFactsReturnsGlobalFacts -count=1` 通过。
+- `go test ./internal/web/api -count=1` 通过。
+- `go test ./internal/store/postgres -count=1` 通过。
+- `scripts/generate-api-types.sh` 通过。
+- `scripts/check-api-contract-drift.sh` 通过。
+- `pnpm --dir web/frontend exec vitest run src/services/api/overview.test.ts src/composables/useOverviewWorkspace.test.ts` 通过。
+- `pnpm --dir web/frontend run typecheck` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `pnpm --dir web/frontend run test` 通过。
+- `pnpm --dir web/frontend run build` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 浏览器 / 视觉 smoke 未执行；本轮变更是只读 API 与概览活动数据源替换，没有改变页面结构或图表布局。
+
+剩余风险：
+
+- recent facts 仍只是轻量概览聚合，不包含时间窗口筛选、趋势图、完整监控语义或局部降级加载。
+- API 当前分别返回最近 intents 和最近 orders，不提供跨类型统一游标分页。
+- 项目整体仍为 `scaffold`，不能升级为 usable。
+
 ## 6. 保留 / 返工 / 删除 / 延后
 
 保留：
