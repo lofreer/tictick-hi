@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -183,6 +184,40 @@ func TestServerReplacesInvalidRequestIDWithoutEchoingValue(t *testing.T) {
 	}
 	if strings.Contains(requestID, "stage8_config_secret") {
 		t.Fatalf("response leaked invalid request id: %q", requestID)
+	}
+}
+
+func TestServerAccessLogIncludesRequestIDWithoutQuery(t *testing.T) {
+	var output bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&output, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+	server := NewServer(newFakeRepository(), "")
+	request := httptest.NewRequest(http.MethodGet, "/readyz?token=stage8_config_secret", nil)
+	request.Header.Set(requestIDHeaderName, "request-id-123")
+	recorder := httptest.NewRecorder()
+
+	server.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	logged := output.String()
+	for _, expected := range []string{
+		`"msg":"http request"`,
+		`"request_id":"request-id-123"`,
+		`"method":"GET"`,
+		`"path":"/readyz"`,
+		`"status":200`,
+	} {
+		if !strings.Contains(logged, expected) {
+			t.Fatalf("access log missing %s: %s", expected, logged)
+		}
+	}
+	if strings.Contains(logged, "stage8_config_secret") || strings.Contains(logged, "token=") {
+		t.Fatalf("access log leaked query string: %s", logged)
 	}
 }
 

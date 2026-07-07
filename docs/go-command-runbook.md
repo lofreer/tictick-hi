@@ -202,7 +202,7 @@ If a command exits immediately:
 
 Known remaining gaps:
 
-- structured text / JSON log output, log level config, command run-level correlation IDs, and API `X-Request-ID` response headers exist, but trace IDs are not propagated into worker tasks, external systems, or subcommands;
+- structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` response headers, and API access logs with `request_id` exist, but trace IDs are not propagated into worker tasks, external systems, or subcommands;
 - worker subcommands have optional process-level health probes, but no richer subcommand-specific readiness model beyond process reachability;
 - backup/restore, resource limits, and shared environment secret management are documented in `docs/production-runbook.md` but still lack completed production drills and automation;
 - no claim that these commands are production-safe.

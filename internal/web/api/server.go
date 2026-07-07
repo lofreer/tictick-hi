@@ -82,22 +82,25 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r = request
+	response := &accessLogResponseWriter{ResponseWriter: w}
+	startedAt := time.Now()
+	defer logHTTPRequest(r, response, startedAt)
 
 	switch {
 	case r.URL.Path == "/readyz":
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 	case strings.HasPrefix(r.URL.Path, "/api/auth"):
-		server.handleAuth(w, r)
+		server.handleAuth(response, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
-		if _, ok := server.authenticateRequest(w, r); !ok {
+		if _, ok := server.authenticateRequest(response, r); !ok {
 			return
 		}
-		if !server.validateCSRF(w, r) {
+		if !server.validateCSRF(response, r) {
 			return
 		}
-		server.serveAPI(w, r)
+		server.serveAPI(response, r)
 	default:
-		server.serveFrontend(w, r)
+		server.serveFrontend(response, r)
 	}
 }
 
