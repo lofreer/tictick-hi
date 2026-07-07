@@ -138,12 +138,15 @@ Logging:
 LOG_LEVEL=info
 LOG_FORMAT=text
 LOG_CORRELATION_ID=
+LOG_TRACEPARENT=
 ```
 
 Use `LOG_FORMAT=json` when logs are collected by a structured log pipeline.
 When `LOG_CORRELATION_ID` is empty, each command process generates one and
-attaches it to every `slog` record as `correlation_id`. Invalid logging settings
-stop commands before PostgreSQL opens and do not echo the invalid value.
+attaches it to every `slog` record as `correlation_id`. When `LOG_TRACEPARENT`
+is empty, each command process generates a valid W3C v00 traceparent and logs it
+as `run_traceparent` plus `run_trace_id`. Invalid logging settings stop commands
+before PostgreSQL opens and do not echo the invalid value.
 
 `hi api` accepts valid `X-Request-ID` and W3C `traceparent` headers and returns
 both headers on responses. Missing or invalid values are replaced and invalid
@@ -157,8 +160,10 @@ sync repair tasks, and trading-task notifications also persist W3C
 Notification provider outbound HTTP requests and SMTP message headers carry
 `X-Request-ID` and `traceparent` when the delivery has them. Data sync Binance /
 OKX market HTTP requests also carry `X-Request-ID` and `traceparent` when the
-claimed task has them. This is still partial correlation: broader external
-systems and subcommands still do not carry W3C trace context end to end.
+claimed task has them. This is still partial correlation: command processes have
+run-level traceparent log context, but broader external systems and independently
+started subcommands still do not carry W3C trace context end to end unless
+deployment injects the same traceparent.
 
 Optional worker process probes:
 
@@ -429,7 +434,7 @@ close these production-safety gaps:
 - backup script and systemd timer template exist, but no target-host installation, external storage monitor, or scheduler run evidence;
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
-- no broader external system / subcommand W3C trace propagation beyond data sync market requests and notification providers, external log sink, or retention policy;
+- no broader external system W3C trace propagation beyond data sync market requests and notification providers, no automatic W3C trace propagation across independently started subcommands beyond injected run-level `LOG_TRACEPARENT`, external log sink, or retention policy;
 - no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, configured claim-ready backlog, configured stale-lease, sync exchange-backoff, and notify provider config worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;

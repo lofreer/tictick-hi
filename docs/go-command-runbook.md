@@ -46,12 +46,15 @@ All subcommands read logging configuration before opening PostgreSQL:
 LOG_LEVEL           debug | info | warn | error
 LOG_FORMAT          text | json
 LOG_CORRELATION_ID  optional run-level correlation id
+LOG_TRACEPARENT     optional run-level W3C traceparent
 ```
 
 Defaults are `LOG_LEVEL=info` and `LOG_FORMAT=text`. Invalid logging env values
 fail before PostgreSQL opens, and errors name only the env key, not the invalid
 value. When `LOG_CORRELATION_ID` is empty, the command generates one and attaches
-it to all `slog` records as `correlation_id`.
+it to all `slog` records as `correlation_id`. When `LOG_TRACEPARENT` is empty,
+the command generates a valid W3C v00 traceparent and attaches it to all `slog`
+records as `run_traceparent` plus the extracted `run_trace_id`.
 
 `hi api` also reads:
 
@@ -235,7 +238,7 @@ scripts/stage8-command-config-smoke.sh
 The smoke builds a local `hi` binary and verifies:
 
 - missing `DATABASE_URL` fails with a clear error;
-- invalid `LOG_LEVEL` / `LOG_FORMAT` / `LOG_CORRELATION_ID` fails before the database opens and does not echo the invalid value;
+- invalid `LOG_LEVEL` / `LOG_FORMAT` / `LOG_CORRELATION_ID` / `LOG_TRACEPARENT` fails before the database opens and does not echo the invalid value;
 - invalid `DB_MAX_CONNS` / `DB_MIN_CONNS` / DB pool duration settings fail before the database opens;
 - invalid duration, int, and bool values name the failing env;
 - `SYNC_HEARTBEAT_INTERVAL > SYNC_LEASE_TTL` fails before the database opens;
@@ -258,7 +261,7 @@ If a command exits immediately:
 
 Known remaining gaps:
 
-- structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, notification provider outbound `X-Request-ID` / `traceparent` propagation, and data sync Binance / OKX market HTTP request metadata propagation exist, but broader external systems and subcommands still do not carry W3C trace context end to end;
+- structured text / JSON log output, log level config, command run-level correlation IDs, command run-level `LOG_TRACEPARENT` / `run_trace_id` log fields, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, notification provider outbound `X-Request-ID` / `traceparent` propagation, and data sync Binance / OKX market HTTP request metadata propagation exist, but broader external systems and independently started subcommands still do not carry W3C trace context end to end unless deployment injects the same traceparent;
 - worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, stale-lease readiness, sync exchange-backoff readiness, and notify provider config readiness, but no richer readiness model for claim success rate, live exchange probing, or live provider delivery probes;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.

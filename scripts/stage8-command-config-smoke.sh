@@ -77,6 +77,11 @@ run_failing_case \
   clean_env LOG_CORRELATION_ID=stage8_config_secret! "$BIN" sync --once
 
 run_failing_case \
+  "invalid log traceparent" \
+  "LOG_TRACEPARENT" \
+  clean_env LOG_TRACEPARENT=stage8_config_secret "$BIN" sync --once
+
+run_failing_case \
   "invalid database max conns" \
   "DB_MAX_CONNS" \
   clean_env DATABASE_URL="$SECRET_DSN" DB_MAX_CONNS=0 "$BIN" sync --once
