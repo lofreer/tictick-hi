@@ -68,7 +68,15 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limitKey := server.loginLimitKey(r, request.Username)
-	if !server.loginLimiter.allow(limitKey) {
+	allowed, err := server.loginLimiter.allow(r.Context(), server.repository, limitKey)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("check login rate limit: %w", err).Error())
+		return
+	}
+	if !allowed {
+		_ = server.recordAnonymousAuditEvent(r, "auth.login", "operator", request.Username, "failure", map[string]string{
+			"reason": "rate_limited",
+		})
 		writeError(w, http.StatusTooManyRequests, "too many login attempts")
 		return
 	}
@@ -78,14 +86,20 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		request.Password,
 	)
 	if err != nil {
-		server.loginLimiter.recordFailure(limitKey)
+		if limitErr := server.loginLimiter.recordFailure(r.Context(), server.repository, limitKey); limitErr != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Errorf("record login failure: %w", limitErr).Error())
+			return
+		}
 		_ = server.recordAnonymousAuditEvent(r, "auth.login", "operator", request.Username, "failure", map[string]string{
 			"reason": "unauthorized",
 		})
 		writeAuthError(w, err)
 		return
 	}
-	server.loginLimiter.recordSuccess(limitKey)
+	if err := server.loginLimiter.recordSuccess(r.Context(), server.repository, limitKey); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("clear login rate limit: %w", err).Error())
+		return
+	}
 
 	token, tokenHash, err := newSessionToken()
 	if err != nil {

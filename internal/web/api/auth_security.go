@@ -1,75 +1,52 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/lofreer/tictick-hi/internal/data"
 )
 
 type loginLimiter struct {
-	mu       sync.Mutex
-	attempts map[string]loginAttempt
-	limit    int
-	window   time.Duration
-	lockout  time.Duration
-	now      func() time.Time
-}
-
-type loginAttempt struct {
-	failures     int
-	firstFailure time.Time
-	lockedUntil  time.Time
+	limit   int
+	window  time.Duration
+	lockout time.Duration
+	now     func() time.Time
 }
 
 func newLoginLimiter(limit int, window time.Duration, lockout time.Duration) *loginLimiter {
 	return &loginLimiter{
-		attempts: map[string]loginAttempt{},
-		limit:    limit,
-		window:   window,
-		lockout:  lockout,
-		now:      time.Now,
+		limit:   limit,
+		window:  window,
+		lockout: lockout,
+		now:     time.Now,
 	}
 }
 
-func (limiter *loginLimiter) allow(key string) bool {
-	limiter.mu.Lock()
-	defer limiter.mu.Unlock()
-
-	attempt := limiter.attempts[key]
-	now := limiter.now().UTC()
-	if attempt.lockedUntil.After(now) {
-		return false
-	}
-	if !attempt.firstFailure.IsZero() && now.Sub(attempt.firstFailure) > limiter.window {
-		delete(limiter.attempts, key)
-	}
-	return true
+func (limiter *loginLimiter) allow(ctx context.Context, repository data.Repository, key string) (bool, error) {
+	return repository.CheckLoginRateLimit(ctx, loginLimitKeyHash(key), limiter.now().UTC(), limiter.window)
 }
 
-func (limiter *loginLimiter) recordFailure(key string) {
-	limiter.mu.Lock()
-	defer limiter.mu.Unlock()
-
-	now := limiter.now().UTC()
-	attempt := limiter.attempts[key]
-	if attempt.firstFailure.IsZero() || now.Sub(attempt.firstFailure) > limiter.window {
-		attempt = loginAttempt{firstFailure: now}
-	}
-	attempt.failures++
-	if attempt.failures >= limiter.limit {
-		attempt.lockedUntil = now.Add(limiter.lockout)
-	}
-	limiter.attempts[key] = attempt
+func (limiter *loginLimiter) recordFailure(ctx context.Context, repository data.Repository, key string) error {
+	return repository.RecordLoginFailure(
+		ctx,
+		loginLimitKeyHash(key),
+		limiter.now().UTC(),
+		limiter.limit,
+		limiter.window,
+		limiter.lockout,
+	)
 }
 
-func (limiter *loginLimiter) recordSuccess(key string) {
-	limiter.mu.Lock()
-	defer limiter.mu.Unlock()
-	delete(limiter.attempts, key)
+func (limiter *loginLimiter) recordSuccess(ctx context.Context, repository data.Repository, key string) error {
+	return repository.ClearLoginRateLimit(ctx, loginLimitKeyHash(key))
 }
 
 func (server *Server) loginLimitKey(r *http.Request, username string) string {
@@ -78,6 +55,11 @@ func (server *Server) loginLimitKey(r *http.Request, username string) string {
 		host = r.RemoteAddr
 	}
 	return strings.ToLower(strings.TrimSpace(username)) + "|" + host
+}
+
+func loginLimitKeyHash(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
 }
 
 func (server *Server) validateCSRF(w http.ResponseWriter, r *http.Request) bool {

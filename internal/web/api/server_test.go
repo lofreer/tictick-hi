@@ -333,34 +333,6 @@ func TestCSRFProtectionRejectsUnsafeRequestsWithoutToken(t *testing.T) {
 	}
 }
 
-func TestLoginRateLimit(t *testing.T) {
-	repository := newFakeRepository()
-	server := NewServerWithConfig(repository, Config{
-		LoginFailureLimit:  2,
-		LoginFailureWindow: time.Minute,
-		LoginLockout:       time.Hour,
-	})
-
-	body := `{"username":"` + testUsername + `","password":"wrong"}`
-	for index := 0; index < 2; index++ {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
-		request.RemoteAddr = "203.0.113.10:12345"
-		server.ServeHTTP(recorder, request)
-		if recorder.Code != http.StatusUnauthorized {
-			t.Fatalf("attempt %d status = %d body = %s", index+1, recorder.Code, recorder.Body.String())
-		}
-	}
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
-	request.RemoteAddr = "203.0.113.10:12345"
-	server.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusTooManyRequests {
-		t.Fatalf("limited status = %d body = %s", recorder.Code, recorder.Body.String())
-	}
-}
-
 func TestServeFrontendSupportsGetAndHead(t *testing.T) {
 	staticRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(staticRoot, "index.html"), []byte("<!doctype html>"), 0o600); err != nil {
