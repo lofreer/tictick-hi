@@ -45,6 +45,17 @@ func TestCheckWorkerStaleLeaseLimits(t *testing.T) {
 	}
 }
 
+func TestCheckSyncExchangeBackoffLimits(t *testing.T) {
+	if err := checkSyncExchangeBackoffLimits(1, SyncExchangeBackoffLimits{MaxActiveBackoffs: 1}); err != nil {
+		t.Fatalf("exact exchange backoff limit should pass: %v", err)
+	}
+
+	err := checkSyncExchangeBackoffLimits(2, SyncExchangeBackoffLimits{MaxActiveBackoffs: 1})
+	if err == nil || !strings.Contains(err.Error(), "active exchange backoffs 2 exceeds limit 1") {
+		t.Fatalf("expected exchange backoff limit error, got %v", err)
+	}
+}
+
 func TestWorkerQueueBacklogReadinessQueries(t *testing.T) {
 	tests := []struct {
 		command string

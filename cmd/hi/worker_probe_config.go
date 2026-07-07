@@ -21,10 +21,16 @@ type workerReadinessStaleLeaseConfig struct {
 	MaxStaleLeases int
 }
 
+type workerReadinessExchangeBackoffConfig struct {
+	Enabled           bool
+	MaxActiveBackoffs int
+}
+
 type workerProbeRuntimeConfig struct {
-	HealthAddr  string
-	Backlog     workerReadinessBacklogConfig
-	StaleLeases workerReadinessStaleLeaseConfig
+	HealthAddr       string
+	Backlog          workerReadinessBacklogConfig
+	StaleLeases      workerReadinessStaleLeaseConfig
+	ExchangeBackoffs workerReadinessExchangeBackoffConfig
 }
 
 func loadWorkerReadinessBacklogConfig(command string) (workerReadinessBacklogConfig, error) {
@@ -55,6 +61,20 @@ func loadWorkerReadinessStaleLeaseConfig(command string) (workerReadinessStaleLe
 	}, nil
 }
 
+func loadWorkerReadinessExchangeBackoffConfig(command string) (workerReadinessExchangeBackoffConfig, error) {
+	if command != "sync" {
+		return workerReadinessExchangeBackoffConfig{}, nil
+	}
+	maxBackoffs, enabled, err := optionalNonNegativeIntEnv("SYNC_READY_MAX_EXCHANGE_BACKOFFS")
+	if err != nil {
+		return workerReadinessExchangeBackoffConfig{}, err
+	}
+	return workerReadinessExchangeBackoffConfig{
+		Enabled:           enabled,
+		MaxActiveBackoffs: maxBackoffs,
+	}, nil
+}
+
 func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, error) {
 	healthAddr, err := loadWorkerHealthProbeAddr(command)
 	if err != nil {
@@ -68,10 +88,15 @@ func loadWorkerProbeRuntimeConfig(command string) (workerProbeRuntimeConfig, err
 	if err != nil {
 		return workerProbeRuntimeConfig{}, err
 	}
+	exchangeBackoffReadiness, err := loadWorkerReadinessExchangeBackoffConfig(command)
+	if err != nil {
+		return workerProbeRuntimeConfig{}, err
+	}
 	return workerProbeRuntimeConfig{
-		HealthAddr:  healthAddr,
-		Backlog:     backlogReadiness,
-		StaleLeases: staleLeaseReadiness,
+		HealthAddr:       healthAddr,
+		Backlog:          backlogReadiness,
+		StaleLeases:      staleLeaseReadiness,
+		ExchangeBackoffs: exchangeBackoffReadiness,
 	}, nil
 }
 
@@ -95,6 +120,17 @@ func (config workerReadinessStaleLeaseConfig) summaryValue() any {
 		return ""
 	}
 	return config.MaxStaleLeases
+}
+
+func (config workerReadinessExchangeBackoffConfig) limits() postgres.SyncExchangeBackoffLimits {
+	return postgres.SyncExchangeBackoffLimits{MaxActiveBackoffs: config.MaxActiveBackoffs}
+}
+
+func (config workerReadinessExchangeBackoffConfig) summaryValue() any {
+	if !config.Enabled {
+		return ""
+	}
+	return config.MaxActiveBackoffs
 }
 
 func optionalNonNegativeIntEnv(key string) (int, bool, error) {
@@ -142,6 +178,14 @@ func workerReadinessChecks(
 			Name: "stale_leases",
 			Check: func(ctx context.Context) error {
 				return store.CheckWorkerStaleLeases(ctx, command, config.StaleLeases.limits())
+			},
+		})
+	}
+	if config.ExchangeBackoffs.Enabled {
+		checks = append(checks, workerReadinessCheck{
+			Name: "exchange_backoff",
+			Check: func(ctx context.Context) error {
+				return store.CheckSyncExchangeBackoffs(ctx, config.ExchangeBackoffs.limits())
 			},
 		})
 	}

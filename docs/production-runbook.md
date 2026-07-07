@@ -171,6 +171,7 @@ NOTIFY_HEALTH_ADDR=0.0.0.0:8094
 SYNC_READY_MAX_BACKLOG=
 SYNC_READY_MAX_AGE=
 SYNC_READY_MAX_STALE_LEASES=
+SYNC_READY_MAX_EXCHANGE_BACKOFFS=
 BACKTEST_READY_MAX_BACKLOG=
 BACKTEST_READY_MAX_AGE=
 BACKTEST_READY_MAX_STALE_LEASES=
@@ -191,8 +192,11 @@ positive `<COMMAND>_READY_MAX_BACKLOG` or `<COMMAND>_READY_MAX_AGE` is set, the
 same endpoints also run `queue_backlog` readiness against claim-ready work. If
 `<COMMAND>_READY_MAX_STALE_LEASES` is set to a non-negative integer, they also
 run `stale_leases` readiness; blank disables it, and `0` fails readiness on any
-stale lease. Keep using `/system/health` for general queue depth, exchange
-backoff, fetch-lock skips, and instrument catalog status.
+stale lease. If `SYNC_READY_MAX_EXCHANGE_BACKOFFS` is set to a non-negative
+integer, `hi sync` also runs `exchange_backoff` readiness against persisted
+exchange backoff state; blank disables it, and `0` fails readiness on any active
+exchange backoff. Keep using `/system/health` for general queue depth,
+fetch-lock skips, and instrument catalog status.
 
 Operational UI checks:
 
@@ -421,7 +425,7 @@ close these production-safety gaps:
 - no completed restore drill evidence for the target environment;
 - capacity preflight exists, but no completed target-environment load test, observed sizing record, or automated retention enforcement;
 - no broader external system / subcommand W3C trace propagation beyond data sync market requests and notification providers, external log sink, or retention policy;
-- no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, configured claim-ready backlog, and configured stale-lease worker probes;
+- no richer worker claim-success / external dependency readiness beyond PostgreSQL, queue-table-ready, configured claim-ready backlog, configured stale-lease, and sync exchange-backoff worker probes;
 - no external uptime monitor or alert routing;
 - no KMS / secret manager integration or `ENCRYPTION_KEY` rotation workflow;
 - no long-running multi-instance exchange quota proof;

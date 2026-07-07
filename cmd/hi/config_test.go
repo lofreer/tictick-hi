@@ -239,6 +239,43 @@ func TestLoadWorkerReadinessStaleLeaseConfigRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestLoadWorkerReadinessExchangeBackoffConfig(t *testing.T) {
+	clearCommandEnv(t)
+
+	config, err := loadWorkerReadinessExchangeBackoffConfig("backtest")
+	if err != nil {
+		t.Fatalf("load non-sync exchange backoff config: %v", err)
+	}
+	if config.Enabled {
+		t.Fatalf("non-sync exchange backoff config should be disabled: %#v", config)
+	}
+
+	t.Setenv("SYNC_READY_MAX_EXCHANGE_BACKOFFS", "0")
+	config, err = loadWorkerReadinessExchangeBackoffConfig("sync")
+	if err != nil {
+		t.Fatalf("load exchange backoff config: %v", err)
+	}
+	if !config.Enabled || config.MaxActiveBackoffs != 0 {
+		t.Fatalf("unexpected exchange backoff config: %#v", config)
+	}
+	if limits := config.limits(); limits.MaxActiveBackoffs != 0 {
+		t.Fatalf("unexpected exchange backoff limits: %#v", limits)
+	}
+	if value := config.summaryValue(); value != 0 {
+		t.Fatalf("summary value = %#v, want 0", value)
+	}
+}
+
+func TestLoadWorkerReadinessExchangeBackoffConfigRejectsInvalidValues(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("SYNC_READY_MAX_EXCHANGE_BACKOFFS", "-1")
+
+	_, err := loadWorkerReadinessExchangeBackoffConfig("sync")
+	if err == nil || !strings.Contains(err.Error(), "SYNC_READY_MAX_EXCHANGE_BACKOFFS") {
+		t.Fatalf("expected max exchange backoffs error, got %v", err)
+	}
+}
+
 func clearCommandEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
@@ -269,6 +306,7 @@ func clearCommandEnv(t *testing.T) {
 		"SYNC_READY_MAX_BACKLOG",
 		"SYNC_READY_MAX_AGE",
 		"SYNC_READY_MAX_STALE_LEASES",
+		"SYNC_READY_MAX_EXCHANGE_BACKOFFS",
 		"MARKET_INSTRUMENT_SYNC_ENABLED",
 		"MARKET_INSTRUMENT_SYNC_ON_START",
 		"MARKET_INSTRUMENT_SYNC_INTERVAL",

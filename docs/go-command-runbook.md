@@ -106,6 +106,7 @@ NOTIFY_HEALTH_ADDR
 SYNC_READY_MAX_BACKLOG
 SYNC_READY_MAX_AGE
 SYNC_READY_MAX_STALE_LEASES
+SYNC_READY_MAX_EXCHANGE_BACKOFFS
 BACKTEST_READY_MAX_BACKLOG
 BACKTEST_READY_MAX_AGE
 BACKTEST_READY_MAX_STALE_LEASES
@@ -139,6 +140,13 @@ Stale lease readiness is disabled by default. Set
 `<COMMAND>_READY_MAX_STALE_LEASES` to a non-negative integer to add a
 `stale_leases` check to `/readyz` and `/healthz`; blank disables the check, and
 `0` means any stale lease makes readiness return HTTP 503.
+
+Sync exchange-backoff readiness is disabled by default. Set
+`SYNC_READY_MAX_EXCHANGE_BACKOFFS` to a non-negative integer to add an
+`exchange_backoff` check to `hi sync` `/readyz` and `/healthz`; blank disables
+the check, and `0` means any active persisted exchange backoff makes readiness
+return HTTP 503. This check reads PostgreSQL backoff state and does not send
+live probes to Binance or OKX.
 
 Public market clients read:
 
@@ -243,6 +251,6 @@ If a command exits immediately:
 Known remaining gaps:
 
 - structured text / JSON log output, log level config, command run-level correlation IDs, API `X-Request-ID` and `traceparent` response headers, API access logs with `request_id` / `trace_id`, API-created data sync / backtest / trading / data sync repair task and trading notification `requestId` / `traceparent` fields, data sync / backtest / trading / notify worker task logs with `request_id` / `trace_id`, notification provider outbound `X-Request-ID` / `traceparent` propagation, and data sync Binance / OKX market HTTP request metadata propagation exist, but broader external systems and subcommands still do not carry W3C trace context end to end;
-- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, and configured stale-lease readiness, but no richer readiness model for claim success rate or exchange/provider availability;
+- worker subcommands have optional health probes with PostgreSQL, queue table, configured claim-ready backlog, stale-lease readiness, and sync exchange-backoff readiness, but no richer readiness model for claim success rate, live exchange probing, or provider availability;
 - backup/restore, shared environment secret management, capacity preflight, and backup timer templates are documented in `docs/production-runbook.md`, but still lack completed production drills, target-host scheduler evidence, external backup storage monitoring, target-environment load tests, and observed sizing records;
 - no claim that these commands are production-safe.

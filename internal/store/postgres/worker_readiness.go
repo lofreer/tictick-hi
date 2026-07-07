@@ -18,6 +18,10 @@ type WorkerStaleLeaseLimits struct {
 	MaxStaleLeases int
 }
 
+type SyncExchangeBackoffLimits struct {
+	MaxActiveBackoffs int
+}
+
 func (store *Store) CheckWorkerQueue(ctx context.Context, command string) error {
 	query, err := workerQueueReadinessQuery(command)
 	if err != nil {
@@ -74,6 +78,21 @@ func (store *Store) CheckWorkerStaleLeases(
 		return fmt.Errorf("read %s worker stale leases: %w", command, err)
 	}
 	return checkWorkerStaleLeaseLimits(command, count, limits)
+}
+
+func (store *Store) CheckSyncExchangeBackoffs(
+	ctx context.Context,
+	limits SyncExchangeBackoffLimits,
+) error {
+	var count int
+	if err := store.pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		  FROM data_sync_exchange_backoffs
+		 WHERE next_attempt_at > now()`,
+	).Scan(&count); err != nil {
+		return fmt.Errorf("read sync exchange backoffs: %w", err)
+	}
+	return checkSyncExchangeBackoffLimits(count, limits)
 }
 
 func workerQueueReadinessQuery(command string) (string, error) {
@@ -144,6 +163,17 @@ func checkWorkerStaleLeaseLimits(command string, staleLeaseCount int, limits Wor
 			command,
 			staleLeaseCount,
 			limits.MaxStaleLeases,
+		)
+	}
+	return nil
+}
+
+func checkSyncExchangeBackoffLimits(activeBackoffCount int, limits SyncExchangeBackoffLimits) error {
+	if activeBackoffCount > limits.MaxActiveBackoffs {
+		return fmt.Errorf(
+			"sync worker active exchange backoffs %d exceeds limit %d",
+			activeBackoffCount,
+			limits.MaxActiveBackoffs,
 		)
 	}
 	return nil
