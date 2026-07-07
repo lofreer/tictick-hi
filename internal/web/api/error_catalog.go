@@ -22,6 +22,7 @@ const (
 	apiErrorOperatorLastEnabledRequired       apiErrorCode = "operator_last_enabled_required"
 	apiErrorAuthCurrentSessionRevokeForbidden apiErrorCode = "auth_current_session_revoke_forbidden"
 	apiErrorMarketInstrumentSyncUnavailable   apiErrorCode = "market_instrument_sync_unavailable"
+	apiErrorMarketInstrumentSyncFailed        apiErrorCode = "market_instrument_sync_failed"
 	apiErrorTooManyRequests                   apiErrorCode = "too_many_requests"
 	apiErrorInternal                          apiErrorCode = "internal_error"
 	apiErrorRequestFailed                     apiErrorCode = "request_failed"
@@ -52,6 +53,7 @@ var apiErrorDefinitions = []apiErrorDefinition{
 	{Code: string(apiErrorOperatorLastEnabledRequired), HTTPStatus: http.StatusConflict, Description: "At least one operator account must remain enabled."},
 	{Code: string(apiErrorAuthCurrentSessionRevokeForbidden), HTTPStatus: http.StatusConflict, Description: "The current operator session cannot be revoked from the session list."},
 	{Code: string(apiErrorMarketInstrumentSyncUnavailable), HTTPStatus: http.StatusBadRequest, Description: "Market instrument sync is unavailable for the requested exchange."},
+	{Code: string(apiErrorMarketInstrumentSyncFailed), HTTPStatus: http.StatusBadRequest, Description: "Market instrument sync failed while fetching or saving exchange catalog data."},
 	{Code: string(apiErrorTooManyRequests), HTTPStatus: http.StatusTooManyRequests, Description: "The caller has exceeded the accepted request rate.", Retryable: true},
 	{Code: string(apiErrorInternal), HTTPStatus: http.StatusInternalServerError, Description: "The server failed while processing the request.", Retryable: true},
 	{Code: string(apiErrorRequestFailed), HTTPStatus: http.StatusBadRequest, Description: "The request failed but does not map to a more specific API error code."},

@@ -240,7 +240,7 @@ func (server *Server) syncMarketInstruments(w http.ResponseWriter, r *http.Reque
 			writeStoreError(w, recordErr)
 			return
 		}
-		writeAPIError(w, http.StatusBadRequest, apiErrorRequestFailed, "sync market instruments: "+err.Error())
+		writeAPIError(w, http.StatusBadRequest, apiErrorMarketInstrumentSyncFailed, "sync market instruments: "+err.Error())
 		return
 	}
 	result, err := server.repository.ReplaceMarketInstruments(r.Context(), query.Exchange, instruments, time.Now().UTC())

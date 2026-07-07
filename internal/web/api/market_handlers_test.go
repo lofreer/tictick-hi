@@ -622,6 +622,10 @@ func TestMarketInstrumentSyncRouteRecordsFetchFailure(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("sync status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
+	response := decodeAPIError(t, recorder)
+	if response.Code != "market_instrument_sync_failed" {
+		t.Fatalf("unexpected error response: %#v", response)
+	}
 	if len(repository.marketSyncFailures) != 1 {
 		t.Fatalf("market sync failures = %#v, want one", repository.marketSyncFailures)
 	}

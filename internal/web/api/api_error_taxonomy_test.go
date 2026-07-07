@@ -59,6 +59,7 @@ func TestAPIErrorCatalogHasUniqueKnownCodes(t *testing.T) {
 		apiErrorOperatorLastEnabledRequired,
 		apiErrorAuthCurrentSessionRevokeForbidden,
 		apiErrorMarketInstrumentSyncUnavailable,
+		apiErrorMarketInstrumentSyncFailed,
 		apiErrorTooManyRequests,
 		apiErrorInternal,
 		apiErrorRequestFailed,
