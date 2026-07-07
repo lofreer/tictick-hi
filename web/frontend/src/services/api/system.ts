@@ -28,6 +28,11 @@ export const systemApi = {
     return apiClient.post<NotificationChannel>("/system/notifications/channels", request);
   },
 
+  setNotificationChannelEnabled(id: string, enabled: boolean) {
+    const action = enabled ? "enable" : "disable";
+    return apiClient.post<NotificationChannel>(`/system/notifications/channels/${encodeURIComponent(id)}/${action}`);
+  },
+
   listExchangeAccounts() {
     return apiClient.get<ExchangeAccount[]>("/system/exchange-accounts");
   },

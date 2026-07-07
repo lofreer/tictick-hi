@@ -41,6 +41,57 @@ describe("system api", () => {
     );
   });
 
+  it("updates notification channel enabled state with explicit actions", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "nc_1",
+            name: "Ops",
+            provider: "local",
+            target: "default",
+            enabled: false,
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "nc_1",
+            name: "Ops",
+            provider: "local",
+            target: "default",
+            enabled: true,
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+          }),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(systemApi.setNotificationChannelEnabled("nc_1", false)).resolves.toEqual(
+      expect.objectContaining({ id: "nc_1", enabled: false }),
+    );
+    await expect(systemApi.setNotificationChannelEnabled("nc_1", true)).resolves.toEqual(
+      expect.objectContaining({ id: "nc_1", enabled: true }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/system/notifications/channels/nc_1/disable",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/system/notifications/channels/nc_1/enable",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
   it("lists and retries notifications", async () => {
     const fetchMock = vi
       .fn()

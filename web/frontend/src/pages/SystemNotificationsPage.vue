@@ -80,6 +80,7 @@
               <th>{{ t("system.target") }}</th>
               <th>{{ t("system.enabled") }}</th>
               <th>{{ t("backtests.createdAt") }}</th>
+              <th>{{ t("research.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -89,6 +90,21 @@
               <td>{{ channel.target }}</td>
               <td><NTag :type="channel.enabled ? 'success' : 'default'" size="small">{{ enabledLabel(channel.enabled) }}</NTag></td>
               <td>{{ formatDate(channel.createdAt) }}</td>
+              <td>
+                <NButton
+                  size="small"
+                  :type="channel.enabled ? 'warning' : 'primary'"
+                  secondary
+                  :loading="updatingChannelId === channel.id"
+                  @click="toggleChannel(channel)"
+                >
+                  <template #icon>
+                    <PowerOff v-if="channel.enabled" :size="16" />
+                    <Power v-else :size="16" />
+                  </template>
+                  {{ channel.enabled ? t("system.disableChannel") : t("system.enableChannel") }}
+                </NButton>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -113,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from "@lucide/vue";
+import { Plus, Power, PowerOff } from "@lucide/vue";
 import {
   NButton,
   NForm,
@@ -157,6 +173,7 @@ const channelsLoading = ref(false);
 const creating = ref(false);
 const error = ref("");
 const channelsError = ref("");
+const updatingChannelId = ref("");
 const createOpen = ref(false);
 const retryingId = ref("");
 const notificationStatusFilter = ref<NotificationStatusFilter>(notificationStatusFilterFromQuery(route.query.status));
@@ -232,6 +249,19 @@ async function createChannel() {
     message.error(errorMessage(loadError, t("system.createFailed")));
   } finally {
     creating.value = false;
+  }
+}
+
+async function toggleChannel(channel: NotificationChannel) {
+  updatingChannelId.value = channel.id;
+  try {
+    await systemApi.setNotificationChannelEnabled(channel.id, !channel.enabled);
+    message.success(t("system.channelUpdated"));
+    await loadChannels();
+  } catch (loadError) {
+    message.error(errorMessage(loadError, t("system.channelUpdateFailed")));
+  } finally {
+    updatingChannelId.value = "";
   }
 }
 
