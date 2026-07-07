@@ -1478,7 +1478,7 @@ POST /api/system/operators
 GET  /api/system/health
 ```
 
-通知 channel 创建 / 更新会在保存前校验 provider target 语法和 env 引用名；不读取 secret 环境变量值，实际 env 存在性仍由 `hi notify` provider config readiness 和投递期检查。
+通知 channel 创建 / 更新会在保存前校验 name / target 非空白、provider target 语法和 env 引用名；不读取 secret 环境变量值，实际 env 存在性仍由 `hi notify` provider config readiness 和投递期检查。
 
 登录：
 

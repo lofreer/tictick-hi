@@ -114,7 +114,7 @@ func TestSystemNotificationChannelUpdateValidatesRequest(t *testing.T) {
 		auth,
 		http.MethodPut,
 		"/api/system/notifications/channels/nc_ops",
-		`{"name":"","provider":"local","target":"default","enabled":true}`,
+		`{"name":"   ","provider":"local","target":"default","enabled":true}`,
 	)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid update status = %d body = %s", recorder.Code, recorder.Body.String())
