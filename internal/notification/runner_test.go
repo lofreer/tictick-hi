@@ -108,6 +108,41 @@ func TestRunnerDrainsAvailableDeliveriesBeforeSleeping(t *testing.T) {
 	}
 }
 
+func TestRunnerAppliesProviderMinIntervalBetweenDeliveries(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	repository := &fakeNotificationRepository{
+		deliveries: []data.NotificationDelivery{
+			{ID: "no_1", NotificationID: "nt_1", Provider: "counting", Target: "default", AttemptCount: 1, MaxAttempts: 3},
+			{ID: "no_2", NotificationID: "nt_2", Provider: "counting", Target: "default", AttemptCount: 1, MaxAttempts: 3},
+		},
+		cancelOnEmpty: cancel,
+	}
+	var delivered int
+	runner := NewRunner(
+		repository,
+		ProviderRegistry{providers: map[string]Provider{"counting": countingProvider{count: &delivered}}},
+		Config{WorkerID: "test", PollInterval: time.Hour, ProviderMinInterval: 250 * time.Millisecond},
+	)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	runner.now = func() time.Time { return now }
+	var sleeps []time.Duration
+	runner.sleep = func(_ context.Context, duration time.Duration) error {
+		sleeps = append(sleeps, duration)
+		now = now.Add(duration)
+		return nil
+	}
+
+	if err := runner.Run(ctx); err != nil {
+		t.Fatalf("Run error = %v", err)
+	}
+	if delivered != 2 || repository.deliveredCount != 2 {
+		t.Fatalf("delivered provider/repository counts = %d/%d", delivered, repository.deliveredCount)
+	}
+	if len(sleeps) != 1 || sleeps[0] != 250*time.Millisecond {
+		t.Fatalf("provider sleeps = %#v", sleeps)
+	}
+}
+
 func TestRunnerReleasesDeliveryOnShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	repository := &fakeNotificationRepository{
@@ -210,4 +245,13 @@ func (provider cancelingProvider) Deliver(ctx context.Context, _ data.Notificati
 	provider.cancel()
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+type countingProvider struct {
+	count *int
+}
+
+func (provider countingProvider) Deliver(context.Context, data.NotificationDelivery) error {
+	(*provider.count)++
+	return nil
 }

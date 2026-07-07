@@ -193,6 +193,31 @@ func TestDurationEnvStrictNamesInvalidEnv(t *testing.T) {
 	}
 }
 
+func TestLoadNotifyCommandConfigLoadsProviderMinInterval(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("NOTIFY_PROVIDER_MIN_INTERVAL", "250ms")
+
+	config, err := loadNotifyCommandConfig(nil)
+	if err != nil {
+		t.Fatalf("load notify config: %v", err)
+	}
+	if config.ProviderMinInterval != 250*time.Millisecond {
+		t.Fatalf("provider min interval = %v", config.ProviderMinInterval)
+	}
+}
+
+func TestLoadNotifyCommandConfigRejectsNegativeProviderMinInterval(t *testing.T) {
+	clearCommandEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://local")
+	t.Setenv("NOTIFY_PROVIDER_MIN_INTERVAL", "-1ms")
+
+	_, err := loadNotifyCommandConfig(nil)
+	if err == nil || !strings.Contains(err.Error(), "NOTIFY_PROVIDER_MIN_INTERVAL") {
+		t.Fatalf("expected NOTIFY_PROVIDER_MIN_INTERVAL error, got %v", err)
+	}
+}
+
 func TestLoadWorkerReadinessBacklogConfig(t *testing.T) {
 	clearCommandEnv(t)
 	t.Setenv("SYNC_READY_MAX_BACKLOG", "12")
@@ -452,6 +477,7 @@ func clearCommandEnv(t *testing.T) {
 		"NOTIFY_POLL_INTERVAL",
 		"NOTIFY_RETRY_DELAY",
 		"NOTIFY_MAX_RETRY_DELAY",
+		"NOTIFY_PROVIDER_MIN_INTERVAL",
 		"NOTIFY_HEALTH_ADDR",
 		"NOTIFY_READY_MAX_BACKLOG",
 		"NOTIFY_READY_MAX_AGE",

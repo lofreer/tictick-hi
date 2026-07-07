@@ -165,6 +165,12 @@ run-level traceparent log context, but broader external systems and independentl
 started subcommands still do not carry W3C trace context end to end unless
 deployment injects the same traceparent.
 
+Set `NOTIFY_PROVIDER_MIN_INTERVAL` to a non-negative duration such as `200ms` to
+enforce a per-process minimum interval between consecutive notification provider
+delivery attempts by the same `hi notify` worker. The default is `0`, which keeps
+the existing no-wait behavior; this is a local guard and does not replace
+provider-specific quota management.
+
 Optional worker process probes:
 
 ```bash

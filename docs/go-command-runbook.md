@@ -100,7 +100,12 @@ NOTIFY_LEASE_TTL
 NOTIFY_POLL_INTERVAL
 NOTIFY_RETRY_DELAY
 NOTIFY_MAX_RETRY_DELAY
+NOTIFY_PROVIDER_MIN_INTERVAL
 ```
+
+`NOTIFY_PROVIDER_MIN_INTERVAL` defaults to `0` and is a per-process minimum
+interval between consecutive notification provider delivery attempts by the same
+`hi notify` worker.
 
 Long-running worker commands can expose optional HTTP probes:
 

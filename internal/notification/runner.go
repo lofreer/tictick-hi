@@ -12,18 +12,21 @@ import (
 )
 
 type Runner struct {
-	repository data.NotificationRepository
-	providers  ProviderRegistry
-	config     Config
-	now        func() time.Time
+	repository               data.NotificationRepository
+	providers                ProviderRegistry
+	config                   Config
+	now                      func() time.Time
+	sleep                    func(context.Context, time.Duration) error
+	lastProviderDeliveryTime time.Time
 }
 
 type Config struct {
-	WorkerID      string
-	LeaseTTL      time.Duration
-	PollInterval  time.Duration
-	RetryDelay    time.Duration
-	MaxRetryDelay time.Duration
+	WorkerID            string
+	LeaseTTL            time.Duration
+	PollInterval        time.Duration
+	RetryDelay          time.Duration
+	MaxRetryDelay       time.Duration
+	ProviderMinInterval time.Duration
 }
 
 func NewRunner(repository data.NotificationRepository, providers ProviderRegistry, config Config) *Runner {
@@ -42,11 +45,15 @@ func NewRunner(repository data.NotificationRepository, providers ProviderRegistr
 	if config.MaxRetryDelay <= 0 {
 		config.MaxRetryDelay = 5 * time.Minute
 	}
+	if config.ProviderMinInterval < 0 {
+		config.ProviderMinInterval = 0
+	}
 	return &Runner{
 		repository: repository,
 		providers:  providers,
 		config:     config,
 		now:        func() time.Time { return time.Now().UTC() },
+		sleep:      sleepContext,
 	}
 }
 
@@ -132,7 +139,23 @@ func (runner *Runner) deliver(ctx context.Context, delivery data.NotificationDel
 	if err != nil {
 		return err
 	}
-	return provider.Deliver(ctx, delivery)
+	if err := runner.throttleProvider(ctx); err != nil {
+		return err
+	}
+	err = provider.Deliver(ctx, delivery)
+	runner.lastProviderDeliveryTime = runner.now()
+	return err
+}
+
+func (runner *Runner) throttleProvider(ctx context.Context) error {
+	if runner.config.ProviderMinInterval <= 0 || runner.lastProviderDeliveryTime.IsZero() {
+		return nil
+	}
+	wait := runner.lastProviderDeliveryTime.Add(runner.config.ProviderMinInterval).Sub(runner.now())
+	if wait <= 0 {
+		return nil
+	}
+	return runner.sleep(ctx, wait)
 }
 
 func (runner *Runner) nextAttemptAt(delivery data.NotificationDelivery) *time.Time {
@@ -148,4 +171,18 @@ func (runner *Runner) nextAttemptAt(delivery data.NotificationDelivery) *time.Ti
 	}
 	next := runner.now().Add(delay)
 	return &next
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) error {
+	if duration <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

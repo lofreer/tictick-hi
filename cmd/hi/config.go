@@ -65,14 +65,15 @@ type tradingCommandConfig struct {
 }
 
 type notifyCommandConfig struct {
-	DatabaseURL   string
-	DatabasePool  postgres.PoolOptions
-	Once          bool
-	WorkerID      string
-	LeaseTTL      time.Duration
-	PollInterval  time.Duration
-	RetryDelay    time.Duration
-	MaxRetryDelay time.Duration
+	DatabaseURL         string
+	DatabasePool        postgres.PoolOptions
+	Once                bool
+	WorkerID            string
+	LeaseTTL            time.Duration
+	PollInterval        time.Duration
+	RetryDelay          time.Duration
+	MaxRetryDelay       time.Duration
+	ProviderMinInterval time.Duration
 }
 
 type exchangeClientConfig struct {
@@ -321,15 +322,20 @@ func loadNotifyCommandConfig(args []string) (notifyCommandConfig, error) {
 	if err != nil {
 		return notifyCommandConfig{}, err
 	}
+	providerMinInterval, err := durationEnvNonNegative("NOTIFY_PROVIDER_MIN_INTERVAL", 0)
+	if err != nil {
+		return notifyCommandConfig{}, err
+	}
 	return notifyCommandConfig{
-		DatabaseURL:   databaseURL,
-		DatabasePool:  databasePool,
-		Once:          *once,
-		WorkerID:      envOrDefault("NOTIFY_WORKER_ID", defaultWorkerID()),
-		LeaseTTL:      leaseTTL,
-		PollInterval:  pollInterval,
-		RetryDelay:    retryDelay,
-		MaxRetryDelay: maxRetryDelay,
+		DatabaseURL:         databaseURL,
+		DatabasePool:        databasePool,
+		Once:                *once,
+		WorkerID:            envOrDefault("NOTIFY_WORKER_ID", defaultWorkerID()),
+		LeaseTTL:            leaseTTL,
+		PollInterval:        pollInterval,
+		RetryDelay:          retryDelay,
+		MaxRetryDelay:       maxRetryDelay,
+		ProviderMinInterval: providerMinInterval,
 	}, nil
 }
 

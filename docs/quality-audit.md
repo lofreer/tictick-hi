@@ -43,7 +43,7 @@ done            用户确认关闭
 | 回测 | demo | 保留后加强 | 已通过 CandleProvider 执行、`minute_replay` 以 `1m` 推进，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；intent / order / result 落库，详情页展示 intent 和买卖点，并采用上方大图表、下方左窄摘要右宽列表的布局；runner 上下文取消和容器 SIGTERM 会释放 active lease 并复位为 pending；撮合模型、费用/滑点曲线、指标体系仍不可信 |
 | 交易 runner | demo | 保留后加强 | 已通过 CandleProvider 取 K 线，策略输入前会丢弃未闭合 K 线，且 `gap/insufficient/limitedByBaseWindow` 不再进入策略输入；paper executor 落库 intent / order / execution / position / notification，交易详情页采用上方大图表、下方左窄摘要右宽列表的布局，running task claim 已按 `updated_at` 轮转避免旧任务长期占用队列，用户 pause、runner 上下文取消和容器 SIGTERM 会释放 active lease，live execute 已禁用；通知 intent 可经 local / webhook / email / Telegram / 飞书 provider 投递；仍缺可信风控、完整统一 worker lease 和实盘安全边界 |
 | 实盘安全 | demo | 保留后加强 | 新建交易所账号凭据使用 `ENCRYPTION_KEY` + AES-GCM 加密保存，列表/API 不返回明文，live 任务创建校验账号启用和凭据状态；真实 testnet/sandbox live executor、幂等提交和生产密钥管理仍未完成 |
-| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；provider 外发 title/body 会 trim 并分别限制为 200/4000 rune，组合文本限制为 4096 rune；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停 / 更新 / 删除操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；生产级模板/限流/回执、完整统一 worker lease 仍未完成 |
+| 通知 | demo | 保留后加强 | NotificationIntent 已进入 notification outbox，`hi notify` 支持 local / webhook-demo / webhook / email / Telegram / 飞书 provider、失败重试和系统页 retry，delivered / failed / retry / runner 上下文取消会通过共享 lease helper 释放 outbox lock；真实 provider 采用 env-reference 凭据模型，密钥不进入 channel target；webhook / Telegram / 飞书支持真实 HTTP POST，email 支持 SMTP；provider 外发 title/body 会 trim 并分别限制为 200/4000 rune，组合文本限制为 4096 rune；`NOTIFY_PROVIDER_MIN_INTERVAL` 可配置同一 notify worker 连续 provider delivery attempt 的本地最小间隔；通知通道已支持创建、读取、更新、删除、启停 API 和系统通知页启停 / 更新 / 删除操作；notify 容器 SIGTERM 已由慢 webhook smoke 证明会释放 outbox lock；生产级模板/多实例限流/回执、完整统一 worker lease 仍未完成 |
 | 前端基础设施 | scaffold | 保留后加强 | Vue/Naive/Pinia/i18n/主题骨架存在，策略任务表单已由 schema 驱动并校验参数，路由页面已懒加载且生产入口 chunk 降到 500 kB 以下；概览页已改为真实聚合视图；研究页、回测详情、交易详情 K 线图表已收敛到共享 `klineChartLayout.css` 固定图表槽契约，复用高度、左右 gutter、内部 chart 填充规则，visual smoke 已新增右侧价格轴必须贴近图表视口边界、最右侧 canvas 必须贴住 viewport 右边界、主图占比、研究页工具栏高度最大 `72px` 的断言，并把 symbol 输入最大宽度阈值收敛到 `100px`、控件组最大宽度 `500px`、右侧价格轴最大宽度 `72px`、坐标轴文字墨迹高度范围收敛为桌面/窄桌面/移动端 `7px` 到 `13px`、图表高度收敛到桌面 `600px+` / 窄桌面 `620px+` / 移动端 `540px+`，防止右侧额外空白、工具栏过宽、坐标轴过小和图表过矮回归；`scripts/stage8-visual-smoke.mjs` 已覆盖当前全部登录后静态路由在 1440/812/390 视口、浅/深主题和 zh-CN/en-US 语言矩阵下的 runtime error、横向溢出、主内容存在性、html lang、顶部导航翻译和明显 i18n key 泄漏，并在存在任务数据时进入回测详情 / 交易详情检查上图表、下双栏布局；`scripts/stage8-state-visual-smoke.mjs` 已用 GET API 拦截覆盖研究、回测、交易、通知、系统和详情页可见空/错误状态在桌面/移动、浅/深主题、中英语言下的状态块可见性、横向溢出和 i18n 泄漏；`routes.test.ts` 会校验新增登录后静态路由必须同步进入 visual smoke；两类浏览器 smoke 已接入 `scripts/stage8-smoke.sh` 默认验收，可用 `STAGE8_BROWSER_SMOKE=0` 在无 Chrome 环境显式跳过；仍缺像素快照基线、动态详情全数据状态、多浏览器视觉回归和 CI 硬门禁，整体业务体验仍需继续打磨 |
 | 概览页 | demo | 保留后加强 | 已从现有 API 读取系统健康、数据同步、回测、交易和通知记录，展示关键数量、异常提醒、worker 健康和最近活动；recent facts 和最近活动已有 24H / 7D / 30D 时间窗口筛选；汇总卡片已有到研究、回测、交易、通知和运维健康的操作入口；已有 7D 运行趋势条展示策略意图、订单、通知和失败信号；已有数据质量、自动化链路、执行面和通知投递深度指标；新增监控上下文展示快照时间、数据源降级、趋势覆盖和告警负载；通知、数据质量、自动化链路和回测/交易执行面入口已带状态筛选上下文跳转；仍缺 SLO、告警规则、实时订阅等生产级监控语义 |
 | 系统管理 / 运维健康 | demo | 保留后加强 | 操作台账号可创建和启停，且会阻止当前操作员禁用自己或禁用最后一个启用操作员，其中当前操作员自禁用拒绝会写入失败审计；当前操作员 session 可查看来源地址 / User-Agent 并撤销非当前会话，基础操作审计页/API 可查看登录和系统管理写操作，审计事件客户端上下文会 trim 并按 255 rune 截断，审计 metadata 写库前会 trim、最多保留 20 项且 key/value 分别限制为 64/255 rune，审计列表 limit 已在 API 层归一化到 1..500，运维健康页/API 展示数据库、api、worker count、heartbeat、locked_until 和 instrument catalog 同步状态；仍缺 RBAC、角色级自保护规则、不可篡改审计和生产监控 |
@@ -12768,6 +12768,47 @@ Definition of Done：
 
 - 通知仍缺生产级模板、provider 级限流、回执、第三方消息 ID、投递延迟指标和完整统一 worker lease。
 - 真实第三方 provider 可达性、额度、退避和回执语义仍未验证。
+- 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
+
+### 阶段 8 notification provider local throttle 补充
+
+执行日期：2026-07-07
+
+目标等级：demo。
+
+范围内：
+
+- `hi notify` 新增 `NOTIFY_PROVIDER_MIN_INTERVAL`，默认 `0`，允许配置同一 worker 连续 provider delivery attempt 的本地最小间隔。
+- `notification.Runner` 在获取 provider 后、调用 provider 前执行本地节流；等待期间可被 context cancel 打断。
+- 启动摘要新增非敏感 `provider_min_interval`。
+- `docs/go-command-runbook.md` 和 `docs/production-runbook.md` 补充该配置和边界说明。
+- 测试覆盖 runner 连续两条 delivery 之间只等待一次、配置读取和负值拒绝。
+
+范围外：
+
+- 不新增跨进程 / 分布式 provider token bucket，不改变 notification outbox claim、retry/backoff、lease、provider target 或第三方投递逻辑。
+- 不为不同 provider / channel 定义独立额度，不读取第三方 rate-limit response，也不新增真实 provider 投递 smoke。
+
+当前验证：
+
+- `go test ./internal/notification ./cmd/hi -run 'TestRunnerAppliesProviderMinIntervalBetweenDeliveries|TestRunnerDrainsAvailableDeliveriesBeforeSleeping|TestLoadNotifyCommandConfigLoadsProviderMinInterval|TestLoadNotifyCommandConfigRejectsNegativeProviderMinInterval|TestLoadNotifyCommandConfigRejectsFlagErrors' -count=1 -v` 通过。
+- `go test ./internal/notification ./cmd/hi -count=1` 通过。
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `scripts/check-file-size.sh` 通过。
+- `scripts/quality-gate.sh` 通过。
+- `git diff --check` 通过。
+
+未执行：
+
+- 未执行 Docker Compose / 多 notify worker 运行态节流 smoke；本轮只覆盖本地 runner 和配置解析。
+- 未执行真实 Telegram / 飞书 / SMTP / webhook 外网投递 smoke。
+- 未执行浏览器 / 视觉 smoke；本轮没有前端渲染变更。
+
+剩余风险：
+
+- 通知仍缺生产级模板、多实例 / provider 级限流、回执、第三方消息 ID、投递延迟指标和完整统一 worker lease。
+- `NOTIFY_PROVIDER_MIN_INTERVAL` 只是单进程本地等待，不保证多实例部署下的全局额度。
 - 项目整体仍为 `scaffold`，不能升级为 usable 或 production-safe。
 
 ## 6. 保留 / 返工 / 删除 / 延后

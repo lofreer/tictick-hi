@@ -83,11 +83,12 @@ func runNotify(ctx context.Context, args []string) error {
 	defer store.Close()
 
 	runner := notification.NewRunner(store, notification.DefaultProviders(), notification.Config{
-		WorkerID:      config.WorkerID,
-		LeaseTTL:      config.LeaseTTL,
-		PollInterval:  config.PollInterval,
-		RetryDelay:    config.RetryDelay,
-		MaxRetryDelay: config.MaxRetryDelay,
+		WorkerID:            config.WorkerID,
+		LeaseTTL:            config.LeaseTTL,
+		PollInterval:        config.PollInterval,
+		RetryDelay:          config.RetryDelay,
+		MaxRetryDelay:       config.MaxRetryDelay,
+		ProviderMinInterval: config.ProviderMinInterval,
 	})
 
 	slog.Info("starting notify", safeConfigSummary(
@@ -97,6 +98,7 @@ func runNotify(ctx context.Context, args []string) error {
 		"poll_interval", config.PollInterval,
 		"retry_delay", config.RetryDelay,
 		"max_retry_delay", config.MaxRetryDelay,
+		"provider_min_interval", config.ProviderMinInterval,
 		"db_max_conns", config.DatabasePool.MaxConns,
 		"db_min_conns", config.DatabasePool.MinConns,
 		"db_max_conn_lifetime", config.DatabasePool.MaxConnLifetime,
