@@ -337,6 +337,14 @@ func (server *Server) handleOperatorAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !enabled && id == actor.ID {
+		if err := server.recordAuditEvent(r, actor, "operator.disable", "operator", actor.ID, "failure", map[string]string{
+			"username": actor.Username,
+			"enabled":  boolString(actor.Enabled),
+			"reason":   "self_disable_forbidden",
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		writeAPIError(w, http.StatusConflict, apiErrorOperatorSelfDisableForbidden, "current operator cannot be disabled")
 		return
 	}
