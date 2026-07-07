@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/lofreer/tictick-hi/internal/data"
 )
@@ -67,6 +68,59 @@ func TestSystemNotificationChannelEnableDisable(t *testing.T) {
 	assertAuditAction(t, repository.auditEvents, "notification_channel.enable", "notification_channel", "nc_ops")
 }
 
+func TestSystemNotificationChannelUpdateDelete(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
+
+	updateRecorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPut,
+		"/api/system/notifications/channels/nc_ops",
+		`{"name":"Ops Email","provider":"email","target":"smtp://smtp.example.com:587?from=bot@example.com&to=ops@example.com","enabled":false}`,
+	)
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("update status = %d body = %s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	if repository.channels[0].Name != "Ops Email" ||
+		repository.channels[0].Provider != "email" ||
+		repository.channels[0].Enabled {
+		t.Fatalf("channel after update = %#v", repository.channels[0])
+	}
+
+	deleteRecorder := serveAuthenticated(server, auth, http.MethodDelete, "/api/system/notifications/channels/nc_ops", "")
+	if deleteRecorder.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d body = %s", deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+	if len(repository.channels) != 0 {
+		t.Fatalf("channels after delete = %#v", repository.channels)
+	}
+
+	secondDeleteRecorder := serveAuthenticated(server, auth, http.MethodDelete, "/api/system/notifications/channels/nc_ops", "")
+	if secondDeleteRecorder.Code != http.StatusNotFound {
+		t.Fatalf("second delete status = %d body = %s", secondDeleteRecorder.Code, secondDeleteRecorder.Body.String())
+	}
+
+	assertAuditAction(t, repository.auditEvents, "notification_channel.update", "notification_channel", "nc_ops")
+	assertAuditAction(t, repository.auditEvents, "notification_channel.delete", "notification_channel", "nc_ops")
+}
+
+func TestSystemNotificationChannelUpdateValidatesRequest(t *testing.T) {
+	repository, server, auth := newAuthenticatedTestServer(t)
+	repository.channels = append(repository.channels, dataNotificationChannel("nc_ops", true))
+
+	recorder := serveAuthenticated(
+		server,
+		auth,
+		http.MethodPut,
+		"/api/system/notifications/channels/nc_ops",
+		`{"name":"","provider":"local","target":"default","enabled":true}`,
+	)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid update status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestSystemNotificationChannelActionNotFound(t *testing.T) {
 	_, server, auth := newAuthenticatedTestServer(t)
 
@@ -78,10 +132,12 @@ func TestSystemNotificationChannelActionNotFound(t *testing.T) {
 
 func dataNotificationChannel(id string, enabled bool) data.NotificationChannel {
 	return data.NotificationChannel{
-		ID:       id,
-		Name:     "Ops",
-		Provider: "local",
-		Target:   "default",
-		Enabled:  enabled,
+		ID:        id,
+		Name:      "Ops",
+		Provider:  "local",
+		Target:    "default",
+		Enabled:   enabled,
+		CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
 }

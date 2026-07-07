@@ -111,6 +111,8 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodPost, "/api/system/notifications/{id}/retry"},
 		{http.MethodGet, "/api/system/notifications/channels"},
 		{http.MethodPost, "/api/system/notifications/channels"},
+		{http.MethodPut, "/api/system/notifications/channels/{id}"},
+		{http.MethodDelete, "/api/system/notifications/channels/{id}"},
 		{http.MethodPost, "/api/system/notifications/channels/{id}/enable"},
 		{http.MethodPost, "/api/system/notifications/channels/{id}/disable"},
 		{http.MethodGet, "/api/system/exchange-accounts"},

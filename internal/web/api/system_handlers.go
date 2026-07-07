@@ -33,6 +33,10 @@ func (server *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 		server.handleNotificationChannels(w, r)
 		return
 	}
+	if len(parts) == 5 && parts[2] == "notifications" && parts[3] == "channels" {
+		server.handleNotificationChannel(w, r, parts[4])
+		return
+	}
 	if len(parts) == 6 && parts[2] == "notifications" && parts[3] == "channels" {
 		server.handleNotificationChannelAction(w, r, parts[4], parts[5])
 		return
@@ -129,17 +133,61 @@ func (server *Server) handleNotificationChannels(w http.ResponseWriter, r *http.
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if err := server.recordAuditEvent(r, actor, "notification_channel.create", "notification_channel", channel.ID, "success", map[string]string{
-			"name":     channel.Name,
-			"provider": channel.Provider,
-			"enabled":  boolString(channel.Enabled),
-		}); err != nil {
+		if err := server.recordAuditEvent(r, actor, "notification_channel.create", "notification_channel", channel.ID, "success", notificationChannelAuditMetadata(channel)); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusCreated, channel)
 	default:
 		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
+	}
+}
+
+func (server *Server) handleNotificationChannel(w http.ResponseWriter, r *http.Request, id string) {
+	switch r.Method {
+	case http.MethodPut:
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
+		var request data.CreateNotificationChannel
+		if err := readJSON(r, &request); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err := validateNotificationChannel(request); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		channel, err := server.repository.UpdateNotificationChannel(r.Context(), id, request)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if err := server.recordAuditEvent(r, actor, "notification_channel.update", "notification_channel", channel.ID, "success", notificationChannelAuditMetadata(channel)); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, channel)
+	case http.MethodDelete:
+		actor, _, authErr := server.currentOperator(r)
+		if authErr != nil {
+			writeAuthError(w, authErr)
+			return
+		}
+		channel, err := server.repository.DeleteNotificationChannel(r.Context(), id)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if err := server.recordAuditEvent(r, actor, "notification_channel.delete", "notification_channel", channel.ID, "success", notificationChannelAuditMetadata(channel)); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeMethodNotAllowed(w, http.MethodPut, http.MethodDelete)
 	}
 }
 
@@ -168,15 +216,19 @@ func (server *Server) handleNotificationChannelAction(w http.ResponseWriter, r *
 		writeStoreError(w, err)
 		return
 	}
-	if err := server.recordAuditEvent(r, actor, "notification_channel."+action, "notification_channel", channel.ID, "success", map[string]string{
-		"name":     channel.Name,
-		"provider": channel.Provider,
-		"enabled":  boolString(channel.Enabled),
-	}); err != nil {
+	if err := server.recordAuditEvent(r, actor, "notification_channel."+action, "notification_channel", channel.ID, "success", notificationChannelAuditMetadata(channel)); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, channel)
+}
+
+func notificationChannelAuditMetadata(channel data.NotificationChannel) map[string]string {
+	return map[string]string{
+		"name":     channel.Name,
+		"provider": channel.Provider,
+		"enabled":  boolString(channel.Enabled),
+	}
 }
 
 func (server *Server) handleExchangeAccounts(w http.ResponseWriter, r *http.Request) {

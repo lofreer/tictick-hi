@@ -51,3 +51,62 @@ func TestNotificationChannelStoreSetEnabled(t *testing.T) {
 		t.Fatalf("missing channel error = %v, want not found", err)
 	}
 }
+
+func TestNotificationChannelStoreUpdateDelete(t *testing.T) {
+	store := openIntegrationStore(t)
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	channel, err := store.CreateNotificationChannel(ctx, data.CreateNotificationChannel{
+		Name:     integrationID("channel-update"),
+		Provider: "local",
+		Target:   "default",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := testContext(t)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, `DELETE FROM notification_channels WHERE id = $1`, channel.ID)
+	})
+
+	updated, err := store.UpdateNotificationChannel(ctx, channel.ID, data.CreateNotificationChannel{
+		Name:     integrationID("channel-updated"),
+		Provider: "webhook-demo",
+		Target:   "https://example.invalid/ops",
+		Enabled:  false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name == channel.Name || updated.Provider != "webhook-demo" || updated.Enabled {
+		t.Fatalf("updated channel = %#v", updated)
+	}
+	if updated.UpdatedAt.Before(channel.UpdatedAt) {
+		t.Fatalf("updatedAt moved backwards: before=%s after=%s", channel.UpdatedAt, updated.UpdatedAt)
+	}
+
+	deleted, err := store.DeleteNotificationChannel(ctx, channel.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted.ID != channel.ID || deleted.Name != updated.Name {
+		t.Fatalf("deleted channel = %#v, want updated channel id/name", deleted)
+	}
+
+	_, err = store.DeleteNotificationChannel(ctx, channel.ID)
+	if !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("second delete error = %v, want not found", err)
+	}
+	_, err = store.UpdateNotificationChannel(ctx, "nc_missing", data.CreateNotificationChannel{
+		Name:     "missing",
+		Provider: "local",
+		Target:   "default",
+		Enabled:  true,
+	})
+	if !errors.Is(err, data.ErrNotFound) {
+		t.Fatalf("missing update error = %v, want not found", err)
+	}
+}

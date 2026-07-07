@@ -300,15 +300,7 @@ func addSystemContractPaths(paths map[string]apiPathItem) {
 		"system", "retryNotification", "Retry a failed notification", http.StatusOK, schemaRef("Notification"),
 		withCSRF(), withParameters(pathParam("id", "Notification id")), withErrors(http.StatusNotFound, http.StatusConflict),
 	))
-	addOperation(paths, "/api/system/notifications/channels", http.MethodGet, operation(
-		"system", "listNotificationChannels", "List notification channels", http.StatusOK, arraySchema(schemaRef("NotificationChannel")),
-	))
-	addOperation(paths, "/api/system/notifications/channels", http.MethodPost, operation(
-		"system", "createNotificationChannel", "Create a notification channel", http.StatusCreated, schemaRef("NotificationChannel"),
-		withCSRF(), withRequest(schemaRef("CreateNotificationChannel")), withErrors(http.StatusBadRequest),
-	))
-	addSystemActionContractPaths(paths, "/api/system/notifications/channels/{id}",
-		"setNotificationChannel", "Set notification channel", "NotificationChannel", "Notification channel id", "enable", "disable")
+	addNotificationChannelContractPaths(paths)
 	addOperation(paths, "/api/system/exchange-accounts", http.MethodGet, operation(
 		"system", "listExchangeAccounts", "List exchange accounts without secret material", http.StatusOK, arraySchema(schemaRef("ExchangeAccount")),
 	))
