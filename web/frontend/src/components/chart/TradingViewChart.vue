@@ -38,6 +38,7 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import { useThemeStore } from "@/stores/theme";
 import { appColors, chartAxisFontSize, chartMobileAxisFontSize, chartRightPriceScaleWidth, chartTheme } from "@/theme/tokens";
 import type { ChartCandle, ChartMarker } from "@/types/app";
+import { currentDevicePixelRatio, devicePixelRatioChanged, hasDistortedChartCanvasGeometry } from "./chartCanvasGeometry";
 import { chartCandleForTime, chartReadoutFromCandle, type ChartReadout } from "./chartReadout";
 import { positiveFloor, readClientHeight, readClientWidth, readPixelSize } from "./chartSizing";
 import "./TradingViewChart.css";
@@ -60,6 +61,7 @@ let resizeObserver: ResizeObserver | null = null;
 let observedResizeHost: HTMLElement | null = null;
 let resizeFrame = 0;
 let lastSize = { width: 0, height: 0 };
+let lastDevicePixelRatio = 1;
 const fallbackSize = { width: 1, height: 640 };
 const minRenderHeight = 360;
 const maxRenderHeight = 860;
@@ -80,6 +82,7 @@ onMounted(() => {
 
   const initialSize = readHostSize() ?? { ...fallbackSize };
   lastSize = { width: initialSize.width, height: initialSize.height };
+  lastDevicePixelRatio = currentDevicePixelRatio();
   chart = createChart(containerRef.value, {
     ...responsiveChartOptions(),
     autoSize: false,
@@ -348,13 +351,34 @@ function resizeChart() {
   const nextMeasurement = readHostSize();
   if (!nextMeasurement) return;
 
-  if (nextMeasurement.width === lastSize.width && nextMeasurement.height === lastSize.height) {
+  const sizeChanged = nextMeasurement.width !== lastSize.width || nextMeasurement.height !== lastSize.height;
+  const dprChanged = devicePixelRatioChanged(lastDevicePixelRatio);
+  if (!sizeChanged && !dprChanged) {
+    if (hasDistortedChartCanvasGeometry(containerRef.value)) {
+      forceChartRepaint();
+    }
+    return;
+  }
+  if (!sizeChanged) {
+    lastDevicePixelRatio = currentDevicePixelRatio();
+    forceChartRepaint();
     return;
   }
 
+  lastDevicePixelRatio = currentDevicePixelRatio();
   lastSize = { width: nextMeasurement.width, height: nextMeasurement.height };
   chart.applyOptions(responsiveChartOptions());
   chart.resize(nextMeasurement.width, nextMeasurement.height);
+  fitChartContent(props.data.length);
+}
+
+function forceChartRepaint() {
+  if (!chart || lastSize.width <= 0 || lastSize.height <= 0) return;
+  const nudgedHeight = lastSize.height > minRenderHeight ? lastSize.height - 1 : lastSize.height + 1;
+  chart.applyOptions(responsiveChartOptions());
+  chart.resize(lastSize.width, nudgedHeight, true);
+  chart.resize(lastSize.width, lastSize.height, true);
+  configurePriceScales();
   fitChartContent(props.data.length);
 }
 
