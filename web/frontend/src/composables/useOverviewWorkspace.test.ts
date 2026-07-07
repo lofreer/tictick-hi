@@ -4,27 +4,23 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { i18n } from "@/i18n";
 import { backtestsApi } from "@/services/api/backtests";
 import { dataApi } from "@/services/api/data";
+import { overviewApi } from "@/services/api/overview";
 import { systemApi } from "@/services/api/system";
 import { tradingApi } from "@/services/api/trading";
 import { useOverviewWorkspace } from "@/composables/useOverviewWorkspace";
 
 const apiMocks = vi.hoisted(() => ({
   listBacktests: vi.fn(),
-  listBacktestIntents: vi.fn(),
-  listBacktestOrders: vi.fn(),
   listDataTasks: vi.fn(),
   listNotifications: vi.fn(),
-  listTradingIntents: vi.fn(),
-  listTradingOrders: vi.fn(),
   listTradingTasks: vi.fn(),
+  overviewRecentFacts: vi.fn(),
   systemHealth: vi.fn(),
 }));
 
 vi.mock("@/services/api/backtests", () => ({
   backtestsApi: {
     listBacktests: apiMocks.listBacktests,
-    listIntents: apiMocks.listBacktestIntents,
-    listOrders: apiMocks.listBacktestOrders,
   },
 }));
 
@@ -41,10 +37,14 @@ vi.mock("@/services/api/system", () => ({
   },
 }));
 
+vi.mock("@/services/api/overview", () => ({
+  overviewApi: {
+    recentFacts: apiMocks.overviewRecentFacts,
+  },
+}));
+
 vi.mock("@/services/api/trading", () => ({
   tradingApi: {
-    listIntents: apiMocks.listTradingIntents,
-    listOrders: apiMocks.listTradingOrders,
     listTasks: apiMocks.listTradingTasks,
   },
 }));
@@ -52,10 +52,7 @@ vi.mock("@/services/api/trading", () => ({
 describe("useOverviewWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMocks.listBacktestIntents.mockResolvedValue([]);
-    apiMocks.listBacktestOrders.mockResolvedValue([]);
-    apiMocks.listTradingIntents.mockResolvedValue([]);
-    apiMocks.listTradingOrders.mockResolvedValue([]);
+    apiMocks.overviewRecentFacts.mockResolvedValue({ orders: [], strategyIntents: [] });
   });
 
   it("loads real overview sources and derives summary state", async () => {
@@ -87,34 +84,16 @@ describe("useOverviewWorkspace", () => {
       task("tt_1", "running", "2026-06-28T01:05:00Z", { name: "Paper", type: "paper" }),
       task("tt_2", "failed", "2026-06-28T01:06:00Z", { name: "Live", type: "live" }),
     ]);
-    apiMocks.listBacktestIntents.mockImplementation(async (id: string) =>
-      id === "bt_1"
-        ? [
-            intent("si_bt_1", "bt_1", "backtest", "accepted", "order", "simulate", "2026-06-28T01:09:00Z"),
-          ]
-        : [],
-    );
-    apiMocks.listBacktestOrders.mockImplementation(async (id: string) =>
-      id === "bt_1"
-        ? [
-            backtestOrder("bo_1", "bt_1", "buy", "65000", "0.1", "filled", "2026-06-28T01:03:30Z"),
-          ]
-        : [],
-    );
-    apiMocks.listTradingIntents.mockImplementation(async (id: string) =>
-      id === "tt_1"
-        ? [
-            intent("si_tt_1", "tt_1", "paper", "accepted", "order", "execute", "2026-06-28T01:08:00Z"),
-          ]
-        : [],
-    );
-    apiMocks.listTradingOrders.mockImplementation(async (id: string) =>
-      id === "tt_1"
-        ? [
-            tradingOrder("ord_1", "tt_1", "sell", "66000", "0.2", "filled", "2026-06-28T01:10:00Z"),
-          ]
-        : [],
-    );
+    apiMocks.overviewRecentFacts.mockResolvedValue({
+      orders: [
+        overviewOrder("ord_1", "tt_1", "paper", "Paper", "sell", "66000", "0.2", "filled", "2026-06-28T01:10:00Z"),
+        overviewOrder("bo_1", "bt_1", "backtest", "Baseline", "buy", "65000", "0.1", "filled", "2026-06-28T01:03:30Z"),
+      ],
+      strategyIntents: [
+        overviewIntent("si_bt_1", "bt_1", "backtest", "Baseline", "accepted", "order", "simulate", "2026-06-28T01:09:00Z"),
+        overviewIntent("si_tt_1", "tt_1", "paper", "Paper", "accepted", "order", "execute", "2026-06-28T01:08:00Z"),
+      ],
+    });
     apiMocks.listNotifications.mockResolvedValue([
       {
         id: "nt_1",
@@ -131,11 +110,8 @@ describe("useOverviewWorkspace", () => {
     expect(systemApi.health).toHaveBeenCalledTimes(1);
     expect(dataApi.listTasks).toHaveBeenCalledTimes(1);
     expect(backtestsApi.listBacktests).toHaveBeenCalledTimes(1);
-    expect(backtestsApi.listIntents).toHaveBeenCalledTimes(2);
-    expect(backtestsApi.listOrders).toHaveBeenCalledTimes(2);
     expect(tradingApi.listTasks).toHaveBeenCalledTimes(1);
-    expect(tradingApi.listIntents).toHaveBeenCalledTimes(2);
-    expect(tradingApi.listOrders).toHaveBeenCalledTimes(2);
+    expect(overviewApi.recentFacts).toHaveBeenCalledTimes(1);
     expect(systemApi.listNotifications).toHaveBeenCalledTimes(1);
     expect(workspace.hasLoaded.value).toBe(true);
     expect(workspace.summaryCards.value.find((card) => card.key === "sync")?.value).toBe(3);
@@ -228,51 +204,37 @@ function task(id: string, status: string, updatedAt: string, overrides: Record<s
   };
 }
 
-function intent(id: string, taskId: string, taskType: string, status: string, intentType: string, policy: string, createdAt: string) {
+function overviewIntent(id: string, taskId: string, taskType: string, taskName: string, status: string, intentType: string, policy: string, createdAt: string) {
   return {
     id,
     taskId,
     taskType,
+    taskName,
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    interval: "1m",
     strategyId: "ema-cross",
     intentType,
-    idempotencyKey: `${taskId}:${id}`,
-    payload: { side: "buy" },
     policy,
     status,
     createdAt,
   };
 }
 
-function backtestOrder(id: string, backtestId: string, side: string, price: string, quantity: string, status: string, occurredAt: string) {
+function overviewOrder(id: string, taskId: string, taskType: string, taskName: string, side: string, price: string, quantity: string, status: string, occurredAt: string) {
   return {
     id,
-    backtestId,
+    taskId,
+    taskType,
+    taskName,
+    exchange: "binance",
+    symbol: "BTCUSDT",
+    interval: "1m",
     intentId: "si_bt_1",
     side,
     price,
     quantity,
     status,
     occurredAt,
-  };
-}
-
-function tradingOrder(id: string, taskId: string, side: string, price: string, quantity: string, status: string, createdAt: string) {
-  return {
-    id,
-    taskId,
-    taskType: "paper",
-    accountId: "paper",
-    exchange: "binance",
-    symbol: "BTCUSDT",
-    intentId: "si_tt_1",
-    idempotencyKey: `${taskId}:${id}`,
-    orderType: "market",
-    side,
-    price,
-    quantity,
-    status,
-    exchangeResponseSummary: {},
-    createdAt,
-    updatedAt: createdAt,
   };
 }

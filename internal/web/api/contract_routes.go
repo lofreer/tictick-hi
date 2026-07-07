@@ -24,6 +24,7 @@ func apiContractPaths() map[string]apiPathItem {
 	addAuthContractPaths(paths)
 	addDataContractPaths(paths)
 	addMarketContractPaths(paths)
+	addOverviewContractPaths(paths)
 	addStrategyContractPaths(paths)
 	addBacktestContractPaths(paths)
 	addTradingContractPaths(paths)
@@ -191,6 +192,14 @@ func marketInstrumentSyncResultSchema() map[string]any {
 			"syncedAt":                  map[string]any{"type": "string", "format": "date-time"},
 		},
 	}
+}
+
+func addOverviewContractPaths(paths map[string]apiPathItem) {
+	addOperation(paths, "/api/overview/recent-facts", http.MethodGet, operation(
+		"overview", "listOverviewRecentFacts", "List recent strategy intents and orders for overview", http.StatusOK, schemaRef("OverviewRecentFacts"),
+		withParameters(queryParam("limit", false, "Maximum facts per collection", map[string]any{"type": "integer", "minimum": 1, "maximum": data.MaxOverviewRecentFactLimit})),
+		withErrors(http.StatusBadRequest),
+	))
 }
 
 func addStrategyContractPaths(paths map[string]apiPathItem) {

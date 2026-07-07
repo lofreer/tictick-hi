@@ -32,6 +32,9 @@ import type {
   Operator as APIOperator,
   OperatorSession as APIOperatorSession,
   Order as APIOrder,
+  OverviewOrderFact as APIOverviewOrderFact,
+  OverviewRecentFacts as APIOverviewRecentFacts,
+  OverviewStrategyIntentFact as APIOverviewStrategyIntentFact,
   Position as APIPosition,
   RepairDataSyncInvalidIssuesRequest as APIRepairDataSyncInvalidIssuesRequest,
   RepairDataSyncTaskGapRequest as APIRepairDataSyncTaskGapRequest,
@@ -150,6 +153,12 @@ export type CreateTradingTask = Omit<APICreateTradingTask, "strategyParams" | "t
 };
 
 export type Order = APIOrder;
+
+export type OverviewOrderFact = APIOverviewOrderFact;
+
+export type OverviewRecentFacts = APIOverviewRecentFacts;
+
+export type OverviewStrategyIntentFact = APIOverviewStrategyIntentFact;
 
 export type Execution = APIExecution;
 

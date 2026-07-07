@@ -12,6 +12,8 @@ import (
 type fakeRepository struct {
 	backtestOrders     map[string][]data.BacktestOrder
 	backtestIntents    map[string][]data.StrategyIntent
+	tradingOrders      map[string][]data.Order
+	tradingIntents     map[string][]data.StrategyIntent
 	backtests          []data.BacktestTask
 	channels           []data.NotificationChannel
 	notifications      []data.Notification
@@ -56,6 +58,8 @@ func newFakeRepository() *fakeRepository {
 	repository := &fakeRepository{
 		backtestOrders:     map[string][]data.BacktestOrder{},
 		backtestIntents:    map[string][]data.StrategyIntent{},
+		tradingOrders:      map[string][]data.Order{},
+		tradingIntents:     map[string][]data.StrategyIntent{},
 		catalogPausedTasks: map[string]fakeCatalogPauseState{},
 		passwords:          map[string]string{},
 		sessions:           map[string]data.OperatorSession{},
@@ -301,12 +305,12 @@ func (repository *fakeRepository) SetTradingTaskStatus(
 	return data.TradingTask{}, data.ErrNotFound
 }
 
-func (repository *fakeRepository) ListTradingIntents(context.Context, string) ([]data.StrategyIntent, error) {
-	return nil, nil
+func (repository *fakeRepository) ListTradingIntents(_ context.Context, taskID string) ([]data.StrategyIntent, error) {
+	return append([]data.StrategyIntent(nil), repository.tradingIntents[taskID]...), nil
 }
 
-func (repository *fakeRepository) ListTradingOrders(context.Context, string) ([]data.Order, error) {
-	return nil, nil
+func (repository *fakeRepository) ListTradingOrders(_ context.Context, taskID string) ([]data.Order, error) {
+	return append([]data.Order(nil), repository.tradingOrders[taskID]...), nil
 }
 
 func (repository *fakeRepository) ListTradingExecutions(context.Context, string) ([]data.Execution, error) {

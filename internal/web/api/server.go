@@ -102,6 +102,8 @@ func (server *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		server.handleCandles(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/market"):
 		server.handleMarket(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/overview"):
+		server.handleOverview(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/strategies"):
 		server.handleStrategies(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/backtests"):

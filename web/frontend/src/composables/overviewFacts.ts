@@ -1,46 +1,29 @@
 import type { RouteLocationRaw } from "vue-router";
 import type { TagProps } from "naive-ui";
 
-import { backtestsApi } from "@/services/api/backtests";
-import { tradingApi } from "@/services/api/trading";
-import type { BacktestOrder, BacktestTask, Order, StrategyIntent, TradingTask } from "@/types/app";
-
-const overviewFactTaskLimit = 4;
+import { overviewApi } from "@/services/api/overview";
+import type { OverviewOrderFact as APIOverviewOrderFact, OverviewStrategyIntentFact as APIOverviewStrategyIntentFact } from "@/types/app";
 
 export type OverviewFactSource = "backtest" | "trading";
 
-export type OverviewIntentFact = {
-  intent: StrategyIntent;
+export type OverviewIntentFact = APIOverviewStrategyIntentFact & {
   market: string;
   source: OverviewFactSource;
-  taskName: string;
   to: RouteLocationRaw;
 };
 
-export type OverviewOrderFact = {
+export type OverviewOrderFact = APIOverviewOrderFact & {
   at: string;
-  id: string;
   market: string;
-  price: string;
-  quantity: string;
-  side: string;
   source: OverviewFactSource;
-  status: string;
-  taskName: string;
   to: RouteLocationRaw;
 };
 
-export async function loadOverviewFacts(backtests: BacktestTask[], tradingTasks: TradingTask[]) {
-  const [backtestIntents, backtestOrders, tradingIntents, tradingOrders] = await Promise.all([
-    loadBacktestIntentFacts(backtests),
-    loadBacktestOrderFacts(backtests),
-    loadTradingIntentFacts(tradingTasks),
-    loadTradingOrderFacts(tradingTasks),
-  ]);
-
+export async function loadOverviewFacts() {
+  const facts = await overviewApi.recentFacts();
   return {
-    orders: [...backtestOrders, ...tradingOrders],
-    strategyIntents: [...backtestIntents, ...tradingIntents],
+    orders: facts.orders.map(orderFact),
+    strategyIntents: facts.strategyIntents.map(intentFact),
   };
 }
 
@@ -51,93 +34,36 @@ export function overviewFactTagType(status: string): TagProps["type"] {
   return "default";
 }
 
-async function loadBacktestIntentFacts(tasks: BacktestTask[]) {
-  const results = await Promise.all(
-    recentFactTasks(tasks).map(async (task) =>
-      (await backtestsApi.listIntents(task.id)).map((intent) => ({
-        intent,
-        market: marketLabel(task),
-        source: "backtest" as const,
-        taskName: task.name,
-        to: { name: "backtests-detail", params: { id: task.id } },
-      })),
-    ),
-  );
-  return results.flat();
-}
-
-async function loadBacktestOrderFacts(tasks: BacktestTask[]) {
-  const results = await Promise.all(
-    recentFactTasks(tasks).map(async (task) =>
-      (await backtestsApi.listOrders(task.id)).map((order) => backtestOrderFact(task, order)),
-    ),
-  );
-  return results.flat();
-}
-
-async function loadTradingIntentFacts(tasks: TradingTask[]) {
-  const results = await Promise.all(
-    recentFactTasks(tasks).map(async (task) =>
-      (await tradingApi.listIntents(task.id)).map((intent) => ({
-        intent,
-        market: marketLabel(task),
-        source: "trading" as const,
-        taskName: task.name,
-        to: { name: "trading-detail", params: { id: task.id } },
-      })),
-    ),
-  );
-  return results.flat();
-}
-
-async function loadTradingOrderFacts(tasks: TradingTask[]) {
-  const results = await Promise.all(
-    recentFactTasks(tasks).map(async (task) =>
-      (await tradingApi.listOrders(task.id)).map((order) => tradingOrderFact(task, order)),
-    ),
-  );
-  return results.flat();
-}
-
-function recentFactTasks<T extends { createdAt?: string; updatedAt?: string }>(tasks: T[]) {
-  return [...tasks].sort((left, right) => timestamp(right.updatedAt ?? right.createdAt) - timestamp(left.updatedAt ?? left.createdAt)).slice(0, overviewFactTaskLimit);
-}
-
-function backtestOrderFact(task: BacktestTask, order: BacktestOrder): OverviewOrderFact {
+function intentFact(intent: APIOverviewStrategyIntentFact): OverviewIntentFact {
   return {
+    ...intent,
+    market: marketLabel(intent),
+    source: sourceFromTaskType(intent.taskType),
+    to: detailRoute(intent.taskType, intent.taskId),
+  };
+}
+
+function orderFact(order: APIOverviewOrderFact): OverviewOrderFact {
+  return {
+    ...order,
     at: order.occurredAt,
-    id: order.id,
-    market: marketLabel(task),
-    price: order.price,
-    quantity: order.quantity,
-    side: order.side,
-    source: "backtest",
-    status: order.status,
-    taskName: task.name,
-    to: { name: "backtests-detail", params: { id: task.id } },
+    market: marketLabel(order),
+    source: sourceFromTaskType(order.taskType),
+    to: detailRoute(order.taskType, order.taskId),
   };
 }
 
-function tradingOrderFact(task: TradingTask, order: Order): OverviewOrderFact {
-  return {
-    at: order.createdAt,
-    id: order.id,
-    market: marketLabel(task),
-    price: order.price,
-    quantity: order.quantity,
-    side: order.side,
-    source: "trading",
-    status: order.status,
-    taskName: task.name,
-    to: { name: "trading-detail", params: { id: task.id } },
-  };
+function sourceFromTaskType(taskType: string): OverviewFactSource {
+  return taskType === "backtest" ? "backtest" : "trading";
+}
+
+function detailRoute(taskType: string, taskID: string): RouteLocationRaw {
+  if (taskType === "backtest") {
+    return { name: "backtests-detail", params: { id: taskID } };
+  }
+  return { name: "trading-detail", params: { id: taskID } };
 }
 
 function marketLabel(item: { exchange: string; symbol: string; interval: string }) {
   return `${item.exchange} / ${item.symbol} / ${item.interval}`;
-}
-
-function timestamp(value?: string) {
-  const parsed = Date.parse(value ?? "");
-  return Number.isFinite(parsed) ? parsed : 0;
 }

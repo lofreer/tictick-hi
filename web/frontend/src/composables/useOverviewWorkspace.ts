@@ -151,12 +151,12 @@ export function useOverviewWorkspace() {
         }),
       ),
       ...strategyIntents.value.map((item) => ({
-        key: `intent-${item.intent.id}`,
+        key: `intent-${item.id}`,
         title: t("overview.strategyIntents"),
-        detail: `${sourceLabel(item.source)} / ${item.taskName} / ${item.market} / ${item.intent.intentType} / ${item.intent.policy}`,
-        status: item.intent.status,
-        statusType: overviewFactTagType(item.intent.status),
-        at: item.intent.createdAt,
+        detail: `${sourceLabel(item.source)} / ${item.taskName} / ${item.market} / ${item.intentType} / ${item.policy}`,
+        status: item.status,
+        statusType: overviewFactTagType(item.status),
+        at: item.createdAt,
         to: item.to,
       })),
       ...orders.value.map((item) => ({
@@ -194,7 +194,7 @@ export function useOverviewWorkspace() {
         tradingApi.listTasks(),
         systemApi.listNotifications(),
       ]);
-      const nextFacts = await loadOverviewFacts(nextBacktests, nextTradingTasks);
+      const nextFacts = await loadOverviewFacts();
       health.value = nextHealth;
       dataSyncTasks.value = nextSyncTasks;
       backtests.value = nextBacktests;

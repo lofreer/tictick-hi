@@ -67,6 +67,7 @@ func TestAPIContractCoversCurrentFrontendRoutes(t *testing.T) {
 		{http.MethodGet, "/api/market/instruments"},
 		{http.MethodGet, "/api/market/instruments/status"},
 		{http.MethodPost, "/api/market/instruments/sync"},
+		{http.MethodGet, "/api/overview/recent-facts"},
 		{http.MethodGet, "/api/strategies"},
 		{http.MethodGet, "/api/strategies/{id}"},
 		{http.MethodGet, "/api/backtests"},
