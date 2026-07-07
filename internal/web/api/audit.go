@@ -9,7 +9,10 @@ import (
 	"github.com/lofreer/tictick-hi/internal/data"
 )
 
-const defaultAuditEventLimit = 100
+const (
+	defaultAuditEventLimit = 100
+	maxAuditEventLimit     = 500
+)
 
 func (server *Server) recordAuditEvent(
 	r *http.Request,
@@ -66,6 +69,12 @@ func parseAuditLimit(r *http.Request) int {
 	limit, err := strconv.Atoi(value)
 	if err != nil {
 		return defaultAuditEventLimit
+	}
+	if limit <= 0 {
+		return defaultAuditEventLimit
+	}
+	if limit > maxAuditEventLimit {
+		return maxAuditEventLimit
 	}
 	return limit
 }

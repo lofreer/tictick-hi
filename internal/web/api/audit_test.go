@@ -77,6 +77,31 @@ func TestFailedLoginWritesAnonymousAuditEvent(t *testing.T) {
 	}
 }
 
+func TestParseAuditLimitNormalizesInvalidAndOversizedValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  int
+	}{
+		{name: "default", query: "", want: defaultAuditEventLimit},
+		{name: "invalid", query: "?limit=abc", want: defaultAuditEventLimit},
+		{name: "zero", query: "?limit=0", want: defaultAuditEventLimit},
+		{name: "negative", query: "?limit=-5", want: defaultAuditEventLimit},
+		{name: "valid", query: "?limit=25", want: 25},
+		{name: "max", query: "?limit=500", want: maxAuditEventLimit},
+		{name: "oversized", query: "?limit=501", want: maxAuditEventLimit},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/api/system/audit-events"+test.query, nil)
+			if got := parseAuditLimit(request); got != test.want {
+				t.Fatalf("parseAuditLimit() = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
 func assertAuditAction(t *testing.T, events []data.AuditEvent, action string, resourceType string, resourceID string) data.AuditEvent {
 	t.Helper()
 	for _, event := range events {
