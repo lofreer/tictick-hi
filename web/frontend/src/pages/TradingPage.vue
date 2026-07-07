@@ -14,9 +14,18 @@
     </header>
 
     <section class="surface trading-panel">
+      <div class="trading-panel__header">
+        <h2>{{ t("trading.tasks") }}</h2>
+        <NRadioGroup :value="statusFilter" size="small" :aria-label="t('trading.statusFilter')" @update:value="setStatusFilter">
+          <NRadioButton v-for="option in statusFilterOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </NRadioButton>
+        </NRadioGroup>
+      </div>
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :title="error" retryable @retry="loadTasks" />
       <EmptyState v-else-if="tasks.length === 0" :title="t('trading.noTasks')" />
+      <EmptyState v-else-if="filteredTasks.length === 0" :title="t('trading.noTasksForFilter')" />
       <div v-else class="trading-table-wrap">
         <table class="trading-table">
           <thead>
@@ -33,7 +42,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="task in tasks" :key="task.id">
+            <tr v-for="task in filteredTasks" :key="task.id">
               <td>
                 <RouterLink class="trading-table__name" :to="{ name: 'trading-detail', params: { id: task.id } }">
                   {{ task.name }}
@@ -85,10 +94,10 @@
 
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
-import { NButton, NSpace, NTag, useMessage } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { NButton, NRadioButton, NRadioGroup, NSpace, NTag, useMessage } from "naive-ui";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
@@ -96,18 +105,35 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import { tradingApi } from "@/services/api/trading";
 import type { TradingTask } from "@/types/app";
+import { taskMatchesStatusFilter, taskStatusFilterFromQuery, taskStatusQueryValue, type TaskStatusFilter } from "./taskStatusFilters";
 
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 const { t } = useI18n();
 const tasks = ref<TradingTask[]>([]);
 const loading = ref(false);
 const error = ref("");
 const actionID = ref("");
+const statusFilter = ref<TaskStatusFilter>(taskStatusFilterFromQuery(route.query.status));
+const statusFilterOptions = computed(() => [
+  { label: t("trading.status.all"), value: "all" },
+  { label: t("status.running"), value: "running" },
+  { label: t("status.failed"), value: "failed" },
+  { label: t("status.succeeded"), value: "succeeded" },
+]);
+const filteredTasks = computed(() => tasks.value.filter((task) => taskMatchesStatusFilter(task, statusFilter.value)));
 
 onMounted(() => {
   void loadTasks();
 });
+
+watch(
+  () => route.query.status,
+  (value) => {
+    statusFilter.value = taskStatusFilterFromQuery(value);
+  },
+);
 
 async function loadTasks() {
   loading.value = true;
@@ -162,6 +188,15 @@ function recentSummary(_task: TradingTask) {
   return "-";
 }
 
+async function setStatusFilter(value: string) {
+  statusFilter.value = taskStatusFilterFromQuery(value);
+  const nextQuery = { ...route.query };
+  const status = taskStatusQueryValue(statusFilter.value);
+  if (status) nextQuery.status = status;
+  else delete nextQuery.status;
+  await router.replace({ query: nextQuery });
+}
+
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -177,6 +212,27 @@ function errorMessage(loadError: unknown, fallback: string) {
 <style scoped>
 .trading-panel {
   overflow: hidden;
+}
+
+.trading-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.trading-panel__header h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.trading-panel__header :deep(.n-radio-button) {
+  min-width: 74px;
+  text-align: center;
 }
 
 .trading-table-wrap {

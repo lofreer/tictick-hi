@@ -14,9 +14,18 @@
     </header>
 
     <section class="surface backtests-panel">
+      <div class="backtests-panel__header">
+        <h2>{{ t("page.backtests.title") }}</h2>
+        <NRadioGroup :value="statusFilter" size="small" :aria-label="t('backtests.statusFilter')" @update:value="setStatusFilter">
+          <NRadioButton v-for="option in statusFilterOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </NRadioButton>
+        </NRadioGroup>
+      </div>
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :title="error" retryable @retry="loadBacktests" />
       <EmptyState v-else-if="tasks.length === 0" :title="t('backtests.noBacktests')" />
+      <EmptyState v-else-if="filteredTasks.length === 0" :title="t('backtests.noBacktestsForFilter')" />
       <div v-else class="backtests-table-wrap">
         <table class="backtests-table">
           <thead>
@@ -32,7 +41,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="task in tasks" :key="task.id">
+            <tr v-for="task in filteredTasks" :key="task.id">
               <td>
                 <RouterLink class="backtests-table__name" :to="{ name: 'backtests-detail', params: { id: task.id } }">
                   {{ task.name }}
@@ -60,10 +69,10 @@
 
 <script setup lang="ts">
 import { Plus } from "@lucide/vue";
-import { NButton } from "naive-ui";
-import { onMounted, ref } from "vue";
+import { NButton, NRadioButton, NRadioGroup } from "naive-ui";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
@@ -71,16 +80,33 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import StatusBadge from "@/components/common/StatusBadge.vue";
 import { backtestsApi } from "@/services/api/backtests";
 import type { BacktestTask } from "@/types/app";
+import { taskMatchesStatusFilter, taskStatusFilterFromQuery, taskStatusQueryValue, type TaskStatusFilter } from "./taskStatusFilters";
 
 const router = useRouter();
+const route = useRoute();
 const { t } = useI18n();
 const tasks = ref<BacktestTask[]>([]);
 const loading = ref(false);
 const error = ref("");
+const statusFilter = ref<TaskStatusFilter>(taskStatusFilterFromQuery(route.query.status));
+const statusFilterOptions = computed(() => [
+  { label: t("backtests.status.all"), value: "all" },
+  { label: t("status.running"), value: "running" },
+  { label: t("status.failed"), value: "failed" },
+  { label: t("status.succeeded"), value: "succeeded" },
+]);
+const filteredTasks = computed(() => tasks.value.filter((task) => taskMatchesStatusFilter(task, statusFilter.value)));
 
 onMounted(() => {
   void loadBacktests();
 });
+
+watch(
+  () => route.query.status,
+  (value) => {
+    statusFilter.value = taskStatusFilterFromQuery(value);
+  },
+);
 
 async function loadBacktests() {
   loading.value = true;
@@ -118,6 +144,15 @@ function resultSummary(summary: Record<string, unknown>) {
   return "-";
 }
 
+async function setStatusFilter(value: string) {
+  statusFilter.value = taskStatusFilterFromQuery(value);
+  const nextQuery = { ...route.query };
+  const status = taskStatusQueryValue(statusFilter.value);
+  if (status) nextQuery.status = status;
+  else delete nextQuery.status;
+  await router.replace({ query: nextQuery });
+}
+
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -133,6 +168,27 @@ function errorMessage(loadError: unknown, fallback: string) {
 <style scoped>
 .backtests-panel {
   overflow: hidden;
+}
+
+.backtests-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.backtests-panel__header h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.backtests-panel__header :deep(.n-radio-button) {
+  min-width: 74px;
+  text-align: center;
 }
 
 .backtests-table-wrap {

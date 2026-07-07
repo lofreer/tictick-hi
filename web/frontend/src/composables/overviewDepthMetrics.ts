@@ -81,7 +81,11 @@ function executionMetric(backtests: BacktestTask[], tradingTasks: TradingTask[],
     detail: t("overview.depth.executionDetail", { backtestFailed, live, running, tradingFailed }),
     statusLabel: statusLabel(statusType, t),
     statusType,
-    to: { name: "trading" },
+    to: tradingFailed > 0
+      ? { name: "trading", query: { status: "failed" } }
+      : backtestFailed > 0
+        ? { name: "backtests", query: { status: "failed" } }
+        : { name: "trading", query: { status: running > 0 ? "running" : "all" } },
   };
 }
 

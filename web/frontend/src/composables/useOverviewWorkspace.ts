@@ -112,7 +112,7 @@ export function useOverviewWorkspace() {
         failed: countStatus(backtests.value, "failed"),
         succeeded: countStatus(backtests.value, "succeeded"),
       }),
-      to: { name: "backtests" },
+      to: { name: "backtests", query: { status: countStatus(backtests.value, "failed") > 0 ? "failed" : "all" } },
     },
     {
       key: "trading",
@@ -123,7 +123,7 @@ export function useOverviewWorkspace() {
         paper: tradingTasks.value.filter((task) => task.type === "paper").length,
         live: tradingTasks.value.filter((task) => task.type === "live").length,
       }),
-      to: { name: "trading" },
+      to: { name: "trading", query: { status: countStatus(tradingTasks.value, "failed") > 0 ? "failed" : countStatus(tradingTasks.value, "running") > 0 ? "running" : "all" } },
     },
     {
       key: "notifications",
@@ -158,8 +158,8 @@ export function useOverviewWorkspace() {
     addCountAlert(items, "sync-failed", dataSyncTasks.value, "failed", t("overview.dataSync"), { name: "research" });
     addDataHealthAlert(items, "sync-gap", dataSyncTasks.value, "gap", t("overview.dataSync"), { name: "research" });
     addDataHealthAlert(items, "sync-invalid", dataSyncTasks.value, "invalid", t("overview.dataSync"), { name: "research" });
-    addCountAlert(items, "backtests-failed", backtests.value, "failed", t("overview.backtests"), { name: "backtests" });
-    addCountAlert(items, "trading-failed", tradingTasks.value, "failed", t("overview.tradingTasks"), { name: "trading" });
+    addCountAlert(items, "backtests-failed", backtests.value, "failed", t("overview.backtests"), { name: "backtests", query: { status: "failed" } });
+    addCountAlert(items, "trading-failed", tradingTasks.value, "failed", t("overview.tradingTasks"), { name: "trading", query: { status: "failed" } });
 
     const failedNotifications = notifications.value.filter((item) => item.status === "failed").length;
     if (failedNotifications > 0) {

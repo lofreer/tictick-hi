@@ -121,15 +121,15 @@ describe("useOverviewWorkspace", () => {
     expect(workspace.summaryCards.value.find((card) => card.key === "workers")?.detail).toContain("过期锁 1");
     expect(workspace.summaryCards.value.map((card) => ({ key: card.key, to: card.to }))).toEqual([
       { key: "sync", to: { name: "research" } },
-      { key: "backtests", to: { name: "backtests" } },
-      { key: "trading", to: { name: "trading" } },
+      { key: "backtests", to: { name: "backtests", query: { status: "failed" } } },
+      { key: "trading", to: { name: "trading", query: { status: "failed" } } },
       { key: "notifications", to: { name: "system-notifications", query: { status: "failed" } } },
       { key: "workers", to: { name: "system-health" } },
     ]);
     expect(workspace.depthMetrics.value.map((metric) => ({ key: metric.key, value: metric.value, statusType: metric.statusType, to: metric.to }))).toEqual([
       { key: "data-quality", value: "0/3", statusType: "error", to: { name: "research" } },
       { key: "automation", value: "1/3", statusType: "error", to: { name: "system-health" } },
-      { key: "execution", value: "1/4", statusType: "error", to: { name: "trading" } },
+      { key: "execution", value: "1/4", statusType: "error", to: { name: "trading", query: { status: "failed" } } },
       { key: "delivery", value: "0/1", statusType: "error", to: { name: "system-notifications", query: { status: "failed" } } },
     ]);
     expect(workspace.depthMetrics.value.find((metric) => metric.key === "data-quality")?.detail).toContain("缺口 1");
@@ -147,6 +147,14 @@ describe("useOverviewWorkspace", () => {
     ]);
     expect(workspace.alerts.value.find((alert) => alert.key === "notifications-failed")?.to).toEqual({
       name: "system-notifications",
+      query: { status: "failed" },
+    });
+    expect(workspace.alerts.value.find((alert) => alert.key === "backtests-failed")?.to).toEqual({
+      name: "backtests",
+      query: { status: "failed" },
+    });
+    expect(workspace.alerts.value.find((alert) => alert.key === "trading-failed")?.to).toEqual({
+      name: "trading",
       query: { status: "failed" },
     });
     expect(workspace.recentActivities.value.slice(0, 4).map((activity) => activity.key)).toEqual([
