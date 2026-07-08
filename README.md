@@ -86,7 +86,7 @@ The default local operator comes from `.env`:
 
 ```text
 username: admin
-password: tictick-local-admin-password
+password: tictick-local-ops-2026
 ```
 
 The Compose stack runs:

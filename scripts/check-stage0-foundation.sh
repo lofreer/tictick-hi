@@ -70,6 +70,10 @@ check_rg '^scaffold$' "README.md" "README must keep the current overall project 
 check_rg 'docs/ai-delivery-protocol.md' "README.md" "README must link the AI delivery protocol"
 check_rg 'docs/quality-audit.md' "README.md" "README must link the quality audit"
 check_rg 'docs/implementation-plan.md' "README.md" "README must link the implementation plan"
+check_rg 'tictick-local-ops-2026' "README.md" "README must document the password-policy-compliant local operator password"
+check_rg 'BOOTSTRAP_OPERATOR_PASSWORD=tictick-local-ops-2026' ".env.example" ".env.example must keep the password-policy-compliant local operator password"
+check_no_rg 'password: tictick-local-admin-password|BOOTSTRAP_OPERATOR_PASSWORD=tictick-local-admin-password' "old local operator password must not return to local runbook config because it violates the password policy" "README.md" ".env.example"
+check_no_rg '"tictick-local-admin-password"' "old local operator password must not return to browser smoke defaults because it violates the password policy" "scripts/research-chart-height-smoke.mjs" "scripts/stage8-state-visual-smoke.mjs" "scripts/stage8-visual-smoke.mjs"
 check_rg 'tictick-hi 当前是 scaffold' "docs/quality-audit.md" "quality audit must keep the current overall project status as scaffold"
 check_rg '### 阶段 0 Definition of Done：质量底座' "docs/quality-audit.md" "quality audit must keep the stage 0 Definition of Done"
 
