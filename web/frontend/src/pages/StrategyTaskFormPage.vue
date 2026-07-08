@@ -56,28 +56,13 @@
                   <NDatePicker v-model:value="form.endTime" class="task-control" type="datetime" clearable />
                 </NFormItem>
                 <NFormItem :label="t('strategy.initialBalance')">
-                  <NInputNumber
-                    v-model:value="form.initialBalance"
-                    class="task-control"
-                    :min="0"
-                    :step="100"
-                  />
+                <NInputNumber v-model:value="form.initialBalance" class="task-control" :min="0" :step="100" />
                 </NFormItem>
                 <NFormItem :label="t('strategy.feeBps')">
-                  <NInputNumber
-                    v-model:value="form.feeBps"
-                    class="task-control"
-                    :min="0"
-                    :step="0.1"
-                  />
+                <NInputNumber v-model:value="form.feeBps" class="task-control" :min="0" :step="0.1" />
                 </NFormItem>
                 <NFormItem :label="t('strategy.slippageBps')">
-                  <NInputNumber
-                    v-model:value="form.slippageBps"
-                    class="task-control"
-                    :min="0"
-                    :step="0.1"
-                  />
+                <NInputNumber v-model:value="form.slippageBps" class="task-control" :min="0" :step="0.1" />
                 </NFormItem>
                 <NFormItem :label="t('strategy.triggerMode')">
                   <NSelect v-model:value="form.triggerMode" class="task-control" :options="triggerModeOptions" />
@@ -335,18 +320,21 @@ function orderIntentLabel(value: string) {
 
 .task-form-panel,
 .task-summary {
-  padding: 16px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tt-surface-raised) 54%, transparent), transparent 130px),
+    var(--tt-surface);
 }
 
 .task-form-section + .task-form-section {
-  margin-top: 18px;
-  padding-top: 18px;
+  margin-top: 20px;
+  padding-top: 20px;
   border-top: 1px solid var(--tt-line);
 }
 
 .task-section-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
@@ -354,6 +342,7 @@ function orderIntentLabel(value: string) {
 
 .task-section-title {
   margin: 0;
+  color: var(--tt-ink);
   font-size: 16px;
   font-weight: 720;
   line-height: 1.35;
@@ -362,7 +351,7 @@ function orderIntentLabel(value: string) {
 .task-field-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: 0 14px;
+  gap: 2px 14px;
 }
 
 .task-control {
@@ -376,13 +365,14 @@ function orderIntentLabel(value: string) {
 .task-summary {
   position: sticky;
   top: 88px;
+  border-left: 3px solid var(--tt-primary);
 }
 
 .task-summary__list {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 10px 12px;
-  margin: 12px 0 0;
+  margin: 14px 0 0;
 }
 
 .task-summary__list dt,
@@ -430,6 +420,25 @@ function orderIntentLabel(value: string) {
 @media (max-width: 760px) {
   .task-field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .task-form-panel,
+  .task-summary {
+    padding: 14px;
+  }
+
+  .task-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-summary {
+    border-left: 0;
+    border-top: 3px solid var(--tt-primary);
+  }
+
+  .task-summary__list {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
   }
 }
 </style>

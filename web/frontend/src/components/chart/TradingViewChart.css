@@ -100,3 +100,24 @@
   place-items: center;
   pointer-events: none;
 }
+
+@media (max-width: 640px) {
+  .trading-chart__readout {
+    top: 8px;
+    left: 8px;
+    flex-wrap: wrap;
+    gap: 2px 7px;
+    max-width: calc(100% - 16px);
+    padding: 4px 7px;
+    white-space: normal;
+    overflow: hidden;
+  }
+
+  .trading-chart__readout span {
+    white-space: nowrap;
+  }
+
+  .trading-chart__readout-time {
+    flex: 1 0 100%;
+  }
+}

@@ -290,7 +290,10 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtest-side-section {
   min-width: 0;
-  padding: 16px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tt-surface-raised) 52%, transparent), transparent 110px),
+    var(--tt-surface);
 }
 
 .backtest-summary-panel {
@@ -300,6 +303,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 .backtest-detail-tabs {
   min-height: 380px;
   align-self: stretch;
+  overflow: hidden;
 }
 
 .backtest-side-section h2 {
@@ -314,6 +318,9 @@ function errorMessage(loadError: unknown, fallback: string) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--tt-line);
 }
 
 .backtest-summary-list {
@@ -341,54 +348,27 @@ function errorMessage(loadError: unknown, fallback: string) {
   text-align: right;
 }
 
-.intents-list,
-.orders-list {
-  display: grid;
-  gap: 10px;
-  max-height: min(560px, 54vh);
-  max-height: min(560px, 54dvh);
-  overflow: auto;
-  padding-right: 4px;
-  padding-top: 12px;
-}
-
-.intents-list__item,
-.orders-list__item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 4px 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--tt-line);
-}
-
-.intents-list__item:last-child,
-.orders-list__item:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.intents-list__item strong,
-.intents-list__item span,
-.orders-list__item strong,
-.orders-list__item span {
-  display: block;
-  min-width: 0;
-  line-height: 1.45;
-}
-
-.intents-list__item span,
-.orders-list__item span {
-  color: var(--tt-muted);
-  font-size: 12px;
-}
-
-.orders-list__item .n-text {
-  grid-column: 2;
+.backtest-detail-tabs :deep(.n-tabs-nav) {
+  margin-bottom: 4px;
 }
 
 @media (max-width: 980px) {
   .backtest-detail-lower-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .backtest-side-section {
+    padding: 14px;
+  }
+
+  .backtest-side-section__heading {
+    align-items: flex-start;
+  }
+
+  .backtest-summary-list {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
   }
 }
 </style>

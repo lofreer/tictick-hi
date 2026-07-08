@@ -163,6 +163,7 @@ a {
   font-size: 28px;
   line-height: 1.2;
   font-weight: 780;
+  overflow-wrap: anywhere;
 }
 
 .page-subtitle {
@@ -237,6 +238,118 @@ a {
   padding: 32px;
   color: var(--tt-muted);
   text-align: center;
+}
+
+.page .surface.system-panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tt-surface-raised) 42%, transparent) 0, transparent 92px),
+    var(--tt-surface);
+}
+
+.page .surface .system-panel__header {
+  padding: 16px 16px 0;
+  margin-bottom: 12px;
+}
+
+.page .surface .system-panel__header h2 {
+  color: var(--tt-ink);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.page .surface .system-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  box-shadow: inset -18px 0 18px -18px color-mix(in srgb, var(--tt-muted) 48%, transparent);
+  overscroll-behavior-inline: contain;
+  scrollbar-color: color-mix(in srgb, var(--tt-muted) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.page .surface .system-table-wrap::after {
+  position: sticky;
+  right: 0;
+  display: block;
+  float: right;
+  width: 18px;
+  height: 1px;
+  margin-top: -1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tt-surface) 94%, transparent));
+  content: "";
+  pointer-events: none;
+}
+
+.page .surface .system-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.page .surface .system-table th,
+.page .surface .system-table td {
+  padding: 13px 14px;
+  border-bottom-color: color-mix(in srgb, var(--tt-line) 82%, transparent);
+  vertical-align: middle;
+}
+
+.page .surface .system-table th:first-child,
+.page .surface .system-table td:first-child {
+  padding-left: 16px;
+}
+
+.page .surface .system-table th:last-child,
+.page .surface .system-table td:last-child {
+  padding-right: 16px;
+}
+
+.page .surface .system-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--tt-surface-raised) 84%, var(--tt-surface));
+  color: var(--tt-muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.page .surface .system-table tbody tr {
+  transition: background 0.14s ease;
+}
+
+.page .surface .system-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--tt-surface-raised) 32%, transparent);
+}
+
+.page .surface .system-table tbody tr:hover {
+  background: color-mix(in srgb, var(--tt-primary-soft) 42%, transparent);
+}
+
+.page .surface .system-table td {
+  color: var(--tt-text);
+}
+
+.page .surface .system-table__muted,
+.page .surface .system-table__error {
+  max-width: min(34ch, 100%);
+}
+
+.page .surface .system-table td .n-space {
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.page .surface .system-table .n-button {
+  font-weight: 660;
+}
+
+.page .surface .system-table .n-tag {
+  font-weight: 680;
+}
+
+.system-modal {
+  border-radius: 8px;
 }
 
 @media (max-width: 980px) {
@@ -346,7 +459,8 @@ a {
   }
 
   .page-title {
-    font-size: 24px;
+    font-size: 22px;
+    line-height: 1.22;
   }
 
   .page-subtitle {
@@ -356,5 +470,25 @@ a {
 
   .app-main {
     padding: 20px 12px 28px;
+  }
+
+  .page .surface .system-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px 12px 0;
+  }
+
+  .page .surface .system-panel__header .n-radio-group { width: 100%; }
+  .page .surface .system-panel__header .n-radio-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .page .surface .system-table { min-width: 840px; }
+  .page .surface .system-table.system-table--wide { min-width: 980px; }
+
+  .page .surface .system-table th,
+  .page .surface .system-table td {
+    padding: 11px 12px;
+    font-size: 12px;
   }
 }
