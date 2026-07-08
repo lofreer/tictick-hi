@@ -35,7 +35,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(tasksStyle).toContain("width: 100%;");
     expect(tasksStyle).toContain("max-width: 100%;");
     expect(tasksStyle).toContain("min-width: 0;");
-    expect(tasksStyle).toContain("max-height: clamp(156px, 18vh, 188px);");
+    expect(tasksStyle).toContain("max-height: clamp(176px, 21vh, 232px);");
     expect(tasksStyle).toContain("overflow: auto;");
     expect(tasksStyle).toContain("overscroll-behavior: contain;");
     expect(tasksStyle).not.toContain("overflow: hidden;");
@@ -78,7 +78,7 @@ describe("ResearchPage chart layout contract", () => {
     expect(frameViewportChartStyle).toContain("width: 100%;");
     expect(toolbarStyle).toContain("display: grid;");
     expect(toolbarStyle).toContain("grid-template-columns: max-content minmax(0, 1fr);");
-    expect(toolbarStyle).toContain("padding: 7px 12px;");
+    expect(toolbarStyle).toContain("padding: 9px 12px;");
     expect(toolbarStyle).toContain("overflow: hidden;");
     expect(controlsStyle).toContain("display: grid;");
     expect(controlsStyle).toContain("grid-template-columns: 96px 96px 28px 52px max-content;");

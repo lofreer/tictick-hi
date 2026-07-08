@@ -66,3 +66,30 @@ async function submit() {
   }
 }
 </script>
+
+<style scoped>
+.login-panel {
+  background:
+    linear-gradient(180deg, var(--tt-surface) 0, color-mix(in srgb, var(--tt-surface-raised) 72%, var(--tt-surface)) 100%),
+    var(--tt-surface);
+}
+
+.login-panel :deep(.n-card__content) {
+  padding: 26px;
+}
+
+.login-panel :deep(.n-alert) {
+  border: 1px solid var(--tt-line-soft);
+  background: var(--tt-surface-subtle);
+}
+
+.login-panel :deep(.n-button) {
+  min-height: 38px;
+}
+
+@media (max-width: 620px) {
+  .login-panel :deep(.n-card__content) {
+    padding: 22px;
+  }
+}
+</style>

@@ -3,12 +3,12 @@ import type { GlobalThemeOverrides } from "naive-ui";
 import type { ThemeMode } from "@/types/app";
 
 export const appColors = {
-  gold: "#f0b90b",
-  goldDark: "#c09409",
-  success: "#0ecb81",
-  danger: "#f6465d",
-  warning: "#f7a600",
-  info: "#848e9c",
+  gold: "#e8a700",
+  goldDark: "#ad7a00",
+  success: "#0f9f6e",
+  danger: "#d93a4a",
+  warning: "#e88700",
+  info: "#246b8f",
 };
 
 export const chartAxisFontSize = 13;
@@ -22,9 +22,9 @@ export const chartRightPriceScaleWidth = {
 export const themeOverrides: GlobalThemeOverrides = {
   common: {
     primaryColor: appColors.gold,
-    primaryColorHover: "#f2c53d",
+    primaryColorHover: "#f0b90b",
     primaryColorPressed: appColors.goldDark,
-    primaryColorSuppl: "#f5d165",
+    primaryColorSuppl: "#f4c542",
     successColor: appColors.success,
     warningColor: appColors.warning,
     errorColor: appColors.danger,
@@ -40,9 +40,15 @@ export const themeOverrides: GlobalThemeOverrides = {
   },
   Card: {
     borderRadius: "8px",
+    paddingMedium: "24px",
   },
   DataTable: {
     thFontWeight: "650",
+    thColor: "var(--tt-surface-raised)",
+    tdColorHover: "var(--tt-surface-raised)",
+  },
+  Tag: {
+    borderRadius: "6px",
   },
 };
 

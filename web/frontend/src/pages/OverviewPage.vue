@@ -198,7 +198,12 @@ async function refreshOverview() {
 }
 
 .overview-banner {
-  padding: 16px;
+  padding: 18px 20px;
+  border-color: color-mix(in srgb, var(--tt-primary) 38%, var(--tt-line));
+  background:
+    linear-gradient(90deg, var(--tt-primary-soft) 0, color-mix(in srgb, var(--tt-surface) 94%, var(--tt-primary-soft)) 42%, var(--tt-surface) 100%),
+    var(--tt-surface);
+  color: var(--tt-text);
 }
 
 .overview-banner h2,
@@ -211,7 +216,7 @@ async function refreshOverview() {
 
 .overview-banner p {
   margin: 6px 0 0;
-  color: var(--tt-muted);
+  color: var(--tt-text-soft);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -219,7 +224,7 @@ async function refreshOverview() {
 .overview-metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .overview-metric,
@@ -230,15 +235,36 @@ async function refreshOverview() {
 .overview-metric {
   min-width: 0;
   position: relative;
+  min-height: 112px;
   color: inherit;
   text-decoration: none;
+  background:
+    linear-gradient(180deg, var(--tt-surface) 0, color-mix(in srgb, var(--tt-surface-raised) 72%, var(--tt-surface)) 100%),
+    var(--tt-surface);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
+.overview-metric::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 8px 8px 0 0;
+  background: var(--metric-accent, var(--tt-primary));
+  content: "";
+}
+
+.overview-metric:nth-child(1) { --metric-accent: var(--tt-info); }
+.overview-metric:nth-child(2) { --metric-accent: var(--tt-success); }
+.overview-metric:nth-child(3) { --metric-accent: var(--tt-primary); }
+.overview-metric:nth-child(4) { --metric-accent: var(--tt-danger); }
+.overview-metric:nth-child(5) { --metric-accent: var(--tt-warning); }
+
 .overview-metric:hover,
 .overview-metric:focus-visible {
-  border-color: var(--tt-primary);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-primary) 36%, transparent);
+  border-color: color-mix(in srgb, var(--metric-accent, var(--tt-primary)) 58%, var(--tt-line));
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--metric-accent, var(--tt-primary)) 14%, transparent);
 }
 
 .overview-metric:focus-visible {
@@ -250,12 +276,12 @@ async function refreshOverview() {
   position: absolute;
   top: 14px;
   right: 14px;
-  color: var(--tt-muted);
+  color: color-mix(in srgb, var(--metric-accent, var(--tt-primary)) 72%, var(--tt-muted));
 }
 
 .overview-metric:hover .overview-metric__icon,
 .overview-metric:focus-visible .overview-metric__icon {
-  color: var(--tt-primary);
+  color: var(--metric-accent, var(--tt-primary));
 }
 
 .overview-metric span,
@@ -271,9 +297,9 @@ async function refreshOverview() {
 
 .overview-metric strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 10px;
   padding-right: 24px;
-  font-size: 26px;
+  font-size: 28px;
   line-height: 1.1;
 }
 
@@ -292,11 +318,14 @@ async function refreshOverview() {
 .overview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .overview-panel {
   min-width: 0;
+  background:
+    linear-gradient(180deg, var(--tt-surface) 0, color-mix(in srgb, var(--tt-surface-raised) 56%, var(--tt-surface)) 100%),
+    var(--tt-surface);
 }
 
 .overview-panel--wide {

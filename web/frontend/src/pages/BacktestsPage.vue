@@ -168,6 +168,9 @@ function errorMessage(loadError: unknown, fallback: string) {
 <style scoped>
 .backtests-panel {
   overflow: hidden;
+  background:
+    linear-gradient(180deg, var(--tt-surface) 0, color-mix(in srgb, var(--tt-surface-raised) 48%, var(--tt-surface)) 100%),
+    var(--tt-surface);
 }
 
 .backtests-panel__header {
@@ -176,7 +179,9 @@ function errorMessage(loadError: unknown, fallback: string) {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 14px;
+  padding: 16px 16px 14px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--tt-line);
 }
 
 .backtests-panel__header h2 {
@@ -193,6 +198,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtests-table-wrap {
   overflow-x: auto;
+  background: var(--tt-surface);
 }
 
 .backtests-table {
@@ -203,7 +209,7 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtests-table th,
 .backtests-table td {
-  padding: 12px 14px;
+  padding: 13px 14px;
   border-bottom: 1px solid var(--tt-line);
   font-size: 13px;
   line-height: 1.5;
@@ -212,8 +218,24 @@ function errorMessage(loadError: unknown, fallback: string) {
 }
 
 .backtests-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--tt-surface-raised);
   color: var(--tt-muted);
   font-weight: 720;
+}
+
+.backtests-table tbody tr {
+  transition: background 0.14s ease;
+}
+
+.backtests-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--tt-surface-raised) 42%, transparent);
+}
+
+.backtests-table tbody tr:hover {
+  background: color-mix(in srgb, var(--tt-primary-soft) 46%, var(--tt-surface));
 }
 
 .backtests-table tbody tr:last-child td {
@@ -222,7 +244,9 @@ function errorMessage(loadError: unknown, fallback: string) {
 
 .backtests-table__name {
   display: inline-flex;
+  max-width: 260px;
   margin-right: 8px;
+  overflow-wrap: anywhere;
   font-weight: 720;
 }
 

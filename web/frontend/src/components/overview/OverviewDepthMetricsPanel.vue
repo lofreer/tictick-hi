@@ -43,8 +43,11 @@ const { t } = useI18n();
 .overview-depth-panel {
   display: grid;
   min-width: 0;
-  padding: 16px;
-  gap: 14px;
+  padding: 18px;
+  gap: 16px;
+  background:
+    linear-gradient(180deg, var(--tt-surface) 0, color-mix(in srgb, var(--tt-surface-raised) 58%, var(--tt-surface)) 100%),
+    var(--tt-surface);
 }
 
 .overview-depth-panel__header,
@@ -72,7 +75,7 @@ const { t } = useI18n();
   position: relative;
   min-width: 0;
   min-height: 128px;
-  padding: 12px 36px 12px 0;
+  padding: 14px 36px 12px 0;
   border-top: 1px solid var(--tt-line);
   color: inherit;
   text-decoration: none;
@@ -85,7 +88,7 @@ const { t } = useI18n();
 
 .overview-depth-metric:hover,
 .overview-depth-metric:focus-visible {
-  color: var(--tt-primary);
+  color: var(--tt-primary-strong);
 }
 
 .overview-depth-metric:focus-visible {

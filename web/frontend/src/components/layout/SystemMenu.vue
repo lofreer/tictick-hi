@@ -4,7 +4,7 @@
       <template #icon>
         <Settings :size="17" />
       </template>
-      {{ t("nav.system") }}
+      <span class="header-tool__label">{{ t("nav.system") }}</span>
       <ChevronDown :size="15" />
     </NButton>
   </NDropdown>

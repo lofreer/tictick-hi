@@ -157,7 +157,7 @@ describe("useResearchWorkspace", () => {
         time: utcSeconds("2026-06-28T00:03:00Z"),
         position: "aboveBar",
         shape: "square",
-        color: "#f7a600",
+        color: "#e88700",
         text: "缺 2 根",
         size: 1.1,
       },

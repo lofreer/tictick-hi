@@ -3,7 +3,7 @@
     <template #icon>
       <UserRound :size="18" />
     </template>
-    {{ authStore.operatorName || t("auth.account") }}
+    <span class="header-tool__label">{{ authStore.operatorName || t("auth.account") }}</span>
   </NButton>
 </template>
 

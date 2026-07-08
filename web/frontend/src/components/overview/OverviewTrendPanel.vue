@@ -64,8 +64,11 @@ const { t } = useI18n();
 .overview-trend-panel {
   display: grid;
   min-width: 0;
-  padding: 16px;
-  gap: 14px;
+  padding: 18px;
+  gap: 16px;
+  background:
+    linear-gradient(180deg, var(--tt-surface) 0, color-mix(in srgb, var(--tt-surface-raised) 58%, var(--tt-surface)) 100%),
+    var(--tt-surface);
 }
 
 .overview-trend-panel__header,
@@ -124,7 +127,7 @@ const { t } = useI18n();
   position: relative;
   height: 104px;
   overflow: hidden;
-  border: 1px solid var(--tt-line);
+  border: 1px solid var(--tt-line-soft);
   border-radius: 6px;
   background: color-mix(in srgb, var(--tt-surface-raised) 82%, transparent);
 }
@@ -140,7 +143,7 @@ const { t } = useI18n();
 
 .overview-trend__bar-total {
   height: var(--total-pct);
-  background: color-mix(in srgb, var(--tt-primary) 62%, transparent);
+  background: linear-gradient(180deg, var(--tt-primary) 0, color-mix(in srgb, var(--tt-primary) 56%, var(--tt-info)) 100%);
 }
 
 .overview-trend__bar-failure {

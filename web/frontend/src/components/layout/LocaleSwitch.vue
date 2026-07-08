@@ -5,7 +5,7 @@
         <template #icon>
           <Languages :size="18" />
         </template>
-        {{ localeStore.locale === "zh-CN" ? "EN" : "中" }}
+        <span class="header-tool__label">{{ localeStore.locale === "zh-CN" ? "EN" : "中" }}</span>
       </NButton>
     </template>
     {{ t("common.language") }}
